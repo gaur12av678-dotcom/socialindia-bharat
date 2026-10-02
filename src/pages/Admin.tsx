@@ -23,11 +23,23 @@ import {
   ExternalLink,
   ChevronRight,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  Cloud,
+  Database,
+  Save,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  Key,
+  Folder,
+  Server,
+  HelpCircle,
+  Info,
+  Loader2
 } from 'lucide-react';
 import { formatViews, formatTimeAgo, getInitials } from '../utils/videoUtils';
 
-type AdminSection = 'dashboard' | 'users' | 'videos' | 'reports' | 'feedback';
+type AdminSection = 'dashboard' | 'users' | 'videos' | 'reports' | 'feedback' | 'storage';
 
 export const AdminPanel: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -42,6 +54,15 @@ export const AdminPanel: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
+
+  // Global Cloud Storage Settings State
+  const [cloudName, setCloudName] = useState('');
+  const [uploadPreset, setUploadPreset] = useState('');
+  const [storageUpdatedAt, setStorageUpdatedAt] = useState<string | undefined>();
+  const [isSavingStorage, setIsSavingStorage] = useState(false);
+  const [isTestingStorage, setIsTestingStorage] = useState(false);
+  const [storageTestStatus, setStorageTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [storageTestMessage, setStorageTestMessage] = useState('');
 
   // Security Check: Only admins allowed
   useEffect(() => {
@@ -59,20 +80,86 @@ export const AdminPanel: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [u, v, r, f] = await Promise.all([
+      const [u, v, r, f, s] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getAllVideos(),
         adminService.getAllReports(),
-        feedbackService.getAllFeedback()
+        feedbackService.getAllFeedback(),
+        adminService.getStorageConfig()
       ]);
       setUsers(u);
       setVideos(v);
       setReports(r);
       setFeedback(f);
+      if (s) {
+        setCloudName(s.cloudName || '');
+        setUploadPreset(s.uploadPreset || '');
+        setStorageUpdatedAt(s.updatedAt);
+      }
     } catch (err) {
       addToast('Failed to load administrative data.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveStorage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!cloudName.trim() || !uploadPreset.trim()) {
+      addToast('Please enter both Cloud Name and Upload Preset.', 'error');
+      return;
+    }
+    setIsSavingStorage(true);
+    try {
+      await adminService.saveStorageConfig(cloudName.trim(), uploadPreset.trim());
+      setStorageUpdatedAt(new Date().toISOString());
+      addToast('Global cloud storage configuration saved! All users will now upload using these credentials.', 'success');
+    } catch (err) {
+      addToast('Failed to save cloud storage configuration.', 'error');
+    } finally {
+      setIsSavingStorage(false);
+    }
+  };
+
+  const handleTestStorageConnection = async () => {
+    if (!cloudName.trim() || !uploadPreset.trim()) {
+      addToast('Please enter both Cloud Name and Upload Preset to test.', 'error');
+      return;
+    }
+    setIsTestingStorage(true);
+    setStorageTestStatus('idle');
+    setStorageTestMessage('');
+
+    try {
+      // Test Cloudinary endpoint reachability
+      const testFormData = new FormData();
+      testFormData.append('upload_preset', uploadPreset.trim());
+      // 1x1 transparent GIF base64 as tiny test payload
+      testFormData.append('file', 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName.trim()}/image/upload`, {
+        method: 'POST',
+        body: testFormData
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setStorageTestStatus('success');
+        setStorageTestMessage(`Connection verified! Successfully uploaded test asset to "${cloudName.trim()}".`);
+        addToast('Cloudinary connection test successful!', 'success');
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        const errMsg = errJson?.error?.message || `HTTP status ${res.status}`;
+        setStorageTestStatus('error');
+        setStorageTestMessage(`Cloudinary responded with error: ${errMsg}. Please ensure the preset is set to 'Unsigned'.`);
+        addToast(`Test failed: ${errMsg}`, 'error');
+      }
+    } catch (err: any) {
+      setStorageTestStatus('error');
+      setStorageTestMessage(`Network error connecting to Cloudinary: ${err?.message || 'Check your internet connection and Cloud Name.'}`);
+      addToast('Network error testing Cloudinary connection.', 'error');
+    } finally {
+      setIsTestingStorage(false);
     }
   };
 
@@ -215,6 +302,21 @@ export const AdminPanel: React.FC = () => {
               <span className="bg-indigo-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
                 {feedback.filter(f => f.status === 'pending').length}
               </span>
+            )}
+          </div>
+        </button>
+
+        <button 
+          onClick={() => setActiveSection('storage')}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'storage' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+        >
+          <Cloud className="w-5 h-5" />
+          <div className="flex-1 flex justify-between items-center">
+            <span>Cloud Storage</span>
+            {cloudName && uploadPreset ? (
+              <span className="w-2 h-2 rounded-full bg-emerald-500" title="Configured" />
+            ) : (
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Setup needed" />
             )}
           </div>
         </button>
@@ -570,6 +672,175 @@ export const AdminPanel: React.FC = () => {
                     <p className="text-xs text-slate-400">No feedback or help requests yet.</p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* CLOUD STORAGE MANAGEMENT SECTION */}
+            {activeSection === 'storage' && (
+              <div className="space-y-6 max-w-4xl">
+                {/* Status Card */}
+                <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-8 shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-[#272727]">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center border border-blue-100 dark:border-blue-900/50 shadow-sm">
+                        <Cloud className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white">Cloud Storage & CDN Settings</h3>
+                        <p className="text-xs text-slate-500 font-medium">Global Cloudinary credentials for all platform video and thumbnail uploads.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {cloudName && uploadPreset ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Active & Configured</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40">
+                          <AlertCircle className="w-4 h-4" />
+                          <span>Setup Required</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Form */}
+                  <form onSubmit={handleSaveStorage} className="pt-6 space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <Key className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Cloud Name *</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. dxyz12345"
+                          value={cloudName}
+                          onChange={(e) => setCloudName(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition-all"
+                          required
+                        />
+                        <p className="text-[10px] text-slate-400 font-medium mt-1.5">
+                          Found in Cloudinary Dashboard home screen.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <Folder className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Upload Preset (Unsigned) *</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. socialindia_preset"
+                          value={uploadPreset}
+                          onChange={(e) => setUploadPreset(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition-all"
+                          required
+                        />
+                        <p className="text-[10px] text-slate-400 font-medium mt-1.5">
+                          Must be configured with Signing Mode = "Unsigned".
+                        </p>
+                      </div>
+                    </div>
+
+                    {storageUpdatedAt && (
+                      <p className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Last updated by admin on: {new Date(storageUpdatedAt).toLocaleString()}</span>
+                      </p>
+                    )}
+
+                    {/* Test Result Message */}
+                    {storageTestStatus !== 'idle' && (
+                      <div className={`p-4 rounded-2xl text-xs font-bold flex items-start gap-3 border ${
+                        storageTestStatus === 'success'
+                          ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                      }`}>
+                        {storageTestStatus === 'success' ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                        )}
+                        <div>
+                          <p className="font-black">{storageTestStatus === 'success' ? 'Verification Passed' : 'Verification Failed'}</p>
+                          <p className="text-[11px] font-medium mt-0.5">{storageTestMessage}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                      <button
+                        type="submit"
+                        disabled={isSavingStorage}
+                        className="w-full sm:w-auto px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-2xl transition-all shadow-lg shadow-blue-600/20 active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingStorage ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        <span>Save Global Storage Settings</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleTestStorageConnection}
+                        disabled={isTestingStorage || !cloudName.trim() || !uploadPreset.trim()}
+                        className="w-full sm:w-auto px-6 py-3.5 bg-slate-100 dark:bg-[#1f1f1f] hover:bg-slate-200 dark:hover:bg-[#2a2a2a] text-slate-800 dark:text-slate-200 text-xs font-black rounded-2xl transition-all border border-slate-200 dark:border-[#333] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      >
+                        {isTestingStorage ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4" />
+                        )}
+                        <span>Test Connection</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Free Setup Guide */}
+                <div className="bg-slate-50 dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-7 space-y-4">
+                  <div className="flex items-center gap-2.5 text-slate-900 dark:text-white">
+                    <HelpCircle className="w-5 h-5 text-blue-600" />
+                    <h4 className="text-sm font-black uppercase tracking-wider">How Cloudinary Setup Works (1-Minute Guide)</h4>
+                  </div>
+
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                    Saving these credentials here securely stores them in the database. When creators upload videos or thumbnails from anywhere on the platform (Studio or Homepage), their uploads will automatically use this storage without asking them for any keys.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                    <div className="p-4 bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#272727] rounded-2xl space-y-2">
+                      <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 font-black text-xs flex items-center justify-center">1</div>
+                      <p className="text-xs font-black text-slate-900 dark:text-white">Create Free Account</p>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Sign up at <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold inline-flex items-center gap-0.5">cloudinary.com <ExternalLink className="w-2.5 h-2.5" /></a> (Free 25GB CDN storage & bandwidth).
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#272727] rounded-2xl space-y-2">
+                      <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 font-black text-xs flex items-center justify-center">2</div>
+                      <p className="text-xs font-black text-slate-900 dark:text-white">Copy Cloud Name</p>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        On your Cloudinary dashboard home, copy your unique <strong className="font-bold text-slate-700 dark:text-slate-300">"Cloud Name"</strong>.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#272727] rounded-2xl space-y-2">
+                      <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 font-black text-xs flex items-center justify-center">3</div>
+                      <p className="text-xs font-black text-slate-900 dark:text-white">Create Unsigned Preset</p>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Go to <strong className="font-bold text-slate-700 dark:text-slate-300">Settings ➔ Upload ➔ Add upload preset</strong>. Set Signing Mode to <strong className="font-bold text-slate-700 dark:text-slate-300">"Unsigned"</strong>, save, and paste preset name above.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </>

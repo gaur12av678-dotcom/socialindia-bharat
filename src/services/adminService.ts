@@ -1,9 +1,52 @@
-import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, Video, Report } from '../types';
 import { userService } from './userService';
+import { getCloudinaryConfig, setCloudinaryConfig } from './videoService';
 
 export const adminService = {
+  // Get Global Storage / Cloudinary Configuration
+  async getStorageConfig(): Promise<{ cloudName: string; uploadPreset: string; updatedAt?: string }> {
+    try {
+      const snap = await getDoc(doc(db, 'system_settings', 'cloudinary'));
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.cloudName || data?.uploadPreset) {
+          const cfg = {
+            cloudName: data.cloudName || '',
+            uploadPreset: data.uploadPreset || '',
+            updatedAt: data.updatedAt
+          };
+          setCloudinaryConfig(cfg.cloudName, cfg.uploadPreset);
+          return cfg;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load storage config from Firestore:', err);
+    }
+    const local = getCloudinaryConfig();
+    return {
+      cloudName: local.cloudName || '',
+      uploadPreset: local.preset || ''
+    };
+  },
+
+  // Save Global Storage / Cloudinary Configuration for all users
+  async saveStorageConfig(cloudName: string, uploadPreset: string): Promise<void> {
+    try {
+      await setDoc(doc(db, 'system_settings', 'cloudinary'), {
+        cloudName: cloudName.trim(),
+        uploadPreset: uploadPreset.trim(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      
+      setCloudinaryConfig(cloudName, uploadPreset);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'system_settings/cloudinary');
+      throw err;
+    }
+  },
+
   // Fetch all users for administrative overview
   async getAllUsers(): Promise<User[]> {
     try {

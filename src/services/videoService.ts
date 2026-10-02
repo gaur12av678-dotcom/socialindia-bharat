@@ -18,8 +18,13 @@ import { Video } from '../types';
 import { userService } from './userService';
 import { extractVideoThumbnail, extractYoutubeThumbnail } from '../utils/videoUtils';
 
-// Cloudinary Configuration Helper (supports LocalStorage override & Environment Variables)
+// Cloudinary Configuration Helper (supports Firestore global settings, LocalStorage & Env fallback)
+let cachedCloudinaryConfig: { cloudName: string; preset: string } | null = null;
+
 export function getCloudinaryConfig() {
+  if (cachedCloudinaryConfig && (cachedCloudinaryConfig.cloudName || cachedCloudinaryConfig.preset)) {
+    return cachedCloudinaryConfig;
+  }
   const cloudName = (typeof window !== 'undefined' && localStorage.getItem('CLOUDINARY_CLOUD_NAME')) 
     || import.meta.env.VITE_CLOUDINARY_CLOUD_NAME 
     || '';
@@ -30,10 +35,42 @@ export function getCloudinaryConfig() {
 }
 
 export function setCloudinaryConfig(cloudName: string, preset: string) {
+  cachedCloudinaryConfig = { cloudName: cloudName.trim(), preset: preset.trim() };
   if (typeof window !== 'undefined') {
     localStorage.setItem('CLOUDINARY_CLOUD_NAME', cloudName.trim());
     localStorage.setItem('CLOUDINARY_UPLOAD_PRESET', preset.trim());
   }
+}
+
+export async function getCloudinaryConfigAsync(): Promise<{ cloudName: string; preset: string }> {
+  // If we have cached values, return them
+  if (cachedCloudinaryConfig && cachedCloudinaryConfig.cloudName && cachedCloudinaryConfig.preset) {
+    return cachedCloudinaryConfig;
+  }
+
+  // Check localStorage first
+  const localConfig = getCloudinaryConfig();
+  if (localConfig.cloudName && localConfig.preset) {
+    cachedCloudinaryConfig = localConfig;
+  }
+
+  // Fetch admin-configured global settings from Firestore
+  try {
+    const snap = await getDoc(doc(db, 'system_settings', 'cloudinary'));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data?.cloudName && data?.uploadPreset) {
+        const globalCfg = { cloudName: data.cloudName.trim(), preset: data.uploadPreset.trim() };
+        setCloudinaryConfig(globalCfg.cloudName, globalCfg.preset);
+        cachedCloudinaryConfig = globalCfg;
+        return globalCfg;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not read global storage settings from Firestore, using local fallback:', err);
+  }
+
+  return cachedCloudinaryConfig || localConfig;
 }
 
 export const videoService = {
@@ -47,7 +84,7 @@ export const videoService = {
     file: File, 
     onProgress?: (progress: number, stage?: string) => void
   ): Promise<{ videoUrl: string; duration?: number }> {
-    const { cloudName, preset } = getCloudinaryConfig();
+    const { cloudName, preset } = await getCloudinaryConfigAsync();
     
     if (!cloudName || !preset) {
       throw new Error('CLOUDINARY_CONFIG_REQUIRED');
@@ -109,7 +146,7 @@ export const videoService = {
     fileOrBlob: File | Blob, 
     onProgress?: (progress: number, stage?: string) => void
   ): Promise<string> {
-    const { cloudName, preset } = getCloudinaryConfig();
+    const { cloudName, preset } = await getCloudinaryConfigAsync();
     
     // If Cloudinary credentials not configured yet, convert blob to base64 DataURL
     if (!cloudName || !preset) {
