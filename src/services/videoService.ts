@@ -31,7 +31,7 @@ export const videoService = {
   // Upload Video File to Cloudinary with automatic Firebase Storage backup fallback
   async uploadVideo(
     file: File, 
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number, stage?: string) => void
   ): Promise<{ videoUrl: string; duration?: number }> {
     console.log(`Starting video upload: ${file.name} (${file.size} bytes) from origin: ${typeof window !== 'undefined' ? window.location.origin : 'server'}`);
     
@@ -48,7 +48,8 @@ export const videoService = {
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable && onProgress) {
             const percent = Math.round((e.loaded / e.total) * 100);
-            onProgress(percent);
+            const stage = percent >= 100 ? 'Encoding video stream on CDN...' : `Uploading video... ${percent}%`;
+            onProgress(percent, stage);
           }
         });
 
@@ -57,6 +58,7 @@ export const videoService = {
             try {
               const response = JSON.parse(xhr.responseText);
               console.log('Cloudinary Video Upload Success:', response.secure_url);
+              onProgress?.(100, 'Video ready!');
               resolve({
                 videoUrl: response.secure_url,
                 duration: response.duration ? Math.round(response.duration) : undefined
@@ -84,11 +86,16 @@ export const videoService = {
 
       return cloudinaryResult;
     } catch (cloudinaryErr: any) {
-      console.warn('Cloudinary upload failed on custom domain. Activating automatic secure Firebase Storage backup fallback:', cloudinaryErr?.message || cloudinaryErr);
+      console.warn('Cloudinary upload issue on custom domain. Activating automatic secure Firebase Storage backup fallback:', cloudinaryErr?.message || cloudinaryErr);
+      onProgress?.(10, 'Activating secure storage backup...');
       
       // Automatic reliable fallback to Firebase Storage
-      const firebaseVideoUrl = await this.uploadToFirebase(file, 'videos', onProgress);
+      const firebaseVideoUrl = await this.uploadToFirebase(file, 'videos', (p) => {
+        const stage = p >= 100 ? 'Finalizing cloud storage...' : `Saving to cloud backup... ${p}%`;
+        onProgress?.(p, stage);
+      });
       console.log('Firebase Storage Backup Video Upload Success:', firebaseVideoUrl);
+      onProgress?.(100, 'Video ready!');
       return {
         videoUrl: firebaseVideoUrl
       };
@@ -98,7 +105,7 @@ export const videoService = {
   // Upload Thumbnail Image File or Blob with automatic Firebase Storage backup fallback
   async uploadThumbnail(
     fileOrBlob: File | Blob, 
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number, stage?: string) => void
   ): Promise<string> {
     const filename = (fileOrBlob as File).name || `thumbnail_${Date.now()}.jpg`;
     console.log(`Starting thumbnail image upload: ${filename}`);
@@ -115,7 +122,7 @@ export const videoService = {
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable && onProgress) {
             const percent = Math.round((e.loaded / e.total) * 100);
-            onProgress(percent);
+            onProgress(percent, `Uploading thumbnail... ${percent}%`);
           }
         });
 
@@ -149,7 +156,9 @@ export const videoService = {
       return cloudinaryUrl;
     } catch (cloudinaryErr: any) {
       console.warn('Cloudinary thumbnail upload issue on custom domain. Activating automatic secure Firebase Storage backup fallback:', cloudinaryErr?.message || cloudinaryErr);
-      const fallbackUrl = await this.uploadToFirebase(fileOrBlob, 'thumbnails', onProgress);
+      const fallbackUrl = await this.uploadToFirebase(fileOrBlob, 'thumbnails', (p) => {
+        onProgress?.(p, `Saving thumbnail... ${p}%`);
+      });
       return fallbackUrl;
     }
   },

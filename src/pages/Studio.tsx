@@ -61,6 +61,7 @@ export const CreatorStudio: React.FC = () => {
   const [isAutoCapturedThumb, setIsAutoCapturedThumb] = useState(false);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
   const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [uploadStageText, setUploadStageText] = useState('');
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState(0);
 
@@ -260,13 +261,16 @@ export const CreatorStudio: React.FC = () => {
 
     setIsUploadingVideo(true);
     setVideoUploadProgress(0);
+    setUploadStageText('Preparing video upload...');
 
     try {
-      const result = await videoService.uploadVideo(file, (progress) => {
+      const result = await videoService.uploadVideo(file, (progress, stage) => {
         setVideoUploadProgress(progress);
+        if (stage) setUploadStageText(stage);
       });
       
       setVideoUrl(result.videoUrl);
+      setUploadStageText('Video ready!');
       if (result.duration) {
         setDuration(result.duration);
       }
@@ -279,10 +283,10 @@ export const CreatorStudio: React.FC = () => {
           setIsAutoCapturedThumb(true);
         }
       }
-      addToast('Video uploaded successfully!', 'success');
+      addToast('Video uploaded & processed successfully!', 'success');
     } catch (err: any) {
       console.error('Video upload error:', err);
-      addToast(err.message || 'Failed to upload video to Cloudinary.', 'error');
+      addToast(err.message || 'Failed to upload video.', 'error');
     } finally {
       setIsUploadingVideo(false);
     }
@@ -1051,16 +1055,20 @@ export const CreatorStudio: React.FC = () => {
                       />
                       
                       {isUploadingVideo && (
-                        <div className="absolute inset-0 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white z-10">
-                          <Loader2 className="w-8 h-8 text-[#065fd4] animate-spin mb-2" />
-                          <p className="text-xs font-black uppercase tracking-wider">Uploading Video {videoUploadProgress}%</p>
-                          <div className="w-full max-w-[200px] h-2 bg-slate-700 rounded-full mt-2 overflow-hidden">
+                        <div className="absolute inset-0 bg-black/85 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white z-10 space-y-2 text-center">
+                          <Loader2 className="w-9 h-9 text-[#065fd4] animate-spin mb-1" />
+                          <p className="text-xs font-black uppercase tracking-wider">
+                            {uploadStageText || (videoUploadProgress >= 100 ? 'Encoding & Finalizing Stream...' : `Uploading: ${videoUploadProgress}%`)}
+                          </p>
+                          <div className="w-full max-w-[220px] h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
                             <div 
                               className="h-full bg-[#065fd4] transition-all duration-300 rounded-full"
-                              style={{ width: `${videoUploadProgress}%` }}
+                              style={{ width: `${Math.max(5, videoUploadProgress)}%` }}
                             />
                           </div>
-                          <span className="text-[9px] text-slate-300 mt-1">Processing on Cloudinary CDN...</span>
+                          <span className="text-[10px] text-slate-300 font-medium">
+                            {videoUploadProgress >= 100 ? 'Almost done, preparing fast streaming URL...' : `${videoUploadProgress}% uploaded`}
+                          </span>
                         </div>
                       )}
 
