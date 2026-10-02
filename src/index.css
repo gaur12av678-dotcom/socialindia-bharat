@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --bg-main: #ffffff;
+    --bg-surface: #ffffff;
+    --text-main: #0f0f0f;
+    --border-color: #e5e5e5;
+    --primary-blue: #065fd4;
+    --primary-hover: #0556bf;
+    --light-blue: #f2f2f2;
+  }
+
+  .dark {
+    --bg-main: #0f0f0f;
+    --bg-surface: #0f0f0f;
+    --text-main: #f1f1f1;
+    --border-color: #3f3f3f;
+    --primary-blue: #3ea6ff;
+    --primary-hover: #2196f3;
+    --light-blue: #272727;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+  }
+}
+
+.bg-social-blue {
+  background-color: #2563eb !important;
+}
+
+.bg-social-blue:hover {
+  background-color: #1d4ed8 !important;
+}
+
+.text-social-blue {
+  color: #2563eb !important;
+}
+
+.bg-social-light-blue {
+  background-color: #eff6ff !important;
+}
+
+.dark .bg-social-light-blue {
+  background-color: #1e293b !important;
+}
+
+.border-social-blue {
+  border-color: #2563eb !important;
+}
+
+@utility animate-slide-in {
+  animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@utility animate-zoom-in {
+  animation: zoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@utility scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(1rem);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes zoomIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

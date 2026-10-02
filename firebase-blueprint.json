@@ -1,0 +1,217 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Public user profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "username": { "type": "string", "minLength": 3, "maxLength": 30, "pattern": "^[a-zA-Z0-9_]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 50 },
+        "bio": { "type": "string", "maxLength": 160 },
+        "photoURL": { "type": "string" },
+        "followersCount": { "type": "integer" },
+        "followingCount": { "type": "integer" },
+        "videosCount": { "type": "integer" },
+        "role": { "type": "string", "enum": ["user", "creator", "moderator", "admin"] },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "displayName", "followersCount", "followingCount", "videosCount", "role", "status", "createdAt", "updatedAt"]
+    },
+    "PrivateUserInfo": {
+      "title": "PrivateUserInfo",
+      "description": "Private user information and settings",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "theme": { "type": "string", "enum": ["light", "dark", "system"] },
+        "allowNotificationLikes": { "type": "boolean" },
+        "allowNotificationComments": { "type": "boolean" },
+        "allowNotificationFollowers": { "type": "boolean" },
+        "allowNotificationUploads": { "type": "boolean" }
+      },
+      "required": ["email", "theme"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Video metadata",
+      "type": "object",
+      "properties": {
+        "videoId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 3, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 5000 },
+        "videoUrl": { "type": "string", "pattern": "^https://.+" },
+        "thumbnailUrl": { "type": "string" },
+        "duration": { "type": "integer" },
+        "creatorId": { "type": "string" },
+        "creatorUsername": { "type": "string" },
+        "creatorDisplayName": { "type": "string" },
+        "creatorPhotoURL": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array" },
+        "visibility": { "type": "string", "enum": ["public", "unlisted", "private"] },
+        "viewsCount": { "type": "integer" },
+        "likesCount": { "type": "integer" },
+        "commentsCount": { "type": "integer" },
+        "sharesCount": { "type": "integer" },
+        "isShort": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["published", "processing", "hidden", "removed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["videoId", "title", "videoUrl", "creatorId", "creatorUsername", "creatorDisplayName", "category", "visibility", "viewsCount", "likesCount", "commentsCount", "sharesCount", "isShort", "status", "createdAt", "updatedAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a video",
+      "type": "object",
+      "properties": {
+        "commentId": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "videoId": { "type": "string" },
+        "uid": { "type": "string" },
+        "username": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "likesCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["commentId", "videoId", "uid", "username", "displayName", "text", "likesCount", "createdAt", "updatedAt"]
+    },
+    "Like": {
+      "title": "Like",
+      "description": "A like on a video",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "videoId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "videoId", "createdAt"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "A follow/subscription relationship",
+      "type": "object",
+      "properties": {
+        "subscriberId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorUsername": { "type": "string" },
+        "creatorDisplayName": { "type": "string" },
+        "creatorPhotoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subscriberId", "creatorId", "creatorUsername", "creatorDisplayName", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "An event notification for a user",
+      "type": "object",
+      "properties": {
+        "notificationId": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "actorUsername": { "type": "string" },
+        "actorDisplayName": { "type": "string" },
+        "actorPhotoURL": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "comment", "follow", "upload"] },
+        "videoId": { "type": "string" },
+        "videoTitle": { "type": "string" },
+        "commentId": { "type": "string" },
+        "message": { "type": "string", "maxLength": 500 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["notificationId", "recipientId", "actorId", "actorUsername", "actorDisplayName", "type", "message", "read", "createdAt"]
+    },
+    "HistoryItem": {
+      "title": "HistoryItem",
+      "description": "A record of a watched video",
+      "type": "object",
+      "properties": {
+        "videoId": { "type": "string" },
+        "title": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "creatorUsername": { "type": "string" },
+        "creatorDisplayName": { "type": "string" },
+        "watchedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["videoId", "title", "watchedAt"]
+    },
+    "SavedVideo": {
+      "title": "SavedVideo",
+      "description": "A saved video for later watch",
+      "type": "object",
+      "properties": {
+        "videoId": { "type": "string" },
+        "title": { "type": "string" },
+        "thumbnailUrl": { "type": "string" },
+        "creatorUsername": { "type": "string" },
+        "creatorDisplayName": { "type": "string" },
+        "savedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["videoId", "title", "savedAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "A report against content",
+      "type": "object",
+      "properties": {
+        "reportId": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["video", "comment", "creator"] },
+        "targetId": { "type": "string" },
+        "reason": { "type": "string", "enum": ["spam", "misleading", "harassment", "copyright", "inappropriate", "other"] },
+        "details": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "resolved"] }
+      },
+      "required": ["reportId", "reporterId", "targetType", "targetId", "reason", "createdAt", "status"]
+    }
+  },
+  "firestore": {
+    "users/{uid}": {
+      "schema": "User",
+      "description": "Public user profile information"
+    },
+    "users/{uid}/private/info": {
+      "schema": "PrivateUserInfo",
+      "description": "Private user configurations and settings"
+    },
+    "videos/{videoId}": {
+      "schema": "Video",
+      "description": "Video records published by creators"
+    },
+    "videos/{videoId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments left on videos"
+    },
+    "videos/{videoId}/likes/{uid}": {
+      "schema": "Like",
+      "description": "Likes left on videos by users"
+    },
+    "users/{uid}/subscriptions/{creatorId}": {
+      "schema": "Subscription",
+      "description": "Creator channels subscribed to by users"
+    },
+    "users/{uid}/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Notifications received by users"
+    },
+    "users/{uid}/history/{videoId}": {
+      "schema": "HistoryItem",
+      "description": "History of watched videos by users"
+    },
+    "users/{uid}/savedVideos/{videoId}": {
+      "schema": "SavedVideo",
+      "description": "Videos saved by users for later"
+    },
+    "reports/{reportId}": {
+      "schema": "Report",
+      "description": "Inappropriate content reports submitted by users"
+    }
+  }
+}
