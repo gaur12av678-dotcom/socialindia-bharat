@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
-import { videoService } from '../services/videoService';
+import { videoService, getCloudinaryConfig, setCloudinaryConfig } from '../services/videoService';
 import { Video } from '../types';
 import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, captureFrameFromVideoFile } from '../utils/videoUtils';
 import { categoriesList } from './Home';
@@ -29,7 +29,8 @@ import {
   AlertCircle,
   Image as ImageIcon,
   CheckCircle2,
-  Film
+  Film,
+  Settings
 } from 'lucide-react';
 
 export const CreatorStudio: React.FC = () => {
@@ -85,6 +86,28 @@ export const CreatorStudio: React.FC = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Cloudinary Storage Config State
+  const [cloudinaryModalOpen, setCloudinaryModalOpen] = useState(false);
+  const [cloudNameInput, setCloudNameInput] = useState('');
+  const [presetInput, setPresetInput] = useState('');
+
+  useEffect(() => {
+    const cfg = getCloudinaryConfig();
+    setCloudNameInput(cfg.cloudName);
+    setPresetInput(cfg.preset);
+  }, []);
+
+  const handleSaveCloudinaryConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cloudNameInput.trim() || !presetInput.trim()) {
+      addToast('Please enter both Cloud Name and Upload Preset.', 'error');
+      return;
+    }
+    setCloudinaryConfig(cloudNameInput.trim(), presetInput.trim());
+    addToast('Cloudinary storage configuration saved successfully!', 'success');
+    setCloudinaryModalOpen(false);
+  };
 
   // Realtime Analytics States
   const [timeRange, setTimeRange] = useState<'7D' | '28D' | '90D'>('28D');
@@ -286,7 +309,12 @@ export const CreatorStudio: React.FC = () => {
       addToast('Video uploaded & processed successfully!', 'success');
     } catch (err: any) {
       console.error('Video upload error:', err);
-      addToast(err.message || 'Failed to upload video.', 'error');
+      if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
+        setCloudinaryModalOpen(true);
+        addToast('Please enter your Cloudinary Cloud Name & Upload Preset once to enable direct uploads.', 'info');
+      } else {
+        addToast(err.message || 'Failed to upload video.', 'error');
+      }
     } finally {
       setIsUploadingVideo(false);
     }
@@ -324,7 +352,12 @@ export const CreatorStudio: React.FC = () => {
       addToast('Custom thumbnail uploaded successfully!', 'success');
     } catch (err: any) {
       console.error('Thumbnail upload error:', err);
-      addToast(err.message || 'Failed to upload custom thumbnail.', 'error');
+      if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
+        setCloudinaryModalOpen(true);
+        addToast('Please configure Cloudinary settings to upload custom thumbnails.', 'info');
+      } else {
+        addToast(err.message || 'Failed to upload custom thumbnail.', 'error');
+      }
     } finally {
       setIsUploadingThumbnail(false);
     }
@@ -1001,18 +1034,30 @@ export const CreatorStudio: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-2xl bg-[#065fd4] text-white flex items-center justify-center shadow-md shadow-blue-600/20">
-                <Upload className="w-5 h-5" />
+            <div className="flex items-center justify-between gap-3 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#065fd4] text-white flex items-center justify-center shadow-md shadow-blue-600/20">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
+                    {editingVideo ? 'Edit Video Details' : 'Upload & Publish Video'}
+                  </h2>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
+                    Upload directly from your device gallery with fast streaming CDN
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                  {editingVideo ? 'Edit Video Details' : 'Upload & Publish Video'}
-                </h2>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
-                  Upload directly from your device gallery with Cloudinary fast streaming
-                </p>
-              </div>
+
+              <button
+                type="button"
+                onClick={() => setCloudinaryModalOpen(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 text-[#065fd4] dark:text-blue-400 hover:bg-blue-100 rounded-xl text-[11px] font-black transition-colors cursor-pointer border border-blue-200 dark:border-blue-900/40 mr-8"
+                title="Configure Cloudinary Credentials"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>Cloud Storage</span>
+              </button>
             </div>
 
             <form onSubmit={handlePublishOrEdit} className="space-y-6 text-xs font-bold">
@@ -1329,6 +1374,91 @@ export const CreatorStudio: React.FC = () => {
                 </button>
               </div>
 
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CLOUDINARY STORAGE CREDENTIALS MODAL */}
+      {cloudinaryModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setCloudinaryModalOpen(false)} />
+          <div className="relative bg-white dark:bg-[#111827] rounded-3xl p-6 sm:p-7 max-w-lg w-full border border-slate-200 dark:border-[#334155] shadow-2xl animate-zoom-in space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#065fd4] text-white flex items-center justify-center">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">Cloudinary Video Setup</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Free CDN Storage for Instant Video Streaming</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setCloudinaryModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-2xl p-4 text-xs text-blue-900 dark:text-blue-200 space-y-2">
+              <p className="font-extrabold flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>How to get your Free Cloudinary credentials (1 Minute):</span>
+              </p>
+              <ol className="list-decimal pl-5 space-y-1 text-[11px] font-medium leading-relaxed">
+                <li>Log in to your free account at <strong className="font-bold">cloudinary.com</strong>.</li>
+                <li>Dashboard home screen se apna <strong className="font-bold">"Cloud Name"</strong> copy karein.</li>
+                <li><strong className="font-bold">Settings ➔ Upload ➔ Add upload preset</strong>:</li>
+                <li>Preset Name copy karein aur Signing Mode ko <strong className="font-bold">"Unsigned"</strong> select karke Save karein.</li>
+              </ol>
+            </div>
+
+            <form onSubmit={handleSaveCloudinaryConfig} className="space-y-4 text-xs font-bold">
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px] font-black mb-1.5">
+                  Cloud Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. dxyz12345"
+                  value={cloudNameInput}
+                  onChange={(e) => setCloudNameInput(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px] font-black mb-1.5">
+                  Upload Preset (Unsigned) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. socialindia_preset"
+                  value={presetInput}
+                  onChange={(e) => setPresetInput(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4]"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCloudinaryModalOpen(false)}
+                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-black rounded-xl text-xs hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 bg-[#065fd4] hover:bg-[#054fb1] text-white font-black rounded-xl text-xs transition-all shadow-md shadow-blue-600/20 cursor-pointer"
+                >
+                  Save & Enable Uploads
+                </button>
+              </div>
             </form>
           </div>
         </div>
