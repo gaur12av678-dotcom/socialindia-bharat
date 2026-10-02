@@ -2,6 +2,7 @@ import React from 'react';
 import { Video } from '../types';
 import { formatViews, formatTimeAgo, formatDuration, getInitials, extractYoutubeThumbnail } from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
+import { UserAvatar } from './UserAvatar';
 
 interface VideoCardProps {
   video: Video;
@@ -53,17 +54,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
 
       {/* Content block */}
       <div className="mt-3 flex gap-3">
-        {/* Creator avatar - Circle like YouTube */}
-        <div 
+        {/* Creator avatar - using centralized sync component */}
+        <UserAvatar 
+          uid={video.creatorId}
+          fallbackPhotoURL={video.creatorPhotoURL}
+          fallbackDisplayName={video.creatorDisplayName}
+          size="sm"
           onClick={handleCreatorClick}
-          className="w-9 h-9 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 shrink-0 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold border border-slate-100 dark:border-slate-800 hover:opacity-90 transition-opacity"
-        >
-          {video.creatorPhotoURL ? (
-            <img src={video.creatorPhotoURL} alt={video.creatorUsername} className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-xs">{getInitials(video.creatorDisplayName)}</span>
-          )}
-        </div>
+          className="border border-slate-100 dark:border-slate-800"
+        />
 
         {/* Video metadata */}
         <div className="flex-1 min-w-0 pr-2">

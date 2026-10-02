@@ -788,6 +788,9 @@ export const CreatorStudio: React.FC = () => {
                       />
                       {videoUrl && <Globe className="w-4 h-4 text-blue-500 absolute right-3 top-3.5" />}
                     </div>
+                    <p className="text-[9px] text-blue-600 dark:text-blue-400 font-bold mt-1 px-1">
+                      💡 Recommended: Use YouTube/Drive links for unlimited free storage.
+                    </p>
                   </div>
 
                   <div>

@@ -6,6 +6,7 @@ import { likeService } from '../services/likeService';
 import { commentService } from '../services/commentService';
 import { Video, Comment, User } from '../types';
 import { parseVideoUrl, getInitials, formatTimeAgo } from '../utils/videoUtils';
+import { UserAvatar } from '../components/UserAvatar';
 import { 
   Heart, 
   MessageSquare, 
@@ -575,16 +576,14 @@ export const Shorts: React.FC = () => {
           {/* Details Overlay bottom */}
           <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-6 text-white flex flex-col gap-3 z-10 pointer-events-none">
             <div className="flex items-center gap-3 pointer-events-auto">
-              <div 
+              <UserAvatar 
+                uid={activeShort.creatorId}
+                fallbackPhotoURL={activeShort.creatorPhotoURL}
+                fallbackDisplayName={activeShort.creatorDisplayName}
+                size="md"
                 onClick={() => navigate('creator', activeShort.creatorUsername)}
-                className="w-10 h-10 rounded-[1rem] bg-blue-600 flex items-center justify-center font-black text-sm cursor-pointer text-white border-2 border-white/10 shadow-lg hover:scale-105 transition-transform overflow-hidden"
-              >
-                {(creator?.photoURL || activeShort.creatorPhotoURL) ? (
-                  <img src={creator?.photoURL || activeShort.creatorPhotoURL} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span>{getInitials(activeShort.creatorDisplayName)}</span>
-                )}
-              </div>
+                className="rounded-[1rem] border-2 border-white/10 shadow-lg"
+              />
               <div className="min-w-0">
                 <h4 onClick={() => navigate('creator', activeShort.creatorUsername)} className="text-xs font-black hover:underline cursor-pointer truncate drop-shadow-md">
                   {activeShort.creatorDisplayName}

@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
+import { UserAvatar } from './UserAvatar';
 
 const legalItems = [
   { label: 'Privacy Policy', path: 'privacy', icon: FileText },
@@ -450,13 +451,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       onClick={() => navigate('creator', sub.creatorUsername)}
                       className="w-full flex items-center gap-3 px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-100 dark:hover:bg-[#272727] transition-all cursor-pointer"
                     >
-                      <div className="w-6 h-6 rounded-full bg-blue-600 shrink-0 overflow-hidden">
-                        {sub.creatorPhotoURL ? (
-                          <img src={sub.creatorPhotoURL} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white font-black text-[10px]">{sub.creatorDisplayName[0]}</div>
-                        )}
-                      </div>
+                      <UserAvatar 
+                        uid={sub.creatorId}
+                        fallbackPhotoURL={sub.creatorPhotoURL}
+                        fallbackDisplayName={sub.creatorDisplayName}
+                        size="xs"
+                        className="rounded-full"
+                      />
                       <span className="truncate text-slate-700 dark:text-slate-300">{sub.creatorDisplayName}</span>
                       <div className="w-1 h-1 bg-blue-600 rounded-full ml-auto" />
                     </button>

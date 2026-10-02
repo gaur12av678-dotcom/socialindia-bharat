@@ -12,6 +12,7 @@ import { notificationService } from '../services/notificationService';
 import { reportService } from '../services/reportService';
 import { Video, Comment, User } from '../types';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
+import { UserAvatar } from '../components/UserAvatar';
 import { parseVideoUrl, formatViews, formatTimeAgo, formatSubscribers, getInitials } from '../utils/videoUtils';
 import { 
   Heart, 
@@ -430,16 +431,14 @@ export const Watch: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-4 py-2.5 border-y border-slate-200 dark:border-[#334155]">
             {/* Creator Channel Card */}
             <div className="flex items-center gap-3">
-              <div 
+              <UserAvatar 
+                uid={video.creatorId}
+                fallbackPhotoURL={video.creatorPhotoURL}
+                fallbackDisplayName={video.creatorDisplayName}
+                size="md"
                 onClick={() => navigate('creator', video.creatorUsername)}
-                className="w-11 h-11 rounded-xl bg-blue-600 shrink-0 flex items-center justify-center text-white font-extrabold cursor-pointer hover:opacity-90 transition-opacity"
-              >
-                {(creator?.photoURL || video.creatorPhotoURL) ? (
-                  <img src={creator?.photoURL || video.creatorPhotoURL} alt={video.creatorUsername} className="w-full h-full object-cover rounded-xl" />
-                ) : (
-                  <span>{getInitials(video.creatorDisplayName)}</span>
-                )}
-              </div>
+                className="rounded-xl shadow-xs"
+              />
               <div className="min-w-0">
                 <h4 
                   onClick={() => navigate('creator', video.creatorUsername)}
