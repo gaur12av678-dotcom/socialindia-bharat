@@ -45,11 +45,12 @@ export const Home: React.FC = () => {
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all shrink-0 cursor-pointer ${
-                isSelected 
-                  ? 'bg-[#0f0f0f] dark:bg-white text-white dark:text-[#0f0f0f]' 
-                  : 'bg-[#f2f2f2] dark:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1] hover:bg-[#e5e5e5] dark:hover:bg-[#3f3f3f]'
-              }`}
+              style={{ 
+                backgroundColor: isSelected ? '#065fd4' : '#93c5fd', 
+                color: '#000000',
+                borderColor: isSelected ? '#065fd4' : '#60a5fa'
+              }}
+              className="px-5 py-2 rounded-xl text-sm font-black transition-all shrink-0 cursor-pointer border-2 shadow-md"
             >
               {category}
             </button>

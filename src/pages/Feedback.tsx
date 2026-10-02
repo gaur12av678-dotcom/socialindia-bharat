@@ -64,41 +64,41 @@ export const FeedbackPage: React.FC = () => {
 
       <div className="relative group max-w-2xl mx-auto">
         {/* Decorative Background Elements */}
-        <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-[3rem] blur opacity-10 group-hover:opacity-20 transition duration-1000" />
+        <div className="absolute -inset-1 bg-gradient-to-r from-[#065fd4] to-[#4f46e5] rounded-[3rem] blur opacity-10 group-hover:opacity-20 transition duration-1000" />
         
-        <div className="relative bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-[3rem] p-8 md:p-12 shadow-2xl shadow-indigo-600/5 overflow-hidden">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 rounded-full -mr-24 -mt-24 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 rounded-full -ml-24 -mb-24 blur-3xl pointer-events-none" />
+        <div className="relative bg-white dark:bg-[#111827] border-2 border-blue-100 dark:border-blue-900/30 rounded-[3rem] p-8 md:p-12 shadow-2xl shadow-blue-600/5 overflow-hidden">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/5 rounded-full -mr-24 -mt-24 blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-500/5 rounded-full -ml-24 -mb-24 blur-3xl pointer-events-none" />
           
           <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
-            <div className="space-y-2">
-              <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 ml-1">What's on your mind?</label>
+            <div className="space-y-3">
+              <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#065fd4] dark:text-blue-400 ml-1">What's on your mind?</label>
               <input
                 type="text"
                 required
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 placeholder="E.g. Dark mode suggestion, Upload speed issue"
-                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4.5 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-bold text-sm shadow-inner"
+                className="w-full bg-blue-50/50 dark:bg-blue-900/10 border-2 border-blue-100 dark:border-blue-900/30 rounded-2xl px-6 py-5 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-[#065fd4] transition-all font-bold text-sm shadow-inner"
               />
             </div>
             
-            <div className="space-y-2">
-              <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 ml-1">The Full Story</label>
+            <div className="space-y-3">
+              <label className="block text-[11px] font-black uppercase tracking-[0.15em] text-[#065fd4] dark:text-blue-400 ml-1">The Full Story</label>
               <textarea
                 required
                 rows={6}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Details help us understand better..."
-                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl px-6 py-4.5 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition-all font-bold text-sm shadow-inner resize-none"
+                className="w-full bg-blue-50/50 dark:bg-blue-900/10 border-2 border-blue-100 dark:border-blue-900/30 rounded-2xl px-6 py-5 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-[#065fd4] transition-all font-bold text-sm shadow-inner resize-none"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black rounded-2xl uppercase tracking-[0.2em] text-xs shadow-xl shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
+              className="w-full py-5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-black rounded-full uppercase tracking-[0.2em] text-xs shadow-xl shadow-blue-600/30 hover:shadow-blue-600/50 hover:-translate-y-1 transition-all active:scale-95 flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
               <span>Dispatch Feedback</span>
@@ -109,13 +109,13 @@ export const FeedbackPage: React.FC = () => {
 
       <div className="mt-16 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
         {[
-          { icon: <Star className="w-5 h-5" />, label: 'Rate Experience' },
-          { icon: <MessageSquare className="w-5 h-5" />, label: 'Read Changelog' },
-          { icon: <ShieldCheck className="w-5 h-5" />, label: 'Privacy Policy' }
+          { icon: <Star className="w-6 h-6" />, label: 'Rate Experience' },
+          { icon: <MessageSquare className="w-6 h-6" />, label: 'Read Changelog' },
+          { icon: <ShieldCheck className="w-6 h-6" />, label: 'Privacy Policy' }
         ].map((item, i) => (
-          <button key={i} className="p-4 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors group">
-            <div className="text-slate-400 group-hover:text-blue-600 transition-colors mb-2 flex justify-center">{item.icon}</div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{item.label}</span>
+          <button key={i} className="p-6 rounded-[2rem] bg-blue-50/50 dark:bg-blue-900/10 border-2 border-transparent hover:border-blue-300 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-all group cursor-pointer shadow-sm">
+            <div className="text-[#065fd4] dark:text-blue-400 group-hover:scale-110 transition-transform mb-3 flex justify-center">{item.icon}</div>
+            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-600 dark:text-slate-300">{item.label}</span>
           </button>
         ))}
       </div>

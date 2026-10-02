@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { feedbackService } from '../services/feedbackService';
-import { HelpCircle, Send, MessageSquare, ShieldCheck, CheckCircle2, Loader2, Star } from 'lucide-react';
+import { HelpCircle, Send, MessageSquare, ShieldCheck, CheckCircle2, Loader2, Star, Sparkles } from 'lucide-react';
 
 export const HelpPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -66,25 +66,28 @@ export const HelpPage: React.FC = () => {
         <div className="lg:col-span-7 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
-              { icon: <ShieldCheck className="w-6 h-6" />, title: 'Account Security', desc: 'Secure your creator account and credentials.', color: 'blue' },
-              { icon: <MessageSquare className="w-6 h-6" />, title: 'Guidelines', desc: 'Our rules for content publishing.', color: 'purple' },
-              { icon: <Star className="w-6 h-6" />, title: 'Monetization', desc: 'How to earn from your creative content.', color: 'indigo' },
-              { icon: <HelpCircle className="w-6 h-6" />, title: 'Common Issues', desc: 'Frequently asked questions.', color: 'violet' }
+              { icon: <ShieldCheck className="w-6 h-6" />, title: 'Account Security', desc: 'Secure your creator account and credentials.' },
+              { icon: <MessageSquare className="w-6 h-6" />, title: 'Guidelines', desc: 'Our rules for content publishing.' },
+              { icon: <Star className="w-6 h-6" />, title: 'Monetization', desc: 'How to earn from your creative content.' },
+              { icon: <HelpCircle className="w-6 h-6" />, title: 'Common Issues', desc: 'Frequently asked questions.' }
             ].map((item, i) => (
-              <div key={i} className="group p-6 bg-white dark:bg-[#111827] border border-slate-100 dark:border-slate-800 rounded-[2rem] shadow-sm hover:border-blue-500 transition-all cursor-pointer">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 bg-slate-50 dark:bg-slate-900 group-hover:scale-110 transition-transform text-blue-600 dark:text-blue-400 shadow-inner`}>
+              <div key={i} className="group p-8 bg-blue-50/50 dark:bg-blue-900/10 border-2 border-blue-100 dark:border-blue-900/30 rounded-[2.5rem] shadow-sm hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6 bg-white dark:bg-blue-900/40 text-[#065fd4] dark:text-blue-400 group-hover:scale-110 transition-transform shadow-md border border-blue-100 dark:border-blue-800">
                   {item.icon}
                 </div>
-                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-1">{item.title}</h4>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">{item.title}</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>
           
-          <div className="bg-gradient-to-r from-blue-600/5 to-purple-600/5 border border-blue-100 dark:border-blue-900/20 rounded-[2.5rem] p-8">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-4">Quick Tip</h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-              Always keep your recovery email updated in Settings. If you lose access to your account, this is the primary way our team verifies your identity.
+          <div className="bg-gradient-to-br from-[#065fd4] to-[#4f46e5] rounded-[2.5rem] p-8 text-white shadow-xl shadow-blue-600/20">
+            <h3 className="text-sm font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              Quick Tip
+            </h3>
+            <p className="text-xs text-white/90 font-bold leading-relaxed">
+              Always keep your recovery email updated in Settings. If you lose access to your account, this is the primary way our team verifies your identity and keeps your content safe.
             </p>
           </div>
         </div>

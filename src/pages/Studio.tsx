@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { videoService } from '../services/videoService';
 import { Video } from '../types';
-import { parseVideoUrl, extractYoutubeThumbnail, formatViews, formatDuration } from '../utils/videoUtils';
+import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, captureFrameFromVideoFile } from '../utils/videoUtils';
 import { categoriesList } from './Home';
 import { 
   LayoutDashboard, 
@@ -24,7 +24,10 @@ import {
   Users,
   ChevronRight,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Image as ImageIcon,
+  CheckCircle2,
+  Film
 } from 'lucide-react';
 
 export const CreatorStudio: React.FC = () => {
@@ -49,11 +52,18 @@ export const CreatorStudio: React.FC = () => {
   const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [isShort, setIsShort] = useState(false);
 
-  // File Upload State
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const uploadTaskRef = useRef<any>(null);
+  // File Upload & Preview States (Cloudinary Native)
+  const [videoFileName, setVideoFileName] = useState('');
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState('');
+  const [isAutoCapturedThumb, setIsAutoCapturedThumb] = useState(false);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
+  const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState(0);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   // Creator state
   const [videos, setVideos] = useState<Video[]>([]);
@@ -103,54 +113,128 @@ export const CreatorStudio: React.FC = () => {
     loadCreatorDashboard();
   }, [currentUser, currentUserProfile]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Video Selection from Gallery/Device
+  const handleVideoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 100 * 1024 * 1024) { // 100MB limit
-      addToast('File size too large. Max 100MB for cloud hosting.', 'error');
+    if (!file.type.startsWith('video/')) {
+      addToast('Please select a valid video file (MP4, WebM, MOV, etc.).', 'error');
       return;
     }
 
-    setIsUploading(true);
-    setUploadProgress(0); 
-    
-    // Simple interval to simulate progress since we're using uploadBytes (non-resumable) for stability
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev < 98) return prev + Math.floor(Math.random() * 5) + 1;
-        return prev;
-      });
-    }, 1000); // Slower updates to match real behavior better
-    
-    try {
-      // Add a race condition to detect stuck uploads
-      const uploadPromise = videoService.uploadFile(file, `videos/${currentUser?.uid}`);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Upload is taking longer than expected. Please check your internet or try a smaller file.')), 120000)
-      );
+    if (file.size > 250 * 1024 * 1024) { // 250MB limit
+      addToast('Video file size exceeds 250MB limit.', 'error');
+      return;
+    }
 
-      const downloadUrl = await Promise.race([uploadPromise, timeoutPromise]) as string;
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      setVideoUrl(downloadUrl);
-      addToast('Video file uploaded successfully!', 'success');
+    // Auto-fill title from filename if empty
+    if (!title.trim()) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+      setTitle(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
+    }
+
+    setVideoFileName(file.name);
+    const localBlobUrl = URL.createObjectURL(file);
+    setVideoPreviewUrl(localBlobUrl);
+
+    // Extract duration from video file element
+    const tempVideo = document.createElement('video');
+    tempVideo.preload = 'metadata';
+    tempVideo.src = localBlobUrl;
+    tempVideo.onloadedmetadata = () => {
+      if (tempVideo.duration && !isNaN(tempVideo.duration)) {
+        setDuration(Math.round(tempVideo.duration));
+        // Auto-detect Shorts if vertical aspect ratio (height > width) or <= 60s
+        if (tempVideo.videoHeight > tempVideo.videoWidth) {
+          setIsShort(true);
+        }
+      }
+    };
+
+    // Automatically capture a real frame from the video scene if custom thumbnail not set
+    if (!thumbnailUrl || isAutoCapturedThumb) {
+      captureFrameFromVideoFile(file, 1.5).then(async (captured) => {
+        if (captured) {
+          setThumbnailPreviewUrl(captured.dataUrl);
+          setIsAutoCapturedThumb(true);
+          try {
+            const uploadedThumb = await videoService.uploadThumbnail(captured.blob);
+            setThumbnailUrl(uploadedThumb);
+            setThumbnailPreviewUrl(uploadedThumb);
+          } catch (thumbErr) {
+            console.warn('Auto frame thumbnail upload deferred to Cloudinary video scene extractor:', thumbErr);
+          }
+        }
+      }).catch(console.error);
+    }
+
+    setIsUploadingVideo(true);
+    setVideoUploadProgress(0);
+
+    try {
+      const result = await videoService.uploadVideo(file, (progress) => {
+        setVideoUploadProgress(progress);
+      });
+      
+      setVideoUrl(result.videoUrl);
+      if (result.duration) {
+        setDuration(result.duration);
+      }
+      // If thumbnail is still empty, auto-extract Cloudinary frame scene URL
+      if (!thumbnailUrl) {
+        const autoSceneThumb = extractVideoThumbnail(result.videoUrl);
+        if (autoSceneThumb) {
+          setThumbnailUrl(autoSceneThumb);
+          setThumbnailPreviewUrl(autoSceneThumb);
+          setIsAutoCapturedThumb(true);
+        }
+      }
+      addToast('Video uploaded successfully!', 'success');
     } catch (err: any) {
-      clearInterval(progressInterval);
-      console.error('Upload handler error:', err);
-      addToast(err.message || 'Failed to upload file. Please check your connection.', 'error');
+      console.error('Video upload error:', err);
+      addToast(err.message || 'Failed to upload video to Cloudinary.', 'error');
     } finally {
-      setIsUploading(false);
-      setTimeout(() => setUploadProgress(0), 1000);
+      setIsUploadingVideo(false);
     }
   };
 
-  const cancelUpload = () => {
-    // With uploadBytes we can't easily cancel mid-flight without an AbortController,
-    // but we'll just stop the UI state for now.
-    setIsUploading(false);
-    setUploadProgress(0);
-    addToast('Cancelling upload UI...', 'info');
+  // Handle Custom Thumbnail Selection from Gallery/Device
+  const handleThumbnailFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      addToast('Please select an image file (JPG, PNG, WebP) for thumbnail.', 'error');
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) { // 15MB limit
+      addToast('Thumbnail image size should be under 15MB.', 'error');
+      return;
+    }
+
+    const localImgUrl = URL.createObjectURL(file);
+    setThumbnailPreviewUrl(localImgUrl);
+    setIsAutoCapturedThumb(false);
+
+    setIsUploadingThumbnail(true);
+    setThumbnailUploadProgress(0);
+
+    try {
+      const uploadedThumbUrl = await videoService.uploadThumbnail(file, (progress) => {
+        setThumbnailUploadProgress(progress);
+      });
+      
+      setThumbnailUrl(uploadedThumbUrl);
+      setThumbnailPreviewUrl(uploadedThumbUrl);
+      addToast('Custom thumbnail uploaded successfully!', 'success');
+    } catch (err: any) {
+      console.error('Thumbnail upload error:', err);
+      addToast(err.message || 'Failed to upload custom thumbnail.', 'error');
+    } finally {
+      setIsUploadingThumbnail(false);
+    }
   };
 
   const handlePublishOrEdit = async (e: React.FormEvent) => {
@@ -162,22 +246,20 @@ export const CreatorStudio: React.FC = () => {
       return;
     }
 
-    const cleanVideoUrl = videoUrl.trim();
-    if (!cleanVideoUrl.startsWith('https://')) {
-      addToast('Secure URL protocol (https://) is required.', 'error');
+    if (!videoUrl.trim()) {
+      addToast('Please upload a video file from your device first.', 'error');
       return;
     }
 
-    const tags = tagsInput.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0).slice(0, 5);
-    const autoYtThumb = extractYoutubeThumbnail(cleanVideoUrl);
-    const resolvedThumbnail = thumbnailUrl.trim() || autoYtThumb || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60';
+    const tags = tagsInput.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0).slice(0, 8);
+    const resolvedThumbnail = thumbnailUrl.trim() || thumbnailPreviewUrl.trim() || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60';
 
     try {
       if (editingVideo) {
         await videoService.editVideo(editingVideo.videoId, {
           title: title.trim(),
           description: description.trim(),
-          videoUrl: cleanVideoUrl,
+          videoUrl: videoUrl.trim(),
           thumbnailUrl: resolvedThumbnail,
           category,
           tags,
@@ -190,7 +272,7 @@ export const CreatorStudio: React.FC = () => {
         await videoService.publishVideo({
           title: title.trim(),
           description: description.trim(),
-          videoUrl: cleanVideoUrl,
+          videoUrl: videoUrl.trim(),
           thumbnailUrl: resolvedThumbnail,
           category,
           tags,
@@ -217,7 +299,9 @@ export const CreatorStudio: React.FC = () => {
     setEditingVideo(video);
     setTitle(video.title);
     setVideoUrl(video.videoUrl);
+    setVideoPreviewUrl(video.videoUrl);
     setThumbnailUrl(video.thumbnailUrl);
+    setThumbnailPreviewUrl(video.thumbnailUrl);
     setDescription(video.description);
     setCategory(video.category);
     setTagsInput(video.tags ? video.tags.join(', ') : '');
@@ -255,13 +339,20 @@ export const CreatorStudio: React.FC = () => {
     setEditingVideo(null);
     setTitle('');
     setVideoUrl('');
+    setVideoPreviewUrl('');
+    setVideoFileName('');
     setThumbnailUrl('');
+    setThumbnailPreviewUrl('');
     setDescription('');
     setCategory('Coding');
     setTagsInput('');
     setDuration(120);
     setVisibility('public');
     setIsShort(false);
+    setIsUploadingVideo(false);
+    setVideoUploadProgress(0);
+    setIsUploadingThumbnail(false);
+    setThumbnailUploadProgress(0);
   };
 
   if (!currentUser) {
@@ -304,30 +395,39 @@ export const CreatorStudio: React.FC = () => {
       </div>
 
       {/* Sub tabs navigation */}
-      <div className="flex border-b border-slate-200 dark:border-[#334155] gap-8">
+      <div className="flex border-b border-slate-200 dark:border-[#334155] gap-4 pb-3">
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`pb-3 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer relative transition-colors ${activeTab === 'dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+          style={{ 
+            backgroundColor: activeTab === 'dashboard' ? '#065fd4' : '#93c5fd',
+            color: '#000000'
+          }}
+          className="px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl shadow-lg border-2 border-transparent active:scale-95"
         >
           <LayoutDashboard className="w-4 h-4" />
           <span>Dashboard</span>
-          {activeTab === 'dashboard' && <span className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
         </button>
         <button
           onClick={() => setActiveTab('content')}
-          className={`pb-3 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer relative transition-colors ${activeTab === 'content' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+          style={{ 
+            backgroundColor: activeTab === 'content' ? '#065fd4' : '#93c5fd',
+            color: '#000000'
+          }}
+          className="px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl shadow-lg border-2 border-transparent active:scale-95"
         >
           <VideoIcon className="w-4 h-4" />
           <span>Content ({videos.length})</span>
-          {activeTab === 'content' && <span className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
         </button>
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`pb-3 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer relative transition-colors ${activeTab === 'analytics' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}`}
+          style={{ 
+            backgroundColor: activeTab === 'analytics' ? '#065fd4' : '#93c5fd',
+            color: '#000000'
+          }}
+          className="px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl shadow-lg border-2 border-transparent active:scale-95"
         >
           <BarChart3 className="w-4 h-4" />
           <span>Analytics</span>
-          {activeTab === 'analytics' && <span className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 dark:bg-blue-400 rounded-t-full" />}
         </button>
       </div>
 
@@ -673,204 +773,347 @@ export const CreatorStudio: React.FC = () => {
         </div>
       )}
 
-      {/* PUBLISH / EDIT VIDEO MODAL FORM */}
+      {/* PUBLISH / EDIT VIDEO MODAL FORM (100% Gallery Video & Custom Thumbnail via Cloudinary) */}
       {publishModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md" onClick={() => !isUploading && setPublishModalOpen(false)} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div 
+            className="fixed inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity" 
+            onClick={() => !isUploadingVideo && !isUploadingThumbnail && setPublishModalOpen(false)} 
+          />
 
-          <div className="relative bg-white dark:bg-[#111827] rounded-3xl p-6 md:p-8 shadow-2xl max-w-2xl w-full border border-slate-200 dark:border-[#334155] z-10 my-8 animate-zoom-in">
+          <div className="relative bg-white dark:bg-[#111827] rounded-3xl p-5 sm:p-7 md:p-8 shadow-2xl max-w-3xl w-full border border-slate-200 dark:border-[#334155] z-10 my-6 animate-zoom-in max-h-[92vh] overflow-y-auto">
             <button
               onClick={() => setPublishModalOpen(false)}
               className="absolute top-4 right-4 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 p-2 rounded-xl transition-all cursor-pointer"
+              title="Close modal"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h2 className="text-sm font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-6 flex items-center gap-2">
-              <Plus className="w-5 h-5" />
-              {editingVideo ? 'Refine Video Details' : 'Publish Creative Content'}
-            </h2>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-[#065fd4] text-white flex items-center justify-center shadow-md shadow-blue-600/20">
+                <Upload className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
+                  {editingVideo ? 'Edit Video Details' : 'Upload & Publish Video'}
+                </h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
+                  Upload directly from your device gallery with Cloudinary fast streaming
+                </p>
+              </div>
+            </div>
 
-            <form onSubmit={handlePublishOrEdit} className="space-y-5 text-xs font-bold">
+            <form onSubmit={handlePublishOrEdit} className="space-y-6 text-xs font-bold">
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Left: Metadata */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Video Title *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. My Amazing Creative Journey"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 font-extrabold"
-                    />
+              {/* Media Upload Area (Video + Thumbnail Dropzones) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                
+                {/* 1. Video File Picker */}
+                <div className="flex flex-col space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] font-black flex items-center gap-1.5">
+                      <VideoIcon className="w-4 h-4 text-[#065fd4]" />
+                      <span>Video File * (From Gallery)</span>
+                    </label>
+                    {videoUrl && (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Uploaded ({formatDuration(duration)})
+                      </span>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Category *</label>
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 font-extrabold appearance-none"
-                    >
-                      {categoriesList.filter(c => c !== 'All').map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleVideoFileSelect} 
+                    accept="video/*" 
+                    className="hidden" 
+                  />
 
-                  <div>
-                    <label className="block text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Description</label>
-                    <textarea
-                      placeholder="Share context with your viewers..."
-                      rows={4}
-                      maxLength={5000}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 font-medium"
-                    />
-                  </div>
-                </div>
+                  {/* Video Box Display */}
+                  {videoPreviewUrl ? (
+                    <div className="relative rounded-2xl overflow-hidden border-2 border-blue-500/50 bg-black aspect-video flex items-center justify-center group shadow-md">
+                      <video 
+                        src={videoPreviewUrl} 
+                        className="w-full h-full object-contain" 
+                        controls
+                        muted
+                        playsInline
+                      />
+                      
+                      {isUploadingVideo && (
+                        <div className="absolute inset-0 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white z-10">
+                          <Loader2 className="w-8 h-8 text-[#065fd4] animate-spin mb-2" />
+                          <p className="text-xs font-black uppercase tracking-wider">Uploading Video {videoUploadProgress}%</p>
+                          <div className="w-full max-w-[200px] h-2 bg-slate-700 rounded-full mt-2 overflow-hidden">
+                            <div 
+                              className="h-full bg-[#065fd4] transition-all duration-300 rounded-full"
+                              style={{ width: `${videoUploadProgress}%` }}
+                            />
+                          </div>
+                          <span className="text-[9px] text-slate-300 mt-1">Processing on Cloudinary CDN...</span>
+                        </div>
+                      )}
 
-                {/* Right: Media Source */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Video Source *</label>
-                    
-                    {!editingVideo && (
-                      <div className="grid grid-cols-1 gap-3 mb-3">
+                      {!isUploadingVideo && (
                         <button
                           type="button"
-                          onClick={() => !isUploading && fileInputRef.current?.click()}
-                          disabled={isUploading}
-                          className="w-full py-6 border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 rounded-2xl flex flex-col items-center justify-center gap-2 text-slate-500 hover:text-blue-600 transition-all group bg-slate-50 dark:bg-slate-900/40 cursor-pointer"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="absolute top-2 right-2 px-3 py-1.5 bg-black/70 hover:bg-black text-white text-[10px] font-black rounded-lg backdrop-blur-md transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                         >
-                          {isUploading ? (
-                            <div className="flex flex-col items-center gap-2">
-                              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                              <span className="text-[10px] font-black uppercase">Uploading {uploadProgress}%</span>
-                              {uploadProgress === 0 && (
-                                <p className="text-[9px] text-amber-600 dark:text-amber-400 font-bold animate-pulse">
-                                  Initializing stream... please wait.
-                                </p>
-                              )}
-                              <div 
-                                onClick={(e) => { e.stopPropagation(); cancelUpload(); }}
-                                className="mt-2 px-3 py-1 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-lg text-[9px] font-black uppercase hover:bg-rose-100 transition-colors"
-                              >
-                                Cancel Upload
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <Upload className="w-5 h-5 text-blue-600" />
-                              </div>
-                              <span className="text-[10px] font-black uppercase">Click to Select File</span>
-                              <span className="text-[9px] font-bold text-slate-400">MP4, WebM (Max 100MB)</span>
-                            </>
-                          )}
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Change Video
                         </button>
-                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="video/*" className="hidden" />
-                      </div>
-                    )}
-
-                    <div className="relative">
-                      <input
-                        type="url"
-                        required
-                        placeholder="Or paste Link (YouTube, GDrive, Direct URL)"
-                        value={videoUrl}
-                        onChange={(e) => setVideoUrl(e.target.value)}
-                        className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 font-extrabold pr-10"
-                      />
-                      {videoUrl && <Globe className="w-4 h-4 text-blue-500 absolute right-3 top-3.5" />}
+                      )}
                     </div>
-                    <p className="text-[9px] text-blue-600 dark:text-blue-400 font-bold mt-1 px-1">
-                      💡 Recommended: Use YouTube/Drive links for unlimited free storage.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Custom Thumbnail (URL)</label>
-                    <input
-                      type="url"
-                      placeholder="https://example.com/thumbnail.jpg"
-                      value={thumbnailUrl}
-                      onChange={(e) => setThumbnailUrl(e.target.value)}
-                      className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 font-extrabold"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2 p-3.5 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/30">
-                    <input
-                      type="checkbox"
-                      id="is-shorts-modal"
-                      checked={isShort}
-                      onChange={(e) => setIsShort(e.target.checked)}
-                      className="rounded text-blue-600 focus:ring-blue-500 cursor-pointer w-5 h-5"
-                    />
-                    <label htmlFor="is-shorts-modal" className="text-[11px] font-black text-blue-900 dark:text-blue-300 cursor-pointer select-none uppercase tracking-wide">
-                      Mark as SocialIndia Short (Vertical)
-                    </label>
-                  </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="border-2 border-dashed border-blue-300 dark:border-blue-900/60 hover:border-[#065fd4] dark:hover:border-blue-500 rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-2.5 bg-blue-50/40 dark:bg-blue-950/20 hover:bg-blue-50/70 transition-all cursor-pointer group min-h-[160px]"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-[#065fd4] text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-110 transition-transform">
+                        <Upload className="w-6 h-6 stroke-[2.5]" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-800 dark:text-slate-100">Click to Select Video</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                          From device gallery (MP4, WebM, MOV - Max 250MB)
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {/* 2. Custom Thumbnail Picker */}
+                <div className="flex flex-col space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] font-black flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-[#065fd4]" />
+                      <span>Thumbnail (Auto Scene or Custom)</span>
+                    </label>
+                    {thumbnailUrl && (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {isAutoCapturedThumb ? 'Auto Video Scene' : 'Custom Image'}
+                      </span>
+                    )}
+                  </div>
+
+                  <input 
+                    type="file" 
+                    ref={thumbnailInputRef} 
+                    onChange={handleThumbnailFileSelect} 
+                    accept="image/*" 
+                    className="hidden" 
+                  />
+
+                  {/* Thumbnail Box Display */}
+                  {thumbnailPreviewUrl ? (
+                    <div className="relative rounded-2xl overflow-hidden border-2 border-blue-500/40 bg-slate-900 aspect-video flex items-center justify-center group shadow-md">
+                      <img 
+                        src={thumbnailPreviewUrl} 
+                        alt="Thumbnail Preview" 
+                        className="w-full h-full object-cover" 
+                      />
+
+                      {isAutoCapturedThumb && (
+                        <div className="absolute bottom-2 left-2 px-2.5 py-1 bg-black/80 backdrop-blur-md rounded-lg text-white text-[9px] font-black uppercase tracking-wider border border-white/10 shadow-sm flex items-center gap-1">
+                          <Film className="w-3 h-3 text-[#065fd4]" />
+                          <span>Auto Scene Frame</span>
+                        </div>
+                      )}
+
+                      {isUploadingThumbnail && (
+                        <div className="absolute inset-0 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white z-10">
+                          <Loader2 className="w-7 h-7 text-[#065fd4] animate-spin mb-1.5" />
+                          <p className="text-[11px] font-black uppercase tracking-wider">Uploading Thumbnail {thumbnailUploadProgress}%</p>
+                        </div>
+                      )}
+
+                      {!isUploadingThumbnail && (
+                        <button
+                          type="button"
+                          onClick={() => thumbnailInputRef.current?.click()}
+                          className="absolute top-2 right-2 px-3 py-1.5 bg-black/70 hover:bg-black text-white text-[10px] font-black rounded-lg backdrop-blur-md transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          {isAutoCapturedThumb ? 'Upload Custom Image' : 'Change Image'}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => thumbnailInputRef.current?.click()}
+                      className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-[#065fd4] dark:hover:border-blue-500 rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-2.5 bg-slate-50 dark:bg-slate-900/40 hover:bg-blue-50/30 transition-all cursor-pointer group min-h-[160px]"
+                    >
+                      <div className="w-12 h-12 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center group-hover:scale-110 group-hover:bg-[#065fd4] group-hover:text-white transition-all shadow-xs">
+                        <ImageIcon className="w-6 h-6 stroke-[2.2]" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-800 dark:text-slate-100">Upload Custom Thumbnail</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                          Or leave empty to auto-extract real video scene
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div>
-                  <label className="block text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Visibility Control</label>
-                  <div className="flex gap-2 p-1 bg-slate-200 dark:bg-slate-900 rounded-2xl border border-slate-300 dark:border-slate-800">
-                    {['public', 'unlisted', 'private'].map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => setVisibility(v as any)}
-                        style={{ backgroundColor: visibility === v ? '#1d4ed8' : '#ffffff', color: visibility === v ? '#ffffff' : '#4b5563' }}
-                        className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer border-2 ${
-                          visibility === v 
-                            ? 'border-blue-700 shadow-xl' 
-                            : 'border-transparent hover:border-slate-300'
-                        }`}
-                      >
-                        {v}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-slate-600 dark:text-slate-400 mb-1.5 uppercase tracking-wider text-[10px]">Tags</label>
+              {/* Video Title & Category */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                <div className="md:col-span-2">
+                  <label className="block text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider text-[10px] font-black">
+                    Video Title *
+                  </label>
                   <input
                     type="text"
-                    placeholder="react, vlogs, coding..."
-                    value={tagsInput}
-                    onChange={(e) => setTagsInput(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 font-extrabold"
+                    required
+                    maxLength={100}
+                    placeholder="Enter engaging video title..."
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-[#065fd4] font-extrabold text-sm"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider text-[10px] font-black">
+                    Category *
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-[#065fd4] font-extrabold text-sm appearance-none cursor-pointer"
+                  >
+                    {categoriesList.filter(c => c !== 'All').map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-8 border-t border-slate-100 dark:border-slate-800">
+              {/* Description */}
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider text-[10px] font-black">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Tell viewers what your video is about, add links, credits and timestamps..."
+                  rows={3}
+                  maxLength={5000}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-[#065fd4] font-medium text-xs leading-relaxed"
+                />
+              </div>
+
+              {/* Tags & Shorts Toggle */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider text-[10px] font-black">
+                    Tags (Comma separated)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. gaming, tech, india, vlog, coding"
+                    value={tagsInput}
+                    onChange={(e) => setTagsInput(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-[#065fd4] font-bold text-xs"
+                  />
+                </div>
+
+                {/* Shorts Vertical Toggle */}
+                <div className="flex items-center">
+                  <div 
+                    onClick={() => setIsShort(!isShort)}
+                    className={`w-full flex items-center justify-between p-3 rounded-2xl border-2 cursor-pointer transition-all ${
+                      isShort 
+                        ? 'bg-red-50 dark:bg-red-950/20 border-red-500 text-red-700 dark:text-red-400' 
+                        : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Film className={`w-5 h-5 ${isShort ? 'text-red-600' : 'text-slate-400'}`} />
+                      <div>
+                        <p className="text-xs font-black">SocialIndia Short</p>
+                        <p className="text-[10px] opacity-75">Vertical 9:16 format</p>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={isShort}
+                      onChange={(e) => setIsShort(e.target.checked)}
+                      className="rounded text-red-600 focus:ring-red-500 cursor-pointer w-4 h-4"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Visibility Controls */}
+              <div>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider text-[10px] font-black">
+                  Visibility Settings
+                </label>
+                <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  {[
+                    { id: 'public', label: 'Public', icon: Globe },
+                    { id: 'unlisted', label: 'Unlisted', icon: EyeOff },
+                    { id: 'private', label: 'Private', icon: Lock }
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const isSelected = visibility === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setVisibility(item.id as any)}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-black uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer border-2 ${
+                          isSelected 
+                            ? 'bg-[#065fd4] text-white border-[#065fd4] shadow-md' 
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-transparent hover:border-slate-300'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setPublishModalOpen(false)}
-                  disabled={isUploading}
-                  style={{ backgroundColor: '#e2e8f0', color: '#1e293b' }}
-                  className="px-6 py-3.5 font-black rounded-2xl cursor-pointer hover:bg-slate-300 transition-all uppercase text-[10px] tracking-widest disabled:opacity-50"
+                  disabled={isUploadingVideo || isUploadingThumbnail}
+                  className="px-6 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black rounded-full cursor-pointer transition-all uppercase text-[11px] tracking-wider disabled:opacity-50"
                 >
-                  Discard Changes
+                  Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploading || !videoUrl}
-                  className="px-10 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl cursor-pointer shadow-xl shadow-blue-600/30 transition-all active:scale-95 uppercase text-[10px] tracking-widest disabled:opacity-50 flex items-center gap-2"
+                  disabled={isUploadingVideo || isUploadingThumbnail || !videoUrl}
+                  className="px-8 py-3.5 bg-[#065fd4] hover:bg-[#054fb1] disabled:bg-slate-400 text-white font-black rounded-full cursor-pointer shadow-lg shadow-blue-600/30 transition-all active:scale-95 uppercase text-xs tracking-wider disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {editingVideo ? 'Update Video' : 'Publish to Feed'}
+                  {(isUploadingVideo || isUploadingThumbnail) ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Uploading Media...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                      <span>{editingVideo ? 'Update Video' : 'Publish to Feed'}</span>
+                    </>
+                  )}
                 </button>
               </div>
+
             </form>
           </div>
         </div>

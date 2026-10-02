@@ -31,7 +31,6 @@ import {
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
-import { UserAvatar } from './UserAvatar';
 
 const legalItems = [
   { label: 'Privacy Policy', path: 'privacy', icon: FileText },
@@ -232,7 +231,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           {/* Publish Video Button (Primary Action) */}
           <button
             onClick={() => triggerProtectedAction(() => navigate('studio'))}
-            className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#2563eb] hover:bg-[#1d4ed8] rounded-xl transition-all shadow-xs cursor-pointer active:scale-98"
+            className="hidden sm:flex items-center gap-1.5 px-5 py-2.5 text-base font-bold text-white bg-[#065fd4] hover:bg-[#054fb1] rounded-full transition-all shadow-md cursor-pointer active:scale-98"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Publish Video</span>
@@ -369,7 +368,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           ) : (
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer active:scale-95"
+              className="px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-base rounded-full shadow-lg transition-all cursor-pointer active:scale-95"
             >
               Sign In
             </button>
@@ -451,13 +450,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       onClick={() => navigate('creator', sub.creatorUsername)}
                       className="w-full flex items-center gap-3 px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-100 dark:hover:bg-[#272727] transition-all cursor-pointer"
                     >
-                      <UserAvatar 
-                        uid={sub.creatorId}
-                        fallbackPhotoURL={sub.creatorPhotoURL}
-                        fallbackDisplayName={sub.creatorDisplayName}
-                        size="xs"
-                        className="rounded-full"
-                      />
+                      <div className="w-6 h-6 rounded-full bg-blue-600 shrink-0 overflow-hidden">
+                        {sub.creatorPhotoURL ? (
+                          <img src={sub.creatorPhotoURL} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white font-black text-[10px]">{sub.creatorDisplayName[0]}</div>
+                        )}
+                      </div>
                       <span className="truncate text-slate-700 dark:text-slate-300">{sub.creatorDisplayName}</span>
                       <div className="w-1 h-1 bg-blue-600 rounded-full ml-auto" />
                     </button>

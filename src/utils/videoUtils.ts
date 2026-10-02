@@ -50,8 +50,22 @@ export function parseVideoUrl(url: string): ParsedVideo {
     }
   }
 
-  // Direct MP4 / WebM video files
-  if (cleanUrl.match(/\.(mp4|webm|ogg|mov)$/i) || cleanUrl.startsWith('https://assets.mixkit.co/')) {
+  // Direct MP4 / WebM / Cloudinary video files
+  if (
+    cleanUrl.includes('cloudinary.com') ||
+    cleanUrl.includes('firebasestorage.googleapis.com') ||
+    cleanUrl.match(/\.(mp4|webm|ogg|mov|m4v|m3u8)(\?.*)?$/i) || 
+    cleanUrl.startsWith('https://assets.mixkit.co/') ||
+    cleanUrl.startsWith('blob:')
+  ) {
+    return {
+      type: 'direct',
+      embedUrl: cleanUrl
+    };
+  }
+
+  // Generic direct fallback if url is https and not matching embeds
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
     return {
       type: 'direct',
       embedUrl: cleanUrl
@@ -65,14 +79,89 @@ export function parseVideoUrl(url: string): ParsedVideo {
   };
 }
 
-// Automatically extract high quality YouTube thumbnail scene from video URL
-export function extractYoutubeThumbnail(url: string): string | null {
+// Automatically extract thumbnail scene from video URL (Cloudinary or YouTube)
+export function extractVideoThumbnail(url: string): string | null {
   if (!url) return null;
+  
+  // 1. YouTube thumbnail
   const parsed = parseVideoUrl(url);
   if (parsed.type === 'youtube' && parsed.youtubeId) {
     return `https://img.youtube.com/vi/${parsed.youtubeId}/hqdefault.jpg`;
   }
+
+  // 2. Cloudinary native frame scene capture at 1.5 seconds
+  if (url.includes('cloudinary.com')) {
+    if (url.includes('/video/upload/')) {
+      return url
+        .replace('/video/upload/', '/video/upload/so_1.5,f_jpg/')
+        .replace(/\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i, '.jpg');
+    }
+    return url.replace(/\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i, '.jpg');
+  }
+
   return null;
+}
+
+// Automatically extract high quality YouTube thumbnail scene from video URL (alias)
+export function extractYoutubeThumbnail(url: string): string | null {
+  return extractVideoThumbnail(url);
+}
+
+// Helper to capture a real frame from a video file using HTML5 Canvas
+export function captureFrameFromVideoFile(file: File, seekTimeSeconds: number = 1.5): Promise<{ blob: Blob; dataUrl: string } | null> {
+  return new Promise((resolve) => {
+    try {
+      const video = document.createElement('video');
+      video.preload = 'auto';
+      video.muted = true;
+      video.playsInline = true;
+      video.crossOrigin = 'anonymous';
+      const blobUrl = URL.createObjectURL(file);
+      video.src = blobUrl;
+
+      video.onloadedmetadata = () => {
+        // Seek to safe position (either 1.5s or 25% of duration)
+        const duration = video.duration || 5;
+        const targetTime = Math.min(seekTimeSeconds, Math.max(0.5, duration * 0.2));
+        video.currentTime = targetTime;
+      };
+
+      video.onseeked = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            URL.revokeObjectURL(blobUrl);
+            return resolve(null);
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+          canvas.toBlob((blob) => {
+            URL.revokeObjectURL(blobUrl);
+            if (blob) {
+              resolve({ blob, dataUrl });
+            } else {
+              resolve(null);
+            }
+          }, 'image/jpeg', 0.9);
+        } catch (canvasErr) {
+          console.error('Canvas frame extraction failed:', canvasErr);
+          URL.revokeObjectURL(blobUrl);
+          resolve(null);
+        }
+      };
+
+      video.onerror = () => {
+        URL.revokeObjectURL(blobUrl);
+        resolve(null);
+      };
+    } catch (err) {
+      console.error('Frame capture setup error:', err);
+      resolve(null);
+    }
+  });
 }
 
 // Convert numbers like 14200 into "14.2K"

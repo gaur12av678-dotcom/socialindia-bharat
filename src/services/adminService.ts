@@ -1,6 +1,7 @@
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, Video, Report } from '../types';
+import { userService } from './userService';
 
 export const adminService = {
   // Fetch all users for administrative overview
@@ -70,6 +71,19 @@ export const adminService = {
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `videos/${videoId}`);
+    }
+  },
+
+  // Delete a video permanently
+  async deleteVideo(videoId: string, creatorId?: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'videos', videoId));
+      if (creatorId) {
+        await userService.incrementVideoCount(creatorId, -1);
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `videos/${videoId}`);
+      throw err;
     }
   },
 

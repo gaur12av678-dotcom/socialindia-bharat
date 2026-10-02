@@ -151,8 +151,8 @@ const ShortVideoMedia: React.FC<{
   return (
     <div className="absolute inset-0 overflow-hidden flex items-center justify-center bg-black">
       {parsedMedia.type === 'youtube' ? (
-        /* Increased crop from 18% to 22% and scale from 1.36 to 1.5 to hide all YT UI including share/title */
-        <div className="absolute -inset-[22%] w-[144%] h-[144%] scale-[1.44] pointer-events-none flex items-center justify-center">
+        /* Reduced crop from 22% to 12% and scale from 1.44 to 1.15 to prevent important content from being cut off while still hiding some YT UI */
+        <div className="absolute -inset-[12%] w-[124%] h-[124%] scale-[1.15] pointer-events-none flex items-center justify-center">
           <div id={containerId} className="w-full h-full" />
         </div>
       ) : parsedMedia.type === 'drive' ? (

@@ -40,6 +40,8 @@ export const AdminPanel: React.FC = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
+  const [isDeletingVideo, setIsDeletingVideo] = useState(false);
 
   // Security Check: Only admins allowed
   useEffect(() => {
@@ -93,6 +95,21 @@ export const AdminPanel: React.FC = () => {
       addToast(`Video ${newStatus === 'published' ? 'published' : 'hidden'} successfully.`, 'success');
     } catch (err) {
       addToast('Failed to update video status.', 'error');
+    }
+  };
+
+  const handleConfirmDeleteVideo = async () => {
+    if (!videoToDelete) return;
+    setIsDeletingVideo(true);
+    try {
+      await adminService.deleteVideo(videoToDelete.videoId, videoToDelete.creatorId);
+      setVideos(prev => prev.filter(v => v.videoId !== videoToDelete.videoId));
+      addToast('Video permanently deleted from platform.', 'success');
+      setVideoToDelete(null);
+    } catch (err) {
+      addToast('Failed to delete video. Please try again.', 'error');
+    } finally {
+      setIsDeletingVideo(false);
     }
   };
 
@@ -408,6 +425,13 @@ export const AdminPanel: React.FC = () => {
                           >
                             {v.status === 'published' ? <EyeOff className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
                           </button>
+                          <button 
+                            onClick={() => setVideoToDelete(v)}
+                            className="p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-rose-500 transition-colors"
+                            title="Delete Video Permanently"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                           <button onClick={() => navigate('watch', v.videoId)} className="p-2 hover:bg-slate-50 dark:hover:bg-[#272727] rounded-lg text-slate-400">
                             <ExternalLink className="w-4 h-4" />
                           </button>
@@ -549,6 +573,56 @@ export const AdminPanel: React.FC = () => {
               </div>
             )}
           </>
+        )}
+
+        {/* Video Delete Confirmation Modal */}
+        {videoToDelete && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-2xl">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Delete Video Permanently</h3>
+                  <p className="text-xs text-slate-500 font-medium">This action cannot be undone.</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-[#1a1a1a] rounded-2xl border border-slate-100 dark:border-[#272727]">
+                <div className="w-20 aspect-video rounded-lg overflow-hidden bg-slate-200 dark:bg-[#333] shrink-0">
+                  <img src={videoToDelete.thumbnailUrl} alt={videoToDelete.title} className="w-full h-full object-cover" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{videoToDelete.title}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">By @{videoToDelete.creatorUsername}</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Deleting this video will remove it completely from the public feed, searches, watch pages, and user statistics.
+              </p>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setVideoToDelete(null)}
+                  disabled={isDeletingVideo}
+                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-[#333] text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteVideo}
+                  disabled={isDeletingVideo}
+                  className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-all shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeletingVideo ? 'Deleting...' : 'Confirm Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </div>

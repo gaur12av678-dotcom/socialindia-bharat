@@ -216,7 +216,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl tracking-wide shadow-md transition-all flex items-center justify-center hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50 cursor-pointer"
+              className="w-full py-3 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold rounded-full tracking-wide shadow-lg transition-all flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 cursor-pointer text-base"
             >
               {submitting ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')}
             </button>

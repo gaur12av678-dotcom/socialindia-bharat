@@ -12,11 +12,15 @@ import {
   limit, 
   increment 
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, UploadTaskSnapshot } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { Video } from '../types';
 import { userService } from './userService';
-import { extractYoutubeThumbnail } from '../utils/videoUtils';
+import { extractVideoThumbnail, extractYoutubeThumbnail } from '../utils/videoUtils';
+
+// Cloudinary Configuration from Env
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'socialindia';
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'social_india_unsigned';
 
 export const videoService = {
   // Generate safe random video ID
@@ -24,36 +28,149 @@ export const videoService = {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   },
 
-  // NEW: Upload file to storage and get URL
-  // Simplified to use uploadBytes for maximum compatibility
-  async uploadFile(file: File, path: string): Promise<string> {
-    console.log(`Starting simplified upload: ${file.name} (${file.size} bytes) to ${path}`);
-    const fileRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
+  // Upload Video File to Cloudinary
+  async uploadVideo(
+    file: File, 
+    onProgress?: (progress: number) => void
+  ): Promise<{ videoUrl: string; duration?: number }> {
+    console.log(`Starting Cloudinary video upload: ${file.name} (${file.size} bytes)`);
     
-    try {
-      const snapshot = await uploadBytes(fileRef, file, { contentType: file.type });
-      console.log('Upload successful, getting download URL...');
-      const downloadUrl = await getDownloadURL(snapshot.ref);
-      return downloadUrl;
-    } catch (error: any) {
-      console.error('Upload error details:', {
-        code: error.code,
-        message: error.message,
-        serverResponse: error.serverResponse
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    formData.append('folder', 'socialindia_videos');
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      // Track real-time progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress(percent);
+        }
       });
-      throw new Error(`Upload failed: ${error.message}`);
-    }
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const response = JSON.parse(xhr.responseText);
+          console.log('Cloudinary Video Upload Success:', response.secure_url);
+          resolve({
+            videoUrl: response.secure_url,
+            duration: response.duration ? Math.round(response.duration) : undefined
+          });
+        } else {
+          let errMsg = 'Cloudinary video upload failed.';
+          try {
+            const err = JSON.parse(xhr.responseText);
+            if (err.error?.message) errMsg = err.error.message;
+          } catch (_) {}
+          reject(new Error(errMsg));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during video upload.'));
+      });
+
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
+      xhr.send(formData);
+    });
   },
 
-  // Publish a video
+  // Upload Thumbnail Image File or Blob to Cloudinary
+  async uploadThumbnail(
+    fileOrBlob: File | Blob, 
+    onProgress?: (progress: number) => void
+  ): Promise<string> {
+    const filename = (fileOrBlob as File).name || `thumbnail_${Date.now()}.jpg`;
+    console.log(`Starting Cloudinary thumbnail image upload: ${filename}`);
+    
+    const formData = new FormData();
+    formData.append('file', fileOrBlob, filename);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    formData.append('folder', 'socialindia_thumbnails');
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress(percent);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const response = JSON.parse(xhr.responseText);
+          console.log('Cloudinary Thumbnail Upload Success:', response.secure_url);
+          resolve(response.secure_url);
+        } else {
+          let errMsg = 'Cloudinary image upload failed.';
+          try {
+            const err = JSON.parse(xhr.responseText);
+            if (err.error?.message) errMsg = err.error.message;
+          } catch (_) {}
+          reject(new Error(errMsg));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error during thumbnail upload.'));
+      });
+
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`);
+      xhr.send(formData);
+    });
+  },
+
+  // Backward compatibility alias for uploadFile
+  async uploadFile(
+    file: File, 
+    _path?: string, 
+    onProgress?: (progress: number) => void
+  ): Promise<string> {
+    if (file.type.startsWith('image/')) {
+      return this.uploadThumbnail(file, onProgress);
+    }
+    const result = await this.uploadVideo(file, onProgress);
+    return result.videoUrl;
+  },
+
+  // Fallback Firebase Upload (if Cloudinary is not configured or fails)
+  async uploadToFirebase(
+    file: File, 
+    path: string, 
+    onProgress?: (progress: number) => void
+  ): Promise<string> {
+    const fileRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
+    return new Promise((resolve, reject) => {
+      const uploadTask = uploadBytesResumable(fileRef, file, { contentType: file.type });
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          if (onProgress) onProgress(progress);
+        },
+        (error) => reject(error),
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(url);
+        }
+      );
+    });
+  },
+
+  // Publish a video (automatically extracts real video scene thumbnail if not provided)
   async publishVideo(videoData: Partial<Video>): Promise<Video> {
     const videoId = this.generateId();
     const now = new Date().toISOString();
     
-    const autoYtThumbnail = extractYoutubeThumbnail(videoData.videoUrl || '');
+    // Extract real scene thumbnail from the video URL itself (Cloudinary/YouTube)
+    const autoSceneThumbnail = extractVideoThumbnail(videoData.videoUrl || '');
     const finalThumbnail = (videoData.thumbnailUrl && videoData.thumbnailUrl.trim().length > 0)
       ? videoData.thumbnailUrl.trim()
-      : autoYtThumbnail || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60';
+      : (autoSceneThumbnail || videoData.videoUrl || '');
 
     const fullVideo: Video = {
       videoId,
