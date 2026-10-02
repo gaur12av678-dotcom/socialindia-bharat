@@ -28,101 +28,130 @@ export const videoService = {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   },
 
-  // Upload Video File to Cloudinary
+  // Upload Video File to Cloudinary with automatic Firebase Storage backup fallback
   async uploadVideo(
     file: File, 
     onProgress?: (progress: number) => void
   ): Promise<{ videoUrl: string; duration?: number }> {
-    console.log(`Starting Cloudinary video upload: ${file.name} (${file.size} bytes)`);
+    console.log(`Starting video upload: ${file.name} (${file.size} bytes) from origin: ${typeof window !== 'undefined' ? window.location.origin : 'server'}`);
     
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    formData.append('folder', 'socialindia_videos');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('folder', 'socialindia_videos');
 
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
+      const cloudinaryResult = await new Promise<{ videoUrl: string; duration?: number }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        // Track real-time progress
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable && onProgress) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            onProgress(percent);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              console.log('Cloudinary Video Upload Success:', response.secure_url);
+              resolve({
+                videoUrl: response.secure_url,
+                duration: response.duration ? Math.round(response.duration) : undefined
+              });
+            } catch (jsonErr) {
+              reject(jsonErr);
+            }
+          } else {
+            let errMsg = `Cloudinary HTTP Error ${xhr.status}`;
+            try {
+              const err = JSON.parse(xhr.responseText);
+              if (err.error?.message) errMsg = err.error.message;
+            } catch (_) {}
+            reject(new Error(errMsg));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error(`Network/CORS direct upload restriction on ${typeof window !== 'undefined' ? window.location.origin : 'domain'}`));
+        });
+
+        xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
+        xhr.send(formData);
+      });
+
+      return cloudinaryResult;
+    } catch (cloudinaryErr: any) {
+      console.warn('Cloudinary upload failed on custom domain. Activating automatic secure Firebase Storage backup fallback:', cloudinaryErr?.message || cloudinaryErr);
       
-      // Track real-time progress
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable && onProgress) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          onProgress(percent);
-        }
-      });
-
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const response = JSON.parse(xhr.responseText);
-          console.log('Cloudinary Video Upload Success:', response.secure_url);
-          resolve({
-            videoUrl: response.secure_url,
-            duration: response.duration ? Math.round(response.duration) : undefined
-          });
-        } else {
-          let errMsg = 'Cloudinary video upload failed.';
-          try {
-            const err = JSON.parse(xhr.responseText);
-            if (err.error?.message) errMsg = err.error.message;
-          } catch (_) {}
-          reject(new Error(errMsg));
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        reject(new Error('Network error during video upload.'));
-      });
-
-      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`);
-      xhr.send(formData);
-    });
+      // Automatic reliable fallback to Firebase Storage
+      const firebaseVideoUrl = await this.uploadToFirebase(file, 'videos', onProgress);
+      console.log('Firebase Storage Backup Video Upload Success:', firebaseVideoUrl);
+      return {
+        videoUrl: firebaseVideoUrl
+      };
+    }
   },
 
-  // Upload Thumbnail Image File or Blob to Cloudinary
+  // Upload Thumbnail Image File or Blob with automatic Firebase Storage backup fallback
   async uploadThumbnail(
     fileOrBlob: File | Blob, 
     onProgress?: (progress: number) => void
   ): Promise<string> {
     const filename = (fileOrBlob as File).name || `thumbnail_${Date.now()}.jpg`;
-    console.log(`Starting Cloudinary thumbnail image upload: ${filename}`);
+    console.log(`Starting thumbnail image upload: ${filename}`);
     
-    const formData = new FormData();
-    formData.append('file', fileOrBlob, filename);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    formData.append('folder', 'socialindia_thumbnails');
+    try {
+      const formData = new FormData();
+      formData.append('file', fileOrBlob, filename);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('folder', 'socialindia_thumbnails');
 
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable && onProgress) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          onProgress(percent);
-        }
+      const cloudinaryUrl = await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable && onProgress) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            onProgress(percent);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const response = JSON.parse(xhr.responseText);
+              console.log('Cloudinary Thumbnail Upload Success:', response.secure_url);
+              resolve(response.secure_url);
+            } catch (jsonErr) {
+              reject(jsonErr);
+            }
+          } else {
+            let errMsg = `Cloudinary HTTP Error ${xhr.status}`;
+            try {
+              const err = JSON.parse(xhr.responseText);
+              if (err.error?.message) errMsg = err.error.message;
+            } catch (_) {}
+            reject(new Error(errMsg));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error(`Network/CORS direct thumbnail upload restriction on ${typeof window !== 'undefined' ? window.location.origin : 'domain'}`));
+        });
+
+        xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`);
+        xhr.send(formData);
       });
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const response = JSON.parse(xhr.responseText);
-          console.log('Cloudinary Thumbnail Upload Success:', response.secure_url);
-          resolve(response.secure_url);
-        } else {
-          let errMsg = 'Cloudinary image upload failed.';
-          try {
-            const err = JSON.parse(xhr.responseText);
-            if (err.error?.message) errMsg = err.error.message;
-          } catch (_) {}
-          reject(new Error(errMsg));
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        reject(new Error('Network error during thumbnail upload.'));
-      });
-
-      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`);
-      xhr.send(formData);
-    });
+      return cloudinaryUrl;
+    } catch (cloudinaryErr: any) {
+      console.warn('Cloudinary thumbnail upload issue on custom domain. Activating automatic secure Firebase Storage backup fallback:', cloudinaryErr?.message || cloudinaryErr);
+      const fallbackUrl = await this.uploadToFirebase(fileOrBlob, 'thumbnails', onProgress);
+      return fallbackUrl;
+    }
   },
 
   // Backward compatibility alias for uploadFile
@@ -138,21 +167,26 @@ export const videoService = {
     return result.videoUrl;
   },
 
-  // Fallback Firebase Upload (if Cloudinary is not configured or fails)
+  // Fallback Firebase Storage Upload (Supporting File or Blob)
   async uploadToFirebase(
-    file: File, 
+    fileOrBlob: File | Blob, 
     path: string, 
     onProgress?: (progress: number) => void
   ): Promise<string> {
-    const fileRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
+    const filename = (fileOrBlob as File).name || `${Date.now()}_media.bin`;
+    const contentType = fileOrBlob.type || 'application/octet-stream';
+    const fileRef = ref(storage, `${path}/${Date.now()}_${filename}`);
     return new Promise((resolve, reject) => {
-      const uploadTask = uploadBytesResumable(fileRef, file, { contentType: file.type });
+      const uploadTask = uploadBytesResumable(fileRef, fileOrBlob, { contentType });
       uploadTask.on('state_changed', 
         (snapshot) => {
           const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
           if (onProgress) onProgress(progress);
         },
-        (error) => reject(error),
+        (error) => {
+          console.error('Firebase Storage upload error:', error);
+          reject(error);
+        },
         async () => {
           const url = await getDownloadURL(uploadTask.snapshot.ref);
           resolve(url);

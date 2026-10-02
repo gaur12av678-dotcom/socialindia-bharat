@@ -230,7 +230,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
           {/* Publish Video Button (Primary Action) */}
           <button
-            onClick={() => triggerProtectedAction(() => navigate('studio'))}
+            onClick={() => triggerProtectedAction(() => navigate('studio', undefined, { upload: 'true' }))}
             className="hidden sm:flex items-center gap-1.5 px-5 py-2.5 text-base font-bold text-white bg-[#065fd4] hover:bg-[#054fb1] rounded-full transition-all shadow-md cursor-pointer active:scale-98"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -570,7 +570,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </button>
 
           <button 
-            onClick={() => triggerProtectedAction(() => navigate('studio'))}
+            onClick={() => triggerProtectedAction(() => navigate('studio', undefined, { upload: 'true' }))}
             className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 text-[#2563eb] dark:text-[#3b82f6] ${route.path === 'studio' ? 'font-bold' : ''}`}
           >
             <div className="w-7 h-7 bg-[#2563eb] text-white rounded-lg flex items-center justify-center shadow-xs">

@@ -34,7 +34,7 @@ import {
 
 export const CreatorStudio: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
-  const { navigate } = useRouter();
+  const { route, navigate } = useRouter();
 
   // Navigation tab inside Studio
   const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'analytics'>('dashboard');
@@ -443,6 +443,14 @@ export const CreatorStudio: React.FC = () => {
     setIsUploadingThumbnail(false);
     setThumbnailUploadProgress(0);
   };
+
+  // Auto-open upload modal when navigating from header/homepage upload buttons
+  useEffect(() => {
+    if (route.searchParams?.upload === 'true' || route.param === 'upload') {
+      resetForm();
+      setPublishModalOpen(true);
+    }
+  }, [route.searchParams?.upload, route.param]);
 
   if (!currentUser) {
     return (
