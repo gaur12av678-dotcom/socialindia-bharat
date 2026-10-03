@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "SocialIndia - Video Platform",
+  "short_name": "SocialIndia",
+  "description": "Watch, download and stream videos & shorts offline on SocialIndia.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

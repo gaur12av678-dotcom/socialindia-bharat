@@ -18,6 +18,7 @@ import { Legal } from './pages/Legal';
 import { AdminPanel } from './pages/Admin';
 import { HelpPage } from './pages/Help';
 import { FeedbackPage } from './pages/Feedback';
+import { Downloads } from './pages/Downloads';
 
 function MainAppContent() {
   const { route } = useRouter();
@@ -27,6 +28,8 @@ function MainAppContent() {
     switch (route.path) {
       case 'home':
         return <Home />;
+      case 'downloads':
+        return <Downloads />;
       case 'admin':
         return <AdminPanel />;
       case 'search':

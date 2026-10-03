@@ -53,31 +53,31 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
       </div>
 
       {/* Content block */}
-      <div className="mt-3 flex gap-3">
+      <div className="mt-3 flex items-start gap-3">
         {/* Creator avatar - using centralized sync component */}
         <UserAvatar 
           uid={video.creatorId}
           fallbackPhotoURL={video.creatorPhotoURL}
-          fallbackDisplayName={video.creatorDisplayName}
+          fallbackDisplayName={video.creatorDisplayName || video.creatorUsername}
           size="sm"
           onClick={handleCreatorClick}
-          className="border border-slate-100 dark:border-slate-800"
+          className="border border-slate-100 dark:border-slate-800 shadow-xs"
         />
 
         {/* Video metadata */}
-        <div className="flex-1 min-w-0 pr-2">
-          <h3 className="text-[14px] font-bold text-slate-900 dark:text-white leading-[1.3] line-clamp-2 mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+        <div className="flex-1 min-w-0 pr-1">
+          <h3 className="text-[14px] font-bold text-slate-900 dark:text-white leading-snug line-clamp-2 mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
             {video.title}
           </h3>
-          <div className="flex flex-col text-[13px] text-slate-500 dark:text-[#94a3b8] font-medium leading-relaxed">
+          <div className="flex flex-col text-[12px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
             <p 
               onClick={handleCreatorClick}
-              className="hover:text-slate-900 dark:hover:text-white transition-colors truncate w-fit"
+              className="hover:text-slate-900 dark:hover:text-white transition-colors truncate w-fit font-semibold"
             >
-              {video.creatorDisplayName}
+              {video.creatorDisplayName || video.creatorUsername || 'Creator'}
             </p>
-            <div className="flex items-center gap-1 mt-0.5">
-              <span>{formatViews(video.viewsCount)} views</span>
+            <div className="flex items-center gap-1 mt-0.5 text-slate-500 dark:text-slate-400">
+              <span>{formatViews(video.viewsCount)}</span>
               <span className="text-[8px] opacity-40">•</span>
               <span>{formatTimeAgo(video.createdAt)}</span>
             </div>

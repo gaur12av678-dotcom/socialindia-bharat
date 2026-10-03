@@ -114,14 +114,24 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ video, onE
           onReady: (event: any) => {
             if (!isMounted) return;
             setIsMediaReady(true);
-            try {
-              event.target.playVideo();
-            } catch (e) {
-              console.error('Autoplay notice', e);
-            }
-            setIsPlaying(true);
             const d = event.target.getDuration();
             if (d) setDuration(d);
+            
+            // Try standard autoplay
+            try {
+              event.target.playVideo();
+              setIsPlaying(true);
+            } catch (e) {
+              // Fallback to muted autoplay if browser blocks audio
+              try {
+                event.target.mute();
+                setIsMuted(true);
+                event.target.playVideo();
+                setIsPlaying(true);
+              } catch (err) {
+                console.warn('Autoplay fallback error', err);
+              }
+            }
           },
           onStateChange: (event: any) => {
             if (!isMounted) return;
@@ -344,8 +354,23 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ video, onE
             ref={videoRef}
             src={parsedMedia.embedUrl}
             autoPlay
+            playsInline
             preload="auto"
-            onCanPlay={() => setIsMediaReady(true)}
+            onCanPlay={() => {
+              setIsMediaReady(true);
+              if (videoRef.current) {
+                videoRef.current.play().then(() => {
+                  setIsPlaying(true);
+                }).catch(() => {
+                  // If browser policy requires mute first for autoplay
+                  if (videoRef.current) {
+                    videoRef.current.muted = true;
+                    setIsMuted(true);
+                    videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+                  }
+                });
+              }
+            }}
             onTimeUpdate={handleDirectTimeUpdate}
             onEnded={() => {
               setIsPlaying(false);

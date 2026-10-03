@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User } from '../types';
 import { userService } from '../services/userService';
+import { useApp } from '../context/AppContext';
 import { getInitials } from '../utils/videoUtils';
 
 interface UserAvatarProps {
-  uid: string;
+  uid?: string;
   fallbackPhotoURL?: string;
   fallbackDisplayName?: string;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
@@ -12,7 +12,29 @@ interface UserAvatarProps {
   onClick?: (e: React.MouseEvent) => void;
 }
 
-// Session-based cache to avoid redundant fetches
+// 8 Vibrant colors for fallback avatar backgrounds
+const avatarColors = [
+  '#2563eb', // Blue
+  '#e11d48', // Rose
+  '#059669', // Emerald
+  '#7c3aed', // Purple
+  '#d97706', // Amber
+  '#0891b2', // Cyan
+  '#ea580c', // Orange
+  '#4f46e5', // Indigo
+];
+
+function getColorForName(str: string): string {
+  if (!str) return avatarColors[0];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % avatarColors.length;
+  return avatarColors[index];
+}
+
+// Global in-memory cache to sync profile avatars across all components
 const profileCache: Record<string, { photoURL: string; displayName: string }> = {};
 
 export const UserAvatar: React.FC<UserAvatarProps> = ({ 
@@ -23,51 +45,137 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   className = '',
   onClick
 }) => {
-  const [photoURL, setPhotoURL] = useState(profileCache[uid]?.photoURL || fallbackPhotoURL);
-  const [displayName, setDisplayName] = useState(profileCache[uid]?.displayName || fallbackDisplayName);
+  const { currentUser, currentUserProfile } = useApp();
 
+  // Check if this avatar belongs to the currently logged in user
+  const isCurrentLoggedInUser = Boolean(
+    (uid && currentUser?.uid && currentUser.uid === uid) || 
+    (fallbackDisplayName && currentUserProfile?.username && currentUserProfile.username.toLowerCase() === fallbackDisplayName.toLowerCase()) ||
+    (fallbackDisplayName && currentUserProfile?.displayName && currentUserProfile.displayName.toLowerCase() === fallbackDisplayName.toLowerCase()) ||
+    (uid && currentUserProfile?.username && currentUserProfile.username.toLowerCase() === uid.toLowerCase())
+  );
+
+  const [fetchedPhoto, setFetchedPhoto] = useState<string>('');
+  const [fetchedName, setFetchedName] = useState<string>('');
+  const [imgError, setImgError] = useState(false);
+
+  // Sync current user profile into cache whenever it updates
   useEffect(() => {
-    // If we have a uid and no cached photo, or we want to ensure it's fresh
-    if (uid && !profileCache[uid]) {
+    if (currentUser?.uid && currentUserProfile) {
+      if (currentUserProfile.photoURL) {
+        profileCache[currentUser.uid] = {
+          photoURL: currentUserProfile.photoURL,
+          displayName: currentUserProfile.displayName || currentUserProfile.username || ''
+        };
+      }
+    }
+  }, [currentUser?.uid, currentUserProfile?.photoURL, currentUserProfile?.displayName]);
+
+  // Fetch or retrieve from cache for any UID
+  useEffect(() => {
+    setImgError(false);
+
+    if (isCurrentLoggedInUser && currentUserProfile?.photoURL) {
+      setFetchedPhoto(currentUserProfile.photoURL);
+      return;
+    }
+
+    if (uid) {
+      if (profileCache[uid]?.photoURL) {
+        setFetchedPhoto(profileCache[uid].photoURL);
+        setFetchedName(profileCache[uid].displayName);
+      }
+      
+      // Always fetch latest profile in background to keep avatar up-to-date
       userService.getUserProfile(uid).then(profile => {
         if (profile) {
-          const updatedPhoto = profile.photoURL || '';
-          const updatedName = profile.displayName || '';
-          
-          profileCache[uid] = { photoURL: updatedPhoto, displayName: updatedName };
-          setPhotoURL(updatedPhoto);
-          setDisplayName(updatedName);
+          if (profile.photoURL) {
+            profileCache[uid] = { 
+              photoURL: profile.photoURL, 
+              displayName: profile.displayName || profile.username 
+            };
+            setFetchedPhoto(profile.photoURL);
+          }
+          if (profile.displayName || profile.username) {
+            setFetchedName(profile.displayName || profile.username);
+          }
         }
-      }).catch(err => {
-        console.warn(`Failed to fetch profile for avatar sync: ${uid}`, err);
-      });
+      }).catch(() => {});
+    } else if (fallbackDisplayName) {
+      userService.getUserByUsername(fallbackDisplayName).then(uProfile => {
+        if (uProfile) {
+          if (uProfile.photoURL) {
+            if (uProfile.uid) {
+              profileCache[uProfile.uid] = { 
+                photoURL: uProfile.photoURL, 
+                displayName: uProfile.displayName || uProfile.username 
+              };
+            }
+            setFetchedPhoto(uProfile.photoURL);
+          }
+          if (uProfile.displayName || uProfile.username) {
+            setFetchedName(uProfile.displayName || uProfile.username);
+          }
+        }
+      }).catch(() => {});
     }
-  }, [uid]);
+  }, [uid, fallbackDisplayName, isCurrentLoggedInUser, currentUserProfile?.photoURL]);
 
-  const sizeClasses = {
-    'xs': 'w-6 h-6 text-[8px]',
-    'sm': 'w-8 h-8 text-[10px]',
-    'md': 'w-10 h-10 text-xs',
-    'lg': 'w-12 h-12 text-sm',
-    'xl': 'w-16 h-16 text-base'
+  // Priority order for photo:
+  // 1. Live Context Photo if it matches current logged in creator (from Settings!)
+  // 2. Freshly fetched or cached Photo from Firestore User Document (so settings updates reflect on all videos!)
+  // 3. Directly provided fallbackPhotoURL
+  const liveUserPhoto = isCurrentLoggedInUser && currentUserProfile?.photoURL ? currentUserProfile.photoURL : '';
+  const cachedPhoto = uid && profileCache[uid]?.photoURL ? profileCache[uid].photoURL : '';
+  const resolvedPhoto = liveUserPhoto || fetchedPhoto || cachedPhoto || fallbackPhotoURL;
+
+  const liveUserName = isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username) 
+    ? (currentUserProfile.displayName || currentUserProfile.username) 
+    : '';
+  const effectiveDisplayName = liveUserName || fetchedName || fallbackDisplayName || uid || 'User';
+
+  const hasValidPhoto = Boolean(resolvedPhoto && resolvedPhoto.trim() && !imgError);
+  const bgColor = getColorForName(effectiveDisplayName);
+
+  // Explicit pixel / rem sizing mappings
+  const getSizeStyles = () => {
+    switch (size) {
+      case 'xs':
+        return 'w-6 h-6 min-w-[24px] min-h-[24px] text-[9px]';
+      case 'sm':
+        return 'w-9 h-9 min-w-[36px] min-h-[36px] text-xs';
+      case 'lg':
+        return 'w-12 h-12 min-w-[48px] min-h-[48px] text-sm';
+      case 'xl':
+        return 'w-16 h-16 min-w-[64px] min-h-[64px] text-base';
+      case 'md':
+      default:
+        return 'w-10 h-10 min-w-[40px] min-h-[40px] text-xs';
+    }
   };
 
-  const currentSizeClass = sizeClasses[size] || sizeClasses['md'];
+  const sizeStyle = getSizeStyles();
 
   return (
     <div 
       onClick={onClick}
-      className={`${currentSizeClass} rounded-full overflow-hidden bg-blue-600 flex items-center justify-center text-white font-black shrink-0 ${onClick ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''} ${className}`}
+      style={{
+        backgroundColor: hasValidPhoto ? 'transparent' : bgColor,
+        color: '#ffffff'
+      }}
+      className={`${sizeStyle} rounded-full overflow-hidden flex items-center justify-center font-black shrink-0 select-none shadow-xs transition-transform ${onClick ? 'cursor-pointer hover:scale-105 active:scale-95' : ''} ${className}`}
     >
-      {photoURL ? (
+      {hasValidPhoto ? (
         <img 
-          src={photoURL} 
-          alt={displayName} 
-          className="w-full h-full object-cover" 
-          onError={() => setPhotoURL('')}
+          src={resolvedPhoto} 
+          alt={effectiveDisplayName} 
+          className="w-full h-full object-cover rounded-full" 
+          onError={() => setImgError(true)}
         />
       ) : (
-        <span>{getInitials(displayName || 'U')}</span>
+        <span className="text-white font-bold leading-none select-none tracking-wider">
+          {getInitials(effectiveDisplayName)}
+        </span>
       )}
     </div>
   );

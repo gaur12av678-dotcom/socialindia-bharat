@@ -121,3 +121,41 @@ export interface Report {
   createdAt: any;
   status: 'pending' | 'reviewed' | 'resolved';
 }
+
+export interface TrashItem {
+  id: string; // trash doc id
+  itemId: string; // original videoId or uid
+  itemType: 'video' | 'short' | 'user';
+  title: string;
+  subtitle?: string; // username or category
+  thumbnailUrl?: string;
+  photoURL?: string;
+  deletedAt: string; // ISO timestamp
+  scheduledPurgeDate: string; // ISO timestamp (180 days after deletion)
+  deletedBy: string; // UID or 'admin' / 'user'
+  deletedByName?: string;
+  status: 'trashed' | 'restored' | 'purged';
+  details?: string;
+  dataSnapshot: any; // Complete original document for 100% loss-free restore
+}
+
+export interface DownloadedVideo {
+  videoId: string;
+  title: string;
+  description?: string;
+  videoBlob: Blob;
+  thumbnailBlob?: Blob;
+  thumbnailUrl?: string;
+  duration: number;
+  creatorId: string;
+  creatorUsername: string;
+  creatorDisplayName: string;
+  creatorPhotoURL?: string;
+  isShort: boolean;
+  category?: string;
+  sizeBytes: number;
+  downloadedAt: string;
+  videoUrl?: string;
+}
+
+

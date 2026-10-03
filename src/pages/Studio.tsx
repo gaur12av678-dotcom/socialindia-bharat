@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { videoService, getCloudinaryConfig, setCloudinaryConfig } from '../services/videoService';
 import { Video } from '../types';
-import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, captureFrameFromVideoFile } from '../utils/videoUtils';
+import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, formatTimeAgo, captureFrameFromVideoFile } from '../utils/videoUtils';
 import { categoriesList } from './Home';
 import { 
   LayoutDashboard, 
@@ -30,15 +30,28 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   Film,
-  Settings
+  Settings,
+  Send,
+  CornerDownRight,
+  Reply
 } from 'lucide-react';
+import { commentService } from '../services/commentService';
+import { Comment } from '../types';
+import { UserAvatar } from '../components/UserAvatar';
 
 export const CreatorStudio: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { route, navigate } = useRouter();
 
   // Navigation tab inside Studio
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'analytics'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'analytics' | 'comments'>('dashboard');
+
+  // Studio Comments state for community replies
+  const [studioComments, setStudioComments] = useState<(Comment & { videoTitle: string; isShort?: boolean })[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
+  const [submittingReplyId, setSubmittingReplyId] = useState<string | null>(null);
+  const [activeReplyBoxId, setActiveReplyBoxId] = useState<string | null>(null);
   
   // Video publishing state
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -55,19 +68,33 @@ export const CreatorStudio: React.FC = () => {
   const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [isShort, setIsShort] = useState(false);
 
-  // File Upload & Preview States (Cloudinary Native)
+  // File Upload & Preview States (Deferred Upload on Publish)
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
+  const [selectedThumbFile, setSelectedThumbFile] = useState<File | null>(null);
+  const [capturedThumbBlob, setCapturedThumbBlob] = useState<Blob | null>(null);
   const [videoFileName, setVideoFileName] = useState('');
   const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState('');
   const [isAutoCapturedThumb, setIsAutoCapturedThumb] = useState(false);
-  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
-  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStageText, setUploadStageText] = useState('');
-  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
-  const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
+  // Prevent accidental page reload or closing while upload is actively running
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isPublishing) {
+        e.preventDefault();
+        e.returnValue = 'Video upload is currently in progress. Leaving this page will cancel the upload.';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isPublishing]);
 
   // Creator state
   const [videos, setVideos] = useState<Video[]>([]);
@@ -204,7 +231,70 @@ export const CreatorStudio: React.FC = () => {
     return { points: coords, maxVal, pathD, areaD, width, height, paddingBottom };
   }, [videos, timeRange]);
 
-  // Handle Video Selection from Gallery/Device
+  // Handle Video Selection from Gallery/Device (Instant local preview, upload happens on Publish)
+  // Fetch comments for creator studio
+  const loadStudioComments = async () => {
+    if (videos.length === 0) return;
+    setLoadingComments(true);
+    try {
+      const comms = await commentService.getCommentsForVideos(
+        videos.map(v => ({ videoId: v.videoId, title: v.title, isShort: v.isShort }))
+      );
+      setStudioComments(comms);
+    } catch (err) {
+      console.error('Failed to load studio comments', err);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'comments') {
+      loadStudioComments();
+    }
+  }, [activeTab, videos]);
+
+  const handleSendReply = async (comment: Comment & { videoTitle: string }) => {
+    const text = (replyTextMap[comment.commentId] || '').trim();
+    if (!text || !currentUser || !currentUserProfile) {
+      addToast('Please enter a reply text.', 'info');
+      return;
+    }
+
+    setSubmittingReplyId(comment.commentId);
+    try {
+      await commentService.addComment(comment.videoId, {
+        parentCommentId: comment.commentId,
+        uid: currentUser.uid,
+        username: currentUserProfile.username,
+        displayName: currentUserProfile.displayName,
+        photoURL: currentUserProfile.photoURL || '',
+        text: text
+      });
+      addToast('Reply sent successfully!', 'success');
+      setReplyTextMap(prev => ({ ...prev, [comment.commentId]: '' }));
+      setActiveReplyBoxId(null);
+      loadStudioComments();
+    } catch (err) {
+      console.error(err);
+      addToast('Failed to post reply.', 'error');
+    } finally {
+      setSubmittingReplyId(null);
+    }
+  };
+
+  const handleDeleteComment = async (videoId: string, commentId: string) => {
+    if (window.confirm('Are you sure you want to delete this comment?')) {
+      try {
+        await commentService.deleteComment(videoId, commentId);
+        setStudioComments(prev => prev.filter(c => c.commentId !== commentId));
+        addToast('Comment deleted.', 'info');
+      } catch {
+        addToast('Failed to delete comment.', 'error');
+      }
+    }
+  };
+
   const handleVideoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -219,87 +309,45 @@ export const CreatorStudio: React.FC = () => {
       return;
     }
 
+    setSelectedVideoFile(file);
+    setVideoFileName(file.name);
+
     // Auto-fill title from filename if empty
     if (!title.trim()) {
       const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
       setTitle(cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
     }
 
-    setVideoFileName(file.name);
     const localBlobUrl = URL.createObjectURL(file);
     setVideoPreviewUrl(localBlobUrl);
 
-    // Extract duration from video file element
+    // Extract duration & auto-detect Shorts
     const tempVideo = document.createElement('video');
     tempVideo.preload = 'metadata';
     tempVideo.src = localBlobUrl;
     tempVideo.onloadedmetadata = () => {
       if (tempVideo.duration && !isNaN(tempVideo.duration)) {
         setDuration(Math.round(tempVideo.duration));
-        // Auto-detect Shorts if vertical aspect ratio (height > width) or <= 60s
         if (tempVideo.videoHeight > tempVideo.videoWidth) {
           setIsShort(true);
         }
       }
     };
 
-    // Automatically capture a real frame from the video scene if custom thumbnail not set
-    if (!thumbnailUrl || isAutoCapturedThumb) {
-      captureFrameFromVideoFile(file, 1.5).then(async (captured) => {
+    // Auto-capture real frame from video for thumbnail preview locally
+    if (!selectedThumbFile && !thumbnailUrl) {
+      captureFrameFromVideoFile(file, 1.5).then((captured) => {
         if (captured) {
           setThumbnailPreviewUrl(captured.dataUrl);
+          setCapturedThumbBlob(captured.blob);
           setIsAutoCapturedThumb(true);
-          try {
-            const uploadedThumb = await videoService.uploadThumbnail(captured.blob);
-            setThumbnailUrl(uploadedThumb);
-            setThumbnailPreviewUrl(uploadedThumb);
-          } catch (thumbErr) {
-            console.warn('Auto frame thumbnail upload deferred to Cloudinary video scene extractor:', thumbErr);
-          }
         }
       }).catch(console.error);
     }
-
-    setIsUploadingVideo(true);
-    setVideoUploadProgress(0);
-    setUploadStageText('Preparing video upload...');
-
-    try {
-      const result = await videoService.uploadVideo(file, (progress, stage) => {
-        setVideoUploadProgress(progress);
-        if (stage) setUploadStageText(stage);
-      });
-      
-      setVideoUrl(result.videoUrl);
-      setUploadStageText('Video ready!');
-      if (result.duration) {
-        setDuration(result.duration);
-      }
-      // If thumbnail is still empty, auto-extract Cloudinary frame scene URL
-      if (!thumbnailUrl) {
-        const autoSceneThumb = extractVideoThumbnail(result.videoUrl);
-        if (autoSceneThumb) {
-          setThumbnailUrl(autoSceneThumb);
-          setThumbnailPreviewUrl(autoSceneThumb);
-          setIsAutoCapturedThumb(true);
-        }
-      }
-      addToast('Video uploaded & processed successfully!', 'success');
-    } catch (err: any) {
-      console.error('Video upload error:', err);
-      if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
-        setCloudinaryModalOpen(true);
-        addToast('Please enter your Cloudinary Cloud Name & Upload Preset once to enable direct uploads.', 'info');
-      } else {
-        addToast(err.message || 'Failed to upload video.', 'error');
-      }
-    } finally {
-      setIsUploadingVideo(false);
-    }
   };
 
-  // Handle Custom Thumbnail Selection from Gallery/Device
-  const handleThumbnailFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Custom Thumbnail Selection from Gallery/Device (Local preview)
+  const handleThumbnailFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -313,34 +361,13 @@ export const CreatorStudio: React.FC = () => {
       return;
     }
 
+    setSelectedThumbFile(file);
     const localImgUrl = URL.createObjectURL(file);
     setThumbnailPreviewUrl(localImgUrl);
     setIsAutoCapturedThumb(false);
-
-    setIsUploadingThumbnail(true);
-    setThumbnailUploadProgress(0);
-
-    try {
-      const uploadedThumbUrl = await videoService.uploadThumbnail(file, (progress) => {
-        setThumbnailUploadProgress(progress);
-      });
-      
-      setThumbnailUrl(uploadedThumbUrl);
-      setThumbnailPreviewUrl(uploadedThumbUrl);
-      addToast('Custom thumbnail uploaded successfully!', 'success');
-    } catch (err: any) {
-      console.error('Thumbnail upload error:', err);
-      if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
-        setCloudinaryModalOpen(true);
-        addToast('Please configure Cloudinary settings to upload custom thumbnails.', 'info');
-      } else {
-        addToast(err.message || 'Failed to upload custom thumbnail.', 'error');
-      }
-    } finally {
-      setIsUploadingThumbnail(false);
-    }
   };
 
+  // Publish or Edit Handler with real-time percentage progress
   const handlePublishOrEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !currentUserProfile) return;
@@ -350,24 +377,74 @@ export const CreatorStudio: React.FC = () => {
       return;
     }
 
-    if (!videoUrl.trim()) {
-      addToast('Please upload a video file from your device first.', 'error');
+    // Validation: Require either an existing video URL or a newly selected video file
+    if (!videoUrl && !selectedVideoFile) {
+      addToast('Please select a video file from your device first.', 'error');
       return;
     }
 
-    const tags = tagsInput.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0).slice(0, 8);
-    const resolvedThumbnail = thumbnailUrl.trim() || thumbnailPreviewUrl.trim() || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60';
+    setIsPublishing(true);
+    setUploadProgress(0);
+    setUploadStageText('Preparing video upload...');
 
     try {
+      let finalVideoUrl = videoUrl;
+      let finalDuration = duration;
+      let finalThumbnailUrl = thumbnailUrl;
+
+      // 1. Upload Video File if newly selected
+      if (selectedVideoFile) {
+        setUploadStageText('Uploading video... 0%');
+        const uploadRes = await videoService.uploadVideo(selectedVideoFile, (progress) => {
+          setUploadProgress(progress);
+          if (progress >= 100) {
+            setUploadStageText('Encoding video stream...');
+          } else {
+            setUploadStageText(`Uploading video... ${progress}%`);
+          }
+        });
+        finalVideoUrl = uploadRes.videoUrl;
+        if (uploadRes.duration) {
+          finalDuration = uploadRes.duration;
+        }
+      }
+
+      // 2. Upload Thumbnail if a custom image was picked or frame captured
+      if (selectedThumbFile) {
+        setUploadStageText('Uploading thumbnail...');
+        const thumbUrl = await videoService.uploadThumbnail(selectedThumbFile);
+        finalThumbnailUrl = thumbUrl;
+      } else if (capturedThumbBlob && !finalThumbnailUrl) {
+        setUploadStageText('Processing thumbnail...');
+        try {
+          const autoThumbUrl = await videoService.uploadThumbnail(capturedThumbBlob);
+          finalThumbnailUrl = autoThumbUrl;
+        } catch (_) {
+          // Fallback to scene extractor
+          if (finalVideoUrl) {
+            finalThumbnailUrl = extractVideoThumbnail(finalVideoUrl) || '';
+          }
+        }
+      }
+
+      if (!finalThumbnailUrl && finalVideoUrl) {
+        finalThumbnailUrl = extractVideoThumbnail(finalVideoUrl) || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60';
+      }
+
+      const tags = tagsInput.split(',').map(t => t.trim().toLowerCase()).filter(t => t.length > 0).slice(0, 8);
+
+      setUploadStageText('Publishing to SocialIndia Feed...');
+      setUploadProgress(100);
+
       if (editingVideo) {
         await videoService.editVideo(editingVideo.videoId, {
           title: title.trim(),
           description: description.trim(),
-          videoUrl: videoUrl.trim(),
-          thumbnailUrl: resolvedThumbnail,
+          videoUrl: finalVideoUrl,
+          thumbnailUrl: finalThumbnailUrl,
           category,
           tags,
-          duration,
+          duration: finalDuration,
           visibility,
           isShort,
         });
@@ -376,11 +453,11 @@ export const CreatorStudio: React.FC = () => {
         await videoService.publishVideo({
           title: title.trim(),
           description: description.trim(),
-          videoUrl: videoUrl.trim(),
-          thumbnailUrl: resolvedThumbnail,
+          videoUrl: finalVideoUrl,
+          thumbnailUrl: finalThumbnailUrl,
           category,
           tags,
-          duration,
+          duration: finalDuration,
           visibility,
           isShort,
           creatorId: currentUser.uid,
@@ -393,9 +470,17 @@ export const CreatorStudio: React.FC = () => {
 
       setPublishModalOpen(false);
       resetForm();
-      loadCreatorDashboard();
-    } catch (err) {
-      addToast('Failed to save video metadata.', 'error');
+    } catch (err: any) {
+      console.error('Publish error:', err);
+      if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
+        addToast('Cloud Storage is not configured yet. Please contact the platform Admin to setup storage in Admin Panel.', 'error');
+      } else {
+        addToast(err.message || 'Failed to upload and publish video.', 'error');
+      }
+    } finally {
+      setIsPublishing(false);
+      setUploadProgress(0);
+      setUploadStageText('');
     }
   };
 
@@ -404,6 +489,8 @@ export const CreatorStudio: React.FC = () => {
     setTitle(video.title);
     setVideoUrl(video.videoUrl);
     setVideoPreviewUrl(video.videoUrl);
+    setSelectedVideoFile(null);
+    setSelectedThumbFile(null);
     setThumbnailUrl(video.thumbnailUrl);
     setThumbnailPreviewUrl(video.thumbnailUrl);
     setDescription(video.description);
@@ -430,7 +517,6 @@ export const CreatorStudio: React.FC = () => {
       setVideos(prev => prev.filter(v => v.videoId !== videoToDelete.videoId));
       setDeleteModalOpen(false);
       setVideoToDelete(null);
-      loadCreatorDashboard();
     } catch (err) {
       console.error('Delete error:', err);
       addToast('Failed to delete video. Please check permissions.', 'error');
@@ -445,6 +531,9 @@ export const CreatorStudio: React.FC = () => {
     setVideoUrl('');
     setVideoPreviewUrl('');
     setVideoFileName('');
+    setSelectedVideoFile(null);
+    setSelectedThumbFile(null);
+    setCapturedThumbBlob(null);
     setThumbnailUrl('');
     setThumbnailPreviewUrl('');
     setDescription('');
@@ -453,10 +542,9 @@ export const CreatorStudio: React.FC = () => {
     setDuration(120);
     setVisibility('public');
     setIsShort(false);
-    setIsUploadingVideo(false);
-    setVideoUploadProgress(0);
-    setIsUploadingThumbnail(false);
-    setThumbnailUploadProgress(0);
+    setIsPublishing(false);
+    setUploadProgress(0);
+    setUploadStageText('');
   };
 
   // Auto-open upload modal when navigating from header/homepage upload buttons
@@ -541,6 +629,17 @@ export const CreatorStudio: React.FC = () => {
           <BarChart3 className="w-4 h-4" />
           <span>Analytics</span>
         </button>
+        <button
+          onClick={() => setActiveTab('comments')}
+          style={{ 
+            backgroundColor: activeTab === 'comments' ? '#065fd4' : '#93c5fd',
+            color: '#000000'
+          }}
+          className="px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl shadow-lg border-2 border-transparent active:scale-95"
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span>Comments ({studioComments.length})</span>
+        </button>
       </div>
 
       {loading ? (
@@ -582,7 +681,7 @@ export const CreatorStudio: React.FC = () => {
                   <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs">
                     <div className="flex items-center gap-2 text-teal-600 mb-2">
                       <Users className="w-4 h-4" />
-                      <span className="text-[10px] font-black uppercase tracking-wider">Fans</span>
+                      <span className="text-[10px] font-black uppercase tracking-wider">Subscribers</span>
                     </div>
                     <p className="text-2xl font-black text-slate-900 dark:text-[#F8FAFC]">{stats.followers}</p>
                   </div>
@@ -992,6 +1091,162 @@ export const CreatorStudio: React.FC = () => {
             </div>
           )}
 
+          {/* COMMENTS & COMMUNITY TAB VIEW */}
+          {activeTab === 'comments' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              
+              {/* Header Card */}
+              <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 sm:p-6 rounded-3xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Channel Comments & Community</h2>
+                    <span className="px-2.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-[11px] font-black">
+                      {studioComments.length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                    Reply directly to your viewers across all your videos and shorts.
+                  </p>
+                </div>
+
+                <button
+                  onClick={loadStudioComments}
+                  disabled={loadingComments}
+                  className="px-4 py-2 bg-slate-100 dark:bg-[#1E293B] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl flex items-center gap-2 transition-all cursor-pointer w-fit self-start sm:self-auto"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
+                  <span>{loadingComments ? 'Refreshing...' : 'Refresh Comments'}</span>
+                </button>
+              </div>
+
+              {/* Comments List */}
+              {loadingComments ? (
+                <div className="py-20 flex flex-col items-center justify-center gap-3">
+                  <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                  <div className="text-xs font-bold text-slate-400">Loading channel comments...</div>
+                </div>
+              ) : studioComments.length === 0 ? (
+                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl p-12 text-center flex flex-col items-center justify-center">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
+                    <MessageSquare className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">No comments yet</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1.5 font-medium leading-relaxed">
+                    When viewers watch and comment on your videos or shorts, you will be able to read and reply to them right here!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {studioComments.map((comment) => {
+                    const isReplying = activeReplyBoxId === comment.commentId;
+                    const isSubmitting = submittingReplyId === comment.commentId;
+
+                    return (
+                      <div
+                        key={comment.commentId}
+                        className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs transition-all hover:border-blue-300 dark:hover:border-blue-700 space-y-3"
+                      >
+                        {/* Top: User info + Video info */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <UserAvatar
+                              uid={comment.uid}
+                              fallbackPhotoURL={comment.photoURL}
+                              fallbackDisplayName={comment.displayName || comment.username}
+                              size="sm"
+                            />
+                            <div className="min-w-0">
+                              <span className="text-xs font-extrabold text-slate-900 dark:text-white truncate block">
+                                {comment.displayName || comment.username}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-semibold">
+                                @{comment.username} • {formatTimeAgo(comment.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Video source badge */}
+                          <div 
+                            onClick={() => navigate(comment.isShort ? 'shorts' : 'watch', comment.videoId)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-bold cursor-pointer transition-colors max-w-xs truncate"
+                            title={`Watch "${comment.videoTitle}"`}
+                          >
+                            <VideoIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{comment.videoTitle}</span>
+                          </div>
+                        </div>
+
+                        {/* Comment text */}
+                        <p className="text-xs md:text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed pl-1">
+                          {comment.text}
+                        </p>
+
+                        {/* Bottom Actions toolbar */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            onClick={() => setActiveReplyBoxId(isReplying ? null : comment.commentId)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            <Reply className="w-3.5 h-3.5" />
+                            <span>{isReplying ? 'Cancel Reply' : 'Reply to Viewer'}</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteComment(comment.videoId, comment.commentId)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
+                            title="Delete comment"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Expandable Reply Form Box */}
+                        {isReplying && (
+                          <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-[#334155] space-y-2 bg-slate-50 dark:bg-slate-900/40 p-3.5 rounded-xl animate-in slide-in-from-top-2">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                              <CornerDownRight className="w-3.5 h-3.5 text-blue-500" />
+                              <span>Replying as channel owner: <strong>{currentUserProfile?.displayName}</strong></span>
+                            </div>
+
+                            <textarea
+                              value={replyTextMap[comment.commentId] || ''}
+                              onChange={(e) => setReplyTextMap(prev => ({ ...prev, [comment.commentId]: e.target.value }))}
+                              placeholder="Write a helpful reply to your viewer..."
+                              rows={2}
+                              className="w-full px-3 py-2 text-xs bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-xl focus:outline-none focus:border-blue-500 text-slate-900 dark:text-white resize-none"
+                            />
+
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => setActiveReplyBoxId(null)}
+                                className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleSendReply(comment)}
+                                disabled={isSubmitting || !(replyTextMap[comment.commentId] || '').trim()}
+                                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                              >
+                                {isSubmitting ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Send className="w-3.5 h-3.5" />
+                                )}
+                                <span>Send Reply</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+            </div>
+          )}
+
         </div>
       )}
 
@@ -1000,7 +1255,7 @@ export const CreatorStudio: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div 
             className="fixed inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity" 
-            onClick={() => !isUploadingVideo && !isUploadingThumbnail && setPublishModalOpen(false)} 
+            onClick={() => !isPublishing && setPublishModalOpen(false)} 
           />
 
           <div className="relative bg-white dark:bg-[#111827] rounded-3xl p-5 sm:p-7 md:p-8 shadow-2xl max-w-3xl w-full border border-slate-200 dark:border-[#334155] z-10 my-6 animate-zoom-in max-h-[92vh] overflow-y-auto">
@@ -1040,10 +1295,10 @@ export const CreatorStudio: React.FC = () => {
                       <VideoIcon className="w-4 h-4 text-[#065fd4]" />
                       <span>Video File * (From Gallery)</span>
                     </label>
-                    {videoUrl && (
+                    {(selectedVideoFile || videoUrl) && (
                       <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Uploaded ({formatDuration(duration)})
+                        {selectedVideoFile ? `Ready (${formatDuration(duration)})` : `Uploaded (${formatDuration(duration)})`}
                       </span>
                     )}
                   </div>
@@ -1053,6 +1308,7 @@ export const CreatorStudio: React.FC = () => {
                     ref={fileInputRef} 
                     onChange={handleVideoFileSelect} 
                     accept="video/*" 
+                    disabled={isPublishing}
                     className="hidden" 
                   />
 
@@ -1066,26 +1322,8 @@ export const CreatorStudio: React.FC = () => {
                         muted
                         playsInline
                       />
-                      
-                      {isUploadingVideo && (
-                        <div className="absolute inset-0 bg-black/85 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white z-10 space-y-2 text-center">
-                          <Loader2 className="w-9 h-9 text-[#065fd4] animate-spin mb-1" />
-                          <p className="text-xs font-black uppercase tracking-wider">
-                            {uploadStageText || (videoUploadProgress >= 100 ? 'Encoding & Finalizing Stream...' : `Uploading: ${videoUploadProgress}%`)}
-                          </p>
-                          <div className="w-full max-w-[220px] h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-                            <div 
-                              className="h-full bg-[#065fd4] transition-all duration-300 rounded-full"
-                              style={{ width: `${Math.max(5, videoUploadProgress)}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] text-slate-300 font-medium">
-                            {videoUploadProgress >= 100 ? 'Almost done, preparing fast streaming URL...' : `${videoUploadProgress}% uploaded`}
-                          </span>
-                        </div>
-                      )}
 
-                      {!isUploadingVideo && (
+                      {!isPublishing && (
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
@@ -1098,7 +1336,7 @@ export const CreatorStudio: React.FC = () => {
                     </div>
                   ) : (
                     <div
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => !isPublishing && fileInputRef.current?.click()}
                       className="border-2 border-dashed border-blue-300 dark:border-blue-900/60 hover:border-[#065fd4] dark:hover:border-blue-500 rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-2.5 bg-blue-50/40 dark:bg-blue-950/20 hover:bg-blue-50/70 transition-all cursor-pointer group min-h-[160px]"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-[#065fd4] text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-110 transition-transform">
@@ -1121,7 +1359,7 @@ export const CreatorStudio: React.FC = () => {
                       <ImageIcon className="w-4 h-4 text-[#065fd4]" />
                       <span>Thumbnail (Auto Scene or Custom)</span>
                     </label>
-                    {thumbnailUrl && (
+                    {(thumbnailPreviewUrl || thumbnailUrl) && (
                       <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         {isAutoCapturedThumb ? 'Auto Video Scene' : 'Custom Image'}
@@ -1134,6 +1372,7 @@ export const CreatorStudio: React.FC = () => {
                     ref={thumbnailInputRef} 
                     onChange={handleThumbnailFileSelect} 
                     accept="image/*" 
+                    disabled={isPublishing}
                     className="hidden" 
                   />
 
@@ -1153,14 +1392,7 @@ export const CreatorStudio: React.FC = () => {
                         </div>
                       )}
 
-                      {isUploadingThumbnail && (
-                        <div className="absolute inset-0 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-white z-10">
-                          <Loader2 className="w-7 h-7 text-[#065fd4] animate-spin mb-1.5" />
-                          <p className="text-[11px] font-black uppercase tracking-wider">Uploading Thumbnail {thumbnailUploadProgress}%</p>
-                        </div>
-                      )}
-
-                      {!isUploadingThumbnail && (
+                      {!isPublishing && (
                         <button
                           type="button"
                           onClick={() => thumbnailInputRef.current?.click()}
@@ -1173,7 +1405,7 @@ export const CreatorStudio: React.FC = () => {
                     </div>
                   ) : (
                     <div
-                      onClick={() => thumbnailInputRef.current?.click()}
+                      onClick={() => !isPublishing && thumbnailInputRef.current?.click()}
                       className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-[#065fd4] dark:hover:border-blue-500 rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-2.5 bg-slate-50 dark:bg-slate-900/40 hover:bg-blue-50/30 transition-all cursor-pointer group min-h-[160px]"
                     >
                       <div className="w-12 h-12 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center group-hover:scale-110 group-hover:bg-[#065fd4] group-hover:text-white transition-all shadow-xs">
@@ -1313,25 +1545,54 @@ export const CreatorStudio: React.FC = () => {
                 </div>
               </div>
 
+              {/* Live Upload Progress Screen */}
+              {isPublishing && (
+                <div className="p-4 sm:p-5 bg-blue-50/80 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-900/50 space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <Loader2 className="w-4 h-4 text-[#065fd4] animate-spin" />
+                      <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                        {uploadStageText || `Uploading Video... ${uploadProgress}%`}
+                      </span>
+                    </div>
+                    <span className="text-xs font-black text-[#065fd4] dark:text-blue-400">
+                      {uploadProgress}%
+                    </span>
+                  </div>
+
+                  {/* Progress Meter */}
+                  <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-linear-to-r from-[#065fd4] to-blue-500 rounded-full transition-all duration-300 shadow-sm"
+                      style={{ width: `${Math.max(4, uploadProgress)}%` }}
+                    />
+                  </div>
+
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                    Please keep this window open while the video is being uploaded and published.
+                  </p>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setPublishModalOpen(false)}
-                  disabled={isUploadingVideo || isUploadingThumbnail}
+                  disabled={isPublishing}
                   className="px-6 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black rounded-full cursor-pointer transition-all uppercase text-[11px] tracking-wider disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploadingVideo || isUploadingThumbnail || !videoUrl}
+                  disabled={isPublishing || (!videoUrl && !selectedVideoFile)}
                   className="px-8 py-3.5 bg-[#065fd4] hover:bg-[#054fb1] disabled:bg-slate-400 text-white font-black rounded-full cursor-pointer shadow-lg shadow-blue-600/30 transition-all active:scale-95 uppercase text-xs tracking-wider disabled:opacity-50 flex items-center gap-2"
                 >
-                  {(isUploadingVideo || isUploadingThumbnail) ? (
+                  {isPublishing ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Uploading Media...</span>
+                      <span>Publishing... {uploadProgress > 0 ? `${uploadProgress}%` : ''}</span>
                     </>
                   ) : (
                     <>

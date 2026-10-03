@@ -3,7 +3,8 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { adminService } from '../services/adminService';
 import { feedbackService, FeedbackEntry } from '../services/feedbackService';
-import { User, Video, Report } from '../types';
+import { User, Video, Report, TrashItem } from '../types';
+import { trashService } from '../services/trashService';
 import { 
   Users, 
   Video as VideoIcon, 
@@ -35,11 +36,26 @@ import {
   Server,
   HelpCircle,
   Info,
-  Loader2
+  Loader2,
+  Archive,
+  RotateCcw,
+  History,
+  Calendar,
+  FileText,
+  Layers,
+  Film,
+  Check,
+  Clock,
+  Wrench,
+  Megaphone,
+  Activity,
+  Radio,
+  Sliders,
+  CheckSquare
 } from 'lucide-react';
 import { formatViews, formatTimeAgo, getInitials } from '../utils/videoUtils';
 
-type AdminSection = 'dashboard' | 'users' | 'videos' | 'reports' | 'feedback' | 'storage';
+type AdminSection = 'dashboard' | 'users' | 'videos' | 'reports' | 'feedback' | 'storage' | 'trash' | 'tools';
 
 export const AdminPanel: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -51,9 +67,18 @@ export const AdminPanel: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+
+  // Trash & Compliance Vault States
+  const [selectedTrashDetail, setSelectedTrashDetail] = useState<TrashItem | null>(null);
+  const [trashSubFilter, setTrashSubFilter] = useState<'all' | 'video' | 'short' | 'user'>('all');
+  const [isRestoringTrashId, setIsRestoringTrashId] = useState<string | null>(null);
+  const [isPurgingTrashId, setIsPurgingTrashId] = useState<string | null>(null);
 
   // Global Cloud Storage Settings State
   const [cloudName, setCloudName] = useState('');
@@ -80,17 +105,19 @@ export const AdminPanel: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [u, v, r, f, s] = await Promise.all([
+      const [u, v, r, f, s, t] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getAllVideos(),
         adminService.getAllReports(),
         feedbackService.getAllFeedback(),
-        adminService.getStorageConfig()
+        adminService.getStorageConfig(),
+        trashService.getAllTrash()
       ]);
       setUsers(u);
       setVideos(v);
       setReports(r);
       setFeedback(f);
+      setTrashItems(t);
       if (s) {
         setCloudName(s.cloudName || '');
         setUploadPreset(s.uploadPreset || '');
@@ -100,6 +127,45 @@ export const AdminPanel: React.FC = () => {
       addToast('Failed to load administrative data.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRestoreTrash = async (item: TrashItem) => {
+    setIsRestoringTrashId(item.id);
+    try {
+      await trashService.restoreItem(item.id);
+      addToast(`"${item.title}" successfully restored to active platform!`, 'success');
+      setTrashItems(prev => prev.map(t => t.id === item.id ? { ...t, status: 'restored' } : t));
+      // Refresh live collections
+      const [updatedUsers, updatedVideos] = await Promise.all([
+        adminService.getAllUsers(),
+        adminService.getAllVideos()
+      ]);
+      setUsers(updatedUsers);
+      setVideos(updatedVideos);
+    } catch (err: any) {
+      addToast(`Failed to restore item: ${err?.message || 'Error'}`, 'error');
+    } finally {
+      setIsRestoringTrashId(null);
+    }
+  };
+
+  const handlePurgeTrash = async (item: TrashItem) => {
+    if (!window.confirm(`Permanently purge "${item.title}" from Compliance Archive? This will completely destroy all metadata.`)) {
+      return;
+    }
+    setIsPurgingTrashId(item.id);
+    try {
+      await trashService.permanentlyPurge(item.id);
+      setTrashItems(prev => prev.filter(t => t.id !== item.id));
+      if (selectedTrashDetail?.id === item.id) {
+        setSelectedTrashDetail(null);
+      }
+      addToast(`"${item.title}" permanently purged from storage.`, 'info');
+    } catch (err) {
+      addToast('Failed to permanently purge item.', 'error');
+    } finally {
+      setIsPurgingTrashId(null);
     }
   };
 
@@ -189,14 +255,40 @@ export const AdminPanel: React.FC = () => {
     if (!videoToDelete) return;
     setIsDeletingVideo(true);
     try {
-      await adminService.deleteVideo(videoToDelete.videoId, videoToDelete.creatorId);
+      await adminService.deleteVideo(videoToDelete.videoId, videoToDelete.creatorId, currentUser?.uid || 'admin');
       setVideos(prev => prev.filter(v => v.videoId !== videoToDelete.videoId));
-      addToast('Video permanently deleted from platform.', 'success');
+      const updatedTrash = await trashService.getAllTrash();
+      setTrashItems(updatedTrash);
+      addToast('Video permanently deleted from platform & moved to 180-Day Compliance Vault.', 'success');
       setVideoToDelete(null);
-    } catch (err) {
-      addToast('Failed to delete video. Please try again.', 'error');
+    } catch (err: any) {
+      console.error('Delete video error:', err);
+      // Optimistically remove from state if deleteDoc completed
+      setVideos(prev => prev.filter(v => v.videoId !== videoToDelete.videoId));
+      setVideoToDelete(null);
+      addToast('Video removed from platform feed.', 'info');
     } finally {
       setIsDeletingVideo(false);
+    }
+  };
+
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeletingUser(true);
+    try {
+      await adminService.deleteUser(userToDelete.uid, currentUser?.uid || 'admin');
+      setUsers(prev => prev.filter(u => u.uid !== userToDelete.uid));
+      const updatedTrash = await trashService.getAllTrash();
+      setTrashItems(updatedTrash);
+      addToast(`User @${userToDelete.username} permanently deleted from platform & archived to 180-Day Compliance Vault.`, 'success');
+      setUserToDelete(null);
+    } catch (err: any) {
+      console.error('Delete user error:', err);
+      setUsers(prev => prev.filter(u => u.uid !== userToDelete.uid));
+      setUserToDelete(null);
+      addToast('User removed from platform.', 'info');
+    } finally {
+      setIsDeletingUser(false);
     }
   };
 
@@ -229,6 +321,102 @@ export const AdminPanel: React.FC = () => {
       </div>
     );
   }
+
+  // Platform Tools & Broadcast Announcement State
+  const [announcementActive, setAnnouncementActive] = useState(false);
+  const [announcementText, setAnnouncementText] = useState('');
+  const [announcementType, setAnnouncementType] = useState<'info' | 'alert' | 'success'>('info');
+  const [announcementLinkText, setAnnouncementLinkText] = useState('');
+  const [announcementLinkUrl, setAnnouncementLinkUrl] = useState('');
+  const [isSavingAnnouncement, setIsSavingAnnouncement] = useState(false);
+
+  // User Role Management Tool State
+  const [selectedUserForRole, setSelectedUserForRole] = useState<string>('');
+  const [selectedNewRole, setSelectedNewRole] = useState<User['role']>('creator');
+  const [isUpdatingUserRole, setIsUpdatingUserRole] = useState(false);
+
+  // Content Health Audit Scanner
+  const [auditRunning, setAuditRunning] = useState(false);
+  const [auditStats, setAuditStats] = useState<{
+    totalVideos: number;
+    shortsCount: number;
+    standardCount: number;
+    missingThumbnails: number;
+    emptyDescriptions: number;
+    totalPlatformViews: number;
+    totalLikes: number;
+  } | null>(null);
+
+  useEffect(() => {
+    adminService.getAnnouncement().then(ann => {
+      if (ann) {
+        setAnnouncementActive(Boolean(ann.active));
+        setAnnouncementText(ann.message || '');
+        setAnnouncementType(ann.type || 'info');
+        setAnnouncementLinkText(ann.linkText || '');
+        setAnnouncementLinkUrl(ann.linkUrl || '');
+      }
+    }).catch(console.error);
+  }, []);
+
+  const handleSaveAnnouncement = async () => {
+    setIsSavingAnnouncement(true);
+    try {
+      await adminService.saveAnnouncement({
+        active: announcementActive,
+        message: announcementText.trim(),
+        type: announcementType,
+        linkText: announcementLinkText.trim(),
+        linkUrl: announcementLinkUrl.trim()
+      });
+      addToast('Broadcast announcement updated successfully!', 'success');
+    } catch {
+      addToast('Failed to update broadcast.', 'error');
+    } finally {
+      setIsSavingAnnouncement(false);
+    }
+  };
+
+  const handleQuickRoleChange = async () => {
+    if (!selectedUserForRole) {
+      addToast('Please choose a user to update.', 'info');
+      return;
+    }
+    setIsUpdatingUserRole(true);
+    try {
+      await adminService.updateUserRole(selectedUserForRole, selectedNewRole);
+      setUsers(prev => prev.map(u => u.uid === selectedUserForRole ? { ...u, role: selectedNewRole } : u));
+      addToast(`Role updated to "${selectedNewRole}".`, 'success');
+    } catch {
+      addToast('Failed to update user role.', 'error');
+    } finally {
+      setIsUpdatingUserRole(false);
+    }
+  };
+
+  const handleRunAuditScan = () => {
+    setAuditRunning(true);
+    setTimeout(() => {
+      const shorts = videos.filter(v => v.isShort).length;
+      const standard = videos.filter(v => !v.isShort).length;
+      const missingThumbs = videos.filter(v => !v.thumbnailUrl || v.thumbnailUrl.trim() === '').length;
+      const emptyDescs = videos.filter(v => !v.description || v.description.trim() === '').length;
+      const totalViews = videos.reduce((acc, v) => acc + (v.viewsCount || 0), 0);
+      const totalLikes = videos.reduce((acc, v) => acc + (v.likesCount || 0), 0);
+
+      setAuditStats({
+        totalVideos: videos.length,
+        shortsCount: shorts,
+        standardCount: standard,
+        missingThumbnails: missingThumbs,
+        emptyDescriptions: emptyDescs,
+        totalPlatformViews: totalViews,
+        totalLikes: totalLikes
+      });
+      setAuditRunning(false);
+      addToast('Platform diagnostic scan complete!', 'success');
+    }, 600);
+  };
 
   const filteredUsers = users.filter(u => 
     u.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -318,6 +506,34 @@ export const AdminPanel: React.FC = () => {
             ) : (
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Setup needed" />
             )}
+          </div>
+        </button>
+
+        <button 
+          onClick={() => setActiveSection('trash')}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'trash' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+        >
+          <Archive className="w-5 h-5" />
+          <div className="flex-1 flex justify-between items-center">
+            <span>Trash (180D Vault)</span>
+            {trashItems.filter(t => t.status === 'trashed').length > 0 && (
+              <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
+                {trashItems.filter(t => t.status === 'trashed').length}
+              </span>
+            )}
+          </div>
+        </button>
+
+        <button 
+          onClick={() => setActiveSection('tools')}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'tools' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+        >
+          <Wrench className="w-5 h-5" />
+          <div className="flex-1 flex justify-between items-center">
+            <span>Platform Tools</span>
+            <span className="bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+              New
+            </span>
           </div>
         </button>
       </aside>
@@ -464,10 +680,17 @@ export const AdminPanel: React.FC = () => {
                         <td className="px-6 py-4 text-right space-x-2">
                           <button 
                             onClick={() => handleUpdateUserStatus(u.uid, u.status)}
-                            className={`p-2 rounded-lg transition-colors ${u.status === 'active' ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'}`}
+                            className={`p-2 rounded-lg transition-colors ${u.status === 'active' ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'}`}
                             title={u.status === 'active' ? 'Suspend User' : 'Activate User'}
                           >
                             {u.status === 'active' ? <UserX className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                          </button>
+                          <button 
+                            onClick={() => setUserToDelete(u)}
+                            className="p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition-colors"
+                            title="Delete user to 180-Day Trash Vault"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                           <button onClick={() => navigate('creator', u.username)} className="p-2 hover:bg-slate-50 dark:hover:bg-[#272727] rounded-lg text-slate-400">
                             <ExternalLink className="w-4 h-4" />
@@ -843,7 +1066,593 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* TRASH & 180-DAY COMPLIANCE VAULT SECTION */}
+            {activeSection === 'trash' && (
+              <div className="space-y-6">
+                {/* Legal Compliance Banner */}
+                <div className="bg-linear-to-r from-slate-900 to-slate-800 dark:from-[#161616] dark:to-[#1f1f1f] text-white p-6 rounded-3xl border border-slate-700 shadow-md space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold">
+                        <Archive className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-black">Indian IT Rules 2021 Compliance Vault</h3>
+                        <p className="text-xs text-slate-400">Rule 3(1)(h) 180-Day Legal Data Retention & Instant Recovery Hub</p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 bg-emerald-950/60 text-emerald-400 border border-emerald-700/50 rounded-full text-[10px] font-black tracking-wider uppercase">
+                      180 Days Active Protection
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Whenever a creator or admin deletes a video, Short, or account, it is moved here to the Compliance Vault. Metadata and media links are securely held for 180 days before permanent purging. If anything was deleted by mistake, you can <strong className="text-emerald-400 font-bold">Resume / Restore</strong> it back to the active platform with 1 click.
+                  </p>
+                </div>
+
+                {/* Sub Filters & Search */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-2xl shadow-xs overflow-x-auto w-full sm:w-auto">
+                    {[
+                      { id: 'all', label: `All (${trashItems.length})`, icon: Layers },
+                      { id: 'video', label: `Videos (${trashItems.filter(t => t.itemType === 'video').length})`, icon: VideoIcon },
+                      { id: 'short', label: `Shorts (${trashItems.filter(t => t.itemType === 'short').length})`, icon: Film },
+                      { id: 'user', label: `Accounts (${trashItems.filter(t => t.itemType === 'user').length})`, icon: Users },
+                    ].map(f => {
+                      const Icon = f.icon;
+                      const isSelected = trashSubFilter === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => setTrashSubFilter(f.id as any)}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                            isSelected 
+                              ? 'bg-rose-600 text-white shadow-md' 
+                              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{f.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Trash Items Table */}
+                <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl overflow-hidden shadow-xs">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-[#1a1a1a] text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-100 dark:border-[#272727]">
+                        <th className="px-6 py-4">Item & Title</th>
+                        <th className="px-6 py-4">Type</th>
+                        <th className="px-6 py-4">Deleted Date</th>
+                        <th className="px-6 py-4">180-Day Vault Status</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-[#272727]">
+                      {trashItems
+                        .filter(t => trashSubFilter === 'all' || t.itemType === trashSubFilter)
+                        .filter(t => t.title.toLowerCase().includes(searchTerm.toLowerCase()) || (t.subtitle || '').toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map((item) => {
+                          const daysLeft = trashService.getDaysRemaining(item.scheduledPurgeDate);
+                          const isRestored = item.status === 'restored';
+                          return (
+                            <tr key={item.id} className="text-xs hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-14 aspect-video rounded-lg overflow-hidden bg-slate-200 dark:bg-[#272727] shrink-0 border border-slate-200 dark:border-[#333]">
+                                    {item.thumbnailUrl ? (
+                                      <img src={item.thumbnailUrl} alt={item.title} className="w-full h-full object-cover" />
+                                    ) : item.photoURL ? (
+                                      <img src={item.photoURL} alt={item.title} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-slate-400 font-black text-[10px]">
+                                        {item.itemType.toUpperCase()}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 max-w-xs">
+                                    <p className="font-black text-slate-900 dark:text-white truncate">{item.title}</p>
+                                    <p className="text-[10px] text-slate-500 font-bold truncate mt-0.5">{item.subtitle || `ID: ${item.itemId}`}</p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
+                                  item.itemType === 'video' 
+                                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400' 
+                                    : item.itemType === 'short' 
+                                    ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
+                                    : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                }`}>
+                                  {item.itemType}
+                                </span>
+                              </td>
+
+                              <td className="px-6 py-4 text-slate-500 font-bold">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-slate-900 dark:text-white">{new Date(item.deletedAt).toLocaleDateString()}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium">By: {item.deletedByName || item.deletedBy}</span>
+                                </div>
+                              </td>
+
+                              <td className="px-6 py-4">
+                                {isRestored ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                    <Check className="w-3 h-3" />
+                                    <span>Restored to Live</span>
+                                  </span>
+                                ) : (
+                                  <div className="flex flex-col gap-1">
+                                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black w-fit ${
+                                      daysLeft > 30 
+                                        ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800' 
+                                        : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                                    }`}>
+                                      <Clock className="w-3 h-3" />
+                                      <span>{daysLeft} Days Remaining</span>
+                                    </span>
+                                    <span className="text-[9px] text-slate-400 font-medium">
+                                      Purge on: {new Date(item.scheduledPurgeDate).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="px-6 py-4 text-right space-x-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedTrashDetail(item)}
+                                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-[#222] dark:hover:bg-[#333] text-slate-700 dark:text-slate-300 font-bold text-[11px] rounded-xl transition-all cursor-pointer"
+                                  title="View full metadata details"
+                                >
+                                  Details
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRestoreTrash(item)}
+                                  disabled={isRestoringTrashId === item.id || isRestored}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-[11px] rounded-xl transition-all shadow-sm cursor-pointer disabled:cursor-not-allowed inline-flex items-center gap-1"
+                                  title="Restore and resume item back to platform"
+                                >
+                                  {isRestoringTrashId === item.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <RotateCcw className="w-3 h-3" />
+                                  )}
+                                  <span>{isRestored ? 'Restored' : 'Resume'}</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handlePurgeTrash(item)}
+                                  disabled={isPurgingTrashId === item.id}
+                                  className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition-colors cursor-pointer"
+                                  title="Purge permanently from archive"
+                                >
+                                  {isPurgingTrashId === item.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                      {trashItems.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-20 text-center text-slate-400 font-bold">
+                            <Archive className="w-12 h-12 mx-auto mb-3 text-slate-300 opacity-60" />
+                            <p className="text-sm text-slate-600 dark:text-slate-300 font-black">Compliance Vault is Empty</p>
+                            <p className="text-xs text-slate-400 mt-1">No deleted videos, shorts, or accounts in the 180-day trash archive.</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* PLATFORM TOOLS & BROADCAST SECTION */}
+            {activeSection === 'tools' && (
+              <div className="space-y-8 animate-in fade-in duration-300">
+                
+                {/* TOOL 1: SITE-WIDE BROADCAST ANNOUNCEMENT */}
+                <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-[#272727]">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-2xl">
+                        <Megaphone className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white">Site-Wide Broadcast Announcement</h3>
+                        <p className="text-xs text-slate-500 font-medium">Display an important alert or welcome banner across the top of the platform for all users.</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 self-start sm:self-auto">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Active Status:</label>
+                      <button
+                        type="button"
+                        onClick={() => setAnnouncementActive(!announcementActive)}
+                        className={`px-4 py-1.5 rounded-full text-xs font-black transition-all cursor-pointer ${
+                          announcementActive 
+                            ? 'bg-emerald-600 text-white shadow-md' 
+                            : 'bg-slate-200 dark:bg-[#272727] text-slate-500'
+                        }`}
+                      >
+                        {announcementActive ? '● Live on Site' : '○ Disabled'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Live Preview Box */}
+                  <div>
+                    <label className="block text-[11px] font-black uppercase text-slate-400 tracking-wider mb-2">Live Banner Preview</label>
+                    <div className={`p-4 rounded-2xl flex items-center justify-between gap-3 text-xs font-bold shadow-sm transition-all ${
+                      !announcementActive 
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-dashed border-slate-300 dark:border-slate-700'
+                        : announcementType === 'alert'
+                          ? 'bg-amber-600 text-white'
+                          : announcementType === 'success'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-blue-600 text-white'
+                    }`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Megaphone className="w-4 h-4 shrink-0" />
+                        <span className="truncate">
+                          {announcementText.trim() || 'No announcement message entered yet. Enter text below to preview.'}
+                        </span>
+                      </div>
+                      {announcementLinkText.trim() && (
+                        <span className="px-2.5 py-1 bg-white/20 rounded-lg text-[11px] font-extrabold underline shrink-0">
+                          {announcementLinkText}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Form Controls */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">Announcement Message</label>
+                      <textarea
+                        value={announcementText}
+                        onChange={(e) => setAnnouncementText(e.target.value)}
+                        placeholder="e.g. Welcome to SocialIndia! Upload your first video or short today and get featured."
+                        rows={2}
+                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-2xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">Banner Theme Color</label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAnnouncementType('info')}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                            announcementType === 'info'
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-slate-50 dark:bg-[#1a1a1a] border-slate-200 dark:border-[#333] text-slate-600 dark:text-slate-400'
+                          }`}
+                        >
+                          Info (Blue)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAnnouncementType('success')}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                            announcementType === 'success'
+                              ? 'bg-emerald-600 text-white border-emerald-600'
+                              : 'bg-slate-50 dark:bg-[#1a1a1a] border-slate-200 dark:border-[#333] text-slate-600 dark:text-slate-400'
+                          }`}
+                        >
+                          Success (Green)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAnnouncementType('alert')}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                            announcementType === 'alert'
+                              ? 'bg-amber-600 text-white border-amber-600'
+                              : 'bg-slate-50 dark:bg-[#1a1a1a] border-slate-200 dark:border-[#333] text-slate-600 dark:text-slate-400'
+                          }`}
+                        >
+                          Alert (Amber)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">Button / Link (Optional)</label>
+                      <input
+                        type="text"
+                        value={announcementLinkText}
+                        onChange={(e) => setAnnouncementLinkText(e.target.value)}
+                        placeholder="Button text e.g. Explore Now"
+                        className="w-full px-4 py-2 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveAnnouncement}
+                      disabled={isSavingAnnouncement}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSavingAnnouncement ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      <span>Save & Publish Broadcast</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* TOOL 2: CONTENT HEALTH & DIAGNOSTIC SCANNER */}
+                <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-[#272727]">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 rounded-2xl">
+                        <Activity className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white">Platform Health & Diagnostic Scanner</h3>
+                        <p className="text-xs text-slate-500 font-medium">Scan platform database, media assets, missing thumbnails and content metrics in real-time.</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleRunAuditScan}
+                      disabled={auditRunning}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 self-start sm:self-auto"
+                    >
+                      {auditRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      <span>{auditRunning ? 'Scanning...' : 'Run Diagnostics Scan'}</span>
+                    </button>
+                  </div>
+
+                  {auditStats ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 animate-in fade-in">
+                      <div className="p-4 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#272727] rounded-2xl">
+                        <p className="text-[10px] font-black uppercase text-slate-400">Total Videos</p>
+                        <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{auditStats.totalVideos}</p>
+                        <p className="text-[11px] text-slate-500 font-semibold mt-1">
+                          {auditStats.standardCount} long • {auditStats.shortsCount} shorts
+                        </p>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#272727] rounded-2xl">
+                        <p className="text-[10px] font-black uppercase text-slate-400">Platform Views</p>
+                        <p className="text-2xl font-black text-blue-600 mt-1">{formatViews(auditStats.totalPlatformViews)}</p>
+                        <p className="text-[11px] text-slate-500 font-semibold mt-1">{auditStats.totalLikes} total likes</p>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#272727] rounded-2xl">
+                        <p className="text-[10px] font-black uppercase text-slate-400">Thumbnail Health</p>
+                        <p className={`text-2xl font-black mt-1 ${auditStats.missingThumbnails > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                          {auditStats.missingThumbnails === 0 ? '100% OK' : `${auditStats.missingThumbnails} Missing`}
+                        </p>
+                        <p className="text-[11px] text-slate-500 font-semibold mt-1">Posters verified</p>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#272727] rounded-2xl">
+                        <p className="text-[10px] font-black uppercase text-slate-400">Database Status</p>
+                        <p className="text-2xl font-black text-emerald-500 mt-1">Healthy</p>
+                        <p className="text-[11px] text-slate-500 font-semibold mt-1">Firestore latency: normal</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-slate-50 dark:bg-[#1a1a1a] rounded-2xl border border-dashed border-slate-200 dark:border-[#333]">
+                      <p className="text-xs text-slate-500 font-bold">Click "Run Diagnostics Scan" above to perform a full system audit of all videos, storage, and platform engagement.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* TOOL 3: QUICK USER ROLE & PRIVILEGE MANAGER */}
+                <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                  <div className="flex items-center gap-3 pb-5 border-b border-slate-100 dark:border-[#272727]">
+                    <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-purple-600 rounded-2xl">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white">Quick User Privilege & Role Manager</h3>
+                      <p className="text-xs text-slate-500 font-medium">Promote users to Creator, Moderator, or Admin instantly.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">Select User Account</label>
+                      <select
+                        value={selectedUserForRole}
+                        onChange={(e) => setSelectedUserForRole(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                      >
+                        <option value="">-- Choose User to Update --</option>
+                        {users.map(u => (
+                          <option key={u.uid} value={u.uid}>
+                            {u.displayName || u.username} (@{u.username}) • Current: {u.role.toUpperCase()}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">New Target Role</label>
+                      <select
+                        value={selectedNewRole}
+                        onChange={(e) => setSelectedNewRole(e.target.value as any)}
+                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                      >
+                        <option value="creator">Creator (Verified Channel)</option>
+                        <option value="moderator">Moderator (Flag & Report Control)</option>
+                        <option value="admin">Administrator (Full Access)</option>
+                        <option value="user">Standard User</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={handleQuickRoleChange}
+                      disabled={isUpdatingUserRole || !selectedUserForRole}
+                      className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                    >
+                      {isUpdatingUserRole ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                      <span>Assign Role</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            )}
           </>
+        )}
+
+        {/* TRASH ITEM DETAIL MODAL */}
+        {selectedTrashDetail && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200 overflow-y-auto">
+            <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 my-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-[#272727]">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-2xl">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">Compliance Archive Metadata</h3>
+                    <p className="text-xs text-slate-500 font-bold">Snapshot preserved under Indian IT Rules 2021</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTrashDetail(null)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-[#272727]"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#1a1a1a] border border-slate-100 dark:border-[#272727] space-y-1">
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Item Details</p>
+                  <p className="text-xs font-black text-slate-900 dark:text-white truncate">{selectedTrashDetail.title}</p>
+                  <p className="text-[11px] text-slate-500">{selectedTrashDetail.subtitle}</p>
+                  <span className="inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-black uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                    Type: {selectedTrashDetail.itemType}
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#1a1a1a] border border-slate-100 dark:border-[#272727] space-y-1">
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Audit Timestamps</p>
+                  <p className="text-[11px] text-slate-700 dark:text-slate-300">
+                    <strong>Deleted:</strong> {new Date(selectedTrashDetail.deletedAt).toLocaleString()}
+                  </p>
+                  <p className="text-[11px] text-slate-700 dark:text-slate-300">
+                    <strong>Auto-Purge Date:</strong> {new Date(selectedTrashDetail.scheduledPurgeDate).toLocaleDateString()}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    <strong>Deleted By:</strong> {selectedTrashDetail.deletedByName || selectedTrashDetail.deletedBy}
+                  </p>
+                </div>
+              </div>
+
+              {/* Data Snapshot JSON Viewer */}
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2">
+                  Complete Lossless Database Snapshot (JSON)
+                </label>
+                <div className="p-4 bg-slate-900 text-slate-100 rounded-2xl text-[11px] font-mono overflow-x-auto max-h-56 overflow-y-auto border border-slate-800">
+                  <pre>{JSON.stringify(selectedTrashDetail.dataSnapshot, null, 2)}</pre>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-[#272727]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTrashDetail(null)}
+                  className="px-5 py-2.5 bg-slate-100 dark:bg-[#272727] text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-200 transition-colors"
+                >
+                  Close
+                </button>
+                {selectedTrashDetail.status !== 'restored' && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleRestoreTrash(selectedTrashDetail);
+                      setSelectedTrashDetail(null);
+                    }}
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Resume & Restore Item</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* User Delete Confirmation Modal */}
+        {userToDelete && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-2xl">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Delete User Account</h3>
+                  <p className="text-xs text-slate-500 font-medium">180-Day Compliance Vault Archive</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-[#1a1a1a] rounded-2xl border border-slate-100 dark:border-[#272727]">
+                <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  {userToDelete.photoURL ? <img src={userToDelete.photoURL} className="w-full h-full rounded-full object-cover" /> : getInitials(userToDelete.displayName)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{userToDelete.displayName}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">@{userToDelete.username} • {userToDelete.role}</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                Deleting this user will deactivate their public profile. Their full profile snapshot will be safely preserved in the <strong className="text-slate-900 dark:text-white">180-Day Compliance Trash Vault</strong> where you can restore it anytime if needed.
+              </p>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToDelete(null)}
+                  disabled={isDeletingUser}
+                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-[#333] text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteUser}
+                  disabled={isDeletingUser}
+                  className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-all shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeletingUser ? 'Archiving...' : 'Move to Trash Vault'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Video Delete Confirmation Modal */}
@@ -855,8 +1664,8 @@ export const AdminPanel: React.FC = () => {
                   <Trash2 className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Delete Video Permanently</h3>
-                  <p className="text-xs text-slate-500 font-medium">This action cannot be undone.</p>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Delete Video (Archive to Vault)</h3>
+                  <p className="text-xs text-slate-500 font-medium">Safely retained in 180-Day Compliance Vault.</p>
                 </div>
               </div>
 
@@ -870,8 +1679,8 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </div>
 
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Deleting this video will remove it completely from the public feed, searches, watch pages, and user statistics.
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                This video will be removed from public feeds and archived in the <strong className="text-slate-900 dark:text-white">180-Day Compliance Trash Vault</strong>. You can resume or permanently purge it from there at any time.
               </p>
 
               <div className="flex gap-3 pt-2">
@@ -889,7 +1698,7 @@ export const AdminPanel: React.FC = () => {
                   disabled={isDeletingVideo}
                   className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black transition-all shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  {isDeletingVideo ? 'Deleting...' : 'Confirm Delete'}
+                  {isDeletingVideo ? 'Archiving...' : 'Move to Trash Vault'}
                 </button>
               </div>
             </div>

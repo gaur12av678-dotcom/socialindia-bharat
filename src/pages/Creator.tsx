@@ -197,7 +197,7 @@ export const CreatorProfile: React.FC = () => {
                     : 'bg-blue-600 hover:bg-blue-700 text-white'
                 }`}
               >
-                {subscribed ? 'Following' : 'Follow Creator'}
+                {subscribed ? 'Subscribed' : 'Subscribe'}
               </button>
             )}
           </div>

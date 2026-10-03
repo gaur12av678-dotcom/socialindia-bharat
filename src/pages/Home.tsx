@@ -37,20 +37,19 @@ export const Home: React.FC = () => {
   return (
     <div className="p-4 md:p-6 space-y-6">
       
-      {/* Category Horizontal Scrolling Bar - YouTube Style Pill Chips */}
-      <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-none -mx-4 px-4 md:mx-0 md:px-0 sticky top-0 bg-white dark:bg-[#0f0f0f] z-20 pt-2 mb-2">
+      {/* Category Horizontal Scrolling Bar */}
+      <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 md:mx-0 md:px-0 sticky top-0 bg-white dark:bg-[#0f0f0f] z-20 pt-2 mb-2">
         {categoriesList.map((category) => {
           const isSelected = selectedCategory === category;
           return (
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
-              style={{ 
-                backgroundColor: isSelected ? '#065fd4' : '#93c5fd', 
-                color: '#000000',
-                borderColor: isSelected ? '#065fd4' : '#60a5fa'
-              }}
-              className="px-5 py-2 rounded-xl text-sm font-black transition-all shrink-0 cursor-pointer border-2 shadow-md"
+              className={`px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold transition-all shrink-0 cursor-pointer ${
+                isSelected
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-[#272727] dark:hover:bg-[#383838] dark:text-slate-200 border border-slate-200/60 dark:border-transparent'
+              }`}
             >
               {category}
             </button>

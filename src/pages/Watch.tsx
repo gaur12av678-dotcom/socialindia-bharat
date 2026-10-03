@@ -10,6 +10,7 @@ import { savedVideoService } from '../services/savedVideoService';
 import { historyService } from '../services/historyService';
 import { notificationService } from '../services/notificationService';
 import { reportService } from '../services/reportService';
+import { downloadService } from '../services/downloadService';
 import { Video, Comment, User } from '../types';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { UserAvatar } from '../components/UserAvatar';
@@ -24,7 +25,10 @@ import {
   Send,
   MoreVertical,
   AlertTriangle,
-  X
+  X,
+  ArrowDownToLine,
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 
 export const Watch: React.FC = () => {
@@ -50,6 +54,10 @@ export const Watch: React.FC = () => {
   const [reportTargetId, setReportTargetId] = useState('');
   const [reportReason, setReportReason] = useState<'spam' | 'misleading' | 'harassment' | 'copyright' | 'inappropriate' | 'other'>('spam');
   const [reportDetails, setReportDetails] = useState('');
+
+  // Offline Download state
+  const [isDownloaded, setIsDownloaded] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
 
   // Comment edit state
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -103,6 +111,11 @@ export const Watch: React.FC = () => {
               }).catch(console.error);
             }
           }
+        }).catch(console.error);
+
+        // Check offline downloaded status
+        downloadService.isDownloaded(videoId).then(isD => {
+          if (isMounted) setIsDownloaded(isD);
         }).catch(console.error);
 
         if (currentUser) {
@@ -278,6 +291,41 @@ export const Watch: React.FC = () => {
     }
   };
 
+  const handleDownloadToggle = async () => {
+    if (!video) return;
+
+    if (isDownloaded) {
+      if (window.confirm('Delete this video from offline downloads?')) {
+        try {
+          await downloadService.deleteDownload(video.videoId);
+          setIsDownloaded(false);
+          addToast('Video removed from offline downloads.', 'info');
+        } catch (err) {
+          addToast('Failed to remove download.', 'error');
+        }
+      }
+      return;
+    }
+
+    if (downloadProgress !== null) return; // already in progress
+
+    setDownloadProgress(0);
+    addToast('Starting offline download...', 'info');
+
+    try {
+      await downloadService.downloadVideo(video, (percent) => {
+        setDownloadProgress(percent);
+      });
+      setIsDownloaded(true);
+      setDownloadProgress(null);
+      addToast('Video downloaded! You can now watch it offline without internet in Downloads.', 'success');
+    } catch (err) {
+      console.error('Download error:', err);
+      setDownloadProgress(null);
+      addToast('Failed to download video stream.', 'error');
+    }
+  };
+
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !currentUserProfile) {
@@ -437,7 +485,7 @@ export const Watch: React.FC = () => {
                 fallbackDisplayName={video.creatorDisplayName}
                 size="md"
                 onClick={() => navigate('creator', video.creatorUsername)}
-                className="rounded-xl shadow-xs"
+                className="rounded-full shadow-xs"
               />
               <div className="min-w-0">
                 <h4 
@@ -447,7 +495,7 @@ export const Watch: React.FC = () => {
                   {video.creatorDisplayName}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-bold leading-none mt-1">
-                  {creator ? formatSubscribers(creator.followersCount) : '0 followers'}
+                  {creator ? formatSubscribers(creator.followersCount) : '0 subscribers'}
                 </p>
               </div>
 
@@ -460,7 +508,7 @@ export const Watch: React.FC = () => {
                       : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
                   }`}
                 >
-                  {subscribed ? 'Following' : 'Follow'}
+                  {subscribed ? 'Subscribed' : 'Subscribe'}
                 </button>
               )}
             </div>
@@ -497,6 +545,36 @@ export const Watch: React.FC = () => {
               >
                 <Share2 className="w-4 h-4" />
                 <span>Share</span>
+              </button>
+
+              <button
+                onClick={handleDownloadToggle}
+                disabled={downloadProgress !== null}
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                  isDownloaded 
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' 
+                    : downloadProgress !== null 
+                      ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 text-blue-600 animate-pulse'
+                      : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-[#334155] hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-700 dark:text-[#F8FAFC]'
+                }`}
+                title={isDownloaded ? 'Downloaded offline' : 'Download for offline viewing'}
+              >
+                {downloadProgress !== null ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                    <span>{downloadProgress}%</span>
+                  </>
+                ) : isDownloaded ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>Downloaded</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownToLine className="w-4 h-4" />
+                    <span>Download</span>
+                  </>
+                )}
               </button>
 
               <button

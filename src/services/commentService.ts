@@ -40,22 +40,30 @@ export const commentService = {
       photoURL: commentData.photoURL || '',
       text: commentData.text || '',
       likesCount: 0,
-      parentCommentId: commentData.parentCommentId || undefined,
       createdAt: now,
       updatedAt: now,
     };
+
+    if (commentData.parentCommentId) {
+      comment.parentCommentId = commentData.parentCommentId;
+    }
 
     try {
       // 1. Save the comment document
       await setDoc(doc(db, 'videos', videoId, 'comments', commentId), comment);
       
-      // 2. Increment commentsCount on parent video
-      await updateDoc(doc(db, 'videos', videoId), {
-        commentsCount: increment(1)
-      });
+      // 2. Increment commentsCount on parent video (non-blocking)
+      try {
+        await updateDoc(doc(db, 'videos', videoId), {
+          commentsCount: increment(1)
+        });
+      } catch (countErr) {
+        console.warn('Could not increment comments count on video:', countErr);
+      }
       
       return comment;
     } catch (err) {
+      console.error('Comment creation error:', err);
       handleFirestoreError(err, OperationType.CREATE, `videos/${videoId}/comments/${commentId}`);
       throw err;
     }
@@ -84,5 +92,27 @@ export const commentService = {
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `videos/${videoId}/comments/${commentId}`);
     }
+  },
+
+  // Get comments across multiple videos for Creator Studio
+  async getCommentsForVideos(videos: { videoId: string; title: string; isShort?: boolean }[]): Promise<(Comment & { videoTitle: string; isShort?: boolean })[]> {
+    const results: (Comment & { videoTitle: string; isShort?: boolean })[] = [];
+    await Promise.all(
+      videos.map(async (v) => {
+        try {
+          const comms = await this.getComments(v.videoId);
+          comms.forEach((c) => {
+            results.push({
+              ...c,
+              videoTitle: v.title,
+              isShort: v.isShort
+            });
+          });
+        } catch (e) {
+          console.warn(`Could not load comments for ${v.videoId}`, e);
+        }
+      })
+    );
+    return results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 };

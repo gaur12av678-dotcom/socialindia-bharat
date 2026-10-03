@@ -16,6 +16,7 @@ import { ref, uploadBytesResumable, getDownloadURL, UploadTaskSnapshot } from 'f
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { Video } from '../types';
 import { userService } from './userService';
+import { trashService } from './trashService';
 import { extractVideoThumbnail, extractYoutubeThumbnail } from '../utils/videoUtils';
 
 // Cloudinary Configuration Helper (supports Firestore global settings, LocalStorage & Env fallback)
@@ -305,9 +306,26 @@ export const videoService = {
     }
   },
 
-  // Delete a video
+  // Delete a video (Safely archives to 180-Day Compliance Trash Vault before removal)
   async deleteVideo(videoId: string, creatorId: string): Promise<void> {
     try {
+      // First capture snapshot for 180-Day Legal Compliance Vault
+      const videoSnap = await getDoc(doc(db, 'videos', videoId));
+      if (videoSnap.exists()) {
+        const videoData = videoSnap.data() as Video;
+        await trashService.moveToTrash({
+          itemId: videoId,
+          itemType: videoData.isShort ? 'short' : 'video',
+          title: videoData.title,
+          subtitle: `@${videoData.creatorUsername} • ${videoData.category}`,
+          thumbnailUrl: videoData.thumbnailUrl,
+          deletedBy: creatorId,
+          deletedByName: videoData.creatorDisplayName || videoData.creatorUsername,
+          details: `Deleted by creator @${videoData.creatorUsername}. Preserved for 180-day compliance.`,
+          dataSnapshot: videoData
+        });
+      }
+
       await deleteDoc(doc(db, 'videos', videoId));
       await userService.incrementVideoCount(creatorId, -1);
     } catch (err) {

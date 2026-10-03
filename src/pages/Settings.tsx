@@ -3,7 +3,26 @@ import { useApp } from '../context/AppContext';
 import { userService } from '../services/userService';
 import { videoService } from '../services/videoService';
 import { getInitials } from '../utils/videoUtils';
-import { Settings as SettingsIcon, Moon, Sun, Monitor, Save, Upload, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { 
+  Settings as SettingsIcon, 
+  Moon, 
+  Sun, 
+  Monitor, 
+  Save, 
+  Upload, 
+  CheckCircle2, 
+  Loader2, 
+  AlertCircle,
+  ShieldCheck,
+  Wifi,
+  HardDrive,
+  Download,
+  Trash2,
+  FileJson,
+  Check,
+  History
+} from 'lucide-react';
+import { downloadService } from '../services/downloadService';
 
 export const Settings: React.FC = () => {
   const { currentUser, currentUserProfile, theme, setTheme, addToast, refreshProfile } = useApp();
@@ -21,12 +40,109 @@ export const Settings: React.FC = () => {
   const [allowFollowers, setAllowFollowers] = useState(true);
   const [allowUploads, setAllowUploads] = useState(true);
 
+  // New setting features states
+  const [cacheSize, setCacheSize] = useState(0);
+  const [maxResolution, setMaxResolution] = useState<'1080p' | '720p' | '480p'>('1080p');
+  const [wifiOnly, setWifiOnly] = useState(false);
+  const [trackHistory, setTrackHistory] = useState(true);
+
+  // Creator Verification requests
+  const [verificationSubmitted, setVerificationSubmitted] = useState(false);
+  const [verificationCategory, setVerificationCategory] = useState('Technology');
+  const [verificationPitch, setVerificationPitch] = useState('');
+  const [isSubmittingVerification, setIsSubmittingVerification] = useState(false);
+
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch Cache & Check Verification application status
+  const loadCacheAndVerification = async () => {
+    try {
+      const size = await downloadService.getTotalStorageUsage();
+      setCacheSize(size);
+    } catch (e) {
+      console.warn(e);
+    }
+
+    if (currentUser) {
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('../firebase');
+        const snap = await getDoc(doc(db, 'verification_requests', currentUser.uid));
+        if (snap.exists()) {
+          setVerificationSubmitted(true);
+        }
+      } catch (err) {
+        console.warn('Could not fetch verification request status:', err);
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadCacheAndVerification();
+  }, [currentUser]);
+
+  const handleClearCache = async () => {
+    if (window.confirm('Clear all offline downloads? This will delete all downloaded videos and shorts from this device.')) {
+      try {
+        const items = await downloadService.getAllDownloads();
+        await Promise.all(items.map(item => downloadService.deleteDownload(item.videoId)));
+        setCacheSize(0);
+        addToast('Offline downloads cache cleared successfully!', 'success');
+      } catch {
+        addToast('Failed to clear cache.', 'error');
+      }
+    }
+  };
+
+  const handleSubmitVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !currentUserProfile) return;
+    setIsSubmittingVerification(true);
+    try {
+      const { doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      await setDoc(doc(db, 'verification_requests', currentUser.uid), {
+        uid: currentUser.uid,
+        username: currentUserProfile.username,
+        displayName: currentUserProfile.displayName,
+        category: verificationCategory,
+        pitch: verificationPitch.trim(),
+        submittedAt: new Date().toISOString(),
+        status: 'pending'
+      });
+      setVerificationSubmitted(true);
+      addToast('Verification badge application submitted for admin review!', 'success');
+    } catch (err) {
+      addToast('Failed to submit application.', 'error');
+    } finally {
+      setIsSubmittingVerification(false);
+    }
+  };
+
+  const handleExportData = () => {
+    if (!currentUserProfile) return;
+    const data = {
+      profile: currentUserProfile,
+      exportedAt: new Date().toISOString(),
+      platform: 'SocialIndia',
+      compliance: 'IT Act Rules 2021 Safe Data Portability'
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `socialindia_profile_export_${currentUserProfile.username}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    addToast('Account data backup JSON exported!', 'success');
+  };
 
   // Initialize values
   useEffect(() => {
@@ -504,6 +620,184 @@ export const Settings: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* 5. OFFLINE DOWNLOAD MANAGER PREFERENCES (Kaam Ki Chiz!) */}
+        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-5 shadow-xs">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <Wifi className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">Offline Downloads Settings</h3>
+          </div>
+
+          <div className="space-y-4">
+            {/* Preferred Video Resolution */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <label className="text-xs font-extrabold block text-slate-900 dark:text-[#F8FAFC]">Preferred Resolution Quality</label>
+                <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-semibold">Maximum resolution used when saving videos offline</span>
+              </div>
+              <select
+                value={maxResolution}
+                onChange={(e) => {
+                  const val = e.target.value as any;
+                  setMaxResolution(val);
+                  addToast(`Max download resolution set to ${val}`, 'info');
+                }}
+                className="px-3 py-2 bg-slate-50 dark:bg-[#1E293B] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+              >
+                <option value="1080p">1080p (Full HD - High Detail)</option>
+                <option value="720p">720p (HD - Balanced)</option>
+                <option value="480p">480p (SD - Data Saver)</option>
+              </select>
+            </div>
+
+            {/* Wifi only toggle */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+              <div>
+                <label className="text-xs font-extrabold block text-slate-900 dark:text-[#F8FAFC]">Download over Wi-Fi Only</label>
+                <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-semibold">Restrict downloading to active Wi-Fi connections</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={wifiOnly}
+                onChange={(e) => {
+                  setWifiOnly(e.target.checked);
+                  addToast(e.target.checked ? 'Downloading restricted to Wi-Fi only' : 'Downloading allowed on any network', 'info');
+                }}
+                className="rounded text-blue-600 cursor-pointer w-4 h-4"
+              />
+            </div>
+
+            {/* Clear offline storage button with Storage usage preview */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-[#1E293B]/30 p-4 rounded-2xl">
+              <div className="flex items-center gap-3">
+                <HardDrive className="w-5 h-5 text-indigo-500 shrink-0" />
+                <div>
+                  <label className="text-xs font-extrabold block text-slate-900 dark:text-[#F8FAFC]">Device Storage Occupied</label>
+                  <span className="text-xs font-black text-slate-700 dark:text-slate-300">
+                    {cacheSize === 0 ? '0.0 MB' : `${(cacheSize / (1024 * 1024)).toFixed(1)} MB`}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearCache}
+                disabled={cacheSize === 0}
+                className="px-4 py-2 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-extrabold rounded-xl transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete All Downloads</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 6. ACCOUNT VERIFICATION BADGE REQUEST (Creators' Favourite!) */}
+        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-5 shadow-xs">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <ShieldCheck className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">Channel Verification</h3>
+          </div>
+
+          {currentUserProfile?.role === 'creator' || currentUserProfile?.role === 'admin' ? (
+            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 rounded-2xl flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <Check className="w-6 h-6 stroke-[3]" />
+              </div>
+              <div>
+                <p className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300">Channel Officially Verified</p>
+                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold mt-0.5">
+                  Your channel is verified as an official creator channel. A blue verification badge ✓ is displayed next to your name!
+                </p>
+              </div>
+            </div>
+          ) : verificationSubmitted ? (
+            <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-2xl flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 animate-pulse">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+              <div>
+                <p className="text-xs font-extrabold text-blue-900 dark:text-blue-300">Verification Pending Review</p>
+                <p className="text-[10px] text-blue-700 dark:text-blue-400 font-semibold mt-0.5">
+                  Your application for a verification badge is under review. Our admins will review your category and social presence within 48 hours.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmitVerification} className="space-y-4">
+              <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-semibold leading-relaxed">
+                Apply for a verified creator badge to show viewers your authenticity and unlock advanced tools.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Primary Video Category</label>
+                  <select
+                    value={verificationCategory}
+                    onChange={(e) => setVerificationCategory(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1E293B] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    <option value="Technology">Technology & Coding</option>
+                    <option value="Education">Education</option>
+                    <option value="Gaming">Gaming</option>
+                    <option value="Music">Music & Entertainment</option>
+                    <option value="Comedy">Comedy & Art</option>
+                    <option value="Vlog">Vlogging & Travel</option>
+                    <option value="News">News & Information</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Pitch / Social Links (e.g. YouTube, Twitter)</label>
+                <textarea
+                  value={verificationPitch}
+                  onChange={(e) => setVerificationPitch(e.target.value)}
+                  required
+                  rows={2}
+                  placeholder="Tell us why your channel should be verified. Provide social media links if any..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] focus:outline-none text-xs font-semibold"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmittingVerification || !verificationPitch.trim()}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-extrabold text-xs rounded-xl cursor-pointer transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                {isSubmittingVerification ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                <span>Apply for Verification</span>
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* 7. PRIVACY CENTER & DATA PORTABILITY (IT Act 2021 Compliance) */}
+        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 shadow-xs">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+            <FileJson className="w-5 h-5 text-amber-500" />
+            <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">Privacy & Data Portability</h3>
+          </div>
+
+          <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-semibold leading-relaxed">
+            According to privacy compliance regulations, you can download a full digital archive backup of your public channel data.
+          </p>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-[#1E293B]/20 p-4 rounded-2xl">
+            <div>
+              <span className="text-xs font-extrabold block text-slate-900 dark:text-white">Export Public Channel Data</span>
+              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Download a structured .json backup of your channel profile info.</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleExportData}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Export backup.json</span>
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );

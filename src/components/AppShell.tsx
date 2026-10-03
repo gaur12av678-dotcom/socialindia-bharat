@@ -27,21 +27,13 @@ import {
   Plus,
   HelpCircle,
   MessageSquare,
-  Sparkles
+  Sparkles,
+  MoreVertical,
+  ArrowDownToLine,
+  WifiOff
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
-
-const legalItems = [
-  { label: 'Privacy Policy', path: 'privacy', icon: FileText },
-  { label: 'Terms of Service', path: 'terms', icon: FileText },
-  { label: 'Community Guidelines', path: 'guidelines', icon: ShieldCheck },
-];
-
-const supportItems = [
-  { label: 'Help Center', path: 'help', icon: HelpCircle },
-  { label: 'Send Feedback', path: 'feedback', icon: MessageSquare },
-];
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -64,6 +56,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [guestMenuOpen, setGuestMenuOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authSuccessCallback, setAuthSuccessCallback] = useState<(() => void) | undefined>(undefined);
   const [followedCreators, setFollowedCreators] = useState<any[]>([]);
@@ -80,6 +73,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+  const guestRef = useRef<HTMLDivElement>(null);
 
   // Load followed creators for sidebar
   useEffect(() => {
@@ -92,6 +86,36 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     }
   }, [currentUser]);
 
+  // Online / Offline connectivity listener
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Global Admin Announcement Broadcast state
+  const [announcement, setAnnouncement] = useState<{ active: boolean; message: string; type: string; linkText?: string; linkUrl?: string } | null>(null);
+  const [announcementDismissed, setAnnouncementDismissed] = useState(false);
+
+  useEffect(() => {
+    import('../services/adminService').then(({ adminService }) => {
+      adminService.getAnnouncement().then(ann => {
+        if (ann && ann.active && ann.message) {
+          setAnnouncement(ann);
+        }
+      }).catch(console.error);
+    });
+  }, []);
+
   // Close dropdowns on outside click
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -100,6 +124,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       }
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileDropdownOpen(false);
+      }
+      if (guestRef.current && !guestRef.current.contains(e.target as Node)) {
+        setGuestMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -143,6 +170,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     { label: 'Home', path: 'home', icon: Home },
     { label: 'Shorts', path: 'shorts', icon: Film },
     { label: 'Trending', path: 'trending', icon: TrendingUp },
+    { label: 'Downloads', path: 'downloads', icon: ArrowDownToLine },
     { label: 'Subscriptions', path: 'subscriptions', icon: Users, protected: true },
     { label: 'Saved Videos', path: 'saved', icon: Bookmark, protected: true },
     { label: 'Watch History', path: 'history', icon: History, protected: true },
@@ -162,6 +190,65 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-[#0f0f0f] text-[#0f0f0f] dark:text-[#f1f1f1] font-sans antialiased">
       
+      {/* OFFLINE CONNECTIVITY BANNER */}
+      {!isOnline && (
+        <div className="bg-amber-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-between z-50 shadow-md">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
+            <WifiOff className="w-4 h-4" />
+            <span>You are currently Offline. You can watch your downloaded videos & shorts without internet!</span>
+          </div>
+          <button
+            onClick={() => navigate('downloads')}
+            className="px-3 py-1 bg-white text-amber-800 rounded-lg text-xs font-black hover:bg-amber-50 cursor-pointer shadow-xs transition-colors shrink-0"
+          >
+            Open Downloads
+          </button>
+        </div>
+      )}
+
+      {/* GLOBAL ADMIN BROADCAST ANNOUNCEMENT BANNER */}
+      {announcement && announcement.active && !announcementDismissed && (
+        <div className={`px-4 py-2 text-xs font-bold flex items-center justify-between z-40 shadow-sm transition-all text-white ${
+          announcement.type === 'alert'
+            ? 'bg-amber-600'
+            : announcement.type === 'success'
+              ? 'bg-emerald-600'
+              : 'bg-blue-600'
+        }`}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-white shrink-0 animate-ping" />
+            <span className="truncate">{announcement.message}</span>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            {announcement.linkText && (
+              <button
+                onClick={() => {
+                  if (announcement.linkUrl?.startsWith('#/')) {
+                    window.location.hash = announcement.linkUrl;
+                  } else if (announcement.linkUrl) {
+                    window.open(announcement.linkUrl, '_blank');
+                  } else {
+                    navigate('home');
+                  }
+                }}
+                className="px-2.5 py-0.5 bg-white/20 hover:bg-white/30 rounded text-[11px] font-black underline cursor-pointer"
+              >
+                {announcement.linkText}
+              </button>
+            )}
+            <button
+              onClick={() => setAnnouncementDismissed(true)}
+              className="p-1 hover:bg-white/20 rounded cursor-pointer opacity-80 hover:opacity-100"
+              title="Dismiss announcement"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* HEADER / NAVIGATION BAR */}
       <header className="sticky top-0 z-40 bg-white dark:bg-[#0f0f0f] px-4 h-14 flex items-center justify-between gap-4">
         
@@ -352,7 +439,44 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       <Settings className="w-4 h-4 text-slate-400" />
                       <span>Settings</span>
                     </button>
+                    {(currentUserProfile?.role === 'admin' || currentUserProfile?.displayName === 'maryxbgamer@gmail.com') && (
+                      <button
+                        onClick={() => {
+                          setProfileDropdownOpen(false);
+                          navigate('admin');
+                        }}
+                        className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-blue-600" />
+                        <span>Admin Hub</span>
+                      </button>
+                    )}
                   </div>
+                  
+                  {/* Support Section inside Profile Menu */}
+                  <div className="py-2">
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('help');
+                      }}
+                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <HelpCircle className="w-4 h-4 text-slate-400" />
+                      <span>Help Center</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('feedback');
+                      }}
+                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <MessageSquare className="w-4 h-4 text-slate-400" />
+                      <span>Send Feedback</span>
+                    </button>
+                  </div>
+
                   <div className="py-2">
                     <button
                       onClick={handleSignOut}
@@ -366,12 +490,61 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               )}
             </div>
           ) : (
-            <button
-              onClick={() => setAuthModalOpen(true)}
-              className="px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-base rounded-full shadow-lg transition-all cursor-pointer active:scale-95"
-            >
-              Sign In
-            </button>
+            <div ref={guestRef} className="flex items-center gap-2 relative">
+              <button
+                onClick={() => setGuestMenuOpen(!guestMenuOpen)}
+                className="p-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer text-slate-700 dark:text-slate-300"
+                aria-label="Settings and support"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+
+              {guestMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+                  <div className="py-2">
+                    <button
+                      onClick={() => {
+                        setGuestMenuOpen(false);
+                        navigate('help');
+                      }}
+                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <HelpCircle className="w-4 h-4 text-slate-400" />
+                      <span>Help Center</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setGuestMenuOpen(false);
+                        navigate('feedback');
+                      }}
+                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <MessageSquare className="w-4 h-4 text-slate-400" />
+                      <span>Send Feedback</span>
+                    </button>
+                  </div>
+                  <div className="py-2">
+                    <button
+                      onClick={() => {
+                        setGuestMenuOpen(false);
+                        navigate('privacy');
+                      }}
+                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-slate-400" />
+                      <span>Privacy & Terms</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-base rounded-full shadow-lg transition-all cursor-pointer active:scale-95"
+              >
+                Sign In
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -487,31 +660,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 <div className="h-px bg-slate-200 dark:bg-[#334155]" />
               </>
             )}
-
-            {/* Support Section */}
-            <div className="space-y-1">
-              <span className="px-3 text-[11px] font-extrabold tracking-wider text-slate-400 dark:text-slate-500 uppercase block mb-1.5">Support</span>
-              {supportItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = route.path === item.path;
-                return (
-                  <button
-                    key={item.label}
-                    onClick={() => navigate(item.path)}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                      isActive 
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold border-l-4 border-blue-600' 
-                        : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-blue-600' : ''}`} />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="h-px bg-slate-100 dark:bg-slate-800" />
 
             <div className="space-y-1">
               <span className="px-3 text-[11px] font-extrabold tracking-wider text-slate-400 dark:text-slate-500 uppercase block mb-1.5">Legal & Info</span>

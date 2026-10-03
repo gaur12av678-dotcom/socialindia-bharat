@@ -3,6 +3,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, Video, Report } from '../types';
 import { userService } from './userService';
 import { getCloudinaryConfig, setCloudinaryConfig } from './videoService';
+import { trashService } from './trashService';
 
 export const adminService = {
   // Get Global Storage / Cloudinary Configuration
@@ -105,6 +106,19 @@ export const adminService = {
     }
   },
 
+  // Update user role (e.g., user, creator, moderator, admin)
+  async updateUserRole(uid: string, role: User['role']): Promise<void> {
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        role,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+      throw err;
+    }
+  },
+
   // Update video status (e.g., published, hidden, removed)
   async updateVideoStatus(videoId: string, status: Video['status']): Promise<void> {
     try {
@@ -117,15 +131,61 @@ export const adminService = {
     }
   },
 
-  // Delete a video permanently
-  async deleteVideo(videoId: string, creatorId?: string): Promise<void> {
+  // Delete a video (Safely archives to 180-Day Compliance Trash Vault before removal)
+  async deleteVideo(videoId: string, creatorId?: string, adminUid?: string): Promise<void> {
     try {
+      const videoSnap = await getDoc(doc(db, 'videos', videoId));
+      if (videoSnap.exists()) {
+        const videoData = videoSnap.data() as Video;
+        await trashService.moveToTrash({
+          itemId: videoId,
+          itemType: videoData.isShort ? 'short' : 'video',
+          title: videoData.title,
+          subtitle: `@${videoData.creatorUsername} • ${videoData.category}`,
+          thumbnailUrl: videoData.thumbnailUrl,
+          deletedBy: adminUid || 'admin',
+          deletedByName: 'Administrator',
+          details: `Admin deleted video "${videoData.title}". Retained in 180-day compliance vault.`,
+          dataSnapshot: videoData
+        });
+      }
+
       await deleteDoc(doc(db, 'videos', videoId));
       if (creatorId) {
-        await userService.incrementVideoCount(creatorId, -1);
+        try {
+          await userService.incrementVideoCount(creatorId, -1);
+        } catch (e) {
+          console.warn('Could not decrement video count:', e);
+        }
       }
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `videos/${videoId}`);
+      throw err;
+    }
+  },
+
+  // Delete / Archive a User (Safely archives to 180-Day Compliance Trash Vault)
+  async deleteUser(uid: string, adminUid?: string): Promise<void> {
+    try {
+      const userSnap = await getDoc(doc(db, 'users', uid));
+      if (userSnap.exists()) {
+        const userData = userSnap.data() as User;
+        await trashService.moveToTrash({
+          itemId: uid,
+          itemType: 'user',
+          title: userData.displayName || userData.username,
+          subtitle: `@${userData.username} • ${userData.role}`,
+          photoURL: userData.photoURL,
+          deletedBy: adminUid || 'admin',
+          deletedByName: 'Administrator',
+          details: `User account @${userData.username} archived to 180-day compliance vault.`,
+          dataSnapshot: userData
+        });
+      }
+
+      await deleteDoc(doc(db, 'users', uid));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `users/${uid}`);
       throw err;
     }
   },
@@ -136,6 +196,36 @@ export const adminService = {
       await deleteDoc(doc(db, 'reports', reportId));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `reports/${reportId}`);
+    }
+  },
+
+  // Get Site-wide Broadcast Announcement
+  async getAnnouncement(): Promise<{ active: boolean; message: string; type: 'info' | 'alert' | 'success'; linkText?: string; linkUrl?: string }> {
+    try {
+      const snap = await getDoc(doc(db, 'system_settings', 'announcement'));
+      if (snap.exists()) {
+        return snap.data() as any;
+      }
+    } catch (err) {
+      console.warn('Failed to load announcement:', err);
+    }
+    return {
+      active: false,
+      message: '',
+      type: 'info'
+    };
+  },
+
+  // Save Site-wide Broadcast Announcement
+  async saveAnnouncement(announcement: { active: boolean; message: string; type: 'info' | 'alert' | 'success'; linkText?: string; linkUrl?: string }): Promise<void> {
+    try {
+      await setDoc(doc(db, 'system_settings', 'announcement'), {
+        ...announcement,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'system_settings/announcement');
+      throw err;
     }
   }
 };

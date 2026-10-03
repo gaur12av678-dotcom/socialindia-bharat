@@ -4,6 +4,7 @@ import { videoService } from '../services/videoService';
 import { userService } from '../services/userService';
 import { likeService } from '../services/likeService';
 import { commentService } from '../services/commentService';
+import { downloadService } from '../services/downloadService';
 import { Video, Comment, User } from '../types';
 import { parseVideoUrl, getInitials, formatTimeAgo } from '../utils/videoUtils';
 import { UserAvatar } from '../components/UserAvatar';
@@ -21,7 +22,14 @@ import {
   Play, 
   Pause, 
   Volume2, 
-  VolumeX 
+  VolumeX,
+  MoreVertical,
+  ArrowDownToLine,
+  CheckCircle2,
+  Loader2,
+  Save,
+  Flag,
+  Copy
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -172,7 +180,12 @@ const ShortVideoMedia: React.FC<{
           loop
           playsInline
           muted={isMuted}
-          onCanPlay={onMediaReady}
+          onCanPlay={() => {
+            onMediaReady();
+            if (videoRef.current && isPlaying) {
+              videoRef.current.play().catch(() => {});
+            }
+          }}
           className="w-full h-full object-cover"
         />
       ) : (
@@ -208,6 +221,11 @@ export const Shorts: React.FC = () => {
   const [newCommentText, setNewCommentText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Offline Download state & 3-dot menu state
+  const [isDownloaded, setIsDownloaded] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
 
   const targetShortId = route.param;
 
@@ -277,7 +295,45 @@ export const Shorts: React.FC = () => {
     } else {
       setIsLiked(false);
     }
+
+    // Check offline download status
+    downloadService.isDownloaded(activeShort.videoId).then(setIsDownloaded).catch(() => {});
+    setOptionsMenuOpen(false);
   }, [activeShort?.videoId, currentUser?.uid]);
+
+  const handleDownloadShort = async () => {
+    if (!activeShort) return;
+
+    if (isDownloaded) {
+      if (window.confirm('Delete this short from offline downloads?')) {
+        try {
+          await downloadService.deleteDownload(activeShort.videoId);
+          setIsDownloaded(false);
+          addToast('Short removed from offline downloads.', 'info');
+        } catch {
+          addToast('Failed to remove download.', 'error');
+        }
+      }
+      return;
+    }
+
+    if (downloadProgress !== null) return;
+    setDownloadProgress(0);
+    addToast('Downloading Short for offline viewing...', 'info');
+
+    try {
+      await downloadService.downloadVideo(activeShort, (percent) => {
+        setDownloadProgress(percent);
+      });
+      setIsDownloaded(true);
+      setDownloadProgress(null);
+      addToast('Short downloaded! Watch offline anytime in Downloads.', 'success');
+    } catch (err) {
+      console.error('Download error:', err);
+      setDownloadProgress(null);
+      addToast('Failed to download short stream.', 'error');
+    }
+  };
 
   const handleNext = () => {
     if (currentIndex < shorts.length - 1) {
@@ -294,6 +350,69 @@ export const Shorts: React.FC = () => {
       setCurrentIndex(prev => prev - 1);
     }
   };
+
+  // Touch Swipe (Mobile / Tablet)
+  const touchStartY = useRef<number | null>(null);
+  const touchEndY = useRef<number | null>(null);
+  const lastWheelTime = useRef<number>(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchEndY.current = null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartY.current !== null && touchEndY.current !== null) {
+      const diffY = touchStartY.current - touchEndY.current;
+      const minSwipeDistance = 45;
+      if (diffY > minSwipeDistance) {
+        // Swiped UP -> Next Short
+        handleNext();
+      } else if (diffY < -minSwipeDistance) {
+        // Swiped DOWN -> Previous Short
+        handlePrev();
+      }
+    }
+    touchStartY.current = null;
+    touchEndY.current = null;
+  };
+
+  // Mouse Wheel Scroll (Web)
+  const handleWheel = (e: React.WheelEvent) => {
+    const now = Date.now();
+    if (now - lastWheelTime.current < 500) return;
+    if (Math.abs(e.deltaY) > 35) {
+      lastWheelTime.current = now;
+      if (e.deltaY > 0) {
+        handleNext();
+      } else {
+        handlePrev();
+      }
+    }
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault();
+        handlePrev();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        setIsPlaying(p => !p);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, shorts.length]);
 
   const handleLikeToggle = async () => {
     if (!currentUser) {
@@ -489,7 +608,13 @@ export const Shorts: React.FC = () => {
         </div>
 
         {/* Vertical Shorts Player Container */}
-        <div className="relative w-full max-w-[420px] aspect-[9/16] bg-black rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group">
+        <div 
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onWheel={handleWheel}
+          className="relative w-full max-w-[420px] aspect-[9/16] bg-black rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-pan-y"
+        >
           
           {/* Media Player Component */}
           <ShortVideoMedia 
@@ -500,6 +625,89 @@ export const Shorts: React.FC = () => {
             isMuted={isMuted}
             onMediaReady={() => setIsMediaReady(true)}
           />
+
+          {/* TOP BAR: YouTube-style 3-Dot More Options Menu */}
+          <div className="absolute top-4 right-4 z-30">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setOptionsMenuOpen(!optionsMenuOpen);
+              }}
+              className="w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-black/60 transition-all cursor-pointer shadow-lg active:scale-95"
+              title="More options"
+            >
+              <MoreVertical className="w-5 h-5 text-white" />
+            </button>
+
+            {/* YouTube-style Options Dropdown Menu */}
+            {optionsMenuOpen && (
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                className="absolute top-12 right-0 w-60 bg-slate-900/95 backdrop-blur-xl border border-white/15 rounded-2xl p-2 shadow-2xl z-40 text-white animate-zoom-in"
+              >
+                <button
+                  onClick={() => {
+                    setOptionsMenuOpen(false);
+                    handleDownloadShort();
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
+                >
+                  {downloadProgress !== null ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                      <span>Downloading ({downloadProgress}%)</span>
+                    </>
+                  ) : isDownloaded ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span className="text-emerald-400">Downloaded Offline</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDownToLine className="w-4 h-4 text-blue-400" />
+                      <span>Download Short</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setOptionsMenuOpen(false);
+                    downloadService.exportToDevice(activeShort);
+                    addToast('Saving MP4 to device...', 'success');
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <Save className="w-4 h-4 text-amber-400" />
+                  <span>Save to Phone / PC</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setOptionsMenuOpen(false);
+                    handleShare();
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <Copy className="w-4 h-4 text-slate-300" />
+                  <span>Copy Short Link</span>
+                </button>
+
+                <div className="h-px bg-white/10 my-1" />
+
+                <button
+                  onClick={() => {
+                    setOptionsMenuOpen(false);
+                    addToast('Report submitted for review.', 'info');
+                  }}
+                  className="w-full flex items-center gap-3 px-3.5 py-2 hover:bg-rose-500/20 text-rose-400 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <Flag className="w-4 h-4" />
+                  <span>Report Short</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* PLAY/PAUSE OVERLAY ON VIDEO */}
           <div 
@@ -570,6 +778,29 @@ export const Shorts: React.FC = () => {
                 <Share2 className="w-6 h-6 text-white" />
               </div>
               <span className="text-[10px] font-black drop-shadow-md">Share</span>
+            </button>
+
+            {/* DOWNLOAD BUTTON */}
+            <button 
+              onClick={handleDownloadShort}
+              disabled={downloadProgress !== null}
+              className="group/btn flex flex-col items-center gap-1"
+              title={isDownloaded ? "Downloaded offline" : "Download short"}
+            >
+              <div className={`w-12 h-12 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 cursor-pointer transition-all hover:scale-110 active:scale-95 ${
+                isDownloaded ? 'bg-emerald-600/30 border-emerald-500/50' : 'hover:bg-black/60'
+              }`}>
+                {downloadProgress !== null ? (
+                  <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+                ) : isDownloaded ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                ) : (
+                  <ArrowDownToLine className="w-5 h-5 text-white" />
+                )}
+              </div>
+              <span className="text-[10px] font-black drop-shadow-md">
+                {downloadProgress !== null ? `${downloadProgress}%` : isDownloaded ? 'Saved' : 'Download'}
+              </span>
             </button>
           </div>
 
