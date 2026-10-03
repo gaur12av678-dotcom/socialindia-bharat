@@ -19,6 +19,7 @@ import { AdminPanel } from './pages/Admin';
 import { HelpPage } from './pages/Help';
 import { FeedbackPage } from './pages/Feedback';
 import { Downloads } from './pages/Downloads';
+import { AboutPage } from './pages/About';
 
 function MainAppContent() {
   const { route } = useRouter();
@@ -60,6 +61,8 @@ function MainAppContent() {
       case 'terms':
       case 'guidelines':
         return <Legal />;
+      case 'about':
+        return <AboutPage />;
       default:
         return <Home />;
     }

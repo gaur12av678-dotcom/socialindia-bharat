@@ -44,6 +44,7 @@ import {
   FileText,
   Layers,
   Film,
+  Zap,
   Check,
   Clock,
   Wrench,
@@ -1097,7 +1098,7 @@ export const AdminPanel: React.FC = () => {
                     {[
                       { id: 'all', label: `All (${trashItems.length})`, icon: Layers },
                       { id: 'video', label: `Videos (${trashItems.filter(t => t.itemType === 'video').length})`, icon: VideoIcon },
-                      { id: 'short', label: `Shorts (${trashItems.filter(t => t.itemType === 'short').length})`, icon: Film },
+                      { id: 'short', label: `Shorts (${trashItems.filter(t => t.itemType === 'short').length})`, icon: Zap },
                       { id: 'user', label: `Accounts (${trashItems.filter(t => t.itemType === 'user').length})`, icon: Users },
                     ].map(f => {
                       const Icon = f.icon;

@@ -28,7 +28,8 @@ import {
   X,
   ArrowDownToLine,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Pin
 } from 'lucide-react';
 
 export const Watch: React.FC = () => {
@@ -41,6 +42,7 @@ export const Watch: React.FC = () => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newCommentText, setNewCommentText] = useState('');
   const [relatedVideos, setRelatedVideos] = useState<Video[]>([]);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   
   // Status states
   const [loading, setLoading] = useState(true);
@@ -384,6 +386,33 @@ export const Watch: React.FC = () => {
     }
   };
 
+  const handlePinComment = async (commentId: string, shouldPin: boolean) => {
+    if (!video) return;
+    try {
+      await commentService.pinComment(video.videoId, commentId, shouldPin);
+      setComments(prev => {
+        const updated = prev.map(c => {
+          if (c.commentId === commentId) {
+            return { ...c, isPinned: shouldPin };
+          }
+          if (shouldPin && c.isPinned) {
+            return { ...c, isPinned: false };
+          }
+          return c;
+        });
+        return updated.sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+      });
+      addToast(shouldPin ? 'Comment pinned to the top!' : 'Comment unpinned.', 'success');
+    } catch (err) {
+      console.error('Pin error', err);
+      addToast('Failed to update pinned comment.', 'error');
+    }
+  };
+
   const submitReportHandler = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
@@ -602,9 +631,37 @@ export const Watch: React.FC = () => {
             <span className="uppercase text-blue-600 dark:text-blue-400 font-extrabold">{video.category}</span>
           </div>
 
-          <p className="text-xs text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap leading-relaxed">
-            {video.description || "No description provided."}
-          </p>
+          <div className="text-xs text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap leading-relaxed">
+            {video.description ? (
+              video.description.length <= 150 ? (
+                <p>{video.description}</p>
+              ) : isDescriptionExpanded ? (
+                <div>
+                  <p>{video.description}</p>
+                  <button
+                    type="button"
+                    onClick={() => setIsDescriptionExpanded(false)}
+                    className="mt-2 font-black text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer block text-xs"
+                  >
+                    Show less
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p className="inline">{video.description.slice(0, 150)}...</p>
+                  <button
+                    type="button"
+                    onClick={() => setIsDescriptionExpanded(true)}
+                    className="ml-1 font-black text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer inline-block text-xs"
+                  >
+                    ...more
+                  </button>
+                </div>
+              )
+            ) : (
+              "No description provided."
+            )}
+          </div>
 
           {video.tags && video.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
@@ -664,6 +721,13 @@ export const Watch: React.FC = () => {
 
                     {/* Body content */}
                     <div className="flex-1 min-w-0 bg-white dark:bg-[#111827] p-4 rounded-2xl border border-slate-200/80 dark:border-[#334155] relative shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
+                      {comm.isPinned && (
+                        <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 text-[11px] font-black mb-1.5">
+                          <Pin className="w-3.5 h-3.5 rotate-45 fill-current" />
+                          <span>Pinned by {video.creatorDisplayName}</span>
+                        </div>
+                      )}
+
                       <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                         <span className="text-xs font-black text-slate-900 dark:text-[#F8FAFC]">
                           {comm.displayName}
@@ -750,7 +814,21 @@ export const Watch: React.FC = () => {
                         </button>
 
                         {commentDropdownRef.current[comm.commentId] && (
-                          <div className="absolute right-0 top-8 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-xl shadow-xl z-10 py-1.5 min-w-32 text-[10px] font-black uppercase tracking-widest overflow-hidden">
+                          <div className="absolute right-0 top-8 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-xl shadow-xl z-10 py-1.5 min-w-36 text-[10px] font-black uppercase tracking-widest overflow-hidden">
+                            {/* Pin / Unpin Button (Channel Creator or Admin only) */}
+                            {((currentUser && video && currentUser.uid === video.creatorId) || currentUserProfile?.role === 'admin') && (
+                              <button
+                                onClick={() => {
+                                  handlePinComment(comm.commentId, !comm.isPinned);
+                                  toggleCommentDropdown(comm.commentId);
+                                }}
+                                className="w-full px-4 py-2 hover:bg-blue-50 dark:hover:bg-slate-800 text-left flex items-center gap-2 text-blue-600 dark:text-blue-400 transition-colors"
+                              >
+                                <Pin className={`w-3.5 h-3.5 rotate-45 ${comm.isPinned ? 'fill-current' : ''}`} />
+                                {comm.isPinned ? 'Unpin Comment' : 'Pin Comment'}
+                              </button>
+                            )}
+
                             {currentUser?.uid === comm.uid ? (
                               <>
                                 <button
@@ -775,6 +853,17 @@ export const Watch: React.FC = () => {
                                   Delete
                                 </button>
                               </>
+                            ) : ((currentUser && video && currentUser.uid === video.creatorId) || currentUserProfile?.role === 'admin') ? (
+                              <button
+                                onClick={() => {
+                                  handleCommentDelete(comm.commentId);
+                                  toggleCommentDropdown(comm.commentId);
+                                }}
+                                className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-left flex items-center gap-2 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete
+                              </button>
                             ) : (
                               <button
                                 onClick={() => {

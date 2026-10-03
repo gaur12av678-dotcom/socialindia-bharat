@@ -58,6 +58,8 @@ export interface Comment {
   text: string;
   likesCount: number;
   parentCommentId?: string; // For replies
+  isPinned?: boolean; // Pinned by video creator
+  pinnedAt?: any;
   createdAt: any;
   updatedAt: any;
 }

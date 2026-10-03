@@ -8,6 +8,7 @@ import {
   Home, 
   TrendingUp, 
   Film, 
+  Zap,
   Users, 
   History, 
   Bookmark, 
@@ -30,7 +31,8 @@ import {
   Sparkles,
   MoreVertical,
   ArrowDownToLine,
-  WifiOff
+  WifiOff,
+  Info
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
@@ -168,7 +170,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const menuItems = [
     { label: 'Home', path: 'home', icon: Home },
-    { label: 'Shorts', path: 'shorts', icon: Film },
+    { label: 'Shorts', path: 'shorts', icon: Zap },
     { label: 'Trending', path: 'trending', icon: TrendingUp },
     { label: 'Downloads', path: 'downloads', icon: ArrowDownToLine },
     { label: 'Subscriptions', path: 'subscriptions', icon: Users, protected: true },
@@ -182,6 +184,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   ];
 
   const legalItems = [
+    { label: 'About SocialIndia', path: 'about', icon: Info },
     { label: 'Privacy Policy', path: 'privacy', icon: FileText },
     { label: 'Terms of Service', path: 'terms', icon: FileText },
     { label: 'Community Guidelines', path: 'guidelines', icon: ShieldAlert }
@@ -527,6 +530,16 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     <button
                       onClick={() => {
                         setGuestMenuOpen(false);
+                        navigate('about');
+                      }}
+                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Info className="w-4 h-4 text-slate-400" />
+                      <span>About SocialIndia</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setGuestMenuOpen(false);
                         navigate('privacy');
                       }}
                       className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
@@ -713,7 +726,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             onClick={() => navigate('shorts')}
             className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 text-slate-500 dark:text-slate-400 ${route.path === 'shorts' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : ''}`}
           >
-            <Film className="w-5 h-5" />
+            <Zap className="w-5 h-5" />
             <span className="text-[10px]">Shorts</span>
           </button>
 

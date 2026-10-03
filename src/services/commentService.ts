@@ -18,8 +18,12 @@ export const commentService = {
     try {
       const snap = await getDocs(colRef);
       const comments = snap.docs.map((d: any) => d.data() as Comment);
-      // Sort comments by newest first in memory
-      return comments.sort((a: Comment, b: Comment) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      // Sort comments: Pinned comment first, then newest first
+      return comments.sort((a: Comment, b: Comment) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, `videos/${videoId}/comments`);
       return [];
@@ -91,6 +95,41 @@ export const commentService = {
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `videos/${videoId}/comments/${commentId}`);
+    }
+  },
+
+  // Pin or unpin a comment (Channel owner only, max 1 pinned comment per video)
+  async pinComment(videoId: string, commentId: string, shouldPin: boolean): Promise<void> {
+    try {
+      if (shouldPin) {
+        // Unpin any existing pinned comment on this video
+        const colRef = collection(db, 'videos', videoId, 'comments');
+        const snap = await getDocs(colRef);
+        const updates: Promise<any>[] = [];
+        snap.docs.forEach((d: any) => {
+          const data = d.data() as Comment;
+          if (data.isPinned && data.commentId !== commentId) {
+            updates.push(updateDoc(doc(db, 'videos', videoId, 'comments', data.commentId), {
+              isPinned: false
+            }));
+          }
+        });
+        await Promise.all(updates);
+
+        // Pin the selected comment
+        await updateDoc(doc(db, 'videos', videoId, 'comments', commentId), {
+          isPinned: true,
+          pinnedAt: new Date().toISOString()
+        });
+      } else {
+        // Unpin
+        await updateDoc(doc(db, 'videos', videoId, 'comments', commentId), {
+          isPinned: false
+        });
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `videos/${videoId}/comments/${commentId}`);
+      throw err;
     }
   },
 

@@ -7,7 +7,7 @@ import { subscriptionService } from '../services/subscriptionService';
 import { User, Video } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { getInitials, formatSubscribers } from '../utils/videoUtils';
-import { Video as VideoIcon, Film, Info, UserX, Camera, Settings as SettingsIcon } from 'lucide-react';
+import { Video as VideoIcon, Film, Zap, Info, UserX, Camera, Settings as SettingsIcon } from 'lucide-react';
 
 export const CreatorProfile: React.FC = () => {
   const { route, navigate } = useRouter();
@@ -218,7 +218,7 @@ export const CreatorProfile: React.FC = () => {
           onClick={() => setActiveTab('shorts')}
           className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'shorts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
         >
-          <Film className="w-4 h-4" />
+          <Zap className="w-4 h-4" />
           <span>Shorts ({shorts.length})</span>
           {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
         </button>

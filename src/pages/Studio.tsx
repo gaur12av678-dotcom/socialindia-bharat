@@ -30,6 +30,7 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   Film,
+  Zap,
   Settings,
   Send,
   CornerDownRight,
@@ -62,7 +63,7 @@ export const CreatorStudio: React.FC = () => {
   const [videoUrl, setVideoUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Coding');
+  const [category, setCategory] = useState('All');
   const [tagsInput, setTagsInput] = useState('');
   const [duration, setDuration] = useState(120);
   const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
@@ -537,7 +538,7 @@ export const CreatorStudio: React.FC = () => {
     setThumbnailUrl('');
     setThumbnailPreviewUrl('');
     setDescription('');
-    setCategory('Coding');
+    setCategory('All');
     setTagsInput('');
     setDuration(120);
     setVisibility('public');
@@ -595,47 +596,47 @@ export const CreatorStudio: React.FC = () => {
       </div>
 
       {/* Sub tabs navigation */}
-      <div className="flex border-b border-slate-200 dark:border-[#334155] gap-4 pb-3">
+      <div className="flex flex-wrap gap-2.5">
         <button
           onClick={() => setActiveTab('dashboard')}
-          style={{ 
-            backgroundColor: activeTab === 'dashboard' ? '#065fd4' : '#93c5fd',
-            color: '#000000'
-          }}
-          className="px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl shadow-lg border-2 border-transparent active:scale-95"
+          className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
+            activeTab === 'dashboard'
+              ? 'bg-[#065fd4] text-white shadow-md shadow-blue-500/10'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-transparent'
+          }`}
         >
           <LayoutDashboard className="w-4 h-4" />
           <span>Dashboard</span>
         </button>
         <button
           onClick={() => setActiveTab('content')}
-          style={{ 
-            backgroundColor: activeTab === 'content' ? '#065fd4' : '#93c5fd',
-            color: '#000000'
-          }}
-          className="px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl shadow-lg border-2 border-transparent active:scale-95"
+          className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
+            activeTab === 'content'
+              ? 'bg-[#065fd4] text-white shadow-md shadow-blue-500/10'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-transparent'
+          }`}
         >
           <VideoIcon className="w-4 h-4" />
           <span>Content ({videos.length})</span>
         </button>
         <button
           onClick={() => setActiveTab('analytics')}
-          style={{ 
-            backgroundColor: activeTab === 'analytics' ? '#065fd4' : '#93c5fd',
-            color: '#000000'
-          }}
-          className="px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl shadow-lg border-2 border-transparent active:scale-95"
+          className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
+            activeTab === 'analytics'
+              ? 'bg-[#065fd4] text-white shadow-md shadow-blue-500/10'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-transparent'
+          }`}
         >
           <BarChart3 className="w-4 h-4" />
           <span>Analytics</span>
         </button>
         <button
           onClick={() => setActiveTab('comments')}
-          style={{ 
-            backgroundColor: activeTab === 'comments' ? '#065fd4' : '#93c5fd',
-            color: '#000000'
-          }}
-          className="px-4 py-2.5 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl shadow-lg border-2 border-transparent active:scale-95"
+          className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
+            activeTab === 'comments'
+              ? 'bg-[#065fd4] text-white shadow-md shadow-blue-500/10'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-transparent'
+          }`}
         >
           <MessageSquare className="w-4 h-4" />
           <span>Comments ({studioComments.length})</span>
@@ -1449,7 +1450,7 @@ export const CreatorStudio: React.FC = () => {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-[#065fd4] font-extrabold text-sm appearance-none cursor-pointer"
                   >
-                    {categoriesList.filter(c => c !== 'All').map((cat) => (
+                    {categoriesList.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
@@ -1497,7 +1498,7 @@ export const CreatorStudio: React.FC = () => {
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Film className={`w-5 h-5 ${isShort ? 'text-red-600' : 'text-slate-400'}`} />
+                      <Zap className={`w-5 h-5 ${isShort ? 'text-red-600' : 'text-slate-400'}`} />
                       <div>
                         <p className="text-xs font-black">SocialIndia Short</p>
                         <p className="text-[10px] opacity-75">Vertical 9:16 format</p>

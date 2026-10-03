@@ -11,7 +11,9 @@ import {
   Maximize, 
   Minimize, 
   RotateCcw, 
-  RotateCw 
+  RotateCw,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 
 interface CustomVideoPlayerProps {
@@ -281,9 +283,160 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ video, onE
     setCurrentTime(newTime);
 
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
-      ytPlayerRef.current.seekTo(newTime, true);
+      try {
+        ytPlayerRef.current.seekTo(newTime, true);
+      } catch (err) {
+        console.warn('YT seek error', err);
+      }
     } else if (videoRef.current) {
       videoRef.current.currentTime = newTime;
+    }
+  };
+
+  // Double-tap & Keyboard Seeking Feedback state (YouTube Style)
+  const [doubleTapFeedback, setDoubleTapFeedback] = useState<{
+    side: 'left' | 'right';
+    amount: number;
+    key: number;
+  } | null>(null);
+
+  const lastTapRef = useRef<{ time: number; side: 'left' | 'right' | 'center' }>({ time: 0, side: 'center' });
+  const singleClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const doubleTapFeedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const seekAccumulatorRef = useRef<{ side: 'left' | 'right'; amount: number }>({ side: 'right', amount: 0 });
+
+  const triggerFeedback = (side: 'left' | 'right', amount: number = 10) => {
+    setDoubleTapFeedback({
+      side,
+      amount,
+      key: Date.now()
+    });
+    if (doubleTapFeedbackTimeoutRef.current) {
+      clearTimeout(doubleTapFeedbackTimeoutRef.current);
+    }
+    doubleTapFeedbackTimeoutRef.current = setTimeout(() => {
+      setDoubleTapFeedback(null);
+      seekAccumulatorRef.current = { side: 'right', amount: 0 };
+    }, 750);
+  };
+
+  // Keyboard Navigation & Shortcuts (ArrowLeft, ArrowRight, J, L, Space, K, F, M, ArrowUp, ArrowDown)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Do not trigger shortcuts when typing in inputs/textareas
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          (activeEl as HTMLElement).isContentEditable)
+      ) {
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'l':
+        case 'L':
+          e.preventDefault();
+          skipSeconds(10);
+          triggerFeedback('right', 10);
+          break;
+        case 'ArrowLeft':
+        case 'j':
+        case 'J':
+          e.preventDefault();
+          skipSeconds(-10);
+          triggerFeedback('left', 10);
+          break;
+        case ' ':
+        case 'k':
+        case 'K':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'f':
+        case 'F':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'm':
+        case 'M':
+          e.preventDefault();
+          toggleMute();
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setVolume((prev) => {
+            const next = Math.min(1, Math.round((prev + 0.1) * 10) / 10);
+            if (videoRef.current) videoRef.current.volume = next;
+            if (ytPlayerRef.current?.setVolume) ytPlayerRef.current.setVolume(next * 100);
+            return next;
+          });
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setVolume((prev) => {
+            const next = Math.max(0, Math.round((prev - 0.1) * 10) / 10);
+            if (videoRef.current) videoRef.current.volume = next;
+            if (ytPlayerRef.current?.setVolume) ytPlayerRef.current.setVolume(next * 100);
+            return next;
+          });
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [duration, currentTime, isPlaying, isMuted, volume]);
+
+  // Handle pointer down (both mouse double-click and mobile touch double-tap)
+  const handleShieldPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Only primary click/touch
+    if (e.button !== 0) return;
+
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const relativeX = e.clientX - rect.left;
+    const width = rect.width;
+
+    let side: 'left' | 'right' | 'center' = 'center';
+    if (relativeX < width * 0.4) side = 'left';
+    else if (relativeX > width * 0.6) side = 'right';
+
+    const now = Date.now();
+    const isDouble =
+      (e.detail >= 2 && (side === 'left' || side === 'right')) ||
+      (now - lastTapRef.current.time < 350 &&
+        lastTapRef.current.side === side &&
+        (side === 'left' || side === 'right'));
+
+    if (isDouble && (side === 'left' || side === 'right')) {
+      if (singleClickTimeoutRef.current) {
+        clearTimeout(singleClickTimeoutRef.current);
+        singleClickTimeoutRef.current = null;
+      }
+
+      const isSameRecent =
+        seekAccumulatorRef.current.side === side && now - lastTapRef.current.time < 800;
+      const newAmount = isSameRecent ? seekAccumulatorRef.current.amount + 10 : 10;
+      seekAccumulatorRef.current = { side, amount: newAmount };
+
+      skipSeconds(side === 'left' ? -10 : 10);
+      triggerFeedback(side, newAmount);
+      lastTapRef.current = { time: now, side };
+    } else {
+      lastTapRef.current = { time: now, side };
+
+      if (singleClickTimeoutRef.current) {
+        clearTimeout(singleClickTimeoutRef.current);
+      }
+      singleClickTimeoutRef.current = setTimeout(() => {
+        togglePlay();
+        singleClickTimeoutRef.current = null;
+      }, 260);
     }
   };
 
@@ -381,11 +534,56 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ video, onE
         )}
       </div>
 
-      {/* INVISIBLE CLICK SHIELD (Toggles play/pause on video click) */}
+      {/* INVISIBLE CLICK SHIELD (Single-tap play/pause, Double-click / Double-tap 10s seek) */}
       <div 
-        onClick={togglePlay}
+        onPointerDown={handleShieldPointerDown}
         className="absolute inset-0 z-20 cursor-pointer"
       />
+
+      {/* DOUBLE TAP ANIMATED OVERLAYS (YouTube Style) */}
+      <AnimatePresence>
+        {doubleTapFeedback && doubleTapFeedback.side === 'left' && (
+          <motion.div
+            key={`left-${doubleTapFeedback.key}`}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-0 bottom-0 left-0 w-2/5 flex items-center justify-center z-35 pointer-events-none rounded-r-full bg-white/10 backdrop-blur-xs"
+          >
+            <div className="flex flex-col items-center justify-center text-white drop-shadow-md">
+              <div className="flex items-center -space-x-1 text-white">
+                <ChevronsLeft className="w-10 h-10 animate-pulse text-white" />
+              </div>
+              <span className="text-xs font-black tracking-wider mt-1 text-white uppercase">
+                -{doubleTapFeedback.amount} seconds
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {doubleTapFeedback && doubleTapFeedback.side === 'right' && (
+          <motion.div
+            key={`right-${doubleTapFeedback.key}`}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-0 bottom-0 right-0 w-2/5 flex items-center justify-center z-35 pointer-events-none rounded-l-full bg-white/10 backdrop-blur-xs"
+          >
+            <div className="flex flex-col items-center justify-center text-white drop-shadow-md">
+              <div className="flex items-center -space-x-1 text-white">
+                <ChevronsRight className="w-10 h-10 animate-pulse text-white" />
+              </div>
+              <span className="text-xs font-black tracking-wider mt-1 text-white uppercase">
+                +{doubleTapFeedback.amount} seconds
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* TOP HEADER OVERLAY WITH MOTION (OUR Title, Creator Avatar & Display Name) */}
       <AnimatePresence>
