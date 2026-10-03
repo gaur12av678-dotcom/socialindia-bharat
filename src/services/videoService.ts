@@ -390,6 +390,7 @@ export const videoService = {
   async searchVideos(term: string): Promise<Video[]> {
     if (!term.trim()) return this.getVideos();
     const cleanTerm = term.trim().toLowerCase();
+    const cleanTagTerm = cleanTerm.replace('#', '');
 
     try {
       // Get all public videos
@@ -401,7 +402,7 @@ export const videoService = {
         const descMatch = v.description.toLowerCase().includes(cleanTerm);
         const creatorMatch = v.creatorUsername.toLowerCase().includes(cleanTerm) || v.creatorDisplayName.toLowerCase().includes(cleanTerm);
         const categoryMatch = v.category.toLowerCase().includes(cleanTerm);
-        const tagMatch = v.tags.some(tag => tag.toLowerCase().includes(cleanTerm));
+        const tagMatch = v.tags.some(tag => tag.toLowerCase().includes(cleanTerm) || tag.toLowerCase().includes(cleanTagTerm));
         return titleMatch || descMatch || creatorMatch || categoryMatch || tagMatch;
       });
     } catch (err) {

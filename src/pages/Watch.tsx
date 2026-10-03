@@ -15,6 +15,7 @@ import { Video, Comment, User } from '../types';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { UserAvatar } from '../components/UserAvatar';
 import { parseVideoUrl, formatViews, formatTimeAgo, formatSubscribers, getInitials } from '../utils/videoUtils';
+import { RichText } from '../components/RichText';
 import { 
   Heart, 
   Share2, 
@@ -210,24 +211,41 @@ export const Watch: React.FC = () => {
       return;
     }
 
+    const previouslyLiked = liked;
+    
+    // Optimistic Update (INSTANT reaction!)
+    setLiked(!previouslyLiked);
+    setVideo(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        likesCount: prev.likesCount + (previouslyLiked ? -1 : 1)
+      };
+    });
+
     try {
-      if (liked) {
+      if (previouslyLiked) {
         await likeService.unlikeVideo(video.videoId, currentUser.uid);
-        setLiked(false);
-        setVideo(prev => prev ? { ...prev, likesCount: prev.likesCount - 1 } : null);
         addToast('Removed from liked videos.', 'info');
       } else {
         await likeService.likeVideo(video.videoId, currentUser.uid);
-        setLiked(true);
-        setVideo(prev => prev ? { ...prev, likesCount: prev.likesCount + 1 } : null);
         addToast('Added to liked videos!', 'success');
 
-        await notificationService.createNotification(video.creatorId, currentUserProfile, 'like', {
+        notificationService.createNotification(video.creatorId, currentUserProfile, 'like', {
           videoId: video.videoId,
           videoTitle: video.title
-        });
+        }).catch(console.error);
       }
     } catch (err) {
+      // Rollback on failure
+      setLiked(previouslyLiked);
+      setVideo(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          likesCount: prev.likesCount + (previouslyLiked ? 1 : -1)
+        };
+      });
       addToast('Failed to complete like operation.', 'error');
     }
   };
@@ -334,30 +352,55 @@ export const Watch: React.FC = () => {
       addToast('Please sign in to leave comments.', 'info');
       return;
     }
-    if (!newCommentText.trim()) return;
+    const textToPost = newCommentText.trim();
+    if (!textToPost) return;
+
+    // Generate a temporary unique ID for optimistic rendering
+    const tempCommentId = `temp-${Date.now()}`;
+    const now = new Date().toISOString();
+    const tempComment: Comment = {
+      commentId: tempCommentId,
+      videoId: video.videoId,
+      uid: currentUser.uid,
+      username: currentUserProfile.username,
+      displayName: currentUserProfile.displayName,
+      photoURL: currentUserProfile.photoURL || '',
+      text: textToPost,
+      likesCount: 0,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    // Optimistic state update (0 milliseconds!)
+    setComments(prev => [tempComment, ...prev]);
+    setNewCommentText('');
+    setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
 
     try {
-      const newComment = await commentService.addComment(video.videoId, {
+      const realComment = await commentService.addComment(video.videoId, {
         uid: currentUser.uid,
         username: currentUserProfile.username,
         displayName: currentUserProfile.displayName,
         photoURL: currentUserProfile.photoURL || '',
-        text: newCommentText.trim()
+        text: textToPost
       });
 
-      setComments(prev => [newComment, ...prev]);
-      setNewCommentText('');
-      setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
-      addToast('Comment posted successfully!', 'success');
+      // Replace the temporary comment with the real saved comment in the UI list
+      setComments(prev => prev.map(c => c.commentId === tempCommentId ? realComment : c));
 
-      await notificationService.createNotification(video.creatorId, currentUserProfile, 'comment', {
+      notificationService.createNotification(video.creatorId, currentUserProfile, 'comment', {
         videoId: video.videoId,
-        commentId: newComment.commentId,
-        message: newCommentText.trim()
-      });
+        commentId: realComment.commentId,
+        message: textToPost
+      }).catch(console.error);
 
     } catch (err) {
-      addToast('Failed to post comment.', 'error');
+      // Rollback on failure
+      setComments(prev => prev.filter(c => c.commentId !== tempCommentId));
+      setVideo(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null);
+      // Restore input text so they don't lose what they typed
+      setNewCommentText(textToPost);
+      addToast('Failed to post comment. Please try again.', 'error');
     }
   };
 
@@ -436,25 +479,9 @@ export const Watch: React.FC = () => {
     }
   };
 
-  // Helper to render text with clickable links
+  // Helper to render text with clickable links and hashtags
   const renderCommentText = (text: string) => {
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    return text.split(urlRegex).map((part, i) => {
-      if (part.match(urlRegex)) {
-        return (
-          <a 
-            key={i} 
-            href={part} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="text-blue-600 dark:text-blue-400 hover:underline break-all"
-          >
-            {part}
-          </a>
-        );
-      }
-      return part;
-    });
+    return <RichText text={text} />;
   };
 
   const handleReplyClick = (commentId: string) => {
@@ -502,7 +529,7 @@ export const Watch: React.FC = () => {
         {/* Video Title and Social Interactions block */}
         <div className="space-y-4">
           <h1 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-[#F8FAFC] leading-snug">
-            {video.title}
+            <RichText text={video.title} />
           </h1>
 
           <div className="flex flex-wrap items-center justify-between gap-4 py-2.5 border-y border-slate-200 dark:border-[#334155]">
@@ -531,13 +558,13 @@ export const Watch: React.FC = () => {
               {currentUser?.uid !== video.creatorId && (
                 <button
                   onClick={handleSubscribeToggle}
-                  className={`ml-4 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  className={`ml-4 px-4.5 py-2 text-xs font-extrabold rounded-xl transition-all cursor-pointer border ${
                     subscribed 
-                      ? 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-[#F8FAFC] border border-slate-200 dark:border-[#334155]' 
-                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
+                      ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-800 dark:text-[#F8FAFC] border-slate-300 dark:border-[#334155] shadow-xs' 
+                      : 'bg-[#065fd4] hover:bg-[#0556bf] text-white border-transparent shadow-md'
                   }`}
                 >
-                  {subscribed ? 'Subscribed' : 'Subscribe'}
+                  {subscribed ? '✓ Subscribed' : 'Subscribe'}
                 </button>
               )}
             </div>
@@ -631,13 +658,13 @@ export const Watch: React.FC = () => {
             <span className="uppercase text-blue-600 dark:text-blue-400 font-extrabold">{video.category}</span>
           </div>
 
-          <div className="text-xs text-slate-700 dark:text-slate-300 font-medium whitespace-pre-wrap leading-relaxed">
+          <div className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
             {video.description ? (
               video.description.length <= 150 ? (
-                <p>{video.description}</p>
+                <RichText text={video.description} />
               ) : isDescriptionExpanded ? (
                 <div>
-                  <p>{video.description}</p>
+                  <RichText text={video.description} />
                   <button
                     type="button"
                     onClick={() => setIsDescriptionExpanded(false)}
@@ -648,7 +675,7 @@ export const Watch: React.FC = () => {
                 </div>
               ) : (
                 <div>
-                  <p className="inline">{video.description.slice(0, 150)}...</p>
+                  <RichText text={video.description.slice(0, 150) + '...'} className="inline" />
                   <button
                     type="button"
                     onClick={() => setIsDescriptionExpanded(true)}

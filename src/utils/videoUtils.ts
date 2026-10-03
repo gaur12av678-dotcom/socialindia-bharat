@@ -177,7 +177,7 @@ export function formatViews(count: number): string {
 }
 
 export function formatSubscribers(count: number): string {
-  if (count === undefined || count === null) return '0 subscribers';
+  if (count === undefined || count === null || count < 0) return '0 subscribers';
   if (count >= 1000000) {
     return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M subscribers';
   }
