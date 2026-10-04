@@ -14,21 +14,69 @@ import { SavedVideos } from './pages/Saved';
 import { CreatorProfile } from './pages/Creator';
 import { CreatorStudio } from './pages/Studio';
 import { Settings } from './pages/Settings';
-import { Legal } from './pages/Legal';
 import { AdminPanel } from './pages/Admin';
 import { HelpPage } from './pages/Help';
 import { FeedbackPage } from './pages/Feedback';
 import { Downloads } from './pages/Downloads';
 import { AboutPage } from './pages/About';
+import { UploadPage } from './pages/Upload';
+import { AdvertisingPage } from './pages/Advertising';
+import { GoProPage } from './pages/GoPro';
+import { SignInPage } from './pages/SignIn';
+import { ChatPage } from './pages/Chat';
+import { MobileMenu } from './pages/MobileMenu';
+
+// Import standalone policy components
+import { PrivacyPolicyPage } from './pages/PrivacyPolicy';
+import { TermsPage } from './pages/Terms';
+import { RefundPolicyPage } from './pages/RefundPolicy';
+import { FAQPage } from './pages/FAQ';
+import { ContactUsPage } from './pages/ContactUs';
+import { DevelopersPage } from './pages/Developers';
+import { LanguageSettingsPage } from './pages/LanguageSettings';
+import { CommunityGuidelinesPage } from './pages/CommunityGuidelines';
 
 function MainAppContent() {
   const { route } = useRouter();
+
+  if (route.path === 'login' || route.path === 'signin') {
+    return <SignInPage />;
+  }
+  if (route.path === 'about') {
+    return <AboutPage />;
+  }
+  if (route.path === 'privacy') {
+    return <PrivacyPolicyPage />;
+  }
+  if (route.path === 'terms') {
+    return <TermsPage />;
+  }
+  if (route.path === 'refund') {
+    return <RefundPolicyPage />;
+  }
+  if (route.path === 'faq') {
+    return <FAQPage />;
+  }
+  if (route.path === 'contact') {
+    return <ContactUsPage />;
+  }
+  if (route.path === 'developers') {
+    return <DevelopersPage />;
+  }
+  if (route.path === 'language') {
+    return <LanguageSettingsPage />;
+  }
+  if (route.path === 'guidelines') {
+    return <CommunityGuidelinesPage />;
+  }
 
   // Route selector mapping
   const renderRoute = () => {
     switch (route.path) {
       case 'home':
         return <Home />;
+      case 'upload':
+        return <UploadPage />;
       case 'downloads':
         return <Downloads />;
       case 'admin':
@@ -53,16 +101,20 @@ function MainAppContent() {
         return <CreatorStudio />;
       case 'settings':
         return <Settings />;
+      case 'profile-menu':
+        return <MobileMenu />;
+      case 'chat':
+      case 'messages':
+        return <ChatPage />;
+      case 'advertising':
+        return <AdvertisingPage />;
+      case 'gopro':
+      case 'pro':
+        return <GoProPage />;
       case 'help':
         return <HelpPage />;
       case 'feedback':
         return <FeedbackPage />;
-      case 'privacy':
-      case 'terms':
-      case 'guidelines':
-        return <Legal />;
-      case 'about':
-        return <AboutPage />;
       default:
         return <Home />;
     }

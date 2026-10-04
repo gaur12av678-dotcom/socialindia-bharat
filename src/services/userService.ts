@@ -72,6 +72,12 @@ export const userService = {
       followersCount: 0,
       followingCount: 0,
       videosCount: 0,
+      points: 10, // Welcome points
+      walletBalance: 0.00,
+      gender: 'Male',
+      country: '',
+      age: '',
+      paypalEmail: profile.email || '',
       role: isAdmin ? 'admin' : (profile.role || 'user'),
       status: 'active',
       createdAt: now,
@@ -108,6 +114,51 @@ export const userService = {
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
     }
+  },
+
+  // Award points to user
+  async awardPoints(uid: string, amount: number): Promise<void> {
+    if (!uid || amount <= 0) return;
+    const docRef = doc(db, 'users', uid);
+    try {
+      await setDoc(docRef, {
+        points: increment(amount),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Award points failed:', err);
+    }
+  },
+
+  // Convert points to wallet balance (e.g., 100 points = $1.00 balance)
+  async convertPointsToWallet(uid: string, pointsToConvert: number): Promise<{ newPoints: number; newWalletBalance: number }> {
+    const user = await this.getUserProfile(uid);
+    if (!user) throw new Error('User not found');
+    const currentPoints = user.points || 0;
+    if (pointsToConvert <= 0 || currentPoints < pointsToConvert) {
+      throw new Error(`Insufficient points balance. You need at least ${pointsToConvert} points.`);
+    }
+
+    // Rate: 100 points = $1.00 USD (i.e. $0.01 per point)
+    const dollarAmount = pointsToConvert * 0.01;
+    const newPoints = currentPoints - pointsToConvert;
+    const newWalletBalance = Number(((user.walletBalance || 0) + dollarAmount).toFixed(2));
+
+    await this.updateProfile(uid, {
+      points: newPoints,
+      walletBalance: newWalletBalance
+    });
+
+    return { newPoints, newWalletBalance };
+  },
+
+  // Top up / replenish wallet balance
+  async replenishWallet(uid: string, amount: number): Promise<number> {
+    const user = await this.getUserProfile(uid);
+    if (!user) throw new Error('User not found');
+    const newBalance = Number(((user.walletBalance || 0) + amount).toFixed(2));
+    await this.updateProfile(uid, { walletBalance: newBalance });
+    return newBalance;
   },
 
   // Retrieve private user info
@@ -149,6 +200,18 @@ export const userService = {
       ).slice(0, 5); // Limit to top 5 matches
     } catch (err) {
       console.error(err);
+      return [];
+    }
+  },
+
+  // Get all registered users
+  async getAllUsers(): Promise<User[]> {
+    const q = query(collection(db, 'users'));
+    try {
+      const snap = await getDocs(q);
+      return snap.docs.map(d => d.data() as User);
+    } catch (err) {
+      console.error('Failed to fetch all users:', err);
       return [];
     }
   }

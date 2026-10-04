@@ -4,10 +4,11 @@ import { useApp } from '../context/AppContext';
 import { userService } from '../services/userService';
 import { videoService } from '../services/videoService';
 import { subscriptionService } from '../services/subscriptionService';
-import { User, Video } from '../types';
+import { playlistService } from '../services/playlistService';
+import { User, Video, Playlist } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { getInitials, formatSubscribers } from '../utils/videoUtils';
-import { Video as VideoIcon, Film, Zap, Info, UserX, Camera, Settings as SettingsIcon } from 'lucide-react';
+import { Video as VideoIcon, Film, Zap, Info, UserX, Camera, Settings as SettingsIcon, Bookmark, MessageSquare } from 'lucide-react';
 
 export const CreatorProfile: React.FC = () => {
   const { route, navigate } = useRouter();
@@ -17,8 +18,9 @@ export const CreatorProfile: React.FC = () => {
   const [creator, setCreator] = useState<User | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [shorts, setShorts] = useState<Video[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'videos' | 'shorts' | 'about'>('videos');
+  const [activeTab, setActiveTab] = useState<'videos' | 'shorts' | 'playlists' | 'about'>('videos');
   const [subscribed, setSubscribed] = useState(false);
 
   useEffect(() => {
@@ -44,6 +46,9 @@ export const CreatorProfile: React.FC = () => {
         const publicVids = creatorVideos.filter(v => v.visibility === 'public');
         setVideos(publicVids.filter(v => !v.isShort));
         setShorts(publicVids.filter(v => v.isShort));
+
+        const userPls = await playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName);
+        setPlaylists(userPls);
 
       } catch (err) {
         console.error(err);
@@ -192,16 +197,26 @@ export const CreatorProfile: React.FC = () => {
                 <span>Customize Channel</span>
               </button>
             ) : (
-              <button
-                onClick={handleSubscribeToggle}
-                className={`px-6 py-2.5 rounded-xl font-extrabold text-xs tracking-wide transition-all cursor-pointer shadow-xs ${
-                  subscribed 
-                    ? 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-[#F8FAFC] border border-slate-200 dark:border-[#334155]' 
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                {subscribed ? 'Subscribed' : 'Subscribe'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigate('chat', creator.uid)}
+                  className="px-4 py-2.5 bg-slate-100 dark:bg-[#1E293B] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-[#F8FAFC] font-extrabold text-xs rounded-xl flex items-center gap-1.5 border border-slate-200 dark:border-[#334155] cursor-pointer shadow-xs transition-all"
+                  title={`Message ${creator.displayName}`}
+                >
+                  <MessageSquare className="w-4 h-4 text-blue-500" />
+                  <span>Message</span>
+                </button>
+                <button
+                  onClick={handleSubscribeToggle}
+                  className={`px-6 py-2.5 rounded-xl font-extrabold text-xs tracking-wide transition-all cursor-pointer shadow-xs ${
+                    subscribed 
+                      ? 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-[#F8FAFC] border border-slate-200 dark:border-[#334155]' 
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {subscribed ? 'Subscribed' : 'Subscribe'}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -224,6 +239,14 @@ export const CreatorProfile: React.FC = () => {
           <Zap className="w-4 h-4" />
           <span>Shorts ({shorts.length})</span>
           {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
+        </button>
+        <button
+          onClick={() => setActiveTab('playlists')}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'playlists' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
+        >
+          <Bookmark className="w-4 h-4" />
+          <span>Playlists ({playlists.length})</span>
+          {activeTab === 'playlists' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
         </button>
         <button
           onClick={() => setActiveTab('about')}
@@ -253,6 +276,50 @@ export const CreatorProfile: React.FC = () => {
             emptyHeading="No short videos"
             emptyMessage="This creator has not published any short videos yet."
           />
+        )}
+
+        {activeTab === 'playlists' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {playlists.length === 0 ? (
+              <div className="col-span-full py-16 text-center text-slate-400 font-bold">
+                No public playlists created by this channel yet.
+              </div>
+            ) : (
+              playlists.map(pl => (
+                <div 
+                  key={pl.playlistId}
+                  onClick={() => {
+                    if (pl.videoIds && pl.videoIds.length > 0) {
+                      navigate('watch', pl.videoIds[0]);
+                    } else {
+                      addToast('This playlist is currently empty.', 'info');
+                    }
+                  }}
+                  className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs hover:shadow-md transition-all cursor-pointer group"
+                >
+                  <div className="aspect-video bg-slate-900 relative overflow-hidden flex items-center justify-center">
+                    {pl.thumbnailUrl ? (
+                      <img src={pl.thumbnailUrl} alt={pl.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    ) : (
+                      <Film className="w-10 h-10 text-slate-600" />
+                    )}
+                    <div className="absolute inset-y-0 right-0 w-1/3 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center text-white p-2">
+                      <span className="font-mono font-black text-sm">{pl.videoIds?.length || 0}</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-300">Videos</span>
+                    </div>
+                  </div>
+                  <div className="p-4 space-y-1">
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">
+                      {pl.title}
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 font-medium">
+                      {pl.description || "Created on SocialIndia"}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         )}
 
         {activeTab === 'about' && (

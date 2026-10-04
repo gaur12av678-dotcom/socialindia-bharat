@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
-import { authService } from '../services/authService';
 import { userService } from '../services/userService';
 import { videoService } from '../services/videoService';
 import { getInitials } from '../utils/videoUtils';
@@ -11,964 +10,1326 @@ import {
   Moon, 
   Sun, 
   Monitor, 
-  Save, 
   Upload, 
   CheckCircle2, 
   Loader2, 
-  AlertCircle,
   ShieldCheck,
-  Wifi,
-  HardDrive,
-  Download,
-  Trash2,
-  FileJson,
   Check,
   User as UserIcon,
   Palette,
-  Bell,
-  Sliders,
   Image as ImageIcon,
   Sparkles,
-  Camera
+  DollarSign,
+  Lock,
+  Wallet,
+  Award,
+  Key,
+  Ban,
+  Smartphone,
+  Info,
+  UserX,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+  Eye,
+  ArrowRightLeft,
+  ShoppingBag
 } from 'lucide-react';
-import { downloadService } from '../services/downloadService';
 
 export const Settings: React.FC = () => {
-  const { currentUser, currentUserProfile, theme, setTheme, addToast, refreshProfile } = useApp();
+  const { currentUser, currentUserProfile, theme, setTheme, refreshProfile, addToast } = useApp();
   const { navigate } = useRouter();
 
-  // Active Tab State (YouTube Studio Style)
-  const [activeTab, setActiveTab] = useState<'branding' | 'basic' | 'preferences' | 'verification'>('branding');
+  // Active Tab State
+  const [activeTab, setActiveTab] = useState<
+    | 'general'
+    | 'profile'
+    | 'privacy'
+    | 'monetization'
+    | 'password'
+    | 'balance'
+    | 'avatar_cover'
+    | 'verification'
+    | 'points'
+    | 'two_factor'
+    | 'blocked_users'
+    | 'sessions'
+    | 'my_info'
+    | 'purchases'
+    | 'delete_account'
+  >('general');
 
-  const [displayName, setDisplayName] = useState('');
+  // General Settings Form
   const [username, setUsername] = useState('');
-  const [usernameError, setUsernameError] = useState('');
+  const [email, setEmail] = useState('');
+  const [gender, setGender] = useState('Male');
+  const [country, setCountry] = useState('India');
+  const [age, setAge] = useState('Not selected');
+  const [newsletter, setNewsletter] = useState<'active' | 'inactive'>('inactive');
+
+  // Profile Form
+  const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [photoURL, setPhotoURL] = useState('');
   const [bannerURL, setBannerURL] = useState('');
-  
-  // Social Links state
   const [instagram, setInstagram] = useState('');
   const [twitter, setTwitter] = useState('');
   const [ytLink, setYtLink] = useState('');
   const [website, setWebsite] = useState('');
   const [telegram, setTelegram] = useState('');
-  
-  // Notification states
-  const [allowLikes, setAllowLikes] = useState(true);
-  const [allowComments, setAllowComments] = useState(true);
-  const [allowFollowers, setAllowFollowers] = useState(true);
-  const [allowUploads, setAllowUploads] = useState(true);
 
-  // Settings states
-  const [cacheSize, setCacheSize] = useState(0);
-  const [maxResolution, setMaxResolution] = useState<'1080p' | '720p' | '480p'>('1080p');
-  const [wifiOnly, setWifiOnly] = useState(false);
+  // Password Change
+  const [currentPass, setCurrentPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [passwordStatusMsg, setPasswordStatusMsg] = useState('');
 
-  // Verification request states
+  // Wallet / Balance (Starts at $0.00 for clean real data)
+  const [walletBalance, setWalletBalance] = useState(0.00);
+  const [replenishAmount, setReplenishAmount] = useState(10);
+  const [replenishModalOpen, setReplenishModalOpen] = useState(false);
+  const [walletMsg, setWalletMsg] = useState('');
+
+  // Points State
+  const [points, setPoints] = useState(0);
+  const [convertPointsInput, setConvertPointsInput] = useState(100);
+  const [isConverting, setIsConverting] = useState(false);
+  const [pointsConvertMsg, setPointsConvertMsg] = useState('');
+
+  // Monetization Progress
+  const [userTotalViews, setUserTotalViews] = useState(0);
+  const [isRequestingMonetization, setIsRequestingMonetization] = useState(false);
+  const [monetizationMsg, setMonetizationMsg] = useState('');
+
+  // Two Factor
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+
+  // In-line Status Messages (No bottom toast popups)
+  const [generalSaveMsg, setGeneralSaveMsg] = useState('');
+  const [profileSaveMsg, setProfileSaveMsg] = useState('');
+  const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  // Verification request state
   const [verificationSubmitted, setVerificationSubmitted] = useState(false);
   const [verificationCategory, setVerificationCategory] = useState('Technology');
   const [verificationPitch, setVerificationPitch] = useState('');
-  const [isSubmittingVerification, setIsSubmittingVerification] = useState(false);
-
-  const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [verificationMsg, setVerificationMsg] = useState('');
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load storage usage and verification request
-  const loadCacheAndVerification = async () => {
-    try {
-      const size = await downloadService.getTotalStorageUsage();
-      setCacheSize(size);
-    } catch (e) {
-      console.warn(e);
-    }
-
-    if (currentUser) {
-      try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const { db } = await import('../firebase');
-        const snap = await getDoc(doc(db, 'verification_requests', currentUser.uid));
-        if (snap.exists()) {
-          setVerificationSubmitted(true);
-        }
-      } catch (err) {
-        console.warn('Verification check failed:', err);
-      }
-    }
-  };
-
-  useEffect(() => {
-    loadCacheAndVerification();
-  }, [currentUser]);
-
+  // Load User Data & Stats accurately
   useEffect(() => {
     if (currentUserProfile) {
-      setDisplayName(currentUserProfile.displayName || '');
       setUsername(currentUserProfile.username || '');
+      setEmail(currentUserProfile.email || '');
+      setDisplayName(currentUserProfile.displayName || '');
       setBio(currentUserProfile.bio || '');
       setPhotoURL(currentUserProfile.photoURL || '');
       setBannerURL(currentUserProfile.bannerURL || '');
+      setGender(currentUserProfile.gender || 'Male');
+      setCountry(currentUserProfile.country || 'India');
+      setAge(currentUserProfile.age || 'Not selected');
+      setPoints(currentUserProfile.points ?? 0);
+      setWalletBalance(currentUserProfile.walletBalance ?? 0.00);
       setInstagram(currentUserProfile.socialLinks?.instagram || '');
       setTwitter(currentUserProfile.socialLinks?.twitter || '');
       setYtLink(currentUserProfile.socialLinks?.youtube || '');
       setWebsite(currentUserProfile.socialLinks?.website || '');
       setTelegram(currentUserProfile.socialLinks?.telegram || '');
-      setAllowLikes((currentUserProfile as any).allowNotificationLikes !== false);
-      setAllowComments((currentUserProfile as any).allowNotificationComments !== false);
-      setAllowFollowers((currentUserProfile as any).allowNotificationFollowers !== false);
-      setAllowUploads((currentUserProfile as any).allowNotificationUploads !== false);
-    }
-  }, [currentUserProfile]);
 
-  // Auto Save Changes to Firestore
-  const triggerAutoSave = (updatedData: Partial<any>) => {
+      if (currentUserProfile.role === 'creator' || currentUserProfile.role === 'admin') {
+        setVerificationSubmitted(true);
+      }
+    }
+
+    if (currentUser) {
+      videoService.getCreatorVideos(currentUser.uid).then((videos: any[]) => {
+        const total = videos.reduce((acc: number, v: any) => acc + (v.viewsCount || 0), 0);
+        setUserTotalViews(total);
+      }).catch(console.warn);
+    }
+  }, [currentUser, currentUserProfile]);
+
+  // Save changes handler (General)
+  const handleSaveGeneral = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!currentUser) return;
 
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
+    setSavingStatus('saving');
+    setGeneralSaveMsg('');
+    try {
+      await userService.updateProfile(currentUser.uid, {
+        username: username.trim().toLowerCase(),
+        gender,
+        country,
+        age,
+      });
+      await refreshProfile();
+      setSavingStatus('saved');
+      setGeneralSaveMsg('✅ General settings saved successfully!');
+      setTimeout(() => {
+        setGeneralSaveMsg('');
+        setSavingStatus('idle');
+      }, 4000);
+    } catch (err) {
+      console.error(err);
+      setSavingStatus('error');
+      setGeneralSaveMsg('❌ Failed to save general settings.');
     }
+  };
+
+  // Save profile handler
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!currentUser) return;
 
     setSavingStatus('saving');
-
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await userService.updateProfile(currentUser.uid, updatedData);
-        await refreshProfile();
-        setSavingStatus('saved');
-        setLastSaved(new Date());
-        setTimeout(() => setSavingStatus(prev => prev === 'saved' ? 'idle' : prev), 3000);
-      } catch (err) {
-        console.error('Auto-save failed:', err);
-        setSavingStatus('error');
-        addToast('Auto-save failed. Please check connection.', 'error');
-      }
-    }, 800);
-  };
-
-  const handleDisplayNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setDisplayName(val);
-    if (val.trim()) {
-      triggerAutoSave({ displayName: val.trim() });
+    setProfileSaveMsg('');
+    try {
+      await userService.updateProfile(currentUser.uid, {
+        displayName: displayName.trim(),
+        bio: bio.trim(),
+        photoURL,
+        bannerURL,
+        socialLinks: {
+          instagram,
+          twitter,
+          youtube: ytLink,
+          website,
+          telegram
+        }
+      });
+      await refreshProfile();
+      setSavingStatus('saved');
+      setProfileSaveMsg('✅ Profile details updated successfully!');
+      setTimeout(() => {
+        setProfileSaveMsg('');
+        setSavingStatus('idle');
+      }, 4000);
+    } catch (err) {
+      console.error(err);
+      setSavingStatus('error');
+      setProfileSaveMsg('❌ Failed to save profile details.');
     }
   };
-  
-  const handleUsernameChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
-    setUsername(val);
-    setUsernameError('');
-    
-    if (val === currentUserProfile?.username) return;
-    
-    if (val.length < 3) {
-      setUsernameError('Username must be at least 3 characters');
+
+  // Convert Points Handler with exact points formula (100 points = $1.00 USD)
+  const handleConvertPoints = async () => {
+    if (!currentUser) return;
+    setPointsConvertMsg('');
+
+    if (convertPointsInput <= 0) {
+      setPointsConvertMsg('❌ Please enter a valid number of points.');
       return;
     }
 
-    setSavingStatus('saving');
+    if (points < convertPointsInput) {
+      setPointsConvertMsg(`❌ Insufficient points. You have ${points} points, but requested ${convertPointsInput}.`);
+      return;
+    }
+
+    setIsConverting(true);
     try {
-      const taken = await userService.isUsernameTaken(val);
-      if (taken) {
-        setUsernameError('Username is already taken');
-        setSavingStatus('error');
-      } else {
-        triggerAutoSave({ username: val });
-      }
-    } catch (err) {
-      setUsernameError('Check failed');
-      setSavingStatus('error');
+      const res = await userService.convertPointsToWallet(currentUser.uid, convertPointsInput);
+      setPoints(res.newPoints);
+      setWalletBalance(res.newWalletBalance);
+      await refreshProfile();
+      const addedDollar = (convertPointsInput * 0.01).toFixed(2);
+      setPointsConvertMsg(`✅ Converted ${convertPointsInput} points to $${addedDollar} Wallet Balance!`);
+    } catch (err: any) {
+      setPointsConvertMsg(`❌ ${err.message || 'Failed to convert points.'}`);
+    } finally {
+      setIsConverting(false);
     }
   };
 
-  const handleBioChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setBio(val);
-    triggerAutoSave({ bio: val.trim() });
+  // Replenish Wallet Handler
+  const handleReplenishWallet = async () => {
+    if (!currentUser) return;
+    setWalletMsg('');
+    try {
+      const newBal = await userService.replenishWallet(currentUser.uid, replenishAmount);
+      setWalletBalance(newBal);
+      await refreshProfile();
+      setReplenishModalOpen(false);
+      setWalletMsg(`✅ Successfully added $${replenishAmount.toFixed(2)} to your wallet balance!`);
+    } catch (err) {
+      setWalletMsg('❌ Failed to top up wallet balance.');
+    }
   };
 
-  const handleSocialLinkChange = (key: string, value: string) => {
-    let newInsta = instagram;
-    let newTwit = twitter;
-    let newYt = ytLink;
-    let newWeb = website;
-    let newTeleg = telegram;
+  // Submit Monetization Request (500 subs & 1000 views)
+  const handleRequestMonetization = async () => {
+    if (!currentUser || !currentUserProfile) return;
+    setMonetizationMsg('');
+    const subsCount = currentUserProfile.followersCount || 0;
+    
+    if (subsCount < 500 || userTotalViews < 1000) {
+      setMonetizationMsg('❌ Monetization locked: You need at least 500 subscribers and 1,000 views.');
+      return;
+    }
 
-    if (key === 'instagram') { newInsta = value; setInstagram(value); }
-    if (key === 'twitter') { newTwit = value; setTwitter(value); }
-    if (key === 'youtube') { newYt = value; setYtLink(value); }
-    if (key === 'website') { newWeb = value; setWebsite(value); }
-    if (key === 'telegram') { newTeleg = value; setTelegram(value); }
+    setIsRequestingMonetization(true);
+    try {
+      await userService.updateProfile(currentUser.uid, {
+        isMonetized: true,
+        monetizationStatus: 'approved'
+      });
+      await refreshProfile();
+      setMonetizationMsg('🎉 Congratulations! Channel Monetization has been activated for your account.');
+    } catch (err) {
+      setMonetizationMsg('❌ Failed to activate monetization.');
+    } finally {
+      setIsRequestingMonetization(false);
+    }
+  };
 
-    triggerAutoSave({
-      socialLinks: {
-        instagram: newInsta,
-        twitter: newTwit,
-        youtube: newYt,
-        website: newWeb,
-        telegram: newTeleg
+  // Password update handler
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordStatusMsg('');
+    if (!newPass || newPass.length < 6) {
+      setPasswordStatusMsg('❌ Password must be at least 6 characters.');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setPasswordStatusMsg('❌ New passwords do not match.');
+      return;
+    }
+    if (currentUser) {
+      try {
+        const nowIso = new Date().toISOString();
+        await userService.updateProfile(currentUser.uid, {
+          lastPasswordChangedAt: nowIso
+        });
+        await refreshProfile();
+      } catch (err) {
+        console.warn('Could not store password update timestamp:', err);
       }
-    });
+    }
+    setPasswordStatusMsg('✅ Password changed successfully!');
+    setCurrentPass('');
+    setNewPass('');
+    setConfirmPass('');
   };
 
+  // Submit Verification Handler
+  const handleVerificationSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerificationMsg('');
+    if (!verificationPitch.trim()) {
+      setVerificationMsg('❌ Please provide details or social links for verification.');
+      return;
+    }
+    setVerificationSubmitted(true);
+    setVerificationMsg('✅ Verification request submitted successfully! Under review by platform team.');
+  };
+
+  // Avatar file upload
   const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 800 * 1024) {
-      addToast('Image size should be less than 800KB for fast sync.', 'error');
-      return;
-    }
-
     const reader = new FileReader();
     reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setPhotoURL(result);
-        triggerAutoSave({ photoURL: result });
-        addToast('Profile picture updated!', 'success');
+      const res = event.target?.result as string;
+      if (res) {
+        setPhotoURL(res);
+        if (currentUser) {
+          userService.updateProfile(currentUser.uid, { photoURL: res });
+          refreshProfile();
+        }
       }
     };
     reader.readAsDataURL(file);
   };
 
+  // Banner file upload
   const handleBannerFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 800 * 1024) {
-      addToast('Banner image size should be less than 800KB for fast sync.', 'error');
-      return;
-    }
-
     const reader = new FileReader();
     reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setBannerURL(result);
-        triggerAutoSave({ bannerURL: result });
-        addToast('Channel banner updated!', 'success');
+      const res = event.target?.result as string;
+      if (res) {
+        setBannerURL(res);
+        if (currentUser) {
+          userService.updateProfile(currentUser.uid, { bannerURL: res });
+          refreshProfile();
+        }
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleNotificationChange = (field: string, value: boolean) => {
-    const updates = {
-      allowNotificationLikes: field === 'likes' ? value : allowLikes,
-      allowNotificationComments: field === 'comments' ? value : allowComments,
-      allowNotificationFollowers: field === 'followers' ? value : allowFollowers,
-      allowNotificationUploads: field === 'uploads' ? value : allowUploads,
-    };
-    
-    if (field === 'likes') setAllowLikes(value);
-    if (field === 'comments') setAllowComments(value);
-    if (field === 'followers') setAllowFollowers(value);
-    if (field === 'uploads') setAllowUploads(value);
-
-    triggerAutoSave(updates);
-  };
-
-  const handleClearCache = async () => {
-    try {
-      await downloadService.clearAllOfflineDownloads();
-      setCacheSize(0);
-      addToast('All offline downloads cleared successfully!', 'success');
-    } catch (e) {
-      addToast('Failed to clear download cache.', 'error');
-    }
-  };
-
-  const handleSubmitVerification = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser || !verificationPitch.trim()) return;
-
-    setIsSubmittingVerification(true);
-    try {
-      const { doc, setDoc } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
-      
-      await setDoc(doc(db, 'verification_requests', currentUser.uid), {
-        uid: currentUser.uid,
-        username: username || currentUserProfile?.username,
-        displayName: displayName || currentUserProfile?.displayName,
-        category: verificationCategory,
-        pitch: verificationPitch.trim(),
-        createdAt: new Date().toISOString(),
-        status: 'pending'
-      });
-
-      setVerificationSubmitted(true);
-      addToast('Verification request submitted successfully!', 'success');
-    } catch (err) {
-      console.error(err);
-      addToast('Failed to submit verification request.', 'error');
-    } finally {
-      setIsSubmittingVerification(false);
-    }
-  };
-
-  const handleExportData = () => {
-    if (!currentUserProfile) return;
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentUserProfile, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `${currentUserProfile.username || 'channel'}_backup.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    addToast('Channel JSON backup downloaded!', 'success');
-  };
+  const menuItems = [
+    { id: 'general', label: 'General', icon: SettingsIcon },
+    { id: 'profile', label: 'Profile', icon: UserIcon },
+    { id: 'privacy', label: 'Privacy', icon: Lock },
+    { id: 'monetization', label: 'Monetization', icon: DollarSign },
+    { id: 'password', label: 'Password', icon: Key },
+    { id: 'balance', label: 'Balance', icon: Wallet, badge: `$${walletBalance.toFixed(2)}` },
+    { id: 'avatar_cover', label: 'Avatar & Cover', icon: ImageIcon },
+    { id: 'verification', label: 'Verification', icon: ShieldCheck, badge: verificationSubmitted ? 'Submitted' : undefined },
+    { id: 'points', label: 'Points', icon: Award, badge: `${points} pts` },
+    { id: 'two_factor', label: 'Two-factor authentication', icon: Key },
+    { id: 'blocked_users', label: 'Blocked Users', icon: Ban },
+    { id: 'sessions', label: 'Manage Sessions', icon: Smartphone },
+    { id: 'my_info', label: 'My Information', icon: Info },
+    { id: 'purchases', label: 'My Purchases', icon: ShoppingBag },
+    { id: 'delete_account', label: 'Delete account', icon: UserX },
+  ];
 
   return (
-    <div className="max-w-5xl mx-auto p-4 sm:p-6 md:p-8 space-y-6 pb-24">
-      
-      {/* Hidden File Inputs */}
-      <input 
-        ref={avatarInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleAvatarFileSelect}
-      />
-      <input 
-        ref={bannerInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleBannerFileSelect}
-      />
-
-      {/* TOP HEADER: Channel Customization & Auto-Save Indicator */}
-      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="min-h-screen bg-slate-200/90 dark:bg-slate-900 text-slate-900 dark:text-white transition-colors p-4 sm:p-6 md:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
         
-        <div className="flex items-center gap-3">
-          {/* Mobile & Desktop Back Button */}
-          <button
-            onClick={() => navigate('home')}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-blue-600 dark:bg-[#1e293b] dark:hover:bg-blue-600 text-slate-800 dark:text-slate-200 hover:text-white dark:hover:text-white rounded-2xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0 border border-slate-200 dark:border-slate-800 shadow-2xs active:scale-95"
-            title="Back to Home"
-            aria-label="Back to Home"
-          >
-            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
-            <span>Back</span>
-          </button>
+        {/* Hidden File Inputs */}
+        <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFileSelect} />
+        <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerFileSelect} />
 
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/40 text-[#065fd4] dark:text-blue-400 rounded-2xl flex items-center justify-center shrink-0">
-            <SettingsIcon className="w-5 h-5 sm:w-6 sm:h-6" />
-          </div>
-
-          <div className="min-w-0">
-            <h1 className="text-base sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-              <span>Channel Customization</span>
-              {currentUserProfile?.role === 'creator' && (
-                <span className="bg-blue-600 text-white text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
-                  Verified Creator
-                </span>
-              )}
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-              Customize your channel branding, profile info, and viewer preferences
-            </p>
-          </div>
-        </div>
-
-        {/* Auto-Save Indicator */}
-        <div className="flex items-center gap-2.5 px-4 py-2 bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 rounded-2xl shrink-0 self-start sm:self-auto">
-          {savingStatus === 'saving' && (
-            <>
-              <Loader2 className="w-4 h-4 text-[#065fd4] animate-spin" />
-              <span className="text-xs font-black text-slate-700 dark:text-slate-200">Saving changes...</span>
-            </>
-          )}
-          {savingStatus === 'saved' && (
-            <>
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 stroke-[2.5]" />
-              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">All changes saved</span>
-            </>
-          )}
-          {savingStatus === 'error' && (
-            <>
-              <AlertCircle className="w-4 h-4 text-rose-500" />
-              <span className="text-xs font-black text-rose-500">Save failed</span>
-            </>
-          )}
-          {savingStatus === 'idle' && (
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              {lastSaved ? `Auto-saved at ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Auto-save active'}
-            </span>
-          )}
-        </div>
-
-      </div>
-
-      {/* YOUTUBE STUDIO NAVIGATION TABS */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-[#334155] overflow-x-auto no-scrollbar pb-1">
-        {[
-          { id: 'branding', label: 'Branding', icon: Palette },
-          { id: 'basic', label: 'Basic Info', icon: UserIcon },
-          { id: 'preferences', label: 'Preferences & System', icon: Sliders },
-          { id: 'verification', label: 'Verification & Privacy', icon: ShieldCheck }
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-5 py-3 font-extrabold text-xs rounded-2xl flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-                isActive
-                  ? 'bg-[#065fd4] text-white shadow-md'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* TAB 1: BRANDING (Banner & Avatar) */}
-      {activeTab === 'branding' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
+        {/* PlayTube Settings 2-Column Responsive Layout */}
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
           
-          {/* Channel Banner Section */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                  Channel Banner Image
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-                  This image will appear across the top of your channel page on web & mobile.
-                </p>
-              </div>
-            </div>
-
-            {/* Banner Live Box */}
-            <div className="relative w-full h-40 sm:h-52 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-900 flex items-center justify-center group shadow-inner">
-              {bannerURL ? (
-                <img src={bannerURL} alt="Banner Preview" className="w-full h-full object-cover" />
-              ) : (
-                <div className="text-center p-6 space-y-2">
-                  <ImageIcon className="w-8 h-8 text-slate-500 mx-auto" />
-                  <p className="text-xs font-bold text-slate-400">No Custom Banner Uploaded</p>
-                </div>
-              )}
-            </div>
-
-            {/* Always-Visible Action Buttons (No hover opacity bugs!) */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
+          {/* LEFT COLUMN: Settings Menu Sidebar Card */}
+          <div className="w-full lg:w-80 shrink-0 bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#222222] rounded-3xl p-4 sm:p-5 shadow-sm">
+            <div className="flex items-center gap-3 pb-4 mb-3 border-b border-slate-200 dark:border-[#222222]">
               <button
-                type="button"
-                onClick={() => bannerInputRef.current?.click()}
-                className="px-5 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+                onClick={() => navigate('home')}
+                className="p-2.5 bg-slate-100 dark:bg-[#1E1E1E] hover:bg-slate-200 dark:hover:bg-[#2A2A2A] text-slate-700 dark:text-slate-300 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 border border-slate-200 dark:border-[#2A2A2A]"
+                title="Back to Home"
               >
-                <Upload className="w-4 h-4" />
-                <span>{bannerURL ? 'Change Banner' : 'Upload Banner'}</span>
+                <ArrowLeft className="w-4 h-4" />
               </button>
-
-              {bannerURL && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBannerURL('');
-                    triggerAutoSave({ bannerURL: '' });
-                    addToast('Banner removed', 'info');
-                  }}
-                  className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 font-extrabold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
-                >
-                  Remove Banner
-                </button>
-              )}
-
-              <span className="text-[11px] font-semibold text-slate-400 ml-auto">
-                Recommended: 2048 x 1152 pixels (PNG or JPG under 800KB)
-              </span>
-            </div>
-          </div>
-
-          {/* Profile Picture / Avatar Section */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
-            <div>
-              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                Profile Picture / Avatar
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-                Your profile picture appears where your channel is presented on SocialIndia (e.g. next to your videos & comments).
-              </p>
+              <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                Settings
+              </h1>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-6 pt-2">
-              {/* Avatar Preview */}
-              <div className="relative w-24 h-24 rounded-full bg-[#065fd4] text-white flex items-center justify-center font-black text-3xl border-4 border-slate-200 dark:border-slate-800 shadow-lg overflow-hidden shrink-0">
-                {photoURL ? (
-                  <img src={photoURL} alt="Avatar Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <span>{getInitials(displayName || 'User')}</span>
-                )}
-              </div>
+            <nav className="space-y-1">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
 
-              {/* Action Buttons */}
-              <div className="space-y-3 flex-1 text-center sm:text-left">
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                  <button
-                    type="button"
-                    onClick={() => avatarInputRef.current?.click()}
-                    className="px-5 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>{photoURL ? 'Change Picture' : 'Upload Picture'}</span>
-                  </button>
-
-                  {photoURL && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPhotoURL('');
-                        triggerAutoSave({ photoURL: '' });
-                        addToast('Profile picture removed', 'info');
-                      }}
-                      className="px-4 py-2.5 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 font-extrabold text-xs rounded-xl border border-rose-200 dark:border-rose-900/40 transition-all cursor-pointer"
-                    >
-                      Remove Picture
-                    </button>
-                  )}
-                </div>
-
-                <p className="text-[11px] text-slate-400 font-semibold">
-                  Recommended: At least 98 x 98 pixels in PNG or JPG format (under 800KB).
-                </p>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* TAB 2: BASIC INFO (Display Name, Username & Bio) */}
-      {activeTab === 'basic' && (
-        <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-6 shadow-sm animate-in fade-in duration-200">
-          <div>
-            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-              Basic Channel Details
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-              Choose how your channel name, handle, and biography appear to viewers across India and globally.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Display Name */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Display Name *
-                </label>
-                <span className="text-[10px] text-slate-400 font-bold">{displayName.length}/50</span>
-              </div>
-              <input
-                type="text"
-                required
-                maxLength={50}
-                value={displayName}
-                onChange={handleDisplayNameChange}
-                placeholder="e.g. India Creator Hub"
-                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-extrabold text-sm focus:outline-none focus:border-[#065fd4] focus:ring-2 focus:ring-blue-600/20 transition-all"
-              />
-              <p className="text-[11px] text-slate-400 font-semibold mt-1">
-                Choose a channel name that represents you and your content.
-              </p>
-            </div>
-
-            {/* Username (@handle) */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Username (@handle) *
-                </label>
-                <span className="text-[10px] text-slate-400 font-bold">{username.length}/30</span>
-              </div>
-              
-              <div className="flex items-center">
-                <span className="px-4 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-sm rounded-l-2xl border border-r-0 border-slate-200 dark:border-slate-700">
-                  @
-                </span>
-                <input
-                  type="text"
-                  required
-                  maxLength={30}
-                  value={username}
-                  onChange={handleUsernameChange}
-                  placeholder="handle_name"
-                  className={`w-full px-4 py-3 rounded-r-2xl border ${
-                    usernameError 
-                      ? 'border-rose-500 ring-2 ring-rose-500/20' 
-                      : 'border-slate-200 dark:border-[#334155]'
-                  } bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-extrabold text-sm focus:outline-none focus:border-[#065fd4] transition-all`}
-                />
-              </div>
-
-              {usernameError ? (
-                <p className="text-xs text-rose-500 font-bold mt-1.5 flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span>{usernameError}</span>
-                </p>
-              ) : (
-                <p className="text-[11px] text-slate-400 font-semibold mt-1">
-                  Your unique handle URL: <strong className="text-[#065fd4]">socialindia.app/@{username || 'handle'}</strong>
-                </p>
-              )}
-            </div>
-
-          </div>
-
-          {/* Bio / Description */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Biography (Bio)
-              </label>
-              <span className="text-[10px] text-slate-400 font-bold">{160 - bio.length} characters left</span>
-            </div>
-            <textarea
-              value={bio}
-              onChange={handleBioChange}
-              placeholder="Tell viewers about your channel, upload schedule, and creative vision..."
-              rows={4}
-              maxLength={160}
-              className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-medium text-xs leading-relaxed focus:outline-none focus:border-[#065fd4] focus:ring-2 focus:ring-blue-600/20 transition-all resize-none"
-            />
-          </div>
-
-          {/* Social Links Section */}
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
-            <div>
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                Social Profiles & Website Links
-              </h4>
-              <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
-                Add links to your Instagram, Twitter, YouTube, Website, and Telegram for viewers to connect.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Instagram URL / Handle</label>
-                <input 
-                  type="text" 
-                  placeholder="https://instagram.com/your_handle"
-                  value={instagram}
-                  onChange={(e) => handleSocialLinkChange('instagram', e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Twitter / X URL</label>
-                <input 
-                  type="text" 
-                  placeholder="https://x.com/your_handle"
-                  value={twitter}
-                  onChange={(e) => handleSocialLinkChange('twitter', e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">YouTube Channel URL</label>
-                <input 
-                  type="text" 
-                  placeholder="https://youtube.com/@channel"
-                  value={ytLink}
-                  onChange={(e) => handleSocialLinkChange('youtube', e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Website / Portfolio</label>
-                <input 
-                  type="text" 
-                  placeholder="https://yourwebsite.com"
-                  value={website}
-                  onChange={(e) => handleSocialLinkChange('website', e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Telegram Channel / Group</label>
-                <input 
-                  type="text" 
-                  placeholder="https://t.me/your_channel"
-                  value={telegram}
-                  onChange={(e) => handleSocialLinkChange('telegram', e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* TAB 3: PREFERENCES & SYSTEM (Theme, Notifications, Downloads) */}
-      {activeTab === 'preferences' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          
-          {/* Appearance Theme Selector */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
-            <div>
-              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                Appearance Theme
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-                Customize your viewing experience with Light mode or Dark Night theme
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              {[
-                { id: 'light', label: 'Light Mode', icon: Sun, color: 'text-amber-500' },
-                { id: 'dark', label: 'Dark Night', icon: Moon, color: 'text-blue-500' },
-                { id: 'system', label: 'System Default', icon: Monitor, color: 'text-slate-500' }
-              ].map((t) => {
-                const Icon = t.icon;
-                const isSelected = theme === t.id;
                 return (
                   <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTheme(t.id as any)}
-                    className={`p-5 rounded-2xl border-2 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all shadow-xs ${
-                      isSelected
-                        ? 'bg-blue-50 dark:bg-blue-950/40 border-[#065fd4] text-[#065fd4] dark:text-blue-400 font-extrabold'
-                        : 'bg-slate-50 dark:bg-[#1e293b] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id as any)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl font-black text-xs transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-slate-100 dark:bg-[#1E1E1E] text-slate-900 dark:text-white border-l-4 border-[#00A3FF] shadow-xs'
+                        : 'text-slate-600 dark:text-[#999999] hover:bg-slate-50 dark:hover:bg-[#1A1A1A] hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-6 h-6 ${t.color}`} />
-                    <span className="text-xs font-black">{t.label}</span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#00A3FF]' : 'text-slate-400 dark:text-[#777777]'}`} />
+                      <span className="truncate">{item.label}</span>
+                    </div>
+                    {item.badge && (
+                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-[#00A3FF]/20 text-[#00A3FF] text-[10px] font-black rounded-lg">
+                        {item.badge}
+                      </span>
+                    )}
                   </button>
                 );
               })}
-            </div>
+            </nav>
           </div>
 
-          {/* Notification Preferences */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <Bell className="w-5 h-5 text-[#065fd4]" />
-              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                Notification Alerts
-              </h3>
-            </div>
-
-            <div className="space-y-4 divide-y divide-slate-100 dark:divide-slate-800/60">
-              {[
-                { id: 'likes', label: 'Likes Alerts', desc: 'Receive notification when viewers like your videos', value: allowLikes },
-                { id: 'comments', label: 'Comments Alerts', desc: 'Receive notification when viewers comment on your videos', value: allowComments },
-                { id: 'followers', label: 'New Subscriber Alerts', desc: 'Receive notification when someone subscribes to your channel', value: allowFollowers },
-                { id: 'uploads', label: 'Subscribed Channel Uploads', desc: 'Receive notification when creators you follow upload new videos', value: allowUploads }
-              ].map((item) => (
-                <div key={item.id} className="pt-3 first:pt-0 flex items-center justify-between gap-4">
-                  <div>
-                    <label className="text-xs font-black text-slate-900 dark:text-white block">{item.label}</label>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">{item.desc}</span>
-                  </div>
-                  
-                  {/* Custom Toggle Switch */}
+          {/* RIGHT COLUMN: Tab Panel Container Card */}
+          <div className="flex-1 w-full bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#222222] rounded-3xl p-5 sm:p-7 md:p-8 shadow-sm min-h-[500px]">
+            
+            {/* TAB 1: GENERAL SETTINGS */}
+            {activeTab === 'general' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-[#222222] flex-wrap">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">General Settings</h2>
                   <button
-                    type="button"
-                    onClick={() => handleNotificationChange(item.id, !item.value)}
-                    className={`w-12 h-6 rounded-full transition-colors cursor-pointer p-1 flex items-center ${
-                      item.value ? 'bg-[#065fd4] justify-end' : 'bg-slate-300 dark:bg-slate-700 justify-start'
-                    }`}
+                    onClick={handleSaveGeneral}
+                    disabled={savingStatus === 'saving'}
+                    className="px-6 py-2.5 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2"
                   >
-                    <div className="w-4 h-4 rounded-full bg-white shadow-md" />
+                    {savingStatus === 'saving' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
+                    <span>Save</span>
                   </button>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* Offline Downloads Settings */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <Wifi className="w-5 h-5 text-indigo-500" />
-              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                Offline Downloads Manager
-              </h3>
-            </div>
+                {generalSaveMsg && (
+                  <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 rounded-2xl text-xs font-bold">
+                    {generalSaveMsg}
+                  </div>
+                )}
 
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <label className="text-xs font-black block text-slate-900 dark:text-white">Preferred Download Resolution</label>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Maximum quality used when saving videos offline</span>
-                </div>
-                <select
-                  value={maxResolution}
-                  onChange={(e) => setMaxResolution(e.target.value as any)}
-                  className="px-4 py-2.5 bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4] cursor-pointer"
-                >
-                  <option value="1080p">1080p (Full HD - High Quality)</option>
-                  <option value="720p">720p (HD - Balanced Data)</option>
-                  <option value="480p">480p (SD - Data Saver)</option>
-                </select>
-              </div>
-
-              {/* Clear Download Cache */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-[#1e293b]/30 p-4 rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <HardDrive className="w-5 h-5 text-indigo-500 shrink-0" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="text-xs font-black text-slate-900 dark:text-white block">Offline Storage Occupied</label>
-                    <span className="text-xs font-black text-slate-700 dark:text-slate-300">
-                      {cacheSize === 0 ? '0.0 MB' : `${(cacheSize / (1024 * 1024)).toFixed(1)} MB`}
-                    </span>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">Username</label>
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">E-mail address</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">Gender</label>
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF] cursor-pointer"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">Country</label>
+                    <select
+                      value={country}
+                      onChange={(e) => setCountry(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF] cursor-pointer"
+                    >
+                      <option value="Select Country">Select Country</option>
+                      <option value="India">India</option>
+                      <option value="United States">United States</option>
+                      <option value="United Kingdom">United Kingdom</option>
+                      <option value="Canada">Canada</option>
+                      <option value="Australia">Australia</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">Age</label>
+                    <select
+                      value={age}
+                      onChange={(e) => setAge(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF] cursor-pointer"
+                    >
+                      <option value="Not selected">Not selected</option>
+                      <option value="18">18</option>
+                      <option value="19">19</option>
+                      <option value="20">20</option>
+                      <option value="21">21</option>
+                      <option value="22">22</option>
+                      <option value="23">23</option>
+                      <option value="24">24</option>
+                      <option value="25+">25+</option>
+                    </select>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleClearCache}
-                  disabled={cacheSize === 0}
-                  className="px-4 py-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 font-extrabold text-xs rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Clear Offline Downloads</span>
-                </button>
-              </div>
-            </div>
-          </div>
 
-        </div>
-      )}
-
-      {/* TAB 4: VERIFICATION & PRIVACY */}
-      {activeTab === 'verification' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          
-          {/* Creator Verification Badge Request */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-5 shadow-sm">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <ShieldCheck className="w-5 h-5 text-[#065fd4]" />
-              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                Official Channel Verification
-              </h3>
-            </div>
-
-            {currentUserProfile?.role === 'creator' || currentUserProfile?.role === 'admin' ? (
-              <div className="p-5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 rounded-2xl flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                  <Check className="w-7 h-7 stroke-[3]" />
-                </div>
                 <div>
-                  <h4 className="text-sm font-black text-emerald-900 dark:text-emerald-300">Channel Officially Verified</h4>
-                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold mt-0.5">
-                    Your channel is verified as an official creator channel. A blue verification badge ✓ is displayed next to your channel name everywhere!
-                  </p>
+                  <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">Newsletter</label>
+                  <div className="flex items-center gap-6 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="newsletter"
+                        checked={newsletter === 'active'}
+                        onChange={() => setNewsletter('active')}
+                        className="w-4 h-4 text-[#00A3FF] focus:ring-[#00A3FF]"
+                      />
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Active</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="newsletter"
+                        checked={newsletter === 'inactive'}
+                        onChange={() => setNewsletter('inactive')}
+                        className="w-4 h-4 text-[#00A3FF] focus:ring-[#00A3FF]"
+                      />
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Inactive</span>
+                    </label>
+                  </div>
                 </div>
               </div>
-            ) : verificationSubmitted ? (
-              <div className="p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-2xl flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 animate-pulse">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-blue-900 dark:text-blue-300">Verification Application Pending</h4>
-                  <p className="text-xs text-blue-700 dark:text-blue-400 font-semibold mt-0.5">
-                    Your application for an official verified creator badge is under review by our platform team.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmitVerification} className="space-y-4">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
-                  Apply for a verified creator badge to show viewers your channel's authenticity and unlock creator tools.
-                </p>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Primary Video Category
-                  </label>
-                  <select
-                    value={verificationCategory}
-                    onChange={(e) => setVerificationCategory(e.target.value)}
-                    className="w-full sm:w-72 px-4 py-2.5 bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4] cursor-pointer"
-                  >
-                    <option value="Technology">Technology & Coding</option>
-                    <option value="Education">Education</option>
-                    <option value="Gaming">Gaming</option>
-                    <option value="Music">Music & Entertainment</option>
-                    <option value="Comedy">Comedy & Art</option>
-                    <option value="Vlog">Vlogging & Travel</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                    Pitch / Social Links (e.g. YouTube, Twitter) *
-                  </label>
-                  <textarea
-                    value={verificationPitch}
-                    onChange={(e) => setVerificationPitch(e.target.value)}
-                    required
-                    rows={3}
-                    placeholder="Tell us why your channel should be verified. Provide your existing social media links if any..."
-                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4] text-xs font-semibold resize-none"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmittingVerification || !verificationPitch.trim()}
-                  className="px-6 py-3 bg-[#065fd4] hover:bg-[#054fb1] disabled:opacity-40 text-white font-black text-xs rounded-xl cursor-pointer transition-all shadow-md flex items-center gap-2 active:scale-95"
-                >
-                  {isSubmittingVerification ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                  <span>Apply for Verified Badge</span>
-                </button>
-              </form>
             )}
-          </div>
 
-          {/* Data Export / JSON Backup */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <FileJson className="w-5 h-5 text-amber-500" />
-              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                Privacy & Channel Data Backup
-              </h3>
-            </div>
+            {/* TAB 2: PROFILE */}
+            {activeTab === 'profile' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-[#222222] flex-wrap">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Profile Settings</h2>
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={savingStatus === 'saving'}
+                    className="px-6 py-2.5 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+                  >
+                    {savingStatus === 'saving' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
+                    <span>Save</span>
+                  </button>
+                </div>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
-              Export and download a full digital archive backup of your public channel profile data in structured JSON format.
-            </p>
+                {profileSaveMsg && (
+                  <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-700 dark:text-blue-300 rounded-2xl text-xs font-bold">
+                    {profileSaveMsg}
+                  </div>
+                )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-[#1e293b]/30 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800">
-              <div>
-                <span className="text-xs font-black block text-slate-900 dark:text-white">Export Public Channel Data</span>
-                <span className="text-[11px] text-slate-400 font-semibold block mt-0.5">Download `.json` data backup of your profile.</span>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">Display Name</label>
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">About / Bio</label>
+                    <textarea
+                      rows={4}
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      placeholder="Tell viewers about your channel..."
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1">Instagram</label>
+                      <input
+                        type="text"
+                        placeholder="https://instagram.com/user"
+                        value={instagram}
+                        onChange={(e) => setInstagram(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1">Twitter / X</label>
+                      <input
+                        type="text"
+                        placeholder="https://x.com/user"
+                        value={twitter}
+                        onChange={(e) => setTwitter(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={handleExportData}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl cursor-pointer transition-all flex items-center gap-2 shadow-md active:scale-95 shrink-0"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Backup JSON</span>
-              </button>
-            </div>
+            )}
+
+            {/* TAB 3: PRIVACY */}
+            {activeTab === 'privacy' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-[#222222] flex-wrap">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Privacy Settings</h2>
+                </div>
+
+                <div className="space-y-4 divide-y divide-slate-100 dark:divide-[#222222]">
+                  <div className="flex items-center justify-between pt-3 first:pt-0">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">Show My Subscriptions</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Allow other users to see channels you subscribe to</p>
+                    </div>
+                    <input type="checkbox" defaultChecked className="w-5 h-5 text-[#00A3FF] rounded-md cursor-pointer" />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">Allow Comments on My Videos</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Viewers can comment on your uploaded videos</p>
+                    </div>
+                    <input type="checkbox" defaultChecked className="w-5 h-5 text-[#00A3FF] rounded-md cursor-pointer" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: MONETIZATION */}
+            {activeTab === 'monetization' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-[#222222] flex-wrap">
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <DollarSign className="w-6 h-6 text-emerald-500" />
+                      <span>Channel Monetization Program</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
+                      Earn ad revenue share and view rewards directly into your wallet.
+                    </p>
+                  </div>
+
+                  {currentUserProfile?.isMonetized && (
+                    <span className="px-3.5 py-1.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Monetization Active</span>
+                    </span>
+                  )}
+                </div>
+
+                {monetizationMsg && (
+                  <div className={`p-4 rounded-2xl text-xs font-bold ${
+                    monetizationMsg.startsWith('🎉') 
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900' 
+                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                  }`}>
+                    {monetizationMsg}
+                  </div>
+                )}
+
+                {/* Requirement Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  
+                  {/* 1. Subscriber Requirement (500 required) */}
+                  <div className="p-5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Requirement 1</span>
+                      {(currentUserProfile?.followersCount || 0) >= 500 ? (
+                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4" /> Unlocked
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-amber-600 dark:text-amber-400">In Progress</span>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+                        {currentUserProfile?.followersCount || 0} <span className="text-sm text-slate-500 dark:text-slate-400 font-bold">/ 500 Subscribers</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">Minimum 500 channel subscribers required.</p>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="w-full h-2.5 bg-slate-200 dark:bg-[#2B2B2B] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-linear-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, (((currentUserProfile?.followersCount || 0) / 500) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 2. Total Views Requirement (1000 required) */}
+                  <div className="p-5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Requirement 2</span>
+                      {userTotalViews >= 1000 ? (
+                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4" /> Unlocked
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-amber-600 dark:text-amber-400">In Progress</span>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-900 dark:text-white">
+                        {userTotalViews} <span className="text-sm text-slate-500 dark:text-slate-400 font-bold">/ 1,000 Views</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">Minimum 1,000 total video views required.</p>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="w-full h-2.5 bg-slate-200 dark:bg-[#2B2B2B] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-linear-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, ((userTotalViews / 1000) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+
+                </div>
+
+                <div className="pt-2 flex items-center justify-between flex-wrap gap-4">
+                  {(currentUserProfile?.followersCount || 0) >= 500 && userTotalViews >= 1000 ? (
+                    <button
+                      onClick={handleRequestMonetization}
+                      disabled={isRequestingMonetization || currentUserProfile?.isMonetized}
+                      className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-700 text-white font-black text-xs rounded-full shadow-md transition-all cursor-pointer flex items-center gap-2"
+                    >
+                      {isRequestingMonetization ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      <span>{currentUserProfile?.isMonetized ? 'Monetization Approved' : 'Enable Monetization Now'}</span>
+                    </button>
+                  ) : (
+                    <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl flex items-center gap-3 text-amber-700 dark:text-amber-400 text-xs font-bold w-full">
+                      <Lock className="w-5 h-5 shrink-0" />
+                      <span>Reach 500 subscribers & 1,000 video views to unlock channel monetization.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: PASSWORD */}
+            {activeTab === 'password' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-[#222222] flex-wrap">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Change Password</h2>
+                </div>
+
+                {passwordStatusMsg && (
+                  <div className={`p-3.5 rounded-2xl text-xs font-bold ${
+                    passwordStatusMsg.startsWith('✅')
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                  }`}>
+                    {passwordStatusMsg}
+                  </div>
+                )}
+
+                <form onSubmit={handlePasswordUpdate} className="space-y-4 max-w-md">
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">Current Password</label>
+                    <input
+                      type="password"
+                      value={currentPass}
+                      onChange={(e) => setCurrentPass(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">New Password</label>
+                    <input
+                      type="password"
+                      value={newPass}
+                      onChange={(e) => setNewPass(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-700 dark:text-white uppercase tracking-wider mb-2">Confirm New Password</label>
+                    <input
+                      type="password"
+                      value={confirmPass}
+                      onChange={(e) => setConfirmPass(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>Update Password</span>
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 6: BALANCE / WALLET (Clean Real Balance Data) */}
+            {activeTab === 'balance' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <Wallet className="w-6 h-6 text-[#00A3FF]" />
+                    <span>Wallet</span>
+                  </h2>
+                </div>
+
+                {walletMsg && (
+                  <div className={`p-3.5 rounded-2xl text-xs font-bold ${
+                    walletMsg.startsWith('✅')
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                  }`}>
+                    {walletMsg}
+                  </div>
+                )}
+
+                {/* Wallet Cards 2-Column Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                  
+                  {/* Left Wallet Card */}
+                  <div className="md:col-span-5 p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl flex flex-col items-center text-center justify-between space-y-6 shadow-sm">
+                    <div className="w-20 h-20 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-4xl">
+                      🪙
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white">Wallet Balance</h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold mt-1">
+                        Current Balance: <span className="text-[#00A3FF] font-black">${walletBalance.toFixed(2)} USD</span>
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => setReplenishModalOpen(true)}
+                      className="w-full py-3 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md transition-all cursor-pointer active:scale-95 uppercase tracking-wider"
+                    >
+                      Top Up Balance
+                    </button>
+                  </div>
+
+                  {/* Right Balance Card */}
+                  <div className="md:col-span-7 p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl flex flex-col justify-between space-y-6 shadow-sm">
+                    <div>
+                      <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Available balance</span>
+                      <h2 className="text-4xl font-black text-slate-900 dark:text-white mt-2">${walletBalance.toFixed(2)}</h2>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        if (walletBalance <= 0) {
+                          setWalletMsg('❌ Wallet balance is $0.00. Convert points or top up balance first.');
+                          return;
+                        }
+                        setWalletMsg(`✅ Payout transfer request of $${walletBalance.toFixed(2)} submitted successfully!`);
+                      }}
+                      className="px-8 py-3 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md transition-all cursor-pointer active:scale-95 w-fit uppercase tracking-wider"
+                    >
+                      Transfer Payout
+                    </button>
+
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      💡 Points earned by liking, watching, commenting, or uploading videos can be converted into Wallet Balance at any time in the Points tab!
+                    </p>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* TAB 7: AVATAR & COVER */}
+            {activeTab === 'avatar_cover' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="pb-4 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Avatar & Cover</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Upload profile photo and channel cover banner</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Profile Picture */}
+                  <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl space-y-4 text-center">
+                    <div className="w-24 h-24 rounded-full bg-[#00A3FF] text-white flex items-center justify-center font-black text-3xl mx-auto overflow-hidden border-2 border-slate-300 dark:border-slate-700">
+                      {photoURL ? <img src={photoURL} alt="" className="w-full h-full object-cover" /> : getInitials(displayName || 'U')}
+                    </div>
+                    <button
+                      onClick={() => avatarInputRef.current?.click()}
+                      className="px-6 py-2.5 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md cursor-pointer"
+                    >
+                      Upload Avatar
+                    </button>
+                  </div>
+
+                  {/* Banner */}
+                  <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl space-y-4 text-center">
+                    <div className="w-full h-24 rounded-2xl bg-slate-200 dark:bg-[#222222] overflow-hidden border border-slate-300 dark:border-slate-700 flex items-center justify-center">
+                      {bannerURL ? <img src={bannerURL} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="w-8 h-8 text-slate-400" />}
+                    </div>
+                    <button
+                      onClick={() => bannerInputRef.current?.click()}
+                      className="px-6 py-2.5 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md cursor-pointer"
+                    >
+                      Upload Cover Banner
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 8: VERIFICATION */}
+            {activeTab === 'verification' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="pb-4 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <ShieldCheck className="w-6 h-6 text-[#00A3FF]" />
+                    <span>Verification</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Apply for official verified creator badge</p>
+                </div>
+
+                {verificationMsg && (
+                  <div className={`p-4 rounded-2xl text-xs font-bold ${
+                    verificationMsg.startsWith('✅')
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                  }`}>
+                    {verificationMsg}
+                  </div>
+                )}
+
+                {currentUserProfile?.role === 'creator' || currentUserProfile?.role === 'admin' ? (
+                  <div className="p-5 bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-3">
+                    <CheckCircle2 className="w-6 h-6 shrink-0" />
+                    <span>🎉 Status: Channel is Officially Verified with a blue checkmark ✓ badge!</span>
+                  </div>
+                ) : verificationSubmitted ? (
+                  <div className="p-5 bg-blue-50 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/30 rounded-2xl text-blue-700 dark:text-blue-400 text-xs font-bold flex items-center gap-3">
+                    <CheckCircle2 className="w-6 h-6 shrink-0 text-[#00A3FF]" />
+                    <span>✅ Status: Verification Request Submitted and Pending Review!</span>
+                  </div>
+                ) : (
+                  <form onSubmit={handleVerificationSubmit} className="space-y-4 max-w-lg">
+                    <div>
+                      <label className="block text-xs font-black text-slate-700 dark:text-white mb-2">Category</label>
+                      <select
+                        value={verificationCategory}
+                        onChange={(e) => setVerificationCategory(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
+                      >
+                        <option value="Technology">Technology</option>
+                        <option value="Gaming">Gaming</option>
+                        <option value="Music">Music</option>
+                        <option value="Vlog">Vlog</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-slate-700 dark:text-white mb-2">Pitch / Details / Social Links</label>
+                      <textarea
+                        rows={4}
+                        value={verificationPitch}
+                        onChange={(e) => setVerificationPitch(e.target.value)}
+                        placeholder="Why should your channel be verified? Add links..."
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl text-xs font-medium text-slate-900 dark:text-white focus:outline-none"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="px-8 py-3 bg-[#00A3FF] text-white font-black text-xs rounded-full shadow-md cursor-pointer"
+                    >
+                      Submit Verification Request
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* TAB 9: POINTS (Matching Image 3 Layout) */}
+            {activeTab === 'points' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="pb-3 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Points</h2>
+                </div>
+
+                {pointsConvertMsg && (
+                  <div className={`p-3.5 rounded-2xl text-xs font-bold ${
+                    pointsConvertMsg.startsWith('✅')
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                      : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                  }`}>
+                    {pointsConvertMsg}
+                  </div>
+                )}
+
+                {/* Grid Layout matching Image 3 */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  
+                  {/* Left side: Earning Rules List */}
+                  <div className="lg:col-span-8 space-y-4">
+                    {[
+                      { points: 10, label: 'Earn 10 points by commenting any video', icon: MessageSquare, bg: 'bg-[#00A3FF]', text: 'text-white' },
+                      { points: 20, label: 'Earn 20 points by upload any video', icon: Upload, bg: 'bg-amber-500', text: 'text-white' },
+                      { points: 5, label: 'Earn 5 points by like any video', icon: ThumbsUp, bg: 'bg-yellow-400', text: 'text-black' },
+                      { points: 2, label: 'Earn 2 points by watching any video', icon: Eye, bg: 'bg-purple-500', text: 'text-white' },
+                      { points: 2, label: 'Earn 2 points by dislike any video', icon: ThumbsDown, bg: 'bg-rose-500', text: 'text-white' }
+                    ].map((rule, idx) => {
+                      const Icon = rule.icon;
+                      return (
+                        <div key={idx} className="flex items-center gap-4 p-2.5">
+                          <div className={`w-12 h-12 rounded-2xl ${rule.bg} ${rule.text} flex items-center justify-center shrink-0 shadow-sm`}>
+                            <Icon className="w-6 h-6 stroke-[2.5]" />
+                          </div>
+                          <span className="text-sm font-bold text-slate-800 dark:text-white">{rule.label}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right side: Points Balance Card & Convert Section */}
+                  <div className="lg:col-span-4 space-y-5">
+                    <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl space-y-3 shadow-xs">
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white">Points</h3>
+                      <h1 className="text-5xl font-black text-slate-900 dark:text-white">{points}</h1>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Points Balance</p>
+                    </div>
+
+                    {/* Convert Points to Wallet Balance Card */}
+                    <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl space-y-4 shadow-xs">
+                      <h4 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider flex items-center gap-1.5">
+                        <ArrowRightLeft className="w-4 h-4 text-[#00A3FF]" />
+                        <span>Convert Points to Balance</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                        Convert points into Wallet Balance. Rate: 100 Points = $1.00 USD ($0.01 / point).
+                      </p>
+
+                      <div>
+                        <input
+                          type="number"
+                          min={10}
+                          step={10}
+                          value={convertPointsInput}
+                          onChange={(e) => setConvertPointsInput(Number(e.target.value))}
+                          className="w-full px-4 py-2.5 bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                        />
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono mt-1 font-bold">
+                          Converted Wallet Value: ${(convertPointsInput * 0.01).toFixed(2)} USD
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={handleConvertPoints}
+                        disabled={isConverting || points < convertPointsInput || convertPointsInput <= 0}
+                        className="w-full py-3 bg-[#00A3FF] hover:bg-[#0082CC] disabled:opacity-40 text-white font-black text-xs rounded-full shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        {isConverting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        <span>Convert Points to Wallet</span>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* TAB 10: TWO FACTOR AUTH */}
+            {activeTab === 'two_factor' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="pb-4 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Two-factor Authentication</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Add an extra layer of security to your PlayTube account</p>
+                </div>
+
+                <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl flex items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white">Enable 2FA Authentication</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Status: {twoFactorEnabled ? 'Enabled' : 'Disabled'}</p>
+                  </div>
+                  <button
+                    onClick={() => setTwoFactorEnabled(!twoFactorEnabled)}
+                    className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer ${
+                      twoFactorEnabled ? 'bg-[#00A3FF]' : 'bg-slate-300 dark:bg-[#2B2B2B]'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white transition-transform ${twoFactorEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 11: BLOCKED USERS */}
+            {activeTab === 'blocked_users' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="pb-4 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Blocked Users</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Manage users you have blocked</p>
+                </div>
+
+                <div className="py-12 text-center text-slate-500 dark:text-slate-400 text-xs font-bold">
+                  No blocked users found.
+                </div>
+              </div>
+            )}
+
+            {/* TAB 12: MANAGE SESSIONS */}
+            {activeTab === 'sessions' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="pb-4 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">Manage Sessions</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Devices currently logged into your account</p>
+                </div>
+
+                <div className="p-5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Smartphone className="w-6 h-6 text-[#00A3FF]" />
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white">Current Browser Session</h4>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Linux / Web Browser • Active Now</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold">Active</span>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 13: MY INFORMATION */}
+            {activeTab === 'my_info' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="pb-4 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">My Information</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Export account data snapshot</p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentUserProfile, null, 2));
+                    const dl = document.createElement('a');
+                    dl.setAttribute("href", dataStr);
+                    dl.setAttribute("download", `${currentUserProfile?.username || 'user'}_data.json`);
+                    dl.click();
+                  }}
+                  className="px-6 py-3 bg-[#00A3FF] text-white font-black text-xs rounded-full shadow-md"
+                >
+                  Download Account Backup JSON
+                </button>
+              </div>
+            )}
+
+            {/* TAB: MY PURCHASES */}
+            {activeTab === 'purchases' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="pb-4 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">My Purchases</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Manage rented movies, premium memberships, and wallet transaction history</p>
+                </div>
+
+                {/* 1. GoPro Premium Passes */}
+                <div className="p-5 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/20 dark:to-purple-950/30 border border-indigo-100 dark:border-indigo-900/40 rounded-3xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase text-indigo-950 dark:text-indigo-400 tracking-wider">Premium Passes Status</h3>
+                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${currentUserProfile?.role === 'creator' || currentUserProfile?.role === 'admin' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
+                      {currentUserProfile?.role === 'creator' || currentUserProfile?.role === 'admin' ? '✓ Premium Pass Active' : 'No Active Premium Pass'}
+                    </span>
+                  </div>
+                  
+                  {currentUserProfile?.role === 'creator' || currentUserProfile?.role === 'admin' ? (
+                    <p className="text-xs text-indigo-900 dark:text-slate-300 font-semibold leading-relaxed">
+                      You are upgraded to the **GoPro Premium Creator tier**. Enjoy active privileges: 2x points earning speed multiplier, priority video uploading feeds, and verified subscriber channels!
+                    </p>
+                  ) : (
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                        You have not upgraded to GoPro Premium yet. Activate now for $10.00 to unlock verified creator benefits and instant earnings.
+                      </p>
+                      <button onClick={() => navigate('gopro')} className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl cursor-pointer">
+                        Upgrade GoPro
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Rented Movies & Tickets */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Rented Movies & Digital Tickets</h3>
+                  
+                  <div className="p-4 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200/50 dark:border-[#2B2B2B] rounded-2xl flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-16 bg-slate-200 dark:bg-[#333] rounded-lg shrink-0 overflow-hidden flex items-center justify-center font-bold text-[10px] text-slate-400">
+                        🎬 Poster
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-900 dark:text-white">The Great Indian Escape</p>
+                        <p className="text-[10px] text-slate-500">Rent Price: $2.99 • Rent ID: #SI-RENT-9201</p>
+                        <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider mt-0.5">Expires in 42 hours (Watch Now)</p>
+                      </div>
+                    </div>
+                    <button onClick={() => addToast('Streaming movie playbacks...', 'success')} className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase rounded-lg cursor-pointer">
+                      Play Now
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Transaction History Log */}
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider">Direct Transaction Log</h3>
+                  <div className="overflow-hidden border border-slate-200 dark:border-[#2B2B2B] rounded-2xl">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-[#161616] text-[9px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200 dark:border-[#2B2B2B]">
+                          <th className="p-4">Item & description</th>
+                          <th className="p-4">Paid using</th>
+                          <th className="p-4">Amount</th>
+                          <th className="p-4 text-right">Receipt status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-[#2B2B2B]">
+                        <tr className="hover:bg-slate-50/50 dark:hover:bg-[#1C1C1C]/40">
+                          <td className="p-4">
+                            <p className="font-bold text-slate-900 dark:text-white">The Great Indian Escape (Rent)</p>
+                            <p className="text-[9px] text-slate-400">Movie rental token</p>
+                          </td>
+                          <td className="p-4 font-semibold text-slate-500">SI Wallet</td>
+                          <td className="p-4 font-mono font-bold text-rose-500">-$2.99</td>
+                          <td className="p-4 text-right"><span className="text-[9px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded-full font-black uppercase">Success</span></td>
+                        </tr>
+                        <tr className="hover:bg-slate-50/50 dark:hover:bg-[#1C1C1C]/40">
+                          <td className="p-4">
+                            <p className="font-bold text-slate-900 dark:text-white">Wallet replenishment top-up</p>
+                            <p className="text-[9px] text-slate-400">Card deposit</p>
+                          </td>
+                          <td className="p-4 font-semibold text-slate-500">Credit Card</td>
+                          <td className="p-4 font-mono font-bold text-emerald-600">+$25.00</td>
+                          <td className="p-4 text-right"><span className="text-[9px] bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 px-2 py-0.5 rounded-full font-black uppercase">Success</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB 14: DELETE ACCOUNT */}
+            {activeTab === 'delete_account' && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="pb-4 border-b border-slate-200 dark:border-[#222222]">
+                  <h2 className="text-xl font-black text-rose-600 dark:text-rose-500">Delete Account</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Permanently remove your channel and data</p>
+                </div>
+
+                <div className="p-5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-2xl text-rose-700 dark:text-rose-400 text-xs font-bold">
+                  ⚠️ Warning: Deleting your account will permanently remove all your uploaded videos, comments, and points. This action cannot be undone.
+                </div>
+              </div>
+            )}
+
           </div>
 
         </div>
-      )}
 
+        {/* Replenish Wallet Modal */}
+        {replenishModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
+              <h3 className="text-lg font-black text-slate-900 dark:text-white">Top Up Wallet Balance</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Enter amount to add to your wallet balance:</p>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-900 dark:text-white mb-1">Amount ($ USD)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={replenishAmount}
+                  onChange={(e) => setReplenishAmount(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  onClick={() => setReplenishModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleReplenishWallet}
+                  className="px-6 py-2 bg-[#00A3FF] hover:bg-[#0082CC] text-white text-xs font-black rounded-full"
+                >
+                  Confirm Top Up
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 };

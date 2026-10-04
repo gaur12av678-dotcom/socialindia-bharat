@@ -19,7 +19,7 @@ export const DEFAULT_SOUNDS: SoundTrack[] = [
     artist: 'DJ Bharat Swag',
     category: 'Punjabi & Bollywood',
     coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80',
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a88092.mp3',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
     duration: 30,
   },
   {
@@ -28,7 +28,7 @@ export const DEFAULT_SOUNDS: SoundTrack[] = [
     artist: 'Chill India Collective',
     category: 'Lo-Fi & Chill',
     coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80',
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
     duration: 25,
   },
   {
@@ -37,7 +37,7 @@ export const DEFAULT_SOUNDS: SoundTrack[] = [
     artist: 'Cyber Gamer Pro',
     category: 'Gaming & Tech',
     coverUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=300&q=80',
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2022/03/10/audio_c1e2df80e9.mp3',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
     duration: 15,
   },
   {
@@ -46,7 +46,7 @@ export const DEFAULT_SOUNDS: SoundTrack[] = [
     artist: 'Sufi Strings Band',
     category: 'Romantic & Acoustic',
     coverUrl: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=300&q=80',
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2021/08/09/audio_8848f0709b.mp3',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
     duration: 20,
   },
   {
@@ -55,7 +55,7 @@ export const DEFAULT_SOUNDS: SoundTrack[] = [
     artist: 'Mumbai Electro Club',
     category: 'Trending Viral',
     coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&q=80',
-    audioUrl: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
     duration: 30,
   }
 ];
@@ -84,7 +84,13 @@ export const soundService = {
 
       if (!snap.empty) {
         snap.forEach((d) => {
-          tracks.push(d.data() as SoundTrack);
+          const item = d.data() as SoundTrack;
+          // Auto-fix any old broken pixabay download links
+          if (item.audioUrl && item.audioUrl.includes('pixabay.com')) {
+            const fallback = DEFAULT_SOUNDS.find(s => s.soundId === item.soundId);
+            if (fallback) item.audioUrl = fallback.audioUrl;
+          }
+          tracks.push(item);
         });
       } else {
         // Seed initial default tracks if collection empty
@@ -133,6 +139,10 @@ export const soundService = {
       const sSnap = await getDoc(doc(db, 'sound_tracks', soundId));
       if (sSnap.exists()) {
         sound = sSnap.data() as SoundTrack;
+        if (sound.audioUrl && sound.audioUrl.includes('pixabay.com')) {
+          const fallback = DEFAULT_SOUNDS.find(s => s.soundId === soundId);
+          if (fallback) sound.audioUrl = fallback.audioUrl;
+        }
       } else {
         const defaultFound = DEFAULT_SOUNDS.find(s => s.soundId === soundId);
         if (defaultFound) sound = defaultFound;

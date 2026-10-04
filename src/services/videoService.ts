@@ -80,7 +80,7 @@ export const videoService = {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   },
 
-  // Upload Video File to Cloudinary with accurate real-time progress & error reporting
+  // Upload Video File to Cloudinary with maximum speed chunked streaming
   async uploadVideo(
     file: File, 
     onProgress?: (progress: number, stage?: string) => void
@@ -91,8 +91,31 @@ export const videoService = {
       throw new Error('CLOUDINARY_CONFIG_REQUIRED');
     }
 
-    console.log(`Starting video upload to Cloudinary (${cloudName}): ${file.name} (${file.size} bytes)`);
+    // Cloudinary Free Account strictly limits video files to 100MB (104,857,600 bytes)
+    if (file.size > 104857600) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      throw new Error(`File size too large (${sizeMB}MB). Cloudinary Free accounts strictly limit video files to 100MB (104,857,600 bytes). For larger videos, please use the "Paste Video Link" tab (supports Google Drive & YouTube with unlimited size).`);
+    }
 
+    console.log(`Starting high-speed video upload to Cloudinary (${cloudName}): ${file.name} (${file.size} bytes)`);
+
+    // 25MB chunks for high-speed streaming with minimal HTTP roundtrips
+    const CHUNK_SIZE = 25 * 1024 * 1024;
+
+    if (file.size <= CHUNK_SIZE) {
+      return this.uploadSingleVideo(file, cloudName, preset, onProgress);
+    }
+
+    return this.uploadChunkedVideo(file, cloudName, preset, CHUNK_SIZE, onProgress);
+  },
+
+  // Direct single-request upload for small video clips
+  uploadSingleVideo(
+    file: File,
+    cloudName: string,
+    preset: string,
+    onProgress?: (progress: number, stage?: string) => void
+  ): Promise<{ videoUrl: string; duration?: number }> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', preset);
@@ -101,7 +124,6 @@ export const videoService = {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       
-      // Track real-time progress
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable && onProgress) {
           const percent = Math.round((e.loaded / e.total) * 100);
@@ -142,6 +164,133 @@ export const videoService = {
     });
   },
 
+  // Chunked Upload for large / long videos (adha-adha karke)
+  async uploadChunkedVideo(
+    file: File,
+    cloudName: string,
+    preset: string,
+    chunkSize: number,
+    onProgress?: (progress: number, stage?: string) => void
+  ): Promise<{ videoUrl: string; duration?: number }> {
+    const uniqueUploadId = `${Date.now()}${Math.random().toString(36).replace(/[^a-z0-9]/gi, '')}`;
+    const totalSize = file.size;
+    const totalChunks = Math.ceil(totalSize / chunkSize);
+
+    let start = 0;
+    let chunkIndex = 0;
+    let finalResult: { videoUrl: string; duration?: number } | null = null;
+
+    while (start < totalSize) {
+      const end = Math.min(start + chunkSize, totalSize);
+      const isLastChunk = end >= totalSize;
+      const chunkBlob = file.slice(start, end);
+
+      const chunkRes = await this.uploadSingleChunk(
+        chunkBlob,
+        file.name,
+        cloudName,
+        preset,
+        uniqueUploadId,
+        start,
+        end,
+        totalSize,
+        chunkIndex,
+        totalChunks,
+        isLastChunk,
+        onProgress
+      );
+
+      if (isLastChunk) {
+        finalResult = chunkRes;
+      }
+
+      start = end;
+      chunkIndex++;
+    }
+
+    if (!finalResult || !finalResult.videoUrl) {
+      throw new Error('Video chunk upload completed but video URL was not received.');
+    }
+
+    onProgress?.(100, 'Video ready!');
+    return finalResult;
+  },
+
+  // Upload an individual chunk with Range header
+  uploadSingleChunk(
+    chunkBlob: Blob,
+    fileName: string,
+    cloudName: string,
+    preset: string,
+    uniqueUploadId: string,
+    start: number,
+    end: number,
+    totalSize: number,
+    chunkIndex: number,
+    totalChunks: number,
+    isLastChunk: boolean,
+    onProgress?: (progress: number, stage?: string) => void
+  ): Promise<{ videoUrl: string; duration?: number }> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', chunkBlob, fileName);
+      formData.append('upload_preset', preset);
+      formData.append('folder', 'socialindia_videos');
+
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable && onProgress) {
+          const currentLoaded = start + e.loaded;
+          const percent = Math.min(99, Math.round((currentLoaded / totalSize) * 100));
+          const stage = `Uploading part ${chunkIndex + 1}/${totalChunks} (${percent}%)...`;
+          onProgress(percent, stage);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const res = JSON.parse(xhr.responseText || '{}');
+            if (isLastChunk) {
+              if (onProgress) onProgress(100, 'Processing video stream on Cloud CDN...');
+              resolve({
+                videoUrl: res.secure_url,
+                duration: res.duration ? Math.round(res.duration) : undefined
+              });
+            } else {
+              resolve({ videoUrl: '' });
+            }
+          } catch (jsonErr) {
+            if (isLastChunk) reject(jsonErr);
+            else resolve({ videoUrl: '' });
+          }
+        } else {
+          let errMsg = `Chunk ${chunkIndex + 1}/${totalChunks} upload failed (HTTP ${xhr.status})`;
+          try {
+            const err = JSON.parse(xhr.responseText);
+            if (err.error?.message) {
+              if (err.error.message.includes('File size too large') || err.error.message.includes('104857600') || err.error.message.includes('account limit')) {
+                errMsg = 'Video file size exceeds Cloudinary Free 100MB limit (104,857,600 bytes). For larger videos, please use the "Paste Video Link" tab (supports Google Drive & YouTube with unlimited size).';
+              } else {
+                errMsg = err.error.message;
+              }
+            }
+          } catch (_) {}
+          reject(new Error(errMsg));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error(`Network error uploading video chunk ${chunkIndex + 1}/${totalChunks}. Please check your connection.`));
+      });
+
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`);
+      xhr.setRequestHeader('X-Unique-Upload-Id', uniqueUploadId);
+      xhr.setRequestHeader('Content-Range', `bytes ${start}-${end - 1}/${totalSize}`);
+      xhr.send(formData);
+    });
+  },
+
   // Upload Thumbnail Image File or Blob with automatic fallback
   async uploadThumbnail(
     fileOrBlob: File | Blob, 
@@ -149,8 +298,65 @@ export const videoService = {
   ): Promise<string> {
     const { cloudName, preset } = await getCloudinaryConfigAsync();
     
-    // If Cloudinary credentials not configured yet, convert blob to base64 DataURL
-    if (!cloudName || !preset) {
+    if (cloudName && preset) {
+      try {
+        const filename = (fileOrBlob as File).name || `thumbnail_${Date.now()}.jpg`;
+        console.log(`Starting thumbnail image upload to Cloudinary (${cloudName}): ${filename}`);
+        
+        const formData = new FormData();
+        formData.append('file', fileOrBlob, filename);
+        formData.append('upload_preset', preset);
+        formData.append('folder', 'socialindia_thumbnails');
+
+        return await new Promise<string>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable && onProgress) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              onProgress(percent, `Uploading thumbnail... ${percent}%`);
+            }
+          });
+
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const response = JSON.parse(xhr.responseText);
+                console.log('Cloudinary Thumbnail Upload Success:', response.secure_url);
+                resolve(response.secure_url);
+              } catch (jsonErr) {
+                reject(jsonErr);
+              }
+            } else {
+              let errMsg = `Cloudinary HTTP Error ${xhr.status}`;
+              try {
+                const err = JSON.parse(xhr.responseText);
+                if (err.error?.message) errMsg = err.error.message;
+              } catch (_) {}
+              reject(new Error(errMsg));
+            }
+          });
+
+          xhr.addEventListener('error', () => {
+            reject(new Error('Network error during thumbnail upload.'));
+          });
+
+          xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`);
+          xhr.send(formData);
+        });
+      } catch (cldErr) {
+        console.warn('Cloudinary thumbnail error or limit, falling back to Firebase Storage:', cldErr);
+      }
+    }
+
+    // Fallback to Firebase Storage
+    try {
+      const filename = `thumb_${Date.now()}.jpg`;
+      const fileRef = ref(storage, `thumbnails/${filename}`);
+      const uploadTask = await uploadBytesResumable(fileRef, fileOrBlob, { contentType: 'image/jpeg' });
+      return await getDownloadURL(uploadTask.ref);
+    } catch (fbErr) {
+      // Base64 DataURL fallback
       if (fileOrBlob instanceof Blob && fileOrBlob.size < 5 * 1024 * 1024) {
         return new Promise((resolve) => {
           const reader = new FileReader();
@@ -158,53 +364,8 @@ export const videoService = {
           reader.readAsDataURL(fileOrBlob);
         });
       }
-      throw new Error('CLOUDINARY_CONFIG_REQUIRED');
+      throw fbErr;
     }
-
-    const filename = (fileOrBlob as File).name || `thumbnail_${Date.now()}.jpg`;
-    console.log(`Starting thumbnail image upload to Cloudinary (${cloudName}): ${filename}`);
-    
-    const formData = new FormData();
-    formData.append('file', fileOrBlob, filename);
-    formData.append('upload_preset', preset);
-    formData.append('folder', 'socialindia_thumbnails');
-
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable && onProgress) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          onProgress(percent, `Uploading thumbnail... ${percent}%`);
-        }
-      });
-
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const response = JSON.parse(xhr.responseText);
-            console.log('Cloudinary Thumbnail Upload Success:', response.secure_url);
-            resolve(response.secure_url);
-          } catch (jsonErr) {
-            reject(jsonErr);
-          }
-        } else {
-          let errMsg = `Cloudinary HTTP Error ${xhr.status}`;
-          try {
-            const err = JSON.parse(xhr.responseText);
-            if (err.error?.message) errMsg = err.error.message;
-          } catch (_) {}
-          reject(new Error(errMsg));
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        reject(new Error('Network error during thumbnail upload.'));
-      });
-
-      xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`);
-      xhr.send(formData);
-    });
   },
 
   // Backward compatibility alias for uploadFile

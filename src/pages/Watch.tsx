@@ -36,7 +36,7 @@ import {
 
 export const Watch: React.FC = () => {
   const { route, navigate } = useRouter();
-  const { currentUser, currentUserProfile, addToast } = useApp();
+  const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
   const videoId = route.param;
 
   const [video, setVideo] = useState<Video | null>(null);
@@ -157,6 +157,8 @@ export const Watch: React.FC = () => {
           likeService.hasLiked(videoId, currentUser.uid).then(isL => isMounted && setLiked(isL)).catch(console.error);
           savedVideoService.isSaved(currentUser.uid, videoId).then(isS => isMounted && setSaved(isS)).catch(console.error);
           subscriptionService.isSubscribed(currentUser.uid, vid.creatorId).then(isSub => isMounted && setSubscribed(isSub)).catch(console.error);
+          // Award 2 points for watching video & update wallet/points state
+          userService.awardPoints(currentUser.uid, 2).then(() => refreshProfile()).catch(console.error);
         }
 
         commentService.getComments(videoId).then(commList => {
@@ -260,7 +262,10 @@ export const Watch: React.FC = () => {
         addToast('Removed from liked videos.', 'info');
       } else {
         await likeService.likeVideo(video.videoId, currentUser.uid);
-        addToast('Added to liked videos!', 'success');
+        // Award 5 points for liking video & refresh profile
+        await userService.awardPoints(currentUser.uid, 5);
+        await refreshProfile();
+        addToast('Added to liked videos! (+5 Points)', 'success');
 
         notificationService.createNotification(video.creatorId, currentUserProfile, 'like', {
           videoId: video.videoId,
@@ -418,6 +423,10 @@ export const Watch: React.FC = () => {
 
       // Replace the temporary comment with the real saved comment in the UI list
       setComments(prev => prev.map(c => c.commentId === tempCommentId ? realComment : c));
+
+      // Award 10 points for commenting & refresh profile
+      await userService.awardPoints(currentUser.uid, 10);
+      await refreshProfile();
 
       notificationService.createNotification(video.creatorId, currentUserProfile, 'comment', {
         videoId: video.videoId,

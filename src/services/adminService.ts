@@ -216,6 +216,17 @@ export const adminService = {
     };
   },
 
+  // Fetch all Ad Campaigns across the platform for admin overview
+  async getAllAdCampaigns(): Promise<any[]> {
+    try {
+      const snap = await getDocs(collection(db, 'ad_campaigns'));
+      return snap.docs.map(d => d.data());
+    } catch (err) {
+      console.warn('Failed to load ad campaigns:', err);
+      return [];
+    }
+  },
+
   // Save Site-wide Broadcast Announcement
   async saveAnnouncement(announcement: { active: boolean; message: string; type: 'info' | 'alert' | 'success'; linkText?: string; linkUrl?: string }): Promise<void> {
     try {

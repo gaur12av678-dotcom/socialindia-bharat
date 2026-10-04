@@ -11,6 +11,18 @@ export interface User {
   videosCount: number;
   role: 'user' | 'creator' | 'moderator' | 'admin';
   status: 'active' | 'suspended';
+  
+  // PlayTube Extended Settings & Rewards Fields
+  points?: number;
+  walletBalance?: number;
+  gender?: string;
+  country?: string;
+  age?: string;
+  paypalEmail?: string;
+  isMonetized?: boolean;
+  monetizationStatus?: 'not_eligible' | 'eligible' | 'requested' | 'approved';
+  lastPasswordChangedAt?: string;
+
   socialLinks?: {
     instagram?: string;
     twitter?: string;
@@ -29,6 +41,7 @@ export interface PrivateUserInfo {
   allowNotificationComments?: boolean;
   allowNotificationFollowers?: boolean;
   allowNotificationUploads?: boolean;
+  twoFactorEnabled?: boolean;
 }
 
 export interface Video {
@@ -109,6 +122,18 @@ export interface AdCampaign {
   duration: number; // e.g. 15s
   skipAfter: number; // e.g. 5s
   cpm: number; // CPM rate in INR or USD
+  
+  // Extended Ad Management Fields
+  name?: string;
+  title?: string;
+  targetAudience?: string;
+  pricingType?: 'click' | 'view';
+  placement?: string;
+  dailyLimit?: number;
+  totalLimit?: number;
+  spent?: number;
+  status?: 'active' | 'paused' | 'ended';
+  creatorUid?: string;
 }
 
 export interface Comment {
@@ -223,4 +248,21 @@ export interface DownloadedVideo {
   videoUrl?: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  text: string;
+  createdAt: any;
+  read: boolean;
+}
 
+export interface ChatSession {
+  userId: string;
+  displayName: string;
+  username: string;
+  photoURL?: string;
+  lastMessage?: string;
+  lastMessageTime?: any;
+  unreadCount: number;
+}

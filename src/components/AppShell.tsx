@@ -33,7 +33,9 @@ import {
   MoreVertical,
   ArrowDownToLine,
   WifiOff,
-  Info
+  Info,
+  Upload,
+  UserCheck
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
@@ -122,19 +124,24 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   // Close dropdowns on outside click
   useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (notifRef.current && !notifRef.current.contains(target)) {
         setNotifDropdownOpen(false);
       }
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+      if (profileRef.current && !profileRef.current.contains(target)) {
         setProfileDropdownOpen(false);
       }
-      if (guestRef.current && !guestRef.current.contains(e.target as Node)) {
+      if (guestRef.current && !guestRef.current.contains(target)) {
         setGuestMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
   }, []);
 
   useEffect(() => {
@@ -165,8 +172,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     if (currentUser) {
       action();
     } else {
-      setAuthSuccessCallback(() => action);
-      setAuthModalOpen(true);
+      navigate('login');
     }
   };
 
@@ -174,6 +180,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     { label: 'Home', path: 'home', icon: Home },
     { label: 'Shorts', path: 'shorts', icon: Zap },
     { label: 'Trending', path: 'trending', icon: TrendingUp },
+    { label: 'Direct Messages', path: 'chat', icon: MessageSquare, protected: true },
     { label: 'Downloads', path: 'downloads', icon: ArrowDownToLine },
     { label: 'Subscriptions', path: 'subscriptions', icon: Users, protected: true },
     { label: 'Saved Videos', path: 'saved', icon: Bookmark, protected: true },
@@ -181,15 +188,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   ];
 
   const studioItems = [
+    { label: 'Upload Video', path: 'upload', icon: Upload, protected: true },
     { label: 'Creator Studio', path: 'studio', icon: PlusSquare, protected: true },
     { label: 'Settings', path: 'settings', icon: Settings, protected: true },
-  ];
-
-  const legalItems = [
-    { label: 'About SocialIndia', path: 'about', icon: Info },
-    { label: 'Privacy Policy', path: 'privacy', icon: FileText },
-    { label: 'Terms of Service', path: 'terms', icon: FileText },
-    { label: 'Community Guidelines', path: 'guidelines', icon: ShieldAlert }
   ];
 
   return (
@@ -255,7 +256,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       )}
 
       {/* HEADER / NAVIGATION BAR */}
-      <header className={`px-2.5 sm:px-4 h-14 flex items-center justify-between gap-2 max-w-full overflow-hidden transition-all duration-300 z-40 ${
+      <header className={`px-2.5 sm:px-4 h-14 flex items-center justify-between gap-2 max-w-full relative overflow-visible transition-all duration-300 z-40 ${
             isShortsPage 
               ? 'absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent border-transparent text-white md:sticky md:bg-white dark:md:bg-[#0f0f0f] md:border-b md:border-slate-100 dark:md:border-slate-800 shadow-none' 
               : 'sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
@@ -350,7 +351,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
               {/* Publish Video Button (Primary Action) */}
               <button
-                onClick={() => triggerProtectedAction(() => navigate('studio', undefined, { upload: 'true' }))}
+                onClick={() => triggerProtectedAction(() => navigate('upload'))}
                 className="hidden sm:flex items-center gap-1.5 px-5 py-2.5 text-base font-bold text-white bg-[#065fd4] hover:bg-[#054fb1] rounded-full transition-all shadow-md cursor-pointer active:scale-98"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -377,7 +378,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 </button>
 
             {notifDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-xl z-50 overflow-hidden">
+              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-2xl z-50 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 dark:border-[#334155] flex items-center justify-between">
                   <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-slate-100">Notifications</span>
                   {unreadCount > 0 && (
@@ -440,7 +441,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </button>
 
               {profileDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
                   <div className="p-4 bg-slate-50 dark:bg-slate-900/50">
                     <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100 truncate">{currentUserProfile?.displayName}</p>
                     <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5 truncate">@{currentUserProfile?.username}</p>
@@ -465,6 +466,26 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     >
                       <PlusSquare className="w-4 h-4 text-slate-400" />
                       <span>Creator Studio</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('gopro');
+                      }}
+                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-[#00A3FF] flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4 text-[#00A3FF]" />
+                      <span>Go Pro Package ($10)</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('advertising');
+                      }}
+                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Users className="w-4 h-4 text-slate-400" />
+                      <span>Advertising (Promote)</span>
                     </button>
                     <button
                       onClick={() => {
@@ -515,6 +536,16 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   </div>
 
                   <div className="py-2">
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('login');
+                      }}
+                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <UserCheck className="w-4 h-4 text-blue-500" />
+                      <span>Switch Account</span>
+                    </button>
                     <button
                       onClick={handleSignOut}
                       className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-left text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-2.5 cursor-pointer"
@@ -586,8 +617,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               )}
 
               <button
-                onClick={() => setAuthModalOpen(true)}
-                className="px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-base rounded-full shadow-lg transition-all cursor-pointer active:scale-95"
+                onClick={() => navigate('login')}
+                className="px-4 sm:px-6 py-1.5 sm:py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-xs sm:text-base rounded-full shadow-md transition-all cursor-pointer active:scale-95 shrink-0"
               >
                 Sign In
               </button>
@@ -708,32 +739,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </>
             )}
 
-            <div className="space-y-1">
-              <span className="px-3 text-[11px] font-extrabold tracking-wider text-slate-400 dark:text-slate-500 uppercase block mb-1.5">Legal & Info</span>
-              {legalItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = route.path === item.path;
-                return (
-                  <button
-                    key={item.label}
-                    onClick={() => navigate(item.path)}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                      isActive 
-                        ? 'bg-[#f2f2f2] dark:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1] font-bold' 
-                        : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1]'
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 text-slate-600 dark:text-slate-400 shrink-0`} />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Footer */}
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 dark:text-slate-500 px-3 font-medium">
-              <p>&copy; {new Date().getFullYear()} SocialIndia</p>
-              <p className="mt-0.5 text-[10px]">All rights reserved.</p>
+            {/* Elegant 2-Column Policy & Legal Links Grid for SocialIndia (Matches Capture.PNG) */}
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 px-3 space-y-3 select-none">
+              <div className="grid grid-cols-2 gap-y-2 gap-x-1.5 text-[11px] font-black text-slate-500 dark:text-slate-400">
+                <button onClick={() => navigate('refund')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Refund Policy</button>
+                <button onClick={() => navigate('faq')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">FAQs</button>
+                <button onClick={() => navigate('terms')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Terms of use</button>
+                <button onClick={() => navigate('privacy')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Privacy Policy</button>
+                <button onClick={() => navigate('about')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">About us</button>
+                <button onClick={() => navigate('contact')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Contact us</button>
+                <button onClick={() => navigate('developers')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Developers</button>
+                <button onClick={() => navigate('language')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Language</button>
+              </div>
+              <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 font-bold leading-relaxed">
+                <p>Copyright © {new Date().getFullYear()} SocialIndia. All rights reserved.</p>
+              </div>
             </div>
           </div>
         </aside>
@@ -777,7 +797,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </button>
 
           <button 
-            onClick={() => triggerProtectedAction(() => navigate('studio', undefined, { upload: 'true' }))}
+            onClick={() => triggerProtectedAction(() => navigate('upload'))}
             className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
               isShortsPage ? 'text-white' : 'text-[#2563eb] dark:text-[#3b82f6]'
             }`}
@@ -803,11 +823,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </button>
 
           <button 
-            onClick={() => triggerProtectedAction(() => navigate('settings'))}
+            onClick={() => triggerProtectedAction(() => navigate('profile-menu'))}
             className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
               isShortsPage 
                 ? 'text-white/60 hover:text-white' 
-                : (route.path === 'settings' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
+                : (route.path === 'profile-menu' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
             }`}
           >
             <UserIcon className="w-5 h-5" />

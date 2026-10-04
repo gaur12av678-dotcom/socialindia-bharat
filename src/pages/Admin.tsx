@@ -6,8 +6,10 @@ import { feedbackService, FeedbackEntry } from '../services/feedbackService';
 import { User, Video, Report, TrashItem, SoundTrack } from '../types';
 import { trashService } from '../services/trashService';
 import { soundService } from '../services/soundService';
+import { userService } from '../services/userService';
 import { 
   Users, 
+  Wallet, 
   Video as VideoIcon, 
   AlertTriangle, 
   LayoutDashboard, 
@@ -57,11 +59,43 @@ import {
   Music,
   Play,
   Pause,
-  Plus
+  Plus,
+  Palette,
+  BookOpen,
+  FolderTree,
+  Globe,
+  Smartphone,
+  Map as MapIcon
 } from 'lucide-react';
 import { formatViews, formatTimeAgo, getInitials } from '../utils/videoUtils';
+import { AdminExtraTabs } from '../components/AdminExtraTabs';
 
-type AdminSection = 'dashboard' | 'users' | 'videos' | 'reports' | 'feedback' | 'storage' | 'trash' | 'tools' | 'sounds';
+type AdminSection = 
+  | 'dashboard' 
+  | 'users' 
+  | 'videos' 
+  | 'reports' 
+  | 'feedback' 
+  | 'storage' 
+  | 'trash' 
+  | 'tools' 
+  | 'sounds' 
+  | 'advertising' 
+  | 'pro_members'
+  | 'settings'
+  | 'payments_ads'
+  | 'languages'
+  | 'movies'
+  | 'articles'
+  | 'categories'
+  | 'design'
+  | 'pages'
+  | 'sitemap'
+  | 'mobile_api'
+  | 'backup'
+  | 'system_status'
+  | 'changelogs'
+  | 'faq_docs';
 
 export const AdminPanel: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -74,6 +108,7 @@ export const AdminPanel: React.FC = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+  const [adCampaigns, setAdCampaigns] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
@@ -106,6 +141,11 @@ export const AdminPanel: React.FC = () => {
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const audioRefRef = React.useRef<HTMLAudioElement | null>(null);
 
+  // Admin Wallet Credit Modal state
+  const [walletModalUser, setWalletModalUser] = useState<User | null>(null);
+  const [creditAmount, setCreditAmount] = useState<number>(10);
+  const [isCrediting, setIsCrediting] = useState(false);
+
   // Security Check: Only admins allowed
   useEffect(() => {
     const isDeveloper = currentUserProfile?.displayName === 'maryxbgamer@gmail.com';
@@ -122,14 +162,15 @@ export const AdminPanel: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [u, v, r, f, s, t, soundList] = await Promise.all([
+      const [u, v, r, f, s, t, soundList, ads] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getAllVideos(),
         adminService.getAllReports(),
         feedbackService.getAllFeedback(),
         adminService.getStorageConfig(),
         trashService.getAllTrash(),
-        soundService.getSounds()
+        soundService.getSounds(),
+        adminService.getAllAdCampaigns()
       ]);
       setUsers(u);
       setVideos(v);
@@ -137,6 +178,7 @@ export const AdminPanel: React.FC = () => {
       setFeedback(f);
       setTrashItems(t);
       setSounds(soundList);
+      setAdCampaigns(ads);
       if (s) {
         setCloudName(s.cloudName || '');
         setUploadPreset(s.uploadPreset || '');
@@ -227,6 +269,25 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleAdminCreditWallet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!walletModalUser || creditAmount <= 0) return;
+    setIsCrediting(true);
+    try {
+      const current = walletModalUser.walletBalance || 0;
+      const newBal = Number((current + creditAmount).toFixed(2));
+      await userService.updateProfile(walletModalUser.uid, { walletBalance: newBal });
+      addToast(`Added $${creditAmount.toFixed(2)} to @${walletModalUser.username}'s wallet!`, 'success');
+      setWalletModalUser(null);
+      const updated = await adminService.getAllUsers();
+      setUsers(updated);
+    } catch (err) {
+      addToast('Failed to credit user wallet balance.', 'error');
+    } finally {
+      setIsCrediting(false);
+    }
+  };
+
   const handleSaveStorage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!cloudName.trim() || !uploadPreset.trim()) {
@@ -284,6 +345,20 @@ export const AdminPanel: React.FC = () => {
       addToast('Network error testing Cloudinary connection.', 'error');
     } finally {
       setIsTestingStorage(false);
+    }
+  };
+
+  const handleToggleMonetization = async (uid: string, currentMonetized: boolean) => {
+    const nextMonetized = !currentMonetized;
+    try {
+      await userService.updateProfile(uid, {
+        isMonetized: nextMonetized,
+        monetizationStatus: nextMonetized ? 'approved' : 'not_eligible'
+      });
+      setUsers(prev => prev.map(u => u.uid === uid ? { ...u, isMonetized: nextMonetized, monetizationStatus: nextMonetized ? 'approved' : 'not_eligible' } : u));
+      addToast(nextMonetized ? 'Monetization instantly activated!' : 'Monetization deactivated.', 'success');
+    } catch {
+      addToast('Failed to toggle user monetization.', 'error');
     }
   };
 
@@ -489,129 +564,240 @@ export const AdminPanel: React.FC = () => {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50/80 dark:bg-[#09090b] p-2 md:p-6 gap-6 -mt-2">
       {/* Sidebar Navigation Card */}
-      <aside className="w-full md:w-64 bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-4 space-y-2 shrink-0 shadow-sm self-start">
-        <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl mb-4">
+      <aside className="w-full md:w-72 bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-4 space-y-4 shrink-0 shadow-sm self-start max-h-[85vh] overflow-y-auto scrollbar-none select-none">
+        
+        {/* Header Badging */}
+        <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl">
           <div className="flex items-center justify-between">
-            <h1 className="text-base font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h1 className="text-sm font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
+              <ShieldCheck className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
               <span>Admin Hub</span>
             </h1>
-            <span className="bg-blue-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Super Admin
-            </span>
+            <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">Super</span>
           </div>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1.5">SocialIndia Operations</p>
+          <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">SocialIndia Systems</p>
         </div>
 
-        <button 
-          onClick={() => setActiveSection('dashboard')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'dashboard' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
-        >
-          <LayoutDashboard className="w-4 h-4" />
-          <span>Dashboard Overview</span>
-        </button>
+        {/* SECTION 1: CORE SYSTEMS */}
+        <div className="space-y-1">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1.5">Core Systems</p>
+          
+          <button 
+            onClick={() => setActiveSection('dashboard')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            <span>Dashboard</span>
+          </button>
 
-        <button 
-          onClick={() => setActiveSection('users')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'users' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Users & Accounts</span>
-        </button>
+          <button 
+            onClick={() => setActiveSection('settings')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'settings' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Sliders className="w-4 h-4" />
+            <span>Settings</span>
+          </button>
 
-        <button 
-          onClick={() => setActiveSection('videos')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'videos' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
-        >
-          <VideoIcon className="w-4 h-4" />
-          <span>Videos & Shorts</span>
-        </button>
+          <button 
+            onClick={() => setActiveSection('design')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'design' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Palette className="w-4 h-4" />
+            <span>Design Layout</span>
+          </button>
 
-        <button 
-          onClick={() => setActiveSection('reports')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'reports' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
-        >
-          <AlertTriangle className="w-4 h-4" />
-          <div className="flex-1 flex justify-between items-center">
-            <span>Reports</span>
-            {reports.filter(r => r.status === 'pending').length > 0 && (
-              <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
-                {reports.filter(r => r.status === 'pending').length}
-              </span>
-            )}
-          </div>
-        </button>
+          <button 
+            onClick={() => setActiveSection('pages')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'pages' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Pages Markup</span>
+          </button>
 
-        <button 
-          onClick={() => setActiveSection('feedback')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'feedback' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
-        >
-          <MessageSquare className="w-4 h-4" />
-          <div className="flex-1 flex justify-between items-center">
-            <span>Feedback</span>
-            {feedback.filter(f => f.status === 'pending').length > 0 && (
-              <span className="bg-indigo-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
-                {feedback.filter(f => f.status === 'pending').length}
-              </span>
-            )}
-          </div>
-        </button>
+          <button 
+            onClick={() => setActiveSection('sitemap')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'sitemap' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <MapIcon className="w-4 h-4" />
+            <span>Sitemap Index</span>
+          </button>
 
-        <button 
-          onClick={() => setActiveSection('storage')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'storage' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
-        >
-          <Cloud className="w-4 h-4" />
-          <div className="flex-1 flex justify-between items-center">
-            <span>Cloud Storage</span>
-            {cloudName && uploadPreset ? (
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" title="Cloudinary Configured" />
-            ) : (
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" title="Setup Needed" />
-            )}
-          </div>
-        </button>
+          <button 
+            onClick={() => setActiveSection('system_status')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'system_status' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>System Status</span>
+          </button>
 
-        <button 
-          onClick={() => setActiveSection('trash')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'trash' ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
-        >
-          <Archive className="w-4 h-4" />
-          <div className="flex-1 flex justify-between items-center">
-            <span>Trash Vault (180D)</span>
-            {trashItems.filter(t => t.status === 'trashed').length > 0 && (
-              <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
-                {trashItems.filter(t => t.status === 'trashed').length}
-              </span>
-            )}
-          </div>
-        </button>
+          <button 
+            onClick={() => setActiveSection('changelogs')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'changelogs' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <History className="w-4 h-4" />
+            <span>Changelogs</span>
+          </button>
+        </div>
 
-        <button 
-          onClick={() => setActiveSection('tools')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'tools' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
-        >
-          <Wrench className="w-4 h-4" />
-          <div className="flex-1 flex justify-between items-center">
-            <span>Platform Tools</span>
-            <span className="bg-blue-500 text-white text-[9px] px-2 py-0.5 rounded-full font-extrabold">
-              Tools
-            </span>
-          </div>
-        </button>
+        {/* SECTION 2: MONETIZATION & ADS */}
+        <div className="space-y-1">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1.5">Monetization</p>
 
-        <button 
-          onClick={() => setActiveSection('sounds')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'sounds' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
-        >
-          <Music className="w-4 h-4" />
-          <div className="flex-1 flex justify-between items-center">
+          <button 
+            onClick={() => setActiveSection('payments_ads')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'payments_ads' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Wallet className="w-4 h-4" />
+            <span>Payments & Ads Setup</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('advertising')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'advertising' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Megaphone className="w-4 h-4" />
+            <span>Ad Campaigns</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('pro_members')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'pro_members' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Pro System (GoPro)</span>
+          </button>
+        </div>
+
+        {/* SECTION 3: CONTENT & MEDIA */}
+        <div className="space-y-1">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1.5">Content & Media</p>
+
+          <button 
+            onClick={() => setActiveSection('users')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'users' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Users Accounts</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('videos')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'videos' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <VideoIcon className="w-4 h-4" />
+            <span>Videos & Shorts</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('movies')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'movies' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Film className="w-4 h-4" />
+            <span>Movies Catalog</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('articles')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'articles' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Articles</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('categories')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'categories' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <FolderTree className="w-4 h-4" />
+            <span>Categories</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('languages')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'languages' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Globe className="w-4 h-4" />
+            <span>Languages</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('sounds')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'sounds' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Music className="w-4 h-4" />
             <span>Sound Library</span>
-            <span className="bg-amber-500 text-black text-[10px] px-2 py-0.5 rounded-full font-black">
-              {sounds.length}
-            </span>
-          </div>
-        </button>
+          </button>
+        </div>
+
+        {/* SECTION 4: SAFETY & MAINTENANCE */}
+        <div className="space-y-1">
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1.5">Compliance & Safety</p>
+
+          <button 
+            onClick={() => setActiveSection('reports')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'reports' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            <span>Reports</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('feedback')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'feedback' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Feedback</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('storage')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'storage' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Cloud className="w-4 h-4" />
+            <span>Cloud Storage</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('trash')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'trash' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Archive className="w-4 h-4" />
+            <span>Trash Vault</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('tools')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'tools' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Wrench className="w-4 h-4" />
+            <span>Platform Tools</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('mobile_api')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'mobile_api' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Smartphone className="w-4 h-4" />
+            <span>Mobile & APIs</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('backup')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'backup' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <Database className="w-4 h-4" />
+            <span>Backup Snapshots</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveSection('faq_docs')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'faq_docs' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <HelpCircle className="w-4 h-4" />
+            <span>FAQs & Docs</span>
+          </button>
+        </div>
+
       </aside>
 
       {/* Main Content Area */}
@@ -645,6 +831,11 @@ export const AdminPanel: React.FC = () => {
           </div>
         ) : (
           <>
+            {/* PlayTube Extra System Panels */}
+            {['settings', 'payments_ads', 'languages', 'movies', 'articles', 'categories', 'design', 'pages', 'sitemap', 'mobile_api', 'backup', 'system_status', 'changelogs', 'faq_docs'].includes(activeSection) && (
+              <AdminExtraTabs activeSection={activeSection} users={users} videos={videos} addToast={addToast} />
+            )}
+
             {/* Dashboard Section */}
             {activeSection === 'dashboard' && (
               <div className="space-y-8">
@@ -729,65 +920,113 @@ export const AdminPanel: React.FC = () => {
             {/* Users Section */}
             {activeSection === 'users' && (
               <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl overflow-hidden shadow-sm">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-[#1a1a1a] text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-100 dark:border-[#272727]">
-                      <th className="px-6 py-4">User</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Role</th>
-                      <th className="px-6 py-4">Stats</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-[#272727]">
-                    {filteredUsers.map(u => (
-                      <tr key={u.uid} className="text-xs hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                              {u.photoURL ? <img src={u.photoURL} className="w-full h-full rounded-full object-cover" /> : getInitials(u.displayName)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-900 dark:text-white truncate">{u.displayName}</p>
-                              <p className="text-[10px] text-slate-500 truncate">@{u.username}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30' : 'bg-red-50 text-red-600 dark:bg-red-950/30'}`}>
-                            {u.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 font-bold text-slate-600 dark:text-slate-400">{u.role}</td>
-                        <td className="px-6 py-4 text-slate-500">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-bold">{u.videosCount} videos</span>
-                            <span className="text-[10px]">{u.followersCount} followers</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right space-x-2">
-                          <button 
-                            onClick={() => handleUpdateUserStatus(u.uid, u.status)}
-                            className={`p-2 rounded-lg transition-colors ${u.status === 'active' ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'}`}
-                            title={u.status === 'active' ? 'Suspend User' : 'Activate User'}
-                          >
-                            {u.status === 'active' ? <UserX className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-                          </button>
-                          <button 
-                            onClick={() => setUserToDelete(u)}
-                            className="p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition-colors"
-                            title="Delete user to 180-Day Trash Vault"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => navigate('creator', u.username)} className="p-2 hover:bg-slate-50 dark:hover:bg-[#272727] rounded-lg text-slate-400">
-                            <ExternalLink className="w-4 h-4" />
-                          </button>
-                        </td>
+                <div className="p-5 border-b border-slate-100 dark:border-[#272727] flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Registered Accounts & Security Audits</h3>
+                    <p className="text-xs text-slate-500 font-medium">Manage user accounts, credit wallet funds, and review password audit details.</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-[#1a1a1a] text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-100 dark:border-[#272727]">
+                        <th className="px-6 py-4">User</th>
+                        <th className="px-6 py-4">Status & Role</th>
+                        <th className="px-6 py-4">Wallet Balance & Points</th>
+                        <th className="px-6 py-4">Password Audit</th>
+                        <th className="px-6 py-4">Monetization</th>
+                        <th className="px-6 py-4">Stats</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-[#272727]">
+                      {filteredUsers.map(u => (
+                        <tr key={u.uid} className="text-xs hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                                {u.photoURL ? <img src={u.photoURL} className="w-full h-full object-cover" /> : getInitials(u.displayName)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 dark:text-white truncate">{u.displayName}</p>
+                                <p className="text-[10px] text-slate-500 truncate">@{u.username} • {u.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 space-y-1">
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30' : 'bg-red-50 text-red-600 dark:bg-red-950/30'}`}>
+                              {u.status}
+                            </span>
+                            <p className="text-[10px] font-black text-slate-500 uppercase">{u.role}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-mono font-black text-blue-600 dark:text-blue-400">
+                              ${(u.walletBalance || 0).toFixed(2)} USD
+                            </p>
+                            <p className="text-[10px] font-mono text-amber-500 font-bold">
+                              {u.points || 0} pts
+                            </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block">
+                              {u.lastPasswordChangedAt 
+                                ? `Changed: ${new Date(u.lastPasswordChangedAt).toLocaleDateString()}` 
+                                : 'No recent password change'}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">
+                              Joined {new Date(u.createdAt).toLocaleDateString()}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <button
+                              onClick={() => handleToggleMonetization(u.uid, u.isMonetized || false)}
+                              className={`px-3 py-1.5 rounded-xl font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer border ${
+                                u.isMonetized 
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20' 
+                                  : 'bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-900 text-slate-400'
+                              }`}
+                              title="Click to instantly bypass criteria and toggle monetization"
+                            >
+                              {u.isMonetized ? '✓ Active' : 'Enable'}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 text-slate-500">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold">{u.videosCount} videos</span>
+                              <span className="text-[10px]">{u.followersCount} followers</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-1.5">
+                            <button
+                              onClick={() => {
+                                setWalletModalUser(u);
+                                setCreditAmount(10);
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
+                              title="Give money to user wallet"
+                            >
+                              <span>+ Wallet ($)</span>
+                            </button>
+                            <button 
+                              onClick={() => handleUpdateUserStatus(u.uid, u.status)}
+                              className={`p-1.5 rounded-lg transition-colors ${u.status === 'active' ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'}`}
+                              title={u.status === 'active' ? 'Suspend User' : 'Activate User'}
+                            >
+                              {u.status === 'active' ? <UserX className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                            </button>
+                            <button 
+                              onClick={() => setUserToDelete(u)}
+                              className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition-colors"
+                              title="Delete user to 180-Day Trash Vault"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
@@ -1754,6 +1993,246 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* SECTION: AD CAMPAIGNS MANAGER */}
+            {activeSection === 'advertising' && (
+              <div className="space-y-8 animate-in fade-in duration-200">
+                {/* Stats Header Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                    <p className="text-[10px] font-black uppercase text-slate-400">Total Campaigns</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{adCampaigns.length}</p>
+                    <p className="text-[11px] text-blue-500 font-bold mt-1">Platform Promotions</p>
+                  </div>
+                  <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                    <p className="text-[10px] font-black uppercase text-slate-400">Active Ads</p>
+                    <p className="text-2xl font-black text-emerald-500 mt-1">{adCampaigns.filter(a => a.status === 'active' || !a.status).length}</p>
+                    <p className="text-[11px] text-emerald-600 font-bold mt-1">Live in feed</p>
+                  </div>
+                  <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                    <p className="text-[10px] font-black uppercase text-slate-400">Total Ad Revenue</p>
+                    <p className="text-2xl font-black text-[#00A3FF] mt-1">
+                      ${adCampaigns.reduce((acc, a) => acc + (a.totalLimit || a.spent || 0), 0).toFixed(2)}
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-bold mt-1">Wallet deducted</p>
+                  </div>
+                  <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                    <p className="text-[10px] font-black uppercase text-slate-400">Total Ad Clicks</p>
+                    <p className="text-2xl font-black text-purple-500 mt-1">
+                      {adCampaigns.reduce((acc, a) => acc + (a.results || 0), 0)}
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-bold mt-1">User Engagements</p>
+                  </div>
+                </div>
+
+                {/* Ad Campaigns Table */}
+                <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl overflow-hidden shadow-sm">
+                  <div className="p-6 border-b border-slate-100 dark:border-[#272727] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 dark:text-white">
+                        User Ad Campaigns Hub ({adCampaigns.length})
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">Manage and audit sponsored video and banner ads across SocialIndia.</p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-[#1A1A1A] text-slate-500 font-black uppercase tracking-wider border-b border-slate-200 dark:border-[#272727]">
+                        <tr>
+                          <th className="p-4">Status</th>
+                          <th className="p-4">Ad Title / Sponsor</th>
+                          <th className="p-4">Placement</th>
+                          <th className="p-4">Target Country</th>
+                          <th className="p-4">Pricing</th>
+                          <th className="p-4">Spent / Total Limit</th>
+                          <th className="p-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-[#222222] font-semibold text-slate-800 dark:text-slate-200">
+                        {adCampaigns.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-16 text-center text-slate-400 font-bold">
+                              No advertising campaigns created yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          adCampaigns.map((ad, idx) => (
+                            <tr key={ad.adId || idx} className="hover:bg-slate-50 dark:hover:bg-[#181818] transition-colors">
+                              <td className="p-4">
+                                <span className="px-3 py-1 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-full font-black text-[10px] uppercase">
+                                  {ad.status || 'Active'}
+                                </span>
+                              </td>
+                              <td className="p-4">
+                                <p className="font-black text-slate-900 dark:text-white">{ad.sponsorName || ad.headline || 'Untitled Ad'}</p>
+                                <p className="text-[10px] text-slate-400 truncate max-w-xs">{ad.description || ad.targetUrl}</p>
+                              </td>
+                              <td className="p-4">{ad.placement || 'Video Ad'}</td>
+                              <td className="p-4 font-bold text-blue-500">{ad.targetCountry || 'Global'}</td>
+                              <td className="p-4">
+                                <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded text-[10px] font-black uppercase">
+                                  {ad.pricingType === 'view' ? 'Pay Per View' : 'Pay Per Click ($0.7)'}
+                                </span>
+                              </td>
+                              <td className="p-4 font-mono font-bold text-emerald-600">
+                                ${(ad.spent || 0).toFixed(2)} / ${(ad.totalLimit || 0).toFixed(2)}
+                              </td>
+                              <td className="p-4 text-right">
+                                <a
+                                  href={ad.targetUrl || '#'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 dark:bg-[#2B2B2B] hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold cursor-pointer"
+                                >
+                                  <span>View Link</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION: PRO MEMBERS MANAGER ($10) */}
+            {activeSection === 'pro_members' && (
+              <div className="space-y-8 animate-in fade-in duration-200">
+                {/* Stats Header Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                    <p className="text-[10px] font-black uppercase text-slate-400">Total Pro Members</p>
+                    <p className="text-2xl font-black text-amber-500 mt-1">
+                      {users.filter(u => u.role === 'creator' || u.role === 'admin').length}
+                    </p>
+                    <p className="text-[11px] text-amber-600 font-bold mt-1">Verified Channel Badge ✓</p>
+                  </div>
+                  <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                    <p className="text-[10px] font-black uppercase text-slate-400">Estimated Pro Revenue</p>
+                    <p className="text-2xl font-black text-emerald-500 mt-1">
+                      ${(users.filter(u => u.role === 'creator' || u.role === 'admin').length * 10).toFixed(2)} USD
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-bold mt-1">$10 / Member Subscription</p>
+                  </div>
+                  <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                    <p className="text-[10px] font-black uppercase text-slate-400">Standard Free Members</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                      {users.filter(u => u.role !== 'creator' && u.role !== 'admin').length}
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-bold mt-1">Eligible for Pro Upgrade</p>
+                  </div>
+                </div>
+
+                {/* Pro Members Table */}
+                <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl overflow-hidden shadow-sm">
+                  <div className="p-6 border-b border-slate-100 dark:border-[#272727] flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 dark:text-white">
+                        Pro Package ($10) Subscribed Members
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">Manage Pro subscriptions, grant verified channel badges, and view wallet balances.</p>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-[#1A1A1A] text-slate-500 font-black uppercase tracking-wider border-b border-slate-200 dark:border-[#272727]">
+                        <tr>
+                          <th className="p-4">User</th>
+                          <th className="p-4">Role</th>
+                          <th className="p-4">Verified Badge</th>
+                          <th className="p-4">Wallet Balance</th>
+                          <th className="p-4">Points</th>
+                          <th className="p-4 text-right">Pro Status Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-[#222222] font-semibold text-slate-800 dark:text-slate-200">
+                        {users.map((u) => {
+                          const isProUser = u.role === 'creator' || u.role === 'admin';
+                          return (
+                            <tr key={u.uid} className="hover:bg-slate-50 dark:hover:bg-[#181818] transition-colors">
+                              <td className="p-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 overflow-hidden">
+                                    {u.photoURL ? <img src={u.photoURL} className="w-full h-full object-cover" /> : getInitials(u.displayName)}
+                                  </div>
+                                  <div>
+                                    <p className="font-black text-slate-900 dark:text-white flex items-center gap-1">
+                                      <span>{u.displayName || u.username}</span>
+                                      {isProUser && <CheckCircle2 className="w-3.5 h-3.5 text-[#00A3FF] fill-[#00A3FF] text-white" />}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400">@{u.username}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-4 uppercase font-black text-[10px]">
+                                <span className={`px-2.5 py-1 rounded-full ${isProUser ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600'}`}>
+                                  {u.role}
+                                </span>
+                              </td>
+                              <td className="p-4">
+                                {isProUser ? (
+                                  <span className="text-emerald-500 font-bold flex items-center gap-1 text-[11px]">
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" /> Active Verified ✓
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 text-[11px]">Free Member</span>
+                                )}
+                              </td>
+                              <td className="p-4 font-mono font-bold text-blue-500">
+                                ${(u.walletBalance || 0).toFixed(2)} USD
+                              </td>
+                              <td className="p-4 font-mono font-bold text-amber-500">
+                                {u.points || 0} pts
+                              </td>
+                              <td className="p-4 text-right">
+                                {!isProUser ? (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await adminService.updateUserRole(u.uid, 'creator');
+                                        addToast(`Granted Pro status to @${u.username}`, 'success');
+                                        const updated = await adminService.getAllUsers();
+                                        setUsers(updated);
+                                      } catch (err) {
+                                        addToast('Failed to grant Pro status.', 'error');
+                                      }
+                                    }}
+                                    className="px-3 py-1.5 bg-[#00A3FF] hover:bg-[#0082CC] text-white rounded-xl text-xs font-black transition-all shadow-xs cursor-pointer"
+                                  >
+                                    Grant Pro Package
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await adminService.updateUserRole(u.uid, 'user');
+                                        addToast(`Revoked Pro status for @${u.username}`, 'info');
+                                        const updated = await adminService.getAllUsers();
+                                        setUsers(updated);
+                                      } catch (err) {
+                                        addToast('Failed to revoke Pro status.', 'error');
+                                      }
+                                    }}
+                                    className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-rose-500 hover:text-white text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                                  >
+                                    Revoke Pro
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1938,6 +2417,85 @@ export const AdminPanel: React.FC = () => {
                   {isDeletingVideo ? 'Archiving...' : 'Move to Trash Vault'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ADMIN WALLET CREDIT MODAL */}
+        {walletModalUser && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5">
+              <div className="flex items-center gap-3 text-emerald-600">
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl">
+                  <Wallet className="w-6 h-6 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">Credit Money to User Wallet</h3>
+                  <p className="text-xs text-slate-500 font-medium">Direct Admin Funds Allocation</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-[#1a1a1a] rounded-2xl border border-slate-100 dark:border-[#272727]">
+                <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  {walletModalUser.photoURL ? <img src={walletModalUser.photoURL} className="w-full h-full rounded-full object-cover" /> : getInitials(walletModalUser.displayName)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{walletModalUser.displayName}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">@{walletModalUser.username} • Current Balance: ${(walletModalUser.walletBalance || 0).toFixed(2)} USD</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleAdminCreditWallet} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+                    Amount to Add ($ USD)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      value={creditAmount}
+                      onChange={(e) => setCreditAmount(parseFloat(e.target.value) || 0)}
+                      className="w-full pl-8 pr-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {[5, 10, 25, 50, 100].map((amt) => (
+                    <button
+                      type="button"
+                      key={amt}
+                      onClick={() => setCreditAmount(amt)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-black border transition-all cursor-pointer ${creditAmount === amt ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 dark:bg-[#1a1a1a] border-slate-200 dark:border-[#333] text-slate-600 dark:text-slate-300'}`}
+                    >
+                      +${amt}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setWalletModalUser(null)}
+                    disabled={isCrediting}
+                    className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-[#333] text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCrediting || creditAmount <= 0}
+                    className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition-all shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isCrediting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    <span>Add ${creditAmount.toFixed(2)} to Wallet</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
