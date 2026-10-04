@@ -20,7 +20,6 @@ import { HelpPage } from './pages/Help';
 import { FeedbackPage } from './pages/Feedback';
 import { Downloads } from './pages/Downloads';
 import { AboutPage } from './pages/About';
-import { WalletPage } from './pages/Wallet';
 
 function MainAppContent() {
   const { route } = useRouter();
@@ -30,8 +29,6 @@ function MainAppContent() {
     switch (route.path) {
       case 'home':
         return <Home />;
-      case 'wallet':
-        return <WalletPage />;
       case 'downloads':
         return <Downloads />;
       case 'admin':
