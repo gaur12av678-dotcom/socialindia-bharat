@@ -7,9 +7,8 @@ import {
   Zap,
   TrendingUp,
   Heart,
-  Wallet,
-  Sparkles,
   Music,
+  Sparkles,
   Gamepad,
   Shield,
   Star,
@@ -199,15 +198,15 @@ export const AboutPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Feature 5: SocialIndia Wallet */}
+            {/* Feature 5: Sound & Audio Library */}
             <div className="bg-white dark:bg-[#161616] border border-slate-100 dark:border-slate-800/80 rounded-2xl p-6 space-y-3.5 hover:border-blue-500/20 dark:hover:border-blue-500/20 transition-all group">
               <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Wallet className="w-5 h-5 stroke-[2.2]" />
+                <Music className="w-5 h-5 stroke-[2.2]" />
               </div>
               <div className="space-y-1">
-                <h4 className="text-sm font-black text-slate-900 dark:text-white">SocialIndia Wallet</h4>
+                <h4 className="text-sm font-black text-slate-900 dark:text-white">Sound & Audio Library</h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                  Earn coins by watching, liking, and commenting. Withdraw real earnings to your UPI.
+                  Add trending audio tracks, background beats, and original music to your Shorts.
                 </p>
               </div>
             </div>
