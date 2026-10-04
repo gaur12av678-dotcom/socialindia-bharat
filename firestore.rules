@@ -1,8 +1,135 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Default deny catch-all safety net
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // --- USERS COLLECTION ---
+    match /users/{uid} {
+      // Public profile fields can be read by anyone
+      allow read: if true;
+      
+      // Initial registration profile write
+      allow create: if isOwner(uid) && 
+        request.resource.data.role == 'user' && 
+        request.resource.data.points == 10 && 
+        request.resource.data.walletBalance == 0.0;
+
+      // Update allowed only by owner, EXCLUDING protected parameters
+      allow update: if (isOwner(uid) && 
+        !(request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'role', 'points', 'walletBalance', 'status', 'followersCount', 'followingCount', 'videosCount'
+        ]))) || isAdmin();
+
+      // Only admins can delete profiles
+      allow delete: if isAdmin();
+
+      // Isolated nested private settings collection
+      match /private/{docId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // --- VIDEOS COLLECTION ---
+    match /videos/{videoId} {
+      allow read: if true;
+      
+      allow create: if isSignedIn() && 
+        request.resource.data.creatorId == request.auth.uid;
+        
+      allow update, delete: if isSignedIn() && (
+        resource.data.creatorId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // --- COMMENTS COLLECTION ---
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // --- LIKES COLLECTION ---
+    match /likes/{likeId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // --- REPORTS COLLECTION ---
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // --- FEEDBACK COLLECTION ---
+    match /feedback/{feedbackId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // --- SYSTEM SETTINGS COLLECTION ---
+    match /system_settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- SOUNDS LIBRARY COLLECTION ---
+    match /sounds/{soundId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // --- TRASH VAULT COLLECTION ---
+    match /trash/{trashId} {
+      allow read, write: if isAdmin();
+    }
+
+    // --- AD CAMPAIGNS COLLECTION ---
+    match /ad_campaigns/{adId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // --- CHATS & MESSAGES COLLECTIONS ---
+    match /conversations/{convId} {
+      allow read, write: if isSignedIn();
+      
+      match /messages/{msgId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // --- NOTIFICATIONS COLLECTION ---
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
   }
 }

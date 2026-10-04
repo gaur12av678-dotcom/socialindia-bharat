@@ -5,8 +5,13 @@ import { useRouter } from '../hooks/useRouter';
 import { UserAvatar } from './UserAvatar';
 import { userService } from '../services/userService';
 
-// Simple in-memory cache to store verified creator status
-const creatorVerificationCache: Record<string, boolean> = {};
+interface CacheEntry {
+  verified: boolean;
+  expiry: number;
+}
+
+// Simple in-memory cache to store verified creator status with 5-minute TTL
+const creatorVerificationCache: Record<string, CacheEntry> = {};
 
 interface VideoCardProps {
   video: Video;
@@ -19,17 +24,26 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   useEffect(() => {
     if (!video.creatorId) return;
     
-    if (creatorVerificationCache[video.creatorId] !== undefined) {
-      setIsVerified(creatorVerificationCache[video.creatorId]);
+    const now = Date.now();
+    const cached = creatorVerificationCache[video.creatorId];
+    if (cached && cached.expiry > now) {
+      setIsVerified(cached.verified);
       return;
     }
 
     userService.getUserProfile(video.creatorId).then(profile => {
       const verified = profile?.role === 'creator' || profile?.role === 'admin';
-      creatorVerificationCache[video.creatorId] = verified;
+      creatorVerificationCache[video.creatorId] = {
+        verified,
+        expiry: Date.now() + 5 * 60 * 1000 // 5 minutes TTL
+      };
       setIsVerified(verified);
     }).catch(() => {
-      creatorVerificationCache[video.creatorId] = false;
+      creatorVerificationCache[video.creatorId] = {
+        verified: false,
+        expiry: Date.now() + 5 * 60 * 1000
+      };
+      setIsVerified(false);
     });
   }, [video.creatorId]);
 

@@ -59,8 +59,6 @@ export const userService = {
   async createUserProfile(uid: string, profile: Partial<User>): Promise<void> {
     const docRef = doc(db, 'users', uid);
     const now = new Date().toISOString();
-    // Assign admin role to the primary developer based on displayName
-    const isAdmin = profile.displayName === 'maryxbgamer@gmail.com';
     
     const data: User = {
       uid,
@@ -78,7 +76,8 @@ export const userService = {
       country: '',
       age: '',
       paypalEmail: profile.email || '',
-      role: isAdmin ? 'admin' : (profile.role || 'user'),
+      // Admin assignment must be done manually in the Firebase console or Firestore editor for maximum security.
+      role: profile.role || 'user',
       status: 'active',
       createdAt: now,
       updatedAt: now,

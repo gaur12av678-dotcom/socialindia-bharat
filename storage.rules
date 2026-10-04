@@ -1,13 +1,44 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /videos/{userId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
     }
+    
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Video uploads: max 100MB (104857600 bytes), must be video/ content type
+    match /videos/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isOwner(uid) 
+        && request.resource.contentType.matches('video/.*')
+        && request.resource.size <= 104857600;
+    }
+
+    // Thumbnail uploads: max 5MB (5242880 bytes), must be image/ content type
+    match /thumbnails/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isOwner(uid)
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size <= 5242880;
+    }
+
+    // Avatar / Profile uploads: max 5MB (5242880 bytes), must be image/ content type
+    match /avatars/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isOwner(uid)
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size <= 5242880;
+    }
+
+    // Default deny catch-all for everything else
     match /{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if false;
     }
   }
 }

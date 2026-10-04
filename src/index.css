@@ -69,6 +69,11 @@
   }
 }
 
+/* Safe Area Inset Bottom utility helper */
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 @keyframes slideIn {
   from {
     transform: translateY(1rem);
@@ -88,5 +93,15 @@
   to {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+/* Accessibility: Support prefers-reduced-motion specifications */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+    animation-delay: 0s !important;
+    animation-duration: 0s !important;
   }
 }

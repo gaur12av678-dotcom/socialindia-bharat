@@ -17,12 +17,18 @@ export function usernameToEmail(username: string): string {
 export const authService = {
   // Register a new user
   async register(username: string, display: string, pass: string): Promise<User> {
-    const isTaken = await userService.isUsernameTaken(username);
+    const cleanUsername = username.trim().toLowerCase();
+    const usernameRegex = /^[a-z0-9_]{3,20}$/;
+    if (!usernameRegex.test(cleanUsername)) {
+      throw new Error("Username must be between 3 and 20 characters and contain only lowercase letters, numbers, and underscores.");
+    }
+
+    const isTaken = await userService.isUsernameTaken(cleanUsername);
     if (isTaken) {
       throw new Error("Username is already taken.");
     }
 
-    const email = usernameToEmail(username);
+    const email = usernameToEmail(cleanUsername);
     
     // 1. Create firebase auth user
     const credential = await createUserWithEmailAndPassword(auth, email, pass);
@@ -76,5 +82,9 @@ export const authService = {
   // Listen to Auth State Changes
   onAuthStateChanged(callback: (user: FirebaseUser | null) => void) {
     return onAuthStateChanged(auth, callback);
+  },
+
+  getCurrentUserUid(): string | null {
+    return auth.currentUser?.uid || null;
   }
 };

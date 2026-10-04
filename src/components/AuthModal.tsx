@@ -32,8 +32,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
       setErrorMsg('Username must be at least 3 characters.');
       return;
     }
-    if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
-      setErrorMsg('Username can only contain letters, numbers, and underscores.');
+    const usernameRegex = /^[a-z0-9_]{3,20}$/;
+    if (!usernameRegex.test(cleanUsername)) {
+      setErrorMsg('Username must be between 3 and 20 characters and contain only lowercase letters, numbers, and underscores.');
       return;
     }
 
@@ -71,10 +72,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     } catch (err: any) {
       console.error(err);
       let friendlyError = err.message || 'Authentication failed.';
-      if (friendlyError.includes('auth/invalid-credential')) {
+      if (friendlyError.includes('auth/invalid-credential') || friendlyError.includes('auth/wrong-password') || friendlyError.includes('auth/user-not-found')) {
         friendlyError = 'Incorrect username or password.';
-      } else if (friendlyError.includes('auth/username-already-in-use') || friendlyError.includes('taken')) {
-        friendlyError = 'This username is already registered.';
+      } else if (friendlyError.includes('auth/email-already-in-use') || friendlyError.includes('username-already-in-use') || friendlyError.includes('taken')) {
+        friendlyError = 'This username is already taken. Please try another one.';
+      } else if (friendlyError.includes('auth/invalid-email')) {
+        friendlyError = 'The username contains invalid credentials.';
       }
       setErrorMsg(friendlyError);
     } finally {

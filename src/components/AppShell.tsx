@@ -58,14 +58,37 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   
   const { route, navigate } = useRouter();
   const isShortsPage = route.path === 'shorts';
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [guestMenuOpen, setGuestMenuOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authSuccessCallback, setAuthSuccessCallback] = useState<(() => void) | undefined>(undefined);
   const [followedCreators, setFollowedCreators] = useState<any[]>([]);
+
+  // Close dropdowns on route change
+  useEffect(() => {
+    setNotifDropdownOpen(false);
+    setProfileDropdownOpen(false);
+    setGuestMenuOpen(false);
+    setMobileSearchOpen(false);
+  }, [route.path, route.param]);
+
+  // Escape key handler to close all menus
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setNotifDropdownOpen(false);
+        setProfileDropdownOpen(false);
+        setGuestMenuOpen(false);
+        setMobileSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Pre-load YouTube API for faster video playback
   useEffect(() => {
@@ -256,98 +279,126 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       )}
 
       {/* HEADER / NAVIGATION BAR */}
-      <header className={`px-2.5 sm:px-4 h-14 flex items-center justify-between gap-2 max-w-full relative overflow-visible transition-all duration-300 z-40 ${
+      <header className={`px-2.5 sm:px-4 h-14 flex items-center justify-between gap-2 max-w-full relative overflow-visible transition-all duration-300 z-40 safe-bottom ${
             isShortsPage 
               ? 'absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent border-transparent text-white md:sticky md:bg-white dark:md:bg-[#0f0f0f] md:border-b md:border-slate-100 dark:md:border-slate-800 shadow-none' 
               : 'sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
           }`}>
             
-            {/* Left Section */}
-            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
-              {route.path !== 'home' && (
+            {mobileSearchOpen ? (
+              /* Mobile expanding full-width search block */
+              <form onSubmit={handleSearchSubmit} className="flex flex-1 items-center gap-2 px-1">
                 <button 
-                  onClick={() => navigate('home')}
-                  className={`p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer flex items-center justify-center shrink-0 ${
-                    isShortsPage
-                      ? 'hover:bg-white/10 text-white'
-                      : 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
-                  }`}
-                  aria-label="Back to Home"
-                  title="Back to Home"
+                  type="button"
+                  onClick={() => setMobileSearchOpen(false)}
+                  className="min-w-10 min-h-10 p-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full flex items-center justify-center cursor-pointer"
+                  title="Close Search"
                 >
                   <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
                 </button>
-              )}
-
-              <button 
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="hidden md:flex p-2 hover:bg-[#f2f2f2] dark:hover:bg-[#272727] rounded-full transition-colors cursor-pointer text-[#0f0f0f] dark:text-[#f1f1f1]"
-                aria-label="Toggle sidebar"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-              
-              <SocialIndiaLogo 
-                onClick={() => navigate('home')}
-                forceWhiteText={isShortsPage}
-              />
-            </div>
-
-            {/* Center / Prominent Search bar */}
-            <form onSubmit={handleSearchSubmit} className="hidden md:flex flex-1 max-w-2xl mx-auto relative">
-              <div className="relative w-full flex items-center">
                 <input
                   type="text"
-                  placeholder="Search videos, creators, categories..."
+                  autoFocus
+                  placeholder="Search videos, creators..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-4 pr-12 py-2 rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] text-slate-900 dark:text-[#f8fafc] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#2563eb] text-sm font-medium transition-all"
+                  className="flex-1 px-4 py-2.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-950 dark:text-white"
                 />
                 <button 
                   type="submit"
-                  className="absolute right-1 top-1 bottom-1 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center font-semibold text-xs shadow-xs"
-                  aria-label="Search"
+                  className="min-w-14 min-h-10 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-xs"
                 >
-                  <Search className="w-4 h-4 text-white" />
+                  Go
                 </button>
-              </div>
-            </form>
+              </form>
+            ) : (
+              <>
+                {/* Left Section */}
+                <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
+                  {route.path !== 'home' && (
+                    <button 
+                      onClick={() => navigate('home')}
+                      className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer flex items-center justify-center shrink-0 ${
+                        isShortsPage
+                          ? 'hover:bg-white/10 text-white'
+                          : 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
+                      }`}
+                      aria-label="Back to Home"
+                      title="Back to Home"
+                    >
+                      <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+                    </button>
+                  )}
 
-            {/* Right Controls */}
-            <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
-              {/* Mobile Search Button */}
-              <button 
-                onClick={() => navigate('search')}
-                className={`p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer ${
-                  isShortsPage 
-                    ? 'hover:bg-white/10 text-white' 
-                    : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
-                }`}
-                aria-label="Search"
-              >
-                <Search className="w-5 h-5" />
-              </button>
+                  <button 
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="hidden md:flex min-w-10 min-h-10 p-2 hover:bg-[#f2f2f2] dark:hover:bg-[#272727] rounded-full transition-colors cursor-pointer text-[#0f0f0f] dark:text-[#f1f1f1] items-center justify-center"
+                    aria-label="Toggle sidebar"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </button>
+                  
+                  <SocialIndiaLogo 
+                    onClick={() => navigate('home')}
+                    forceWhiteText={isShortsPage}
+                  />
+                </div>
 
-              {/* Theme Toggle */}
-              <button
-                onClick={() => {
-                  const isDarkActive = document.documentElement.classList.contains('dark');
-                  setTheme(isDarkActive ? 'light' : 'dark');
-                }}
-                className={`p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer ${
-                  isShortsPage
-                    ? 'hover:bg-white/10 text-white'
-                    : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1]'
-                }`}
-                aria-label="Toggle theme"
-                title="Toggle Light / Dark Night Theme"
-              >
-                {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark')) ? (
-                  <Sun className="w-5 h-5 text-amber-400" />
-                ) : (
-                  <Moon className="w-5 h-5 text-[#065fd4]" />
-                )}
-              </button>
+                {/* Center / Prominent Search bar */}
+                <form onSubmit={handleSearchSubmit} className="hidden md:flex flex-1 max-w-2xl mx-auto relative">
+                  <div className="relative w-full flex items-center">
+                    <input
+                      type="text"
+                      placeholder="Search videos, creators, categories..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-4 pr-12 py-2 rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] text-slate-900 dark:text-[#f8fafc] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#2563eb] text-sm font-medium transition-all"
+                    />
+                    <button 
+                      type="submit"
+                      className="absolute right-1 top-1 bottom-1 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center font-semibold text-xs shadow-xs"
+                      aria-label="Search"
+                    >
+                      <Search className="w-4 h-4 text-white" />
+                    </button>
+                  </div>
+                </form>
+
+                {/* Right Controls */}
+                <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
+                  {/* Mobile Search Button */}
+                  <button 
+                    onClick={() => setMobileSearchOpen(true)}
+                    className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer flex items-center justify-center ${
+                      isShortsPage 
+                        ? 'hover:bg-white/10 text-white' 
+                        : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
+                    }`}
+                    aria-label="Search"
+                  >
+                    <Search className="w-5 h-5" />
+                  </button>
+
+                  {/* Theme Toggle */}
+                  <button
+                    onClick={() => {
+                      const isDarkActive = document.documentElement.classList.contains('dark');
+                      setTheme(isDarkActive ? 'light' : 'dark');
+                    }}
+                    className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer flex items-center justify-center ${
+                      isShortsPage
+                        ? 'hover:bg-white/10 text-white'
+                        : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1]'
+                    }`}
+                    aria-label="Toggle theme"
+                    title="Toggle Light / Dark Night Theme"
+                  >
+                    {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark')) ? (
+                      <Sun className="w-5 h-5 text-amber-400" />
+                    ) : (
+                      <Moon className="w-5 h-5 text-[#065fd4]" />
+                    )}
+                  </button>
 
               {/* Publish Video Button (Primary Action) */}
               <button
@@ -497,7 +548,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       <Settings className="w-4 h-4 text-slate-400" />
                       <span>Settings</span>
                     </button>
-                    {(currentUserProfile?.role === 'admin' || currentUserProfile?.displayName === 'maryxbgamer@gmail.com') && (
+                    {currentUserProfile?.role === 'admin' && (
                       <button
                         onClick={() => {
                           setProfileDropdownOpen(false);
@@ -624,7 +675,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </button>
             </div>
           )}
-        </div>
+                </div>
+              </>
+            )}
       </header>
 
       {/* MAIN LAYOUT */}
@@ -719,7 +772,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 <div className="h-px bg-slate-100 dark:bg-slate-800" />
               </>
             )}
-            {(currentUserProfile?.role === 'admin' || currentUserProfile?.displayName === 'maryxbgamer@gmail.com') && (
+            {currentUserProfile?.role === 'admin' && (
               <>
                 <div className="space-y-1">
                   <span className="px-3 text-[11px] font-extrabold tracking-wider text-slate-400 dark:text-slate-500 uppercase block mb-1.5">Platform Admin</span>

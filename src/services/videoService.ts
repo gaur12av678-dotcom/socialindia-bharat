@@ -74,6 +74,9 @@ export async function getCloudinaryConfigAsync(): Promise<{ cloudName: string; p
   return cachedCloudinaryConfig || localConfig;
 }
 
+// In-memory session viewed set as a secondary guard layer if localStorage is blocked
+const sessionViewedSet = new Set<string>();
+
 export const videoService = {
   // Generate safe random video ID
   generateId(): string {
@@ -551,6 +554,13 @@ export const videoService = {
   // Increment view count safely with 24-hour Anti-Spam View Guard
   async incrementViewCount(videoId: string): Promise<void> {
     const VIEWED_KEY = 'socialindia_viewed_videos';
+    let isAlreadyViewed = false;
+
+    // First layer: memory guard check
+    if (sessionViewedSet.has(videoId)) {
+      isAlreadyViewed = true;
+    }
+
     try {
       const saved = localStorage.getItem(VIEWED_KEY);
       const viewedMap: Record<string, number> = saved ? JSON.parse(saved) : {};
@@ -565,9 +575,12 @@ export const videoService = {
         }
       }
 
-      if (cleanedMap[videoId]) {
+      if (cleanedMap[videoId] || isAlreadyViewed) {
         // Already viewed in the last 24 hours - skip incrementing to prevent fake view spam!
-        console.log(`[Anti-Spam View Guard] Suppressed repeat view for video: ${videoId}`);
+        if (import.meta.env.DEV) {
+          console.log(`[Anti-Spam View Guard] Suppressed repeat view for video: ${videoId}`);
+        }
+        sessionViewedSet.add(videoId);
         return;
       }
 
@@ -575,8 +588,16 @@ export const videoService = {
       cleanedMap[videoId] = now;
       localStorage.setItem(VIEWED_KEY, JSON.stringify(cleanedMap));
     } catch (e) {
-      console.warn('Anti-spam local storage error:', e);
+      if (import.meta.env.DEV) {
+        console.warn('Anti-spam local storage error:', e);
+      }
+      if (isAlreadyViewed) {
+        return;
+      }
     }
+
+    // Always register in session memory
+    sessionViewedSet.add(videoId);
 
     const docRef = doc(db, 'videos', videoId);
     try {

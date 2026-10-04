@@ -1,6 +1,8 @@
+import React, { useEffect } from 'react';
 import { AppProvider } from './context/AppContext';
 import { AppShell } from './components/AppShell';
 import { useRouter } from './hooks/useRouter';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Page Components
 import { Home } from './pages/Home';
@@ -38,6 +40,11 @@ import { CommunityGuidelinesPage } from './pages/CommunityGuidelines';
 
 function MainAppContent() {
   const { route } = useRouter();
+
+  // Scroll to top on every route/param change
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+  }, [route.path, route.param]);
 
   if (route.path === 'login' || route.path === 'signin') {
     return <SignInPage />;
@@ -120,7 +127,11 @@ function MainAppContent() {
     }
   };
 
-  return <AppShell>{renderRoute()}</AppShell>;
+  return (
+    <ErrorBoundary>
+      <AppShell>{renderRoute()}</AppShell>
+    </ErrorBoundary>
+  );
 }
 
 export default function App() {

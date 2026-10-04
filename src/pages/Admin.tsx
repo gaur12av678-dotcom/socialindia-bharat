@@ -148,8 +148,7 @@ export const AdminPanel: React.FC = () => {
 
   // Security Check: Only admins allowed
   useEffect(() => {
-    const isDeveloper = currentUserProfile?.displayName === 'maryxbgamer@gmail.com';
-    if (currentUser && currentUserProfile && currentUserProfile.role !== 'admin' && !isDeveloper) {
+    if (currentUser && currentUserProfile && currentUserProfile.role !== 'admin') {
       addToast('Unauthorized access. Admins only.', 'error');
       navigate('home');
     }

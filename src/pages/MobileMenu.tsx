@@ -61,7 +61,7 @@ export const MobileMenu: React.FC = () => {
     addToast('Account switcher loaded. You can now login to a different channel!', 'success');
   };
 
-  const isAdmin = currentUserProfile.role === 'admin' || currentUserProfile.displayName === 'maryxbgamer@gmail.com';
+  const isAdmin = currentUserProfile.role === 'admin';
 
   return (
     <div className="bg-white dark:bg-[#0f0f0f] min-h-screen text-slate-900 dark:text-slate-100 pb-28 select-none">

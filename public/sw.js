@@ -1,5 +1,6 @@
 // SocialIndia Real Offline Service Worker
-const CACHE_NAME = 'socialindia-shell-v1';
+const VERSION = '1.0.0';
+const CACHE_NAME = `socialindia-shell-v${VERSION}`;
 
 const STATIC_ASSETS = [
   '/',
@@ -34,17 +35,22 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Skip Firestore, Firebase Auth, and external video API requests (handled via IndexedDB for downloads)
-  if (
-    url.origin.includes('firestore.googleapis.com') ||
-    url.origin.includes('identitytoolkit.googleapis.com') ||
-    url.origin.includes('firebaseio.com') ||
-    url.pathname.startsWith('/api/')
-  ) {
+  // CRITICAL: Cache only same-origin static assets
+  const isSameOrigin = url.origin === self.location.origin;
+
+  // CRITICAL: Never cache requests whose URL contains '/users/' responses, firebase auth, or auth state
+  const isProtectedPath = url.pathname.includes('/users/') || 
+                          url.origin.includes('firestore.googleapis.com') ||
+                          url.origin.includes('identitytoolkit.googleapis.com') ||
+                          url.origin.includes('firebaseio.com') ||
+                          url.pathname.includes('/api/auth');
+
+  if (!isSameOrigin || isProtectedPath) {
+    // Network-only for protected, external, or non-origin assets
     return;
   }
 
-  // Network First, Fallback to Cache for app assets
+  // Network First, Fallback to Cache for same-origin app assets
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
@@ -63,7 +69,7 @@ self.addEventListener('fetch', (event) => {
           return cachedResponse;
         }
 
-        // If navigation request (page reload offline), serve cached index.html
+        // Keep network-first for navigations
         if (event.request.mode === 'navigate') {
           const fallback = await caches.match('/index.html') || await caches.match('/');
           if (fallback) return fallback;
