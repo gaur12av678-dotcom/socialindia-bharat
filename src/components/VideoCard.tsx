@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Video } from '../types';
 import { formatViews, formatTimeAgo, formatDuration, getInitials, extractYoutubeThumbnail } from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
 import { UserAvatar } from './UserAvatar';
+import { userService } from '../services/userService';
+
+// Simple in-memory cache to store verified creator status
+const creatorVerificationCache: Record<string, boolean> = {};
 
 interface VideoCardProps {
   video: Video;
@@ -10,6 +14,24 @@ interface VideoCardProps {
 
 export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   const { navigate } = useRouter();
+  const [isVerified, setIsVerified] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!video.creatorId) return;
+    
+    if (creatorVerificationCache[video.creatorId] !== undefined) {
+      setIsVerified(creatorVerificationCache[video.creatorId]);
+      return;
+    }
+
+    userService.getUserProfile(video.creatorId).then(profile => {
+      const verified = profile?.role === 'creator' || profile?.role === 'admin';
+      creatorVerificationCache[video.creatorId] = verified;
+      setIsVerified(verified);
+    }).catch(() => {
+      creatorVerificationCache[video.creatorId] = false;
+    });
+  }, [video.creatorId]);
 
   const handleCardClick = () => {
     if (video.isShort) {
@@ -72,9 +94,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
           <div className="flex flex-col text-[12px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
             <p 
               onClick={handleCreatorClick}
-              className="hover:text-slate-900 dark:hover:text-white transition-colors truncate w-fit font-semibold"
+              className="hover:text-slate-900 dark:hover:text-white transition-colors truncate w-fit font-semibold flex items-center gap-1"
             >
-              {video.creatorDisplayName || video.creatorUsername || 'Creator'}
+              <span>{video.creatorDisplayName || video.creatorUsername || 'Creator'}</span>
+              {isVerified && (
+                <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
+              )}
             </p>
             <div className="flex items-center gap-1 mt-0.5 text-slate-500 dark:text-slate-400">
               <span>{formatViews(video.viewsCount)}</span>

@@ -4,9 +4,10 @@ import { db } from '../firebase';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { videoService, getCloudinaryConfig, setCloudinaryConfig } from '../services/videoService';
-import { Video } from '../types';
+import { Video, SoundTrack } from '../types';
 import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, formatTimeAgo, captureFrameFromVideoFile } from '../utils/videoUtils';
 import { categoriesList } from './Home';
+import { SoundLibraryModal } from '../components/SoundLibraryModal';
 import { 
   LayoutDashboard, 
   Video as VideoIcon, 
@@ -33,6 +34,8 @@ import {
   Zap,
   Settings,
   Send,
+  Music,
+  DollarSign,
   CornerDownRight,
   Reply
 } from 'lucide-react';
@@ -68,6 +71,9 @@ export const CreatorStudio: React.FC = () => {
   const [duration, setDuration] = useState(120);
   const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [isShort, setIsShort] = useState(false);
+  const [selectedSoundTrack, setSelectedSoundTrack] = useState<SoundTrack | null>(null);
+  const [soundModalOpen, setSoundModalOpen] = useState(false);
+  const [isMonetized, setIsMonetized] = useState(true);
 
   // File Upload & Preview States (Deferred Upload on Publish)
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
@@ -461,6 +467,12 @@ export const CreatorStudio: React.FC = () => {
           duration: finalDuration,
           visibility,
           isShort,
+          soundId: selectedSoundTrack?.soundId,
+          soundTitle: selectedSoundTrack?.title,
+          soundArtist: selectedSoundTrack?.artist,
+          soundCoverUrl: selectedSoundTrack?.coverUrl,
+          soundAudioUrl: selectedSoundTrack?.audioUrl,
+          isMonetized,
           creatorId: currentUser.uid,
           creatorUsername: currentUserProfile.username,
           creatorDisplayName: currentUserProfile.displayName,
@@ -1514,6 +1526,36 @@ export const CreatorStudio: React.FC = () => {
                 </div>
               </div>
 
+              {/* Sound Library Panel */}
+              <div>
+                {/* Sound Track Selector */}
+                <div 
+                  onClick={() => setSoundModalOpen(true)}
+                  className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/40 border-2 border-slate-200 dark:border-slate-800 hover:border-blue-500 rounded-2xl cursor-pointer transition-all shadow-xs"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {selectedSoundTrack ? (
+                      <img src={selectedSoundTrack.coverUrl} alt="" className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-200 shadow-xs" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <Music className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-slate-900 dark:text-white truncate">
+                        {selectedSoundTrack ? selectedSoundTrack.title : 'Background Music / Sound Track'}
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold truncate mt-0.5">
+                        {selectedSoundTrack ? selectedSoundTrack.artist : 'Attach background audio track from library (Optional)'}
+                      </p>
+                    </div>
+                  </div>
+                  <button type="button" className="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-black shrink-0 shadow-xs">
+                    {selectedSoundTrack ? 'Change' : 'Choose Track'}
+                  </button>
+                </div>
+              </div>
+
               {/* Visibility Controls */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider text-[10px] font-black">
@@ -1641,6 +1683,17 @@ export const CreatorStudio: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Sound Library Modal */}
+      <SoundLibraryModal
+        isOpen={soundModalOpen}
+        onClose={() => setSoundModalOpen(false)}
+        onSelectSound={(sound) => {
+          setSelectedSoundTrack(sound);
+          addToast(`Selected "${sound.title}" background track!`, 'success');
+        }}
+        selectedSoundId={selectedSoundTrack?.soundId}
+      />
 
     </div>
   );

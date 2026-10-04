@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { videoService } from '../services/videoService';
+import { recommendationService } from '../services/recommendationService';
 import { Video } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { useApp } from '../context/AppContext';
@@ -9,7 +10,7 @@ export const categoriesList = [
 ];
 
 export const Home: React.FC = () => {
-  const { addToast } = useApp();
+  const { currentUser, addToast } = useApp();
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,7 +22,13 @@ export const Home: React.FC = () => {
         category: selectedCategory === 'All' ? undefined : selectedCategory,
         isShort: false
       });
-      setVideos(data);
+      
+      // Apply AI Recommendation Engine (Anti-repeat + AI Engagement Ranking + Freshness Shuffle)
+      const ranked = recommendationService.rankAndFilterVideos(data, {
+        userUid: currentUser?.uid
+      });
+
+      setVideos(ranked);
     } catch (err) {
       console.error(err);
       addToast('Failed to load videos.', 'error');

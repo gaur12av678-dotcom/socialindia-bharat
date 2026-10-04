@@ -3,8 +3,9 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { adminService } from '../services/adminService';
 import { feedbackService, FeedbackEntry } from '../services/feedbackService';
-import { User, Video, Report, TrashItem } from '../types';
+import { User, Video, Report, TrashItem, SoundTrack } from '../types';
 import { trashService } from '../services/trashService';
+import { soundService } from '../services/soundService';
 import { 
   Users, 
   Video as VideoIcon, 
@@ -52,11 +53,15 @@ import {
   Activity,
   Radio,
   Sliders,
-  CheckSquare
+  CheckSquare,
+  Music,
+  Play,
+  Pause,
+  Plus
 } from 'lucide-react';
 import { formatViews, formatTimeAgo, getInitials } from '../utils/videoUtils';
 
-type AdminSection = 'dashboard' | 'users' | 'videos' | 'reports' | 'feedback' | 'storage' | 'trash' | 'tools';
+type AdminSection = 'dashboard' | 'users' | 'videos' | 'reports' | 'feedback' | 'storage' | 'trash' | 'tools' | 'sounds';
 
 export const AdminPanel: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -90,6 +95,17 @@ export const AdminPanel: React.FC = () => {
   const [storageTestStatus, setStorageTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [storageTestMessage, setStorageTestMessage] = useState('');
 
+  // Sound Library Management States
+  const [sounds, setSounds] = useState<SoundTrack[]>([]);
+  const [newSongTitle, setNewSongTitle] = useState('');
+  const [newSongArtist, setNewSongArtist] = useState('');
+  const [newSongCoverUrl, setNewSongCoverUrl] = useState('');
+  const [newSongAudioUrl, setNewSongAudioUrl] = useState('');
+  const [newSongCategory, setNewSongCategory] = useState('Punjabi & Bollywood');
+  const [isAddingSong, setIsAddingSong] = useState(false);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const audioRefRef = React.useRef<HTMLAudioElement | null>(null);
+
   // Security Check: Only admins allowed
   useEffect(() => {
     const isDeveloper = currentUserProfile?.displayName === 'maryxbgamer@gmail.com';
@@ -106,19 +122,21 @@ export const AdminPanel: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [u, v, r, f, s, t] = await Promise.all([
+      const [u, v, r, f, s, t, soundList] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getAllVideos(),
         adminService.getAllReports(),
         feedbackService.getAllFeedback(),
         adminService.getStorageConfig(),
-        trashService.getAllTrash()
+        trashService.getAllTrash(),
+        soundService.getSounds()
       ]);
       setUsers(u);
       setVideos(v);
       setReports(r);
       setFeedback(f);
       setTrashItems(t);
+      setSounds(soundList);
       if (s) {
         setCloudName(s.cloudName || '');
         setUploadPreset(s.uploadPreset || '');
@@ -128,6 +146,45 @@ export const AdminPanel: React.FC = () => {
       addToast('Failed to load administrative data.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddSong = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSongTitle.trim() || !newSongArtist.trim() || !newSongAudioUrl.trim()) {
+      addToast('Please fill Song Title, Artist and Audio MP3 URL', 'error');
+      return;
+    }
+    setIsAddingSong(true);
+    try {
+      const added = await soundService.addSoundTrack({
+        title: newSongTitle.trim(),
+        artist: newSongArtist.trim(),
+        coverUrl: newSongCoverUrl.trim() || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80',
+        audioUrl: newSongAudioUrl.trim(),
+        category: newSongCategory,
+        duration: 30
+      });
+      setSounds(prev => [added, ...prev]);
+      addToast(`Added "${added.title}" to platform Sound Library!`, 'success');
+      setNewSongTitle('');
+      setNewSongArtist('');
+      setNewSongCoverUrl('');
+      setNewSongAudioUrl('');
+    } catch (err) {
+      addToast('Failed to add sound track to library.', 'error');
+    } finally {
+      setIsAddingSong(false);
+    }
+  };
+
+  const handleDeleteSong = async (soundId: string) => {
+    try {
+      await soundService.deleteSoundTrack(soundId);
+      setSounds(prev => prev.filter(s => s.soundId !== soundId));
+      addToast('Sound track removed from library.', 'info');
+    } catch (err) {
+      addToast('Failed to delete sound track.', 'error');
     }
   };
 
@@ -430,50 +487,55 @@ export const AdminPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-[#f9fafb] dark:bg-[#080808] -mt-6">
-      {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 bg-white dark:bg-[#0f0f0f] border-r border-slate-200 dark:border-[#272727] p-4 space-y-2 shrink-0">
-        <div className="px-4 py-6 mb-4">
-          <h1 className="text-lg font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-blue-600" />
-            SocialIndia Admin
-          </h1>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Management Hub</p>
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50/80 dark:bg-[#09090b] p-2 md:p-6 gap-6 -mt-2">
+      {/* Sidebar Navigation Card */}
+      <aside className="w-full md:w-64 bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-4 space-y-2 shrink-0 shadow-sm self-start">
+        <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl mb-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-base font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <span>Admin Hub</span>
+            </h1>
+            <span className="bg-blue-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Super Admin
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1.5">SocialIndia Operations</p>
         </div>
 
         <button 
           onClick={() => setActiveSection('dashboard')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'dashboard' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
         >
-          <LayoutDashboard className="w-5 h-5" />
-          <span>Dashboard</span>
+          <LayoutDashboard className="w-4 h-4" />
+          <span>Dashboard Overview</span>
         </button>
 
         <button 
           onClick={() => setActiveSection('users')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'users' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'users' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
         >
-          <Users className="w-5 h-5" />
-          <span>Users</span>
+          <Users className="w-4 h-4" />
+          <span>Users & Accounts</span>
         </button>
 
         <button 
           onClick={() => setActiveSection('videos')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'videos' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'videos' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
         >
-          <VideoIcon className="w-5 h-5" />
-          <span>Videos</span>
+          <VideoIcon className="w-4 h-4" />
+          <span>Videos & Shorts</span>
         </button>
 
         <button 
           onClick={() => setActiveSection('reports')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'reports' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'reports' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
         >
-          <AlertTriangle className="w-5 h-5" />
+          <AlertTriangle className="w-4 h-4" />
           <div className="flex-1 flex justify-between items-center">
             <span>Reports</span>
             {reports.filter(r => r.status === 'pending').length > 0 && (
-              <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+              <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
                 {reports.filter(r => r.status === 'pending').length}
               </span>
             )}
@@ -482,13 +544,13 @@ export const AdminPanel: React.FC = () => {
 
         <button 
           onClick={() => setActiveSection('feedback')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'feedback' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'feedback' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
         >
-          <MessageSquare className="w-5 h-5" />
+          <MessageSquare className="w-4 h-4" />
           <div className="flex-1 flex justify-between items-center">
             <span>Feedback</span>
             {feedback.filter(f => f.status === 'pending').length > 0 && (
-              <span className="bg-indigo-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+              <span className="bg-indigo-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
                 {feedback.filter(f => f.status === 'pending').length}
               </span>
             )}
@@ -497,26 +559,26 @@ export const AdminPanel: React.FC = () => {
 
         <button 
           onClick={() => setActiveSection('storage')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'storage' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'storage' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
         >
-          <Cloud className="w-5 h-5" />
+          <Cloud className="w-4 h-4" />
           <div className="flex-1 flex justify-between items-center">
             <span>Cloud Storage</span>
             {cloudName && uploadPreset ? (
-              <span className="w-2 h-2 rounded-full bg-emerald-500" title="Configured" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" title="Cloudinary Configured" />
             ) : (
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Setup needed" />
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" title="Setup Needed" />
             )}
           </div>
         </button>
 
         <button 
           onClick={() => setActiveSection('trash')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'trash' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'trash' ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
         >
-          <Archive className="w-5 h-5" />
+          <Archive className="w-4 h-4" />
           <div className="flex-1 flex justify-between items-center">
-            <span>Trash (180D Vault)</span>
+            <span>Trash Vault (180D)</span>
             {trashItems.filter(t => t.status === 'trashed').length > 0 && (
               <span className="bg-rose-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black">
                 {trashItems.filter(t => t.status === 'trashed').length}
@@ -527,13 +589,26 @@ export const AdminPanel: React.FC = () => {
 
         <button 
           onClick={() => setActiveSection('tools')}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${activeSection === 'tools' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#272727]'}`}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'tools' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
         >
-          <Wrench className="w-5 h-5" />
+          <Wrench className="w-4 h-4" />
           <div className="flex-1 flex justify-between items-center">
             <span>Platform Tools</span>
-            <span className="bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-              New
+            <span className="bg-blue-500 text-white text-[9px] px-2 py-0.5 rounded-full font-extrabold">
+              Tools
+            </span>
+          </div>
+        </button>
+
+        <button 
+          onClick={() => setActiveSection('sounds')}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeSection === 'sounds' ? 'bg-[#065fd4] text-white shadow-md shadow-blue-600/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1e1e24]'}`}
+        >
+          <Music className="w-4 h-4" />
+          <div className="flex-1 flex justify-between items-center">
+            <span>Sound Library</span>
+            <span className="bg-amber-500 text-black text-[10px] px-2 py-0.5 rounded-full font-black">
+              {sounds.length}
             </span>
           </div>
         </button>
@@ -581,26 +656,32 @@ export const AdminPanel: React.FC = () => {
                   <StatCard icon={MessageSquare} label="New Feedback" value={feedback.filter(f => f.status === 'pending').length} color="emerald" />
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Recent Users */}
-                  <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 shadow-sm overflow-hidden">
-                    <h3 className="text-sm font-black mb-4 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-blue-600" />
-                      Newest Creators
-                    </h3>
-                    <div className="divide-y divide-slate-100 dark:divide-[#272727]">
+                  <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-6 shadow-xs overflow-hidden">
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-[#1f1f24] mb-2">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span>Newest Creators</span>
+                      </h3>
+                      <button onClick={() => setActiveSection('users')} className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
+                        View All
+                      </button>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 dark:divide-[#1f1f24]">
                       {users.slice(0, 5).map(u => (
-                        <div key={u.uid} className="py-3 flex items-center justify-between group">
+                        <div key={u.uid} className="py-3 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-[#18181c] px-2 rounded-2xl transition-colors">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
-                              {u.photoURL ? <img src={u.photoURL} className="w-full h-full rounded-full object-cover" /> : getInitials(u.displayName)}
+                            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 overflow-hidden shadow-xs">
+                              {u.photoURL ? <img src={u.photoURL} className="w-full h-full object-cover" /> : getInitials(u.displayName)}
                             </div>
-                            <div>
-                              <p className="text-xs font-bold text-slate-900 dark:text-white">{u.displayName}</p>
-                              <p className="text-[10px] text-slate-500">@{u.username}</p>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{u.displayName || u.username}</p>
+                              <p className="text-[10px] text-slate-500 truncate">@{u.username}</p>
                             </div>
                           </div>
-                          <button onClick={() => navigate('creator', u.username)} className="p-2 hover:bg-slate-50 dark:hover:bg-[#272727] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => navigate('creator', u.username)} className="p-2 hover:bg-slate-200 dark:hover:bg-[#272727] text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-xl transition-all cursor-pointer">
                             <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
@@ -609,28 +690,34 @@ export const AdminPanel: React.FC = () => {
                   </div>
 
                   {/* Recent Reports */}
-                  <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 shadow-sm overflow-hidden">
-                    <h3 className="text-sm font-black mb-4 flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-600" />
-                      Urgent Reports
-                    </h3>
-                    <div className="divide-y divide-slate-100 dark:divide-[#272727]">
+                  <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-6 shadow-xs overflow-hidden">
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-[#1f1f24] mb-2">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                        <span>Urgent Reports</span>
+                      </h3>
+                      <button onClick={() => setActiveSection('reports')} className="text-[10px] font-black text-amber-600 dark:text-amber-400 hover:underline cursor-pointer">
+                        View All
+                      </button>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 dark:divide-[#1f1f24]">
                       {reports.filter(r => r.status === 'pending').slice(0, 5).map(r => (
-                        <div key={r.reportId} className="py-3 space-y-1">
+                        <div key={r.reportId} className="py-3 space-y-1.5 hover:bg-slate-50 dark:hover:bg-[#18181c] p-2 rounded-2xl transition-colors">
                           <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-black uppercase text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/50 dark:border-amber-900/40 px-2 py-0.5 rounded-full">
                               {r.reason}
                             </span>
-                            <span className="text-[9px] text-slate-400 font-medium">{formatTimeAgo(r.createdAt)}</span>
+                            <span className="text-[9px] text-slate-400 font-bold">{formatTimeAgo(r.createdAt)}</span>
                           </div>
                           <p className="text-[11px] text-slate-700 dark:text-slate-300 font-medium line-clamp-1">{r.details || "No details provided"}</p>
-                          <button onClick={() => setActiveSection('reports')} className="text-[10px] font-bold text-blue-600 hover:underline">View details</button>
+                          <button onClick={() => setActiveSection('reports')} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">Review report &rarr;</button>
                         </div>
                       ))}
                       {reports.filter(r => r.status === 'pending').length === 0 && (
                         <div className="py-10 text-center">
-                          <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-50" />
-                          <p className="text-xs font-bold text-slate-400">All caught up! No pending reports.</p>
+                          <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-60 animate-bounce" />
+                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">All caught up! No pending reports.</p>
                         </div>
                       )}
                     </div>
@@ -1518,6 +1605,155 @@ export const AdminPanel: React.FC = () => {
 
               </div>
             )}
+
+            {/* SECTION: SOUND LIBRARY MANAGER */}
+            {activeSection === 'sounds' && (
+              <div className="space-y-8 animate-in fade-in duration-200">
+                {/* Add New Song Form Card */}
+                <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                  <div className="flex items-center gap-3 pb-5 border-b border-slate-100 dark:border-[#272727]">
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/40 text-amber-600 rounded-2xl">
+                      <Music className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white">Add New Music / Sound Track</h3>
+                      <p className="text-xs text-slate-500 font-medium">Upload or add new background music tracks for creators to use in Shorts.</p>
+                    </div>
+                  </div>
+
+                  <form onSubmit={handleAddSong} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Song Title *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Desi Bass & Dhol Beats"
+                          value={newSongTitle}
+                          onChange={(e) => setNewSongTitle(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Artist / Musician *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. DJ Bharat Swag"
+                          value={newSongArtist}
+                          onChange={(e) => setNewSongArtist(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Cover Image URL
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="https://images.unsplash.com/..."
+                          value={newSongCoverUrl}
+                          onChange={(e) => setNewSongCoverUrl(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Audio MP3 File URL *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="https://cdn.pixabay.com/.../song.mp3"
+                          value={newSongAudioUrl}
+                          onChange={(e) => setNewSongAudioUrl(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                          Category
+                        </label>
+                        <select
+                          value={newSongCategory}
+                          onChange={(e) => setNewSongCategory(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                        >
+                          <option value="Punjabi & Bollywood">Punjabi & Bollywood</option>
+                          <option value="Lo-Fi & Chill">Lo-Fi & Chill</option>
+                          <option value="Gaming & Tech">Gaming & Tech</option>
+                          <option value="Trending Viral">Trending Viral</option>
+                          <option value="Romantic & Acoustic">Romantic & Acoustic</option>
+                          <option value="Classical & Fusion">Classical & Fusion</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="submit"
+                        disabled={isAddingSong}
+                        className="px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {isAddingSong ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4 stroke-[3]" />}
+                        <span>Add Song to Library</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Sound Library Catalog Table */}
+                <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl overflow-hidden shadow-sm">
+                  <div className="p-5 border-b border-slate-100 dark:border-[#272727] flex items-center justify-between">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                      Platform Sound Catalog ({sounds.length} Tracks)
+                    </h3>
+                  </div>
+
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {sounds.map((s) => (
+                      <div key={s.soundId} className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-[#181818] transition-colors">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <img src={s.coverUrl} alt={s.title} className="w-12 h-12 rounded-xl object-cover shrink-0 border border-slate-200 dark:border-slate-800 shadow-xs" />
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-black text-slate-900 dark:text-white truncate">
+                              {s.title}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-bold truncate mt-0.5">
+                              {s.artist} • <span className="text-blue-500">{s.category}</span>
+                            </p>
+                            <p className="text-[10px] text-emerald-600 font-black mt-0.5">
+                              🔥 {s.usesCount || 0} REAL Shorts created
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSong(s.soundId)}
+                            className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                            title="Delete sound track"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1713,20 +1949,38 @@ export const AdminPanel: React.FC = () => {
 // Helper Components
 const StatCard: React.FC<{ icon: any, label: string, value: number, color: 'blue' | 'indigo' | 'amber' | 'emerald' }> = ({ icon: Icon, label, value, color }) => {
   const colorMap = {
-    blue: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-900/30',
-    indigo: 'text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-100 dark:border-indigo-900/30',
-    amber: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-900/30',
-    emerald: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/30',
+    blue: {
+      bg: 'bg-white dark:bg-[#121215]',
+      border: 'border-slate-200/80 dark:border-[#222225]',
+      icon: 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+    },
+    indigo: {
+      bg: 'bg-white dark:bg-[#121215]',
+      border: 'border-slate-200/80 dark:border-[#222225]',
+      icon: 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+    },
+    amber: {
+      bg: 'bg-white dark:bg-[#121215]',
+      border: 'border-slate-200/80 dark:border-[#222225]',
+      icon: 'bg-amber-500 text-white shadow-md shadow-amber-500/30'
+    },
+    emerald: {
+      bg: 'bg-white dark:bg-[#121215]',
+      border: 'border-slate-200/80 dark:border-[#222225]',
+      icon: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+    },
   };
 
+  const style = colorMap[color];
+
   return (
-    <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 shadow-sm flex items-center gap-4">
-      <div className={`p-3 rounded-2xl border ${colorMap[color]}`}>
-        <Icon className="w-6 h-6" />
+    <div className={`p-5 rounded-3xl border ${style.bg} ${style.border} shadow-xs hover:shadow-md transition-all hover:-translate-y-0.5 flex items-center gap-4`}>
+      <div className={`p-3.5 rounded-2xl ${style.icon} shrink-0`}>
+        <Icon className="w-5 h-5 stroke-[2.5]" />
       </div>
       <div>
-        <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider mb-0.5">{label}</p>
-        <p className="text-xl font-black text-slate-900 dark:text-white leading-none">{value.toLocaleString()}</p>
+        <p className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider mb-0.5">{label}</p>
+        <p className="text-2xl font-black text-slate-900 dark:text-white leading-none">{value.toLocaleString()}</p>
       </div>
     </div>
   );

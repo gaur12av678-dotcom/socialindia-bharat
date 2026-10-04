@@ -11,6 +11,13 @@ export interface User {
   videosCount: number;
   role: 'user' | 'creator' | 'moderator' | 'admin';
   status: 'active' | 'suspended';
+  socialLinks?: {
+    instagram?: string;
+    twitter?: string;
+    youtube?: string;
+    website?: string;
+    telegram?: string;
+  };
   createdAt: any; // Firestore Timestamp or Date string
   updatedAt: any;
 }
@@ -44,8 +51,64 @@ export interface Video {
   sharesCount: number;
   isShort: boolean;
   status: 'published' | 'processing' | 'hidden' | 'removed';
+  
+  // Sound Library Track metadata
+  soundId?: string;
+  soundTitle?: string;
+  soundArtist?: string;
+  soundCoverUrl?: string;
+  soundAudioUrl?: string;
+
+  // Monetization & Ad Revenue
+  isMonetized?: boolean;
+  estimatedEarnings?: number;
+
   createdAt: any;
   updatedAt: any;
+}
+
+export interface SoundTrack {
+  soundId: string;
+  title: string;
+  artist: string;
+  coverUrl: string;
+  audioUrl: string;
+  category: string;
+  duration: number; // in seconds
+  usesCount?: number; // Calculated dynamically from real videos count
+  isOriginalSound?: boolean;
+  creatorUid?: string;
+  createdAt?: any;
+}
+
+export interface Playlist {
+  playlistId: string;
+  title: string;
+  description: string;
+  creatorId: string;
+  creatorUsername: string;
+  creatorDisplayName: string;
+  creatorPhotoURL?: string;
+  videoIds: string[];
+  isPrivate: boolean;
+  thumbnailUrl?: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface AdCampaign {
+  adId: string;
+  sponsorName: string;
+  sponsorLogo: string;
+  headline: string;
+  description: string;
+  ctaText: string;
+  ctaUrl: string;
+  videoUrl?: string;
+  bannerUrl?: string;
+  duration: number; // e.g. 15s
+  skipAfter: number; // e.g. 5s
+  cpm: number; // CPM rate in INR or USD
 }
 
 export interface Comment {

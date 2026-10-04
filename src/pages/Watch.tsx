@@ -13,6 +13,7 @@ import { reportService } from '../services/reportService';
 import { downloadService } from '../services/downloadService';
 import { Video, Comment, User } from '../types';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
+import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 import { UserAvatar } from '../components/UserAvatar';
 import { parseVideoUrl, formatViews, formatTimeAgo, formatSubscribers, getInitials } from '../utils/videoUtils';
 import { RichText } from '../components/RichText';
@@ -58,13 +59,43 @@ export const Watch: React.FC = () => {
   const [reportReason, setReportReason] = useState<'spam' | 'misleading' | 'harassment' | 'copyright' | 'inappropriate' | 'other'>('spam');
   const [reportDetails, setReportDetails] = useState('');
 
-  // Offline Download state
+  // Offline Download & Theater Mode state
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+  const [isTheaterMode, setIsTheaterMode] = useState(false);
+  const [seekToTime, setSeekToTime] = useState<number | undefined>(undefined);
+
+  // Keyboard shortcut listener for 't' (Theater Mode)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing inside input, textarea, or contentEditable
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName) || (e.target as HTMLElement)?.isContentEditable) {
+        return;
+      }
+      if (e.key === 't' || e.key === 'T') {
+        setIsTheaterMode(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Comment edit state
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState('');
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+
+  const isVideoOwner = !!(
+    currentUser &&
+    video &&
+    video.creatorId &&
+    (currentUser.uid === video.creatorId ||
+      (currentUserProfile &&
+        currentUserProfile.username &&
+        video.creatorUsername &&
+        currentUserProfile.username === video.creatorUsername))
+  );
 
   const commentDropdownRef = useRef<Record<string, boolean>>({});
   const [, forceUpdate] = useState({});
@@ -518,18 +549,23 @@ export const Watch: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto pb-20">
+    <div className={`p-4 md:p-6 grid grid-cols-1 ${isTheaterMode ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-6 max-w-7xl mx-auto pb-20 transition-all`}>
       
       {/* LEFT COLUMN: Player + Details + Comments */}
-      <div className="lg:col-span-2 space-y-6">
+      <div className={`${isTheaterMode ? 'lg:col-span-1' : 'lg:col-span-2'} space-y-6`}>
         
         {/* SocialIndia Custom Video Player */}
-        <CustomVideoPlayer video={video} />
+        <CustomVideoPlayer 
+          video={video} 
+          isTheaterMode={isTheaterMode}
+          onToggleTheaterMode={() => setIsTheaterMode(prev => !prev)}
+          seekToTime={seekToTime}
+        />
 
         {/* Video Title and Social Interactions block */}
         <div className="space-y-4">
           <h1 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-[#F8FAFC] leading-snug">
-            <RichText text={video.title} />
+            <RichText text={video.title} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
           </h1>
 
           <div className="flex flex-wrap items-center justify-between gap-4 py-2.5 border-y border-slate-200 dark:border-[#334155]">
@@ -546,9 +582,12 @@ export const Watch: React.FC = () => {
               <div className="min-w-0">
                 <h4 
                   onClick={() => navigate('creator', video.creatorUsername)}
-                  className="text-sm font-extrabold text-slate-900 dark:text-[#F8FAFC] hover:underline cursor-pointer truncate"
+                  className="text-sm font-extrabold text-slate-900 dark:text-[#F8FAFC] hover:underline cursor-pointer truncate flex items-center gap-1"
                 >
-                  {video.creatorDisplayName}
+                  <span>{video.creatorDisplayName}</span>
+                  {(creator?.role === 'creator' || creator?.role === 'admin') && (
+                    <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
+                  )}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-bold leading-none mt-1">
                   {creator ? formatSubscribers(creator.followersCount) : '0 subscribers'}
@@ -584,7 +623,7 @@ export const Watch: React.FC = () => {
               </button>
 
               <button
-                onClick={handleSaveToggle}
+                onClick={() => setPlaylistModalOpen(true)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all border cursor-pointer ${
                   saved 
                     ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400' 
@@ -592,7 +631,7 @@ export const Watch: React.FC = () => {
                 }`}
               >
                 <Bookmark className={`w-4 h-4 ${saved ? 'fill-blue-600 text-blue-600 dark:fill-blue-400 dark:text-blue-400' : ''}`} />
-                <span>Save</span>
+                <span>Save to Playlist</span>
               </button>
 
               <button
@@ -661,10 +700,10 @@ export const Watch: React.FC = () => {
           <div className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
             {video.description ? (
               video.description.length <= 150 ? (
-                <RichText text={video.description} />
+                <RichText text={video.description} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
               ) : isDescriptionExpanded ? (
                 <div>
-                  <RichText text={video.description} />
+                  <RichText text={video.description} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
                   <button
                     type="button"
                     onClick={() => setIsDescriptionExpanded(false)}
@@ -675,7 +714,7 @@ export const Watch: React.FC = () => {
                 </div>
               ) : (
                 <div>
-                  <RichText text={video.description.slice(0, 150) + '...'} className="inline" />
+                  <RichText text={video.description.slice(0, 150) + '...'} onTimestampClick={(seconds) => setSeekToTime(seconds)} className="inline" />
                   <button
                     type="button"
                     onClick={() => setIsDescriptionExpanded(true)}
@@ -843,7 +882,7 @@ export const Watch: React.FC = () => {
                         {commentDropdownRef.current[comm.commentId] && (
                           <div className="absolute right-0 top-8 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-xl shadow-xl z-10 py-1.5 min-w-36 text-[10px] font-black uppercase tracking-widest overflow-hidden">
                             {/* Pin / Unpin Button (Channel Creator or Admin only) */}
-                            {((currentUser && video && currentUser.uid === video.creatorId) || currentUserProfile?.role === 'admin') && (
+                            {isVideoOwner && (
                               <button
                                 onClick={() => {
                                   handlePinComment(comm.commentId, !comm.isPinned);
@@ -880,7 +919,7 @@ export const Watch: React.FC = () => {
                                   Delete
                                 </button>
                               </>
-                            ) : ((currentUser && video && currentUser.uid === video.creatorId) || currentUserProfile?.role === 'admin') ? (
+                            ) : isVideoOwner ? (
                               <button
                                 onClick={() => {
                                   handleCommentDelete(comm.commentId);
@@ -911,39 +950,61 @@ export const Watch: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Render Replies */}
-                  <div className="ml-12 space-y-3">
-                    {comments.filter(reply => reply.parentCommentId === comm.commentId).map(reply => (
-                      <div key={reply.commentId} className="flex gap-3 items-start group">
-                        <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-[#1E293B] shrink-0 flex items-center justify-center text-slate-700 dark:text-slate-300 font-black text-[10px] select-none border border-slate-200 dark:border-slate-800">
-                          {reply.photoURL ? (
-                            <img src={reply.photoURL} alt="" className="w-full h-full object-cover rounded-lg" />
-                          ) : (
-                            getInitials(reply.displayName)
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0 bg-slate-50/50 dark:bg-[#0f0f0f]/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 relative">
-                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                            <span className="text-[11px] font-black text-slate-900 dark:text-[#F8FAFC]">{reply.displayName}</span>
-                            <span className="text-[9px] text-slate-400 font-medium">• {formatTimeAgo(reply.createdAt)}</span>
+                  {/* Render Replies (Collapsible YouTube-Style) */}
+                  {(() => {
+                    const commentReplies = comments.filter(reply => reply.parentCommentId === comm.commentId);
+                    const repliesCount = commentReplies.length;
+                    const isExpanded = expandedReplies[comm.commentId];
+
+                    if (repliesCount === 0) return null;
+
+                    return (
+                      <div className="ml-12 mt-2 space-y-3">
+                        <button
+                          onClick={() => setExpandedReplies(prev => ({ ...prev, [comm.commentId]: !isExpanded }))}
+                          className="text-xs font-black text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1.5 cursor-pointer transition-colors select-none py-1 focus:outline-none"
+                        >
+                          <span className="text-[10px]">{isExpanded ? '▲' : '▼'}</span>
+                          <span>{isExpanded ? 'Hide replies' : `Show ${repliesCount} ${repliesCount === 1 ? 'reply' : 'replies'}`}</span>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="space-y-3 pt-2 animate-in slide-in-from-top-2 duration-200">
+                            {commentReplies.map(reply => (
+                              <div key={reply.commentId} className="flex gap-3 items-start group">
+                                <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-[#1E293B] shrink-0 flex items-center justify-center text-slate-700 dark:text-slate-300 font-black text-[10px] select-none border border-slate-200 dark:border-slate-800">
+                                  {reply.photoURL ? (
+                                    <img src={reply.photoURL} alt="" className="w-full h-full object-cover rounded-lg" />
+                                  ) : (
+                                    getInitials(reply.displayName)
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0 bg-slate-50/50 dark:bg-[#0f0f0f]/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 relative">
+                                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                    <span className="text-[11px] font-black text-slate-900 dark:text-[#F8FAFC]">{reply.displayName}</span>
+                                    <span className="text-[9px] text-slate-400 font-medium">• {formatTimeAgo(reply.createdAt)}</span>
+                                  </div>
+                                  <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
+                                    {renderCommentText(reply.text)}
+                                  </p>
+                                  
+                                  {/* Dropdown for replies (only delete for owner) */}
+                                  {currentUser?.uid === reply.uid && (
+                                    <button 
+                                      onClick={() => handleCommentDelete(reply.commentId)}
+                                      className="absolute top-2 right-2 p-1 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                          <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-                            {renderCommentText(reply.text)}
-                          </p>
-                          
-                          {/* Dropdown for replies (only delete for owner) */}
-                          {currentUser?.uid === reply.uid && (
-                            <button 
-                              onClick={() => handleCommentDelete(reply.commentId)}
-                              className="absolute top-2 right-2 p-1 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
                 </div>
               ))
             )}
@@ -1036,6 +1097,13 @@ export const Watch: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Save to Playlist Modal */}
+      <SaveToPlaylistModal
+        video={video}
+        isOpen={playlistModalOpen}
+        onClose={() => setPlaylistModalOpen(false)}
+      />
     </div>
   );
 };

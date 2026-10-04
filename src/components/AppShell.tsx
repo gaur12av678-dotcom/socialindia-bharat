@@ -32,7 +32,8 @@ import {
   MoreVertical,
   ArrowDownToLine,
   WifiOff,
-  Info
+  Info,
+  Coins
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
@@ -54,6 +55,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   } = useApp();
   
   const { route, navigate } = useRouter();
+  const isShortsPage = route.path === 'shorts';
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
@@ -180,6 +182,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const studioItems = [
     { label: 'Creator Studio', path: 'studio', icon: PlusSquare, protected: true },
+    { label: 'Coins Wallet', path: 'wallet', icon: Coins, protected: true },
     { label: 'Settings', path: 'settings', icon: Settings, protected: true },
   ];
 
@@ -253,94 +256,121 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       )}
 
       {/* HEADER / NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 bg-white dark:bg-[#0f0f0f] px-4 h-14 flex items-center justify-between gap-4">
-        
-        {/* Left Section */}
-        <div className="flex items-center gap-3 shrink-0">
-          <button 
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hidden md:flex p-2 hover:bg-[#f2f2f2] dark:hover:bg-[#272727] rounded-full transition-colors cursor-pointer text-[#0f0f0f] dark:text-[#f1f1f1]"
-            aria-label="Toggle sidebar"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          
-          <SocialIndiaLogo 
-            onClick={() => navigate('home')}
-          />
-        </div>
+      <header className={`px-4 h-14 flex items-center justify-between gap-4 transition-all duration-300 z-40 ${
+            isShortsPage 
+              ? 'absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent border-transparent text-white md:sticky md:bg-white dark:md:bg-[#0f0f0f] md:border-b md:border-slate-100 dark:md:border-slate-800 shadow-none' 
+              : 'sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
+          }`}>
+            
+            {/* Left Section */}
+            <div className="flex items-center gap-3 shrink-0">
+              <button 
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="hidden md:flex p-2 hover:bg-[#f2f2f2] dark:hover:bg-[#272727] rounded-full transition-colors cursor-pointer text-[#0f0f0f] dark:text-[#f1f1f1]"
+                aria-label="Toggle sidebar"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              
+              <SocialIndiaLogo 
+                onClick={() => navigate('home')}
+                forceWhiteText={isShortsPage}
+              />
+            </div>
 
-        {/* Center / Prominent Search bar */}
-        <form onSubmit={handleSearchSubmit} className="hidden md:flex flex-1 max-w-2xl mx-auto relative">
-          <div className="relative w-full flex items-center">
-            <input
-              type="text"
-              placeholder="Search videos, creators, categories..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-4 pr-12 py-2 rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] text-slate-900 dark:text-[#f8fafc] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#2563eb] text-sm font-medium transition-all"
-            />
-            <button 
-              type="submit"
-              className="absolute right-1 top-1 bottom-1 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center font-semibold text-xs shadow-xs"
-              aria-label="Search"
-            >
-              <Search className="w-4 h-4 text-white" />
-            </button>
-          </div>
-        </form>
+            {/* Center / Prominent Search bar */}
+            <form onSubmit={handleSearchSubmit} className="hidden md:flex flex-1 max-w-2xl mx-auto relative">
+              <div className="relative w-full flex items-center">
+                <input
+                  type="text"
+                  placeholder="Search videos, creators, categories..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-4 pr-12 py-2 rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] text-slate-900 dark:text-[#f8fafc] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#2563eb] text-sm font-medium transition-all"
+                />
+                <button 
+                  type="submit"
+                  className="absolute right-1 top-1 bottom-1 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center font-semibold text-xs shadow-xs"
+                  aria-label="Search"
+                >
+                  <Search className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            </form>
 
-        {/* Right Controls */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          {/* Mobile Search Button */}
-          <button 
-            onClick={() => navigate('search')}
-            className="flex md:hidden p-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer text-slate-700 dark:text-slate-300"
-            aria-label="Search"
-          >
-            <Search className="w-5 h-5" />
-          </button>
+            {/* Right Controls */}
+            <div className="flex items-center gap-2.5 shrink-0">
+              {/* Mobile Search Button */}
+              <button 
+                onClick={() => navigate('search')}
+                className={`flex md:hidden p-2 rounded-xl transition-colors cursor-pointer ${
+                  isShortsPage 
+                    ? 'hover:bg-white/10 text-white' 
+                    : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
+                }`}
+                aria-label="Search"
+              >
+                <Search className="w-5 h-5" />
+              </button>
 
-          {/* Theme Toggle */}
-          <button
-            onClick={() => {
-              const isDarkActive = document.documentElement.classList.contains('dark');
-              setTheme(isDarkActive ? 'light' : 'dark');
-            }}
-            className="p-2 hover:bg-[#f2f2f2] dark:hover:bg-[#272727] rounded-full transition-colors cursor-pointer text-[#0f0f0f] dark:text-[#f1f1f1]"
-            aria-label="Toggle theme"
-            title="Toggle Light / Dark Night Theme"
-          >
-            {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark')) ? (
-              <Sun className="w-5 h-5 text-amber-400" />
-            ) : (
-              <Moon className="w-5 h-5 text-[#065fd4]" />
-            )}
-          </button>
+              {/* Theme Toggle */}
+              <button
+                onClick={() => {
+                  const isDarkActive = document.documentElement.classList.contains('dark');
+                  setTheme(isDarkActive ? 'light' : 'dark');
+                }}
+                className={`p-2 rounded-full transition-colors cursor-pointer ${
+                  isShortsPage
+                    ? 'hover:bg-white/10 text-white'
+                    : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1]'
+                }`}
+                aria-label="Toggle theme"
+                title="Toggle Light / Dark Night Theme"
+              >
+                {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark')) ? (
+                  <Sun className="w-5 h-5 text-amber-400" />
+                ) : (
+                  <Moon className="w-5 h-5 text-[#065fd4]" />
+                )}
+              </button>
 
-          {/* Publish Video Button (Primary Action) */}
-          <button
-            onClick={() => triggerProtectedAction(() => navigate('studio', undefined, { upload: 'true' }))}
-            className="hidden sm:flex items-center gap-1.5 px-5 py-2.5 text-base font-bold text-white bg-[#065fd4] hover:bg-[#054fb1] rounded-full transition-all shadow-md cursor-pointer active:scale-98"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Publish Video</span>
-          </button>
+              {/* SocialCoins Wallet Button */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('wallet'))}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-black text-amber-700 dark:text-amber-300 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800/80 rounded-full transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="SocialCoins Wallet & Creator Economy"
+              >
+                <Coins className="w-4 h-4 text-amber-500 animate-pulse" />
+                <span className="hidden sm:inline">🪙 Wallet</span>
+              </button>
 
-          {/* Notifications Dropdown */}
-          <div ref={notifRef} className="relative">
-            <button
-              onClick={() => triggerProtectedAction(() => setNotifDropdownOpen(!notifDropdownOpen))}
-              className="p-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer relative text-slate-700 dark:text-slate-300"
-              aria-label="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-[#2563eb] text-white border-2 border-white dark:border-[#111827] rounded-full flex items-center justify-center text-[9px] font-black">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
+              {/* Publish Video Button (Primary Action) */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('studio', undefined, { upload: 'true' }))}
+                className="hidden sm:flex items-center gap-1.5 px-5 py-2.5 text-base font-bold text-white bg-[#065fd4] hover:bg-[#054fb1] rounded-full transition-all shadow-md cursor-pointer active:scale-98"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Publish Video</span>
+              </button>
+
+              {/* Notifications Dropdown */}
+              <div ref={notifRef} className="relative">
+                <button
+                  onClick={() => triggerProtectedAction(() => setNotifDropdownOpen(!notifDropdownOpen))}
+                  className={`p-2 rounded-xl transition-colors cursor-pointer relative ${
+                    isShortsPage
+                      ? 'hover:bg-white/10 text-white'
+                      : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
+                  }`}
+                  aria-label="Notifications"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 bg-[#2563eb] text-white border-2 border-white dark:border-[#111827] rounded-full flex items-center justify-center text-[9px] font-black">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
 
             {notifDropdownOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-xl z-50 overflow-hidden">
@@ -711,12 +741,20 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       </div>
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <nav className="block md:hidden fixed bottom-0 left-0 right-0 h-14 bg-white dark:bg-[#0f0f0f] border-t border-[#e5e5e5] dark:border-[#3f3f3f] shadow-lg z-40 select-none">
+      <nav className={`block md:hidden fixed bottom-0 left-0 right-0 h-14 z-40 select-none transition-all duration-300 ${
+        isShortsPage 
+          ? 'bg-black/90 backdrop-blur-md border-t border-white/10 text-white shadow-none' 
+          : 'bg-white dark:bg-[#0f0f0f] border-t border-[#e5e5e5] dark:border-[#3f3f3f] shadow-lg'
+      }`}>
         <div className="h-full flex items-center justify-around px-2">
           
           <button 
             onClick={() => navigate('home')}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 text-[#0f0f0f] dark:text-[#f1f1f1] ${route.path === 'home' ? 'font-bold' : 'opacity-70'}`}
+            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
+              isShortsPage 
+                ? 'text-white/60 hover:text-white' 
+                : 'text-[#0f0f0f] dark:text-[#f1f1f1] ' + (route.path === 'home' ? 'font-bold' : 'opacity-70')
+            }`}
           >
             <Home className="w-5 h-5" />
             <span className="text-[10px]">Home</span>
@@ -724,17 +762,25 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
           <button 
             onClick={() => navigate('shorts')}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 text-slate-500 dark:text-slate-400 ${route.path === 'shorts' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : ''}`}
+            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
+              isShortsPage 
+                ? 'text-white font-bold' 
+                : (route.path === 'shorts' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
+            }`}
           >
-            <Zap className="w-5 h-5" />
+            <Zap className={`w-5 h-5 ${isShortsPage ? 'fill-current text-white' : ''}`} />
             <span className="text-[10px]">Shorts</span>
           </button>
 
           <button 
             onClick={() => triggerProtectedAction(() => navigate('studio', undefined, { upload: 'true' }))}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 text-[#2563eb] dark:text-[#3b82f6] ${route.path === 'studio' ? 'font-bold' : ''}`}
+            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
+              isShortsPage ? 'text-white' : 'text-[#2563eb] dark:text-[#3b82f6]'
+            }`}
           >
-            <div className="w-7 h-7 bg-[#2563eb] text-white rounded-lg flex items-center justify-center shadow-xs">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shadow-xs transition-colors ${
+              isShortsPage ? 'bg-white text-black' : 'bg-[#2563eb] text-white'
+            }`}>
               <Plus className="w-4 h-4 stroke-[3]" />
             </div>
             <span className="text-[10px]">Create</span>
@@ -742,7 +788,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
           <button 
             onClick={() => triggerProtectedAction(() => navigate('subscriptions'))}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 text-slate-500 dark:text-slate-400 ${route.path === 'subscriptions' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : ''}`}
+            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
+              isShortsPage 
+                ? 'text-white/60 hover:text-white' 
+                : (route.path === 'subscriptions' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
+            }`}
           >
             <Users className="w-5 h-5" />
             <span className="text-[10px]">Subscribed</span>
@@ -750,7 +800,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
           <button 
             onClick={() => triggerProtectedAction(() => navigate('settings'))}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 text-slate-500 dark:text-slate-400 ${route.path === 'settings' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : ''}`}
+            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
+              isShortsPage 
+                ? 'text-white/60 hover:text-white' 
+                : (route.path === 'settings' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
+            }`}
           >
             <UserIcon className="w-5 h-5" />
             <span className="text-[10px]">Profile</span>

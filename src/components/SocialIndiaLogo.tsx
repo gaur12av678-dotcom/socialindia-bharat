@@ -5,13 +5,15 @@ interface SocialIndiaLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showText?: boolean;
   onClick?: () => void;
+  forceWhiteText?: boolean;
 }
 
 export const SocialIndiaLogo: React.FC<SocialIndiaLogoProps> = ({ 
   className = '', 
   size = 'md',
   showText = true,
-  onClick
+  onClick,
+  forceWhiteText = false
 }) => {
   const containerSizes = {
     sm: 'w-7 h-7 rounded-lg',
@@ -51,8 +53,8 @@ export const SocialIndiaLogo: React.FC<SocialIndiaLogoProps> = ({
       </div>
 
       {showText && (
-        <span className={`font-extrabold tracking-tight ${textSizes[size]} text-slate-900 dark:text-white flex items-center`}>
-          Social<span className="text-[#2563eb] dark:text-[#3b82f6]">India</span>
+        <span className={`font-extrabold tracking-tight ${textSizes[size]} ${forceWhiteText ? 'text-white' : 'text-slate-900 dark:text-white'} flex items-center`}>
+          Social<span className={forceWhiteText ? 'text-blue-300' : 'text-[#2563eb] dark:text-[#3b82f6]'}>India</span>
         </span>
       )}
     </div>

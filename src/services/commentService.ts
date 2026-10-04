@@ -64,6 +64,16 @@ export const commentService = {
       } catch (countErr) {
         console.warn('Could not increment comments count on video:', countErr);
       }
+
+      // 3. Award +2 SocialCoins for genuine comments (>5 chars)
+      if (comment.uid && comment.text.trim().length >= 5) {
+        try {
+          const { walletService } = await import('./walletService');
+          walletService.awardCoins(comment.uid, 'comment', 'Commented on video', videoId).catch(console.warn);
+        } catch (e) {
+          console.warn(e);
+        }
+      }
       
       return comment;
     } catch (err) {

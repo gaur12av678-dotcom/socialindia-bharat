@@ -259,6 +259,38 @@ export const videoService = {
       ? videoData.thumbnailUrl.trim()
       : (autoSceneThumbnail || videoData.videoUrl || '');
 
+    // Original Sound auto-generation for Shorts
+    let soundId = videoData.soundId || '';
+    let soundTitle = videoData.soundTitle || '';
+    let soundArtist = videoData.soundArtist || '';
+    let soundCoverUrl = videoData.soundCoverUrl || '';
+    let soundAudioUrl = videoData.soundAudioUrl || '';
+
+    if (videoData.isShort && !soundId) {
+      soundId = `orig_sound_${videoId}`;
+      soundTitle = `Original Sound - ${videoData.creatorDisplayName || 'Creator'}`;
+      soundArtist = videoData.creatorDisplayName || 'Original Audio';
+      soundCoverUrl = videoData.creatorPhotoURL || finalThumbnail;
+      soundAudioUrl = videoData.videoUrl || '';
+
+      // Register in sound library
+      try {
+        const { soundService } = await import('./soundService');
+        await soundService.createOriginalSound({
+          soundId,
+          title: soundTitle,
+          artist: soundArtist,
+          coverUrl: soundCoverUrl,
+          audioUrl: soundAudioUrl,
+          category: 'Original Sound',
+          duration: videoData.duration || 30,
+          creatorUid: videoData.creatorId
+        });
+      } catch (err) {
+        console.warn('Could not save original sound:', err);
+      }
+    }
+
     const fullVideo: Video = {
       videoId,
       title: videoData.title || 'Untitled Video',
@@ -279,6 +311,13 @@ export const videoService = {
       sharesCount: 0,
       isShort: videoData.isShort || false,
       status: 'published',
+      soundId,
+      soundTitle,
+      soundArtist,
+      soundCoverUrl,
+      soundAudioUrl,
+      isMonetized: videoData.isMonetized !== undefined ? videoData.isMonetized : true,
+      estimatedEarnings: 0,
       createdAt: now,
       updatedAt: now,
     };
@@ -348,8 +387,36 @@ export const videoService = {
     }
   },
 
-  // Increment view count safely
+  // Increment view count safely with 24-hour Anti-Spam View Guard
   async incrementViewCount(videoId: string): Promise<void> {
+    const VIEWED_KEY = 'socialindia_viewed_videos';
+    try {
+      const saved = localStorage.getItem(VIEWED_KEY);
+      const viewedMap: Record<string, number> = saved ? JSON.parse(saved) : {};
+      const now = Date.now();
+
+      // Clean up old records (> 24 hours) to keep storage light
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+      const cleanedMap: Record<string, number> = {};
+      for (const [id, timestamp] of Object.entries(viewedMap)) {
+        if (now - timestamp < ONE_DAY_MS) {
+          cleanedMap[id] = timestamp;
+        }
+      }
+
+      if (cleanedMap[videoId]) {
+        // Already viewed in the last 24 hours - skip incrementing to prevent fake view spam!
+        console.log(`[Anti-Spam View Guard] Suppressed repeat view for video: ${videoId}`);
+        return;
+      }
+
+      // Record view with timestamp
+      cleanedMap[videoId] = now;
+      localStorage.setItem(VIEWED_KEY, JSON.stringify(cleanedMap));
+    } catch (e) {
+      console.warn('Anti-spam local storage error:', e);
+    }
+
     const docRef = doc(db, 'videos', videoId);
     try {
       await updateDoc(docRef, {

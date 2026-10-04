@@ -37,6 +37,14 @@ export const likeService = {
       await updateDoc(doc(db, 'videos', videoId), {
         likesCount: increment(1)
       });
+
+      // Award +1 SocialCoin reward
+      try {
+        const { walletService } = await import('./walletService');
+        walletService.awardCoins(uid, 'like', 'Liked video', videoId).catch(console.warn);
+      } catch (e) {
+        console.warn(e);
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `videos/${videoId}/likes/${uid}`);
     }

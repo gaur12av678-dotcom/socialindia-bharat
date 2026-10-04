@@ -158,8 +158,11 @@ export const CreatorProfile: React.FC = () => {
           {/* Details & Metadata */}
           <div className="flex-1 min-w-0 space-y-1.5 pt-1">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-[#F8FAFC]">
-                {creator.displayName}
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-[#F8FAFC] flex items-center justify-center sm:justify-start gap-1.5">
+                <span>{creator.displayName}</span>
+                {(creator.role === 'creator' || creator.role === 'admin') && (
+                  <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[10px] w-4.5 h-4.5 rounded-full font-black shrink-0 shadow-sm" title="Verified Creator">✓</span>
+                )}
               </h1>
             </div>
 

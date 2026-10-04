@@ -13,12 +13,16 @@ import {
   RotateCcw, 
   RotateCw,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  Tv
 } from 'lucide-react';
 
 interface CustomVideoPlayerProps {
   video: Video;
   onEnded?: () => void;
+  isTheaterMode?: boolean;
+  onToggleTheaterMode?: () => void;
+  seekToTime?: number;
 }
 
 declare global {
@@ -28,13 +32,39 @@ declare global {
   }
 }
 
-export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ video, onEnded }) => {
+export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ 
+  video, 
+  onEnded, 
+  isTheaterMode = false, 
+  onToggleTheaterMode,
+  seekToTime 
+}) => {
   const { navigate } = useRouter();
   const parsedMedia = parseVideoUrl(video.videoUrl);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const ytPlayerRef = useRef<any>(null);
+
+  // Handle external seekToTime request (e.g. description timestamp click)
+  useEffect(() => {
+    if (seekToTime !== undefined && seekToTime >= 0) {
+      if (parsedMedia.type === 'direct' && videoRef.current) {
+        videoRef.current.currentTime = seekToTime;
+        setCurrentTime(seekToTime);
+        videoRef.current.play().catch(console.error);
+        setIsPlaying(true);
+      } else if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.seekTo(seekToTime, true);
+          ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        } catch (e) {
+          console.warn('YouTube seek failed:', e);
+        }
+      }
+    }
+  }, [seekToTime]);
 
   const [isMediaReady, setIsMediaReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -733,6 +763,19 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({ video, onE
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Theater Mode Button */}
+                {onToggleTheaterMode && (
+                  <button
+                    onClick={onToggleTheaterMode}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isTheaterMode ? 'bg-blue-600 text-white' : 'hover:bg-white/20 text-slate-200'
+                    }`}
+                    title={isTheaterMode ? "Default View (t)" : "Theater Mode (t)"}
+                  >
+                    <Tv className="w-4 h-4" />
+                  </button>
+                )}
+
                 {/* Fullscreen Button */}
                 <button
                   onClick={toggleFullscreen}

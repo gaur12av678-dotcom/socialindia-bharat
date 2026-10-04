@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { useRouter } from '../hooks/useRouter';
+import { authService } from '../services/authService';
 import { userService } from '../services/userService';
 import { videoService } from '../services/videoService';
 import { getInitials } from '../utils/videoUtils';
@@ -20,12 +22,22 @@ import {
   Trash2,
   FileJson,
   Check,
-  History
+  User as UserIcon,
+  Palette,
+  Bell,
+  Sliders,
+  Image as ImageIcon,
+  Sparkles,
+  Camera
 } from 'lucide-react';
 import { downloadService } from '../services/downloadService';
 
 export const Settings: React.FC = () => {
   const { currentUser, currentUserProfile, theme, setTheme, addToast, refreshProfile } = useApp();
+  const { navigate } = useRouter();
+
+  // Active Tab State (YouTube Studio Style)
+  const [activeTab, setActiveTab] = useState<'branding' | 'basic' | 'preferences' | 'verification'>('branding');
 
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -34,19 +46,25 @@ export const Settings: React.FC = () => {
   const [photoURL, setPhotoURL] = useState('');
   const [bannerURL, setBannerURL] = useState('');
   
+  // Social Links state
+  const [instagram, setInstagram] = useState('');
+  const [twitter, setTwitter] = useState('');
+  const [ytLink, setYtLink] = useState('');
+  const [website, setWebsite] = useState('');
+  const [telegram, setTelegram] = useState('');
+  
   // Notification states
   const [allowLikes, setAllowLikes] = useState(true);
   const [allowComments, setAllowComments] = useState(true);
   const [allowFollowers, setAllowFollowers] = useState(true);
   const [allowUploads, setAllowUploads] = useState(true);
 
-  // New setting features states
+  // Settings states
   const [cacheSize, setCacheSize] = useState(0);
   const [maxResolution, setMaxResolution] = useState<'1080p' | '720p' | '480p'>('1080p');
   const [wifiOnly, setWifiOnly] = useState(false);
-  const [trackHistory, setTrackHistory] = useState(true);
 
-  // Creator Verification requests
+  // Verification request states
   const [verificationSubmitted, setVerificationSubmitted] = useState(false);
   const [verificationCategory, setVerificationCategory] = useState('Technology');
   const [verificationPitch, setVerificationPitch] = useState('');
@@ -59,7 +77,7 @@ export const Settings: React.FC = () => {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch Cache & Check Verification application status
+  // Load storage usage and verification request
   const loadCacheAndVerification = async () => {
     try {
       const size = await downloadService.getTotalStorageUsage();
@@ -77,7 +95,7 @@ export const Settings: React.FC = () => {
           setVerificationSubmitted(true);
         }
       } catch (err) {
-        console.warn('Could not fetch verification request status:', err);
+        console.warn('Verification check failed:', err);
       }
     }
   };
@@ -86,65 +104,6 @@ export const Settings: React.FC = () => {
     loadCacheAndVerification();
   }, [currentUser]);
 
-  const handleClearCache = async () => {
-    if (window.confirm('Clear all offline downloads? This will delete all downloaded videos and shorts from this device.')) {
-      try {
-        const items = await downloadService.getAllDownloads();
-        await Promise.all(items.map(item => downloadService.deleteDownload(item.videoId)));
-        setCacheSize(0);
-        addToast('Offline downloads cache cleared successfully!', 'success');
-      } catch {
-        addToast('Failed to clear cache.', 'error');
-      }
-    }
-  };
-
-  const handleSubmitVerification = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentUser || !currentUserProfile) return;
-    setIsSubmittingVerification(true);
-    try {
-      const { doc, setDoc } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
-      await setDoc(doc(db, 'verification_requests', currentUser.uid), {
-        uid: currentUser.uid,
-        username: currentUserProfile.username,
-        displayName: currentUserProfile.displayName,
-        category: verificationCategory,
-        pitch: verificationPitch.trim(),
-        submittedAt: new Date().toISOString(),
-        status: 'pending'
-      });
-      setVerificationSubmitted(true);
-      addToast('Verification badge application submitted for admin review!', 'success');
-    } catch (err) {
-      addToast('Failed to submit application.', 'error');
-    } finally {
-      setIsSubmittingVerification(false);
-    }
-  };
-
-  const handleExportData = () => {
-    if (!currentUserProfile) return;
-    const data = {
-      profile: currentUserProfile,
-      exportedAt: new Date().toISOString(),
-      platform: 'SocialIndia',
-      compliance: 'IT Act Rules 2021 Safe Data Portability'
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `socialindia_profile_export_${currentUserProfile.username}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    addToast('Account data backup JSON exported!', 'success');
-  };
-
-  // Initialize values
   useEffect(() => {
     if (currentUserProfile) {
       setDisplayName(currentUserProfile.displayName || '');
@@ -152,74 +111,41 @@ export const Settings: React.FC = () => {
       setBio(currentUserProfile.bio || '');
       setPhotoURL(currentUserProfile.photoURL || '');
       setBannerURL(currentUserProfile.bannerURL || '');
-
-      userService.getPrivateInfo(currentUserProfile.uid).then(info => {
-        if (info) {
-          setAllowLikes(info.allowNotificationLikes !== false);
-          setAllowComments(info.allowNotificationComments !== false);
-          setAllowFollowers(info.allowNotificationFollowers !== false);
-          setAllowUploads(info.allowNotificationUploads !== false);
-        }
-      });
+      setInstagram(currentUserProfile.socialLinks?.instagram || '');
+      setTwitter(currentUserProfile.socialLinks?.twitter || '');
+      setYtLink(currentUserProfile.socialLinks?.youtube || '');
+      setWebsite(currentUserProfile.socialLinks?.website || '');
+      setTelegram(currentUserProfile.socialLinks?.telegram || '');
+      setAllowLikes((currentUserProfile as any).allowNotificationLikes !== false);
+      setAllowComments((currentUserProfile as any).allowNotificationComments !== false);
+      setAllowFollowers((currentUserProfile as any).allowNotificationFollowers !== false);
+      setAllowUploads((currentUserProfile as any).allowNotificationUploads !== false);
     }
   }, [currentUserProfile]);
 
-  // Auto-save logic
-  const triggerAutoSave = (updates: any, isPrivate = false) => {
+  // Auto Save Changes to Firestore
+  const triggerAutoSave = (updatedData: Partial<any>) => {
     if (!currentUser) return;
-    
-    setSavingStatus('saving');
-    
+
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
 
+    setSavingStatus('saving');
+
     saveTimeoutRef.current = setTimeout(async () => {
       try {
-        if (isPrivate) {
-          await userService.setPrivateInfo(currentUser.uid, {
-            email: currentUser.email || '',
-            theme: theme,
-            allowNotificationLikes: allowLikes,
-            allowNotificationComments: allowComments,
-            allowNotificationFollowers: allowFollowers,
-            allowNotificationUploads: allowUploads,
-            ...updates
-          });
-        } else {
-          // Check image sizes for profile updates
-          if ((updates.photoURL && updates.photoURL.length > 800000) || 
-              (updates.bannerURL && updates.bannerURL.length > 800000)) {
-            addToast('Image is too large. Max ~800KB for Firestore documents.', 'error');
-            setSavingStatus('error');
-            return;
-          }
-
-          await userService.updateProfile(currentUser.uid, updates);
-          
-          // NEW: If core profile details changed, sync them to all existing videos
-          if (updates.photoURL || updates.displayName || updates.username) {
-            await videoService.syncCreatorProfileToVideos(currentUser.uid, {
-              photoURL: updates.photoURL,
-              displayName: updates.displayName,
-              username: updates.username
-            });
-          }
-          
-          await refreshProfile();
-        }
-        
+        await userService.updateProfile(currentUser.uid, updatedData);
+        await refreshProfile();
         setSavingStatus('saved');
         setLastSaved(new Date());
-        
-        // Return to idle after a few seconds
         setTimeout(() => setSavingStatus(prev => prev === 'saved' ? 'idle' : prev), 3000);
       } catch (err) {
         console.error('Auto-save failed:', err);
         setSavingStatus('error');
-        addToast('Auto-save failed. Check connection.', 'error');
+        addToast('Auto-save failed. Please check connection.', 'error');
       }
-    }, 1000); // 1 second debounce
+    }, 800);
   };
 
   const handleDisplayNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -238,7 +164,7 @@ export const Settings: React.FC = () => {
     if (val === currentUserProfile?.username) return;
     
     if (val.length < 3) {
-      setUsernameError('Username too short');
+      setUsernameError('Username must be at least 3 characters');
       return;
     }
 
@@ -246,7 +172,7 @@ export const Settings: React.FC = () => {
     try {
       const taken = await userService.isUsernameTaken(val);
       if (taken) {
-        setUsernameError('Username already taken');
+        setUsernameError('Username is already taken');
         setSavingStatus('error');
       } else {
         triggerAutoSave({ username: val });
@@ -263,12 +189,36 @@ export const Settings: React.FC = () => {
     triggerAutoSave({ bio: val.trim() });
   };
 
+  const handleSocialLinkChange = (key: string, value: string) => {
+    let newInsta = instagram;
+    let newTwit = twitter;
+    let newYt = ytLink;
+    let newWeb = website;
+    let newTeleg = telegram;
+
+    if (key === 'instagram') { newInsta = value; setInstagram(value); }
+    if (key === 'twitter') { newTwit = value; setTwitter(value); }
+    if (key === 'youtube') { newYt = value; setYtLink(value); }
+    if (key === 'website') { newWeb = value; setWebsite(value); }
+    if (key === 'telegram') { newTeleg = value; setTelegram(value); }
+
+    triggerAutoSave({
+      socialLinks: {
+        instagram: newInsta,
+        twitter: newTwit,
+        youtube: newYt,
+        website: newWeb,
+        telegram: newTeleg
+      }
+    });
+  };
+
   const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 800 * 1024) {
-      addToast('Image size should be less than 800KB for cloud sync.', 'error');
+      addToast('Image size should be less than 800KB for fast sync.', 'error');
       return;
     }
 
@@ -278,6 +228,7 @@ export const Settings: React.FC = () => {
       if (result) {
         setPhotoURL(result);
         triggerAutoSave({ photoURL: result });
+        addToast('Profile picture updated!', 'success');
       }
     };
     reader.readAsDataURL(file);
@@ -288,7 +239,7 @@ export const Settings: React.FC = () => {
     if (!file) return;
 
     if (file.size > 800 * 1024) {
-      addToast('Banner image size should be less than 800KB for cloud sync.', 'error');
+      addToast('Banner image size should be less than 800KB for fast sync.', 'error');
       return;
     }
 
@@ -298,6 +249,7 @@ export const Settings: React.FC = () => {
       if (result) {
         setBannerURL(result);
         triggerAutoSave({ bannerURL: result });
+        addToast('Channel banner updated!', 'success');
       }
     };
     reader.readAsDataURL(file);
@@ -316,123 +268,231 @@ export const Settings: React.FC = () => {
     if (field === 'followers') setAllowFollowers(value);
     if (field === 'uploads') setAllowUploads(value);
 
-    triggerAutoSave(updates, true);
+    triggerAutoSave(updates);
   };
 
-  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
-    setTheme(newTheme);
-    triggerAutoSave({ theme: newTheme }, true);
-    addToast(`Theme switched to ${newTheme}!`, 'success');
+  const handleClearCache = async () => {
+    try {
+      await downloadService.clearAllOfflineDownloads();
+      setCacheSize(0);
+      addToast('All offline downloads cleared successfully!', 'success');
+    } catch (e) {
+      addToast('Failed to clear download cache.', 'error');
+    }
   };
 
-  if (!currentUser) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <SettingsIcon className="w-12 h-12 text-slate-400 mb-4" />
-        <h3 className="text-base font-extrabold text-slate-900 dark:text-[#F8FAFC]">Sign in to view settings</h3>
-        <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-1 font-medium">Configure your personal SocialIndia channel settings.</p>
-      </div>
-    );
-  }
+  const handleSubmitVerification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser || !verificationPitch.trim()) return;
+
+    setIsSubmittingVerification(true);
+    try {
+      const { doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      
+      await setDoc(doc(db, 'verification_requests', currentUser.uid), {
+        uid: currentUser.uid,
+        username: username || currentUserProfile?.username,
+        displayName: displayName || currentUserProfile?.displayName,
+        category: verificationCategory,
+        pitch: verificationPitch.trim(),
+        createdAt: new Date().toISOString(),
+        status: 'pending'
+      });
+
+      setVerificationSubmitted(true);
+      addToast('Verification request submitted successfully!', 'success');
+    } catch (err) {
+      console.error(err);
+      addToast('Failed to submit verification request.', 'error');
+    } finally {
+      setIsSubmittingVerification(false);
+    }
+  };
+
+  const handleExportData = () => {
+    if (!currentUserProfile) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentUserProfile, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `${currentUserProfile.username || 'channel'}_backup.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    addToast('Channel JSON backup downloaded!', 'success');
+  };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-3xl mx-auto pb-20">
+    <div className="max-w-5xl mx-auto p-4 sm:p-6 md:p-8 space-y-6 pb-24">
       
-      {/* Title Header with Auto-Save Status */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl">
-            <SettingsIcon className="w-5 h-5" />
+      {/* Hidden File Inputs */}
+      <input 
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarFileSelect}
+      />
+      <input 
+        ref={bannerInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleBannerFileSelect}
+      />
+
+      {/* TOP HEADER: Channel Customization & Auto-Save Indicator */}
+      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/40 text-[#065fd4] dark:text-blue-400 rounded-2xl flex items-center justify-center shrink-0">
+            <SettingsIcon className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-base font-extrabold text-slate-900 dark:text-[#F8FAFC] uppercase tracking-tight">Channel Settings</h2>
-            <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-0.5 font-medium">Auto-saves changes to your public profile</p>
+            <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <span>Channel Customization</span>
+              {currentUserProfile?.role === 'creator' && (
+                <span className="bg-blue-600 text-white text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider">
+                  Verified Creator
+                </span>
+              )}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+              Customize your channel branding, profile info, and viewer preferences
+            </p>
           </div>
         </div>
 
-        {/* Auto-save Indicator */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 transition-all">
+        {/* Auto-Save Indicator */}
+        <div className="flex items-center gap-2.5 px-4 py-2 bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 rounded-2xl shrink-0 self-start sm:self-auto">
           {savingStatus === 'saving' && (
             <>
-              <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
-              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Saving...</span>
+              <Loader2 className="w-4 h-4 text-[#065fd4] animate-spin" />
+              <span className="text-xs font-black text-slate-700 dark:text-slate-200">Saving changes...</span>
             </>
           )}
           {savingStatus === 'saved' && (
             <>
-              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">All changes saved</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 stroke-[2.5]" />
+              <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">All changes saved</span>
             </>
           )}
           {savingStatus === 'error' && (
             <>
-              <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-              <span className="text-[10px] font-bold text-rose-500">Save failed</span>
+              <AlertCircle className="w-4 h-4 text-rose-500" />
+              <span className="text-xs font-black text-rose-500">Save failed</span>
             </>
           )}
-          {savingStatus === 'idle' && lastSaved && (
-            <span className="text-[9px] font-medium text-slate-400">Last saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          {savingStatus === 'idle' && (
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              {lastSaved ? `Auto-saved at ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Auto-save active'}
+            </span>
           )}
         </div>
+
       </div>
 
-      <div className="space-y-6">
-        
-        {/* Hidden File Inputs */}
-        <input 
-          ref={avatarInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleAvatarFileSelect}
-        />
-        <input 
-          ref={bannerInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleBannerFileSelect}
-        />
+      {/* YOUTUBE STUDIO NAVIGATION TABS */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-[#334155] overflow-x-auto no-scrollbar pb-1">
+        {[
+          { id: 'branding', label: 'Branding', icon: Palette },
+          { id: 'basic', label: 'Basic Info', icon: UserIcon },
+          { id: 'preferences', label: 'Preferences & System', icon: Sliders },
+          { id: 'verification', label: 'Verification & Privacy', icon: ShieldCheck }
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`px-5 py-3 font-extrabold text-xs rounded-2xl flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+                isActive
+                  ? 'bg-[#065fd4] text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
-        {/* 1. CHANNEL BRANDING & IMAGES */}
-        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-6 shadow-xs">
-          <h3 className="text-xs font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Channel Branding</h3>
+      {/* TAB 1: BRANDING (Banner & Avatar) */}
+      {activeTab === 'branding' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
           
-          {/* Banner Upload Box */}
-          <div className="space-y-2">
-            <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-              Channel Banner
-            </label>
-            <div className="relative w-full h-32 sm:h-40 bg-gradient-to-r from-blue-700 via-indigo-600 to-slate-900 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex items-center justify-center group">
+          {/* Channel Banner Section */}
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                  Channel Banner Image
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                  This image will appear across the top of your channel page on web & mobile.
+                </p>
+              </div>
+            </div>
+
+            {/* Banner Live Box */}
+            <div className="relative w-full h-40 sm:h-52 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-900 flex items-center justify-center group shadow-inner">
               {bannerURL ? (
                 <img src={bannerURL} alt="Banner Preview" className="w-full h-full object-cover" />
               ) : (
-                <div className="text-center p-4 text-white/50 text-xs font-bold">
-                  No Banner Image Set
+                <div className="text-center p-6 space-y-2">
+                  <ImageIcon className="w-8 h-8 text-slate-500 mx-auto" />
+                  <p className="text-xs font-bold text-slate-400">No Custom Banner Uploaded</p>
                 </div>
               )}
-              
-              <div className="absolute inset-0 bg-black/40 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            </div>
+
+            {/* Always-Visible Action Buttons (No hover opacity bugs!) */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => bannerInputRef.current?.click()}
+                className="px-5 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                <span>{bannerURL ? 'Change Banner' : 'Upload Banner'}</span>
+              </button>
+
+              {bannerURL && (
                 <button
                   type="button"
-                  onClick={() => bannerInputRef.current?.click()}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md"
+                  onClick={() => {
+                    setBannerURL('');
+                    triggerAutoSave({ bannerURL: '' });
+                    addToast('Banner removed', 'info');
+                  }}
+                  className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 font-extrabold text-xs rounded-xl border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
                 >
-                  <Upload className="w-4 h-4" />
-                  <span>Upload Banner</span>
+                  Remove Banner
                 </button>
-              </div>
+              )}
+
+              <span className="text-[11px] font-semibold text-slate-400 ml-auto">
+                Recommended: 2048 x 1152 pixels (PNG or JPG under 800KB)
+              </span>
             </div>
           </div>
 
-          {/* Avatar Upload Box */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
-              Profile Avatar
-            </label>
-            
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-black text-2xl border-2 border-slate-200 dark:border-slate-700 shadow-md overflow-hidden shrink-0">
+          {/* Profile Picture / Avatar Section */}
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                Profile Picture / Avatar
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                Your profile picture appears where your channel is presented on SocialIndia (e.g. next to your videos & comments).
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-6 pt-2">
+              {/* Avatar Preview */}
+              <div className="relative w-24 h-24 rounded-full bg-[#065fd4] text-white flex items-center justify-center font-black text-3xl border-4 border-slate-200 dark:border-slate-800 shadow-lg overflow-hidden shrink-0">
                 {photoURL ? (
                   <img src={photoURL} alt="Avatar Preview" className="w-full h-full object-cover" />
                 ) : (
@@ -440,301 +500,394 @@ export const Settings: React.FC = () => {
                 )}
               </div>
 
-              <div className="flex-1 space-y-2">
-                <div className="flex gap-2">
+              {/* Action Buttons */}
+              <div className="space-y-3 flex-1 text-center sm:text-left">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
                   <button
                     type="button"
                     onClick={() => avatarInputRef.current?.click()}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    className="px-5 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2"
                   >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Change Avatar</span>
+                    <Camera className="w-4 h-4" />
+                    <span>{photoURL ? 'Change Picture' : 'Upload Picture'}</span>
                   </button>
+
                   {photoURL && (
                     <button
                       type="button"
                       onClick={() => {
                         setPhotoURL('');
                         triggerAutoSave({ photoURL: '' });
+                        addToast('Profile picture removed', 'info');
                       }}
-                      className="px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold text-xs rounded-xl hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 cursor-pointer"
+                      className="px-4 py-2.5 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 font-extrabold text-xs rounded-xl border border-rose-200 dark:border-rose-900/40 transition-all cursor-pointer"
                     >
-                      Remove
+                      Remove Picture
                     </button>
                   )}
                 </div>
+
+                <p className="text-[11px] text-slate-400 font-semibold">
+                  Recommended: At least 98 x 98 pixels in PNG or JPG format (under 800KB).
+                </p>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* 2. CHANNEL IDENTITY (Display Name, Username & Bio) */}
-        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 shadow-xs">
-          <h3 className="text-xs font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Channel Profile Details</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        </div>
+      )}
+
+      {/* TAB 2: BASIC INFO (Display Name, Username & Bio) */}
+      {activeTab === 'basic' && (
+        <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-6 shadow-sm animate-in fade-in duration-200">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+              Basic Channel Details
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+              Choose how your channel name, handle, and biography appear to viewers across India and globally.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Display Name */}
             <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Display Name</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Display Name *
+                </label>
+                <span className="text-[10px] text-slate-400 font-bold">{displayName.length}/50</span>
+              </div>
               <input
                 type="text"
                 required
+                maxLength={50}
                 value={displayName}
                 onChange={handleDisplayNameChange}
-                placeholder="e.g. India Bharat"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 text-xs font-semibold"
+                placeholder="e.g. India Creator Hub"
+                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-extrabold text-sm focus:outline-none focus:border-[#065fd4] focus:ring-2 focus:ring-blue-600/20 transition-all"
               />
+              <p className="text-[11px] text-slate-400 font-semibold mt-1">
+                Choose a channel name that represents you and your content.
+              </p>
             </div>
 
+            {/* Username (@handle) */}
             <div>
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Username (@handle)</label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">@</span>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Username (@handle) *
+                </label>
+                <span className="text-[10px] text-slate-400 font-bold">{username.length}/30</span>
+              </div>
+              
+              <div className="flex items-center">
+                <span className="px-4 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-sm rounded-l-2xl border border-r-0 border-slate-200 dark:border-slate-700">
+                  @
+                </span>
                 <input
                   type="text"
                   required
+                  maxLength={30}
                   value={username}
                   onChange={handleUsernameChange}
-                  placeholder="username"
-                  className={`w-full pl-8 pr-3.5 py-2.5 rounded-xl border ${usernameError ? 'border-rose-500 ring-2 ring-rose-500/10' : 'border-slate-200 dark:border-[#334155]'} bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 text-xs font-semibold`}
+                  placeholder="handle_name"
+                  className={`w-full px-4 py-3 rounded-r-2xl border ${
+                    usernameError 
+                      ? 'border-rose-500 ring-2 ring-rose-500/20' 
+                      : 'border-slate-200 dark:border-[#334155]'
+                  } bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-extrabold text-sm focus:outline-none focus:border-[#065fd4] transition-all`}
                 />
               </div>
-              {usernameError && <p className="text-[10px] text-rose-500 font-bold mt-1 ml-1">{usernameError}</p>}
+
+              {usernameError ? (
+                <p className="text-xs text-rose-500 font-bold mt-1.5 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>{usernameError}</span>
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-400 font-semibold mt-1">
+                  Your unique handle URL: <strong className="text-[#065fd4]">socialindia.app/@{username || 'handle'}</strong>
+                </p>
+              )}
             </div>
+
           </div>
 
+          {/* Bio / Description */}
           <div>
-            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Biography (Bio)</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Biography (Bio)
+              </label>
+              <span className="text-[10px] text-slate-400 font-bold">{160 - bio.length} characters left</span>
+            </div>
             <textarea
               value={bio}
               onChange={handleBioChange}
-              placeholder="Tell viewers about your channel and creative vision..."
-              rows={3}
+              placeholder="Tell viewers about your channel, upload schedule, and creative vision..."
+              rows={4}
               maxLength={160}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 text-xs font-medium"
+              className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-medium text-xs leading-relaxed focus:outline-none focus:border-[#065fd4] focus:ring-2 focus:ring-blue-600/20 transition-all resize-none"
             />
-            <p className="text-[10px] text-right text-slate-400 dark:text-slate-500 font-bold mt-1">{160 - bio.length} characters left</p>
           </div>
-        </div>
 
-        {/* 3. Appearance theme selection */}
-        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 shadow-xs">
-          <h3 className="text-xs font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Appearance Theme</h3>
+          {/* Social Links Section */}
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                Social Profiles & Website Links
+              </h4>
+              <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                Add links to your Instagram, Twitter, YouTube, Website, and Telegram for viewers to connect.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Instagram URL / Handle</label>
+                <input 
+                  type="text" 
+                  placeholder="https://instagram.com/your_handle"
+                  value={instagram}
+                  onChange={(e) => handleSocialLinkChange('instagram', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Twitter / X URL</label>
+                <input 
+                  type="text" 
+                  placeholder="https://x.com/your_handle"
+                  value={twitter}
+                  onChange={(e) => handleSocialLinkChange('twitter', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">YouTube Channel URL</label>
+                <input 
+                  type="text" 
+                  placeholder="https://youtube.com/@channel"
+                  value={ytLink}
+                  onChange={(e) => handleSocialLinkChange('youtube', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Website / Portfolio</label>
+                <input 
+                  type="text" 
+                  placeholder="https://yourwebsite.com"
+                  value={website}
+                  onChange={(e) => handleSocialLinkChange('website', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">Telegram Channel / Group</label>
+                <input 
+                  type="text" 
+                  placeholder="https://t.me/your_channel"
+                  value={telegram}
+                  onChange={(e) => handleSocialLinkChange('telegram', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white font-bold text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* TAB 3: PREFERENCES & SYSTEM (Theme, Notifications, Downloads) */}
+      {activeTab === 'preferences' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
           
-          <div className="grid grid-cols-3 gap-3">
-            <button
-              type="button"
-              onClick={() => handleThemeChange('light')}
-              className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                theme === 'light' 
-                  ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/40' 
-                  : 'bg-slate-50 hover:bg-blue-50/50 dark:bg-[#1E293B] border-slate-200 dark:border-[#334155]'
-              }`}
-            >
-              <Sun className="w-5 h-5 text-amber-500" />
-              <span className="text-xs font-extrabold">Light</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleThemeChange('dark')}
-              className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                theme === 'dark' 
-                  ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800' 
-                  : 'bg-slate-50 hover:bg-blue-50/50 dark:bg-[#1E293B] border-slate-200 dark:border-[#334155]'
-              }`}
-            >
-              <Moon className="w-5 h-5 text-indigo-500" />
-              <span className="text-xs font-extrabold">Dark</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleThemeChange('system')}
-              className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                theme === 'system' 
-                  ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800' 
-                  : 'bg-slate-50 hover:bg-blue-50/50 dark:bg-[#1E293B] border-slate-200 dark:border-[#334155]'
-              }`}
-            >
-              <Monitor className="w-5 h-5 text-slate-500" />
-              <span className="text-xs font-extrabold">System</span>
-            </button>
-          </div>
-        </div>
-
-        {/* 4. Private Notification settings */}
-        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 shadow-xs">
-          <h3 className="text-xs font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Notification Preferences</h3>
-          
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="text-xs font-bold block text-slate-900 dark:text-[#F8FAFC]">Likes alerts</label>
-                <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-medium">Receive notification when somebody likes your videos</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={allowLikes}
-                onChange={(e) => handleNotificationChange('likes', e.target.checked)}
-                className="rounded text-blue-600 cursor-pointer w-4 h-4"
-              />
+          {/* Appearance Theme Selector */}
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
+            <div>
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                Appearance Theme
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
+                Customize your viewing experience with Light mode or Dark Night theme
+              </p>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div>
-                <label className="text-xs font-bold block text-slate-900 dark:text-[#F8FAFC]">Comments alerts</label>
-                <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-medium">Receive notification when somebody leaves a comment</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={allowComments}
-                onChange={(e) => handleNotificationChange('comments', e.target.checked)}
-                className="rounded text-blue-600 cursor-pointer w-4 h-4"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div>
-                <label className="text-xs font-bold block text-slate-900 dark:text-[#F8FAFC]">Follower alerts</label>
-                <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-medium">Receive notification when somebody follows your channel</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={allowFollowers}
-                onChange={(e) => handleNotificationChange('followers', e.target.checked)}
-                className="rounded text-blue-600 cursor-pointer w-4 h-4"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div>
-                <label className="text-xs font-bold block text-slate-900 dark:text-[#F8FAFC]">New upload alerts</label>
-                <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-medium">Receive notification when followed channels upload</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={allowUploads}
-                onChange={(e) => handleNotificationChange('uploads', e.target.checked)}
-                className="rounded text-blue-600 cursor-pointer w-4 h-4"
-              />
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { id: 'light', label: 'Light Mode', icon: Sun, color: 'text-amber-500' },
+                { id: 'dark', label: 'Dark Night', icon: Moon, color: 'text-blue-500' },
+                { id: 'system', label: 'System Default', icon: Monitor, color: 'text-slate-500' }
+              ].map((t) => {
+                const Icon = t.icon;
+                const isSelected = theme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTheme(t.id as any)}
+                    className={`p-5 rounded-2xl border-2 flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-all shadow-xs ${
+                      isSelected
+                        ? 'bg-blue-50 dark:bg-blue-950/40 border-[#065fd4] text-[#065fd4] dark:text-blue-400 font-extrabold'
+                        : 'bg-slate-50 dark:bg-[#1e293b] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-400'
+                    }`}
+                  >
+                    <Icon className={`w-6 h-6 ${t.color}`} />
+                    <span className="text-xs font-black">{t.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-        </div>
 
-        {/* 5. OFFLINE DOWNLOAD MANAGER PREFERENCES (Kaam Ki Chiz!) */}
-        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-5 shadow-xs">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-            <Wifi className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">Offline Downloads Settings</h3>
+          {/* Notification Preferences */}
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <Bell className="w-5 h-5 text-[#065fd4]" />
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                Notification Alerts
+              </h3>
+            </div>
+
+            <div className="space-y-4 divide-y divide-slate-100 dark:divide-slate-800/60">
+              {[
+                { id: 'likes', label: 'Likes Alerts', desc: 'Receive notification when viewers like your videos', value: allowLikes },
+                { id: 'comments', label: 'Comments Alerts', desc: 'Receive notification when viewers comment on your videos', value: allowComments },
+                { id: 'followers', label: 'New Subscriber Alerts', desc: 'Receive notification when someone subscribes to your channel', value: allowFollowers },
+                { id: 'uploads', label: 'Subscribed Channel Uploads', desc: 'Receive notification when creators you follow upload new videos', value: allowUploads }
+              ].map((item) => (
+                <div key={item.id} className="pt-3 first:pt-0 flex items-center justify-between gap-4">
+                  <div>
+                    <label className="text-xs font-black text-slate-900 dark:text-white block">{item.label}</label>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">{item.desc}</span>
+                  </div>
+                  
+                  {/* Custom Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => handleNotificationChange(item.id, !item.value)}
+                    className={`w-12 h-6 rounded-full transition-colors cursor-pointer p-1 flex items-center ${
+                      item.value ? 'bg-[#065fd4] justify-end' : 'bg-slate-300 dark:bg-slate-700 justify-start'
+                    }`}
+                  >
+                    <div className="w-4 h-4 rounded-full bg-white shadow-md" />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="space-y-4">
-            {/* Preferred Video Resolution */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <label className="text-xs font-extrabold block text-slate-900 dark:text-[#F8FAFC]">Preferred Resolution Quality</label>
-                <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-semibold">Maximum resolution used when saving videos offline</span>
-              </div>
-              <select
-                value={maxResolution}
-                onChange={(e) => {
-                  const val = e.target.value as any;
-                  setMaxResolution(val);
-                  addToast(`Max download resolution set to ${val}`, 'info');
-                }}
-                className="px-3 py-2 bg-slate-50 dark:bg-[#1E293B] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
-              >
-                <option value="1080p">1080p (Full HD - High Detail)</option>
-                <option value="720p">720p (HD - Balanced)</option>
-                <option value="480p">480p (SD - Data Saver)</option>
-              </select>
+          {/* Offline Downloads Settings */}
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <Wifi className="w-5 h-5 text-indigo-500" />
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                Offline Downloads Manager
+              </h3>
             </div>
 
-            {/* Wifi only toggle */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
-              <div>
-                <label className="text-xs font-extrabold block text-slate-900 dark:text-[#F8FAFC]">Download over Wi-Fi Only</label>
-                <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-semibold">Restrict downloading to active Wi-Fi connections</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={wifiOnly}
-                onChange={(e) => {
-                  setWifiOnly(e.target.checked);
-                  addToast(e.target.checked ? 'Downloading restricted to Wi-Fi only' : 'Downloading allowed on any network', 'info');
-                }}
-                className="rounded text-blue-600 cursor-pointer w-4 h-4"
-              />
-            </div>
-
-            {/* Clear offline storage button with Storage usage preview */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-[#1E293B]/30 p-4 rounded-2xl">
-              <div className="flex items-center gap-3">
-                <HardDrive className="w-5 h-5 text-indigo-500 shrink-0" />
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <label className="text-xs font-extrabold block text-slate-900 dark:text-[#F8FAFC]">Device Storage Occupied</label>
-                  <span className="text-xs font-black text-slate-700 dark:text-slate-300">
-                    {cacheSize === 0 ? '0.0 MB' : `${(cacheSize / (1024 * 1024)).toFixed(1)} MB`}
-                  </span>
+                  <label className="text-xs font-black block text-slate-900 dark:text-white">Preferred Download Resolution</label>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Maximum quality used when saving videos offline</span>
+                </div>
+                <select
+                  value={maxResolution}
+                  onChange={(e) => setMaxResolution(e.target.value as any)}
+                  className="px-4 py-2.5 bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4] cursor-pointer"
+                >
+                  <option value="1080p">1080p (Full HD - High Quality)</option>
+                  <option value="720p">720p (HD - Balanced Data)</option>
+                  <option value="480p">480p (SD - Data Saver)</option>
+                </select>
+              </div>
+
+              {/* Clear Download Cache */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-[#1e293b]/30 p-4 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <HardDrive className="w-5 h-5 text-indigo-500 shrink-0" />
+                  <div>
+                    <label className="text-xs font-black text-slate-900 dark:text-white block">Offline Storage Occupied</label>
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-300">
+                      {cacheSize === 0 ? '0.0 MB' : `${(cacheSize / (1024 * 1024)).toFixed(1)} MB`}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearCache}
+                  disabled={cacheSize === 0}
+                  className="px-4 py-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 font-extrabold text-xs rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Clear Offline Downloads</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* TAB 4: VERIFICATION & PRIVACY */}
+      {activeTab === 'verification' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {/* Creator Verification Badge Request */}
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-5 shadow-sm">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <ShieldCheck className="w-5 h-5 text-[#065fd4]" />
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                Official Channel Verification
+              </h3>
+            </div>
+
+            {currentUserProfile?.role === 'creator' || currentUserProfile?.role === 'admin' ? (
+              <div className="p-5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 rounded-2xl flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Check className="w-7 h-7 stroke-[3]" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-emerald-900 dark:text-emerald-300">Channel Officially Verified</h4>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 font-semibold mt-0.5">
+                    Your channel is verified as an official creator channel. A blue verification badge ✓ is displayed next to your channel name everywhere!
+                  </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleClearCache}
-                disabled={cacheSize === 0}
-                className="px-4 py-2 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 text-xs font-extrabold rounded-xl transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete All Downloads</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 6. ACCOUNT VERIFICATION BADGE REQUEST (Creators' Favourite!) */}
-        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-5 shadow-xs">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-            <ShieldCheck className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">Channel Verification</h3>
-          </div>
-
-          {currentUserProfile?.role === 'creator' || currentUserProfile?.role === 'admin' ? (
-            <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 rounded-2xl flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <Check className="w-6 h-6 stroke-[3]" />
-              </div>
-              <div>
-                <p className="text-xs font-extrabold text-emerald-900 dark:text-emerald-300">Channel Officially Verified</p>
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold mt-0.5">
-                  Your channel is verified as an official creator channel. A blue verification badge ✓ is displayed next to your name!
-                </p>
-              </div>
-            </div>
-          ) : verificationSubmitted ? (
-            <div className="p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-2xl flex items-center gap-3.5">
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 animate-pulse">
-                <Loader2 className="w-5 h-5 animate-spin" />
-              </div>
-              <div>
-                <p className="text-xs font-extrabold text-blue-900 dark:text-blue-300">Verification Pending Review</p>
-                <p className="text-[10px] text-blue-700 dark:text-blue-400 font-semibold mt-0.5">
-                  Your application for a verification badge is under review. Our admins will review your category and social presence within 48 hours.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmitVerification} className="space-y-4">
-              <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-semibold leading-relaxed">
-                Apply for a verified creator badge to show viewers your authenticity and unlock advanced tools.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            ) : verificationSubmitted ? (
+              <div className="p-5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 rounded-2xl flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 animate-pulse">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Primary Video Category</label>
+                  <h4 className="text-sm font-black text-blue-900 dark:text-blue-300">Verification Application Pending</h4>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 font-semibold mt-0.5">
+                    Your application for an official verified creator badge is under review by our platform team.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitVerification} className="space-y-4">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+                  Apply for a verified creator badge to show viewers your channel's authenticity and unlock creator tools.
+                </p>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                    Primary Video Category
+                  </label>
                   <select
                     value={verificationCategory}
                     onChange={(e) => setVerificationCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1E293B] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer"
+                    className="w-full sm:w-72 px-4 py-2.5 bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4] cursor-pointer"
                   >
                     <option value="Technology">Technology & Coding</option>
                     <option value="Education">Education</option>
@@ -742,63 +895,67 @@ export const Settings: React.FC = () => {
                     <option value="Music">Music & Entertainment</option>
                     <option value="Comedy">Comedy & Art</option>
                     <option value="Vlog">Vlogging & Travel</option>
-                    <option value="News">News & Information</option>
                   </select>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5">Pitch / Social Links (e.g. YouTube, Twitter)</label>
-                <textarea
-                  value={verificationPitch}
-                  onChange={(e) => setVerificationPitch(e.target.value)}
-                  required
-                  rows={2}
-                  placeholder="Tell us why your channel should be verified. Provide social media links if any..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] focus:outline-none text-xs font-semibold"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                    Pitch / Social Links (e.g. YouTube, Twitter) *
+                  </label>
+                  <textarea
+                    value={verificationPitch}
+                    onChange={(e) => setVerificationPitch(e.target.value)}
+                    required
+                    rows={3}
+                    placeholder="Tell us why your channel should be verified. Provide your existing social media links if any..."
+                    className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1e293b] text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4] text-xs font-semibold resize-none"
+                  />
+                </div>
 
-              <button
-                type="submit"
-                disabled={isSubmittingVerification || !verificationPitch.trim()}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-extrabold text-xs rounded-xl cursor-pointer transition-colors shadow-sm flex items-center gap-1.5"
-              >
-                {isSubmittingVerification ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                <span>Apply for Verification</span>
-              </button>
-            </form>
-          )}
-        </div>
-
-        {/* 7. PRIVACY CENTER & DATA PORTABILITY (IT Act 2021 Compliance) */}
-        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 shadow-xs">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-            <FileJson className="w-5 h-5 text-amber-500" />
-            <h3 className="text-xs font-black uppercase text-slate-900 dark:text-white tracking-wider">Privacy & Data Portability</h3>
+                <button
+                  type="submit"
+                  disabled={isSubmittingVerification || !verificationPitch.trim()}
+                  className="px-6 py-3 bg-[#065fd4] hover:bg-[#054fb1] disabled:opacity-40 text-white font-black text-xs rounded-xl cursor-pointer transition-all shadow-md flex items-center gap-2 active:scale-95"
+                >
+                  {isSubmittingVerification ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                  <span>Apply for Verified Badge</span>
+                </button>
+              </form>
+            )}
           </div>
 
-          <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-semibold leading-relaxed">
-            According to privacy compliance regulations, you can download a full digital archive backup of your public channel data.
-          </p>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-[#1E293B]/20 p-4 rounded-2xl">
-            <div>
-              <span className="text-xs font-extrabold block text-slate-900 dark:text-white">Export Public Channel Data</span>
-              <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Download a structured .json backup of your channel profile info.</span>
+          {/* Data Export / JSON Backup */}
+          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 space-y-4 shadow-sm">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <FileJson className="w-5 h-5 text-amber-500" />
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                Privacy & Channel Data Backup
+              </h3>
             </div>
-            <button
-              type="button"
-              onClick={handleExportData}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export backup.json</span>
-            </button>
-          </div>
-        </div>
 
-      </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+              Export and download a full digital archive backup of your public channel profile data in structured JSON format.
+            </p>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-[#1e293b]/30 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+              <div>
+                <span className="text-xs font-black block text-slate-900 dark:text-white">Export Public Channel Data</span>
+                <span className="text-[11px] text-slate-400 font-semibold block mt-0.5">Download `.json` data backup of your profile.</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleExportData}
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black rounded-xl cursor-pointer transition-all flex items-center gap-2 shadow-md active:scale-95 shrink-0"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Backup JSON</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 };

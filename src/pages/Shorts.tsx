@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from '../hooks/useRouter';
 import { videoService } from '../services/videoService';
+import { recommendationService } from '../services/recommendationService';
 import { userService } from '../services/userService';
 import { likeService } from '../services/likeService';
 import { commentService } from '../services/commentService';
@@ -30,9 +31,14 @@ import {
   Loader2,
   Save,
   Flag,
-  Copy
+  Copy,
+  Music,
+  Bookmark
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { SoundLibraryModal } from '../components/SoundLibraryModal';
+import { SoundDetailsModal } from '../components/SoundDetailsModal';
+import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 
 declare global {
   interface Window {
@@ -206,6 +212,7 @@ export const Shorts: React.FC = () => {
   const [shorts, setShorts] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [swipeDirection, setTransitionDirection] = useState<'up' | 'down' | null>(null);
   const [isMediaReady, setIsMediaReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [volume, setVolume] = useState(1);
@@ -227,6 +234,9 @@ export const Shorts: React.FC = () => {
   const [isDownloaded, setIsDownloaded] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
+  const [soundModalOpen, setSoundModalOpen] = useState(false);
+  const [soundDetailsModalOpen, setSoundDetailsModalOpen] = useState(false);
+  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
 
   const targetShortId = route.param;
 
@@ -235,17 +245,23 @@ export const Shorts: React.FC = () => {
     try {
       const data = await videoService.getVideos({ isShort: true });
       if (data.length > 0) {
-        setShorts(data);
+        // AI Recommendation Ranking & Anti-Repeat Filter
+        const ranked = recommendationService.rankAndFilterVideos(data, {
+          isShortsOnly: true,
+          userUid: currentUser?.uid
+        });
+
+        setShorts(ranked);
 
         // If route specifies a short ID, find index or fetch
         if (targetShortId) {
-          const idx = data.findIndex(s => s.videoId === targetShortId);
+          const idx = ranked.findIndex(s => s.videoId === targetShortId);
           if (idx !== -1) {
             setCurrentIndex(idx);
           } else {
             const singleShort = await videoService.getVideo(targetShortId);
             if (singleShort && singleShort.isShort) {
-              setShorts([singleShort, ...data]);
+              setShorts([singleShort, ...ranked]);
               setCurrentIndex(0);
             }
           }
@@ -264,9 +280,15 @@ export const Shorts: React.FC = () => {
 
   const activeShort = shorts[currentIndex];
 
-  // Sync like and comments stats for active short
+  // Sync like and comments stats for active short & increment view count
   useEffect(() => {
     if (!activeShort) return;
+
+    // Trigger view count increment (protected by 24h Anti-Spam View Guard!)
+    videoService.incrementViewCount(activeShort.videoId).catch(console.error);
+
+    // Record watch ID for AI Anti-Repeat Recommendation Engine
+    recommendationService.recordVideoWatch(activeShort.videoId, currentUser?.uid);
 
     setLikesCount(activeShort.likesCount || 0);
     setCommentsCount(activeShort.commentsCount || 0);
@@ -337,18 +359,28 @@ export const Shorts: React.FC = () => {
   };
 
   const handleNext = () => {
+    if (swipeDirection) return;
     if (currentIndex < shorts.length - 1) {
-      setIsMediaReady(false);
-      setIsPlaying(true);
-      setCurrentIndex(prev => prev + 1);
+      setTransitionDirection('up');
+      setTimeout(() => {
+        setIsMediaReady(false);
+        setIsPlaying(true);
+        setCurrentIndex(prev => prev + 1);
+        setTransitionDirection(null);
+      }, 220);
     }
   };
 
   const handlePrev = () => {
+    if (swipeDirection) return;
     if (currentIndex > 0) {
-      setIsMediaReady(false);
-      setIsPlaying(true);
-      setCurrentIndex(prev => prev - 1);
+      setTransitionDirection('down');
+      setTimeout(() => {
+        setIsMediaReady(false);
+        setIsPlaying(true);
+        setCurrentIndex(prev => prev - 1);
+        setTransitionDirection(null);
+      }, 220);
     }
   };
 
@@ -617,15 +649,23 @@ export const Shorts: React.FC = () => {
           className="relative w-full max-w-[420px] aspect-[9/16] bg-black rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-pan-y"
         >
           
-          {/* Media Player Component */}
-          <ShortVideoMedia 
-            key={activeShort.videoId} 
-            short={activeShort} 
-            isPlaying={isPlaying}
-            volume={volume}
-            isMuted={isMuted}
-            onMediaReady={() => setIsMediaReady(true)}
-          />
+          {/* Media Player Component Wrapper with Smooth Sliding Transitions */}
+          <div className={`w-full h-full transition-all duration-200 ease-out transform ${
+            swipeDirection === 'up' 
+              ? '-translate-y-full opacity-20 scale-95' 
+              : swipeDirection === 'down' 
+              ? 'translate-y-full opacity-20 scale-95' 
+              : 'translate-y-0 opacity-100 scale-100 animate-in fade-in duration-300'
+          }`}>
+            <ShortVideoMedia 
+              key={activeShort.videoId} 
+              short={activeShort} 
+              isPlaying={isPlaying && !swipeDirection}
+              volume={volume}
+              isMuted={isMuted}
+              onMediaReady={() => setIsMediaReady(true)}
+            />
+          </div>
 
           {/* TOP BAR: YouTube-style 3-Dot More Options Menu */}
           <div className="absolute top-4 right-4 z-30">
@@ -803,6 +843,18 @@ export const Shorts: React.FC = () => {
                 {downloadProgress !== null ? `${downloadProgress}%` : isDownloaded ? 'Saved' : 'Download'}
               </span>
             </button>
+
+            {/* SAVE TO PLAYLIST BUTTON */}
+            <button 
+              onClick={() => setPlaylistModalOpen(true)}
+              className="group/btn flex flex-col items-center gap-1"
+              title="Save to Playlist"
+            >
+              <div className="w-12 h-12 bg-black/40 backdrop-blur-md hover:bg-black/60 rounded-full flex items-center justify-center border border-white/10 cursor-pointer transition-all hover:scale-110 active:scale-95">
+                <Bookmark className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-[10px] font-black drop-shadow-md">Save</span>
+            </button>
           </div>
 
           {/* Details Overlay bottom */}
@@ -817,8 +869,11 @@ export const Shorts: React.FC = () => {
                 className="rounded-[1rem] border-2 border-white/10 shadow-lg"
               />
               <div className="min-w-0">
-                <h4 onClick={() => navigate('creator', activeShort.creatorUsername)} className="text-xs font-black hover:underline cursor-pointer truncate drop-shadow-md">
-                  {activeShort.creatorDisplayName}
+                <h4 onClick={() => navigate('creator', activeShort.creatorUsername)} className="text-xs font-black hover:underline cursor-pointer truncate drop-shadow-md flex items-center gap-1">
+                  <span>{activeShort.creatorDisplayName}</span>
+                  {(creator?.role === 'creator' || creator?.role === 'admin') && (
+                    <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0 shadow-md" title="Verified Creator">✓</span>
+                  )}
                 </h4>
                 <p className="text-[10px] text-blue-400 font-bold truncate drop-shadow-sm">@{activeShort.creatorUsername}</p>
               </div>
@@ -829,9 +884,62 @@ export const Shorts: React.FC = () => {
                 {activeShort.title}
               </h3>
               <p className="text-[10px] text-blue-500 font-black mt-1 uppercase tracking-widest drop-shadow-sm">#{activeShort.category}</p>
+
+              {/* Sound / Music Track Banner & Rotating Vinyl Disk */}
+              <div className="flex items-center justify-between gap-3 pt-2 pointer-events-auto">
+                <div 
+                  onClick={() => setSoundDetailsModalOpen(true)}
+                  className="flex items-center gap-1.5 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15 cursor-pointer hover:bg-black/70 transition-all active:scale-95 w-fit max-w-[220px] shadow-lg"
+                >
+                  <Music className="w-3.5 h-3.5 text-blue-400 shrink-0 animate-pulse" />
+                  <span className="text-[10px] font-bold text-white/90 truncate">
+                    {activeShort.soundTitle ? `${activeShort.soundTitle} • ${activeShort.soundArtist}` : 'Original Sound • SocialIndia Beats'}
+                  </span>
+                </div>
+
+                {/* Rotating Vinyl Record Disk Icon */}
+                <div 
+                  onClick={() => setSoundDetailsModalOpen(true)}
+                  className="w-9 h-9 rounded-full bg-slate-900 border-2 border-slate-700 shadow-2xl overflow-hidden shrink-0 flex items-center justify-center cursor-pointer animate-[spin_6s_linear_infinite] active:scale-90 transition-transform"
+                  title="View Sound Track Details"
+                >
+                  <img 
+                    src={activeShort.soundCoverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&q=80'} 
+                    alt="Sound Cover" 
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Sound Details Modal (Sound Landing Page) */}
+        <SoundDetailsModal 
+          soundId={activeShort.soundId || `orig_sound_${activeShort.videoId}`}
+          isOpen={soundDetailsModalOpen}
+          onClose={() => setSoundDetailsModalOpen(false)}
+          onUseSound={(sound) => {
+            navigate('studio');
+          }}
+        />
+
+        {/* Save to Playlist Modal */}
+        <SaveToPlaylistModal
+          video={activeShort}
+          isOpen={playlistModalOpen}
+          onClose={() => setPlaylistModalOpen(false)}
+        />
+
+        {/* Sound Library Modal */}
+        <SoundLibraryModal 
+          isOpen={soundModalOpen}
+          onClose={() => setSoundModalOpen(false)}
+          onSelectSound={(sound) => {
+            addToast(`Selected "${sound.title}" sound track!`, 'success');
+          }}
+          selectedSoundId={activeShort.soundId}
+        />
 
         {/* SIDE-OPENING COMMENTS DRAWER (WEB) */}
         {showComments && (
