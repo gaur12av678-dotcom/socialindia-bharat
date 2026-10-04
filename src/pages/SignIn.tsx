@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
 import { authService } from '../services/authService';
+import { SocialIndiaLogo } from '../components/SocialIndiaLogo';
 import { Play, Sparkles, ArrowLeft, Loader2, CheckCircle2, ShieldCheck, Lock, User as UserIcon } from 'lucide-react';
 
 export const SignInPage: React.FC = () => {
@@ -79,12 +80,10 @@ export const SignInPage: React.FC = () => {
             <ArrowLeft className="w-4 h-4" />
           </button>
 
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md">
-              <Play className="w-4 h-4 fill-white translate-x-0.5" />
-            </div>
-            <span className="font-black text-lg tracking-tight text-slate-900 dark:text-white">SocialIndia</span>
-          </div>
+          <SocialIndiaLogo 
+            onClick={() => navigate('home')} 
+            size="md" 
+          />
         </div>
 
         {/* Auth Card Container */}
