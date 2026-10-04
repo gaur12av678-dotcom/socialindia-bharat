@@ -4,6 +4,7 @@ import { recommendationService } from '../services/recommendationService';
 import { Video } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { useApp } from '../context/AppContext';
+import { AdsterraNativeBanner } from '../components/ads/AdsterraNativeBanner';
 
 export const categoriesList = [
   'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Science', 'Vlogs', 'Comedy', 'Shorts', 'Other'
@@ -78,6 +79,8 @@ export const Home: React.FC = () => {
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
         </div>
       )}
+
+      {selectedCategory === 'All' && <AdsterraNativeBanner />}
 
       {/* Video Feed Section */}
       <div className="space-y-4">
