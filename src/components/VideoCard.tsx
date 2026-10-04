@@ -49,10 +49,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   return (
     <div 
       onClick={handleCardClick}
-      className="group cursor-pointer flex flex-col transition-all duration-200"
+      className="group cursor-pointer flex flex-col transition-all duration-200 w-full"
     >
       {/* Thumbnail area with duration badge */}
-      <div className={`relative ${video.isShort ? 'aspect-[9/16] max-w-[240px]' : 'aspect-video'} bg-slate-100 dark:bg-[#1e293b] shrink-0 rounded-xl overflow-hidden`}>
+      <div className={`relative w-full ${video.isShort ? 'aspect-[9/16] max-w-[240px]' : 'aspect-video'} bg-slate-900 dark:bg-[#1e293b] shrink-0 rounded-2xl overflow-hidden shadow-xs border border-slate-100 dark:border-slate-800/80`}>
         <img 
           src={video.thumbnailUrl} 
           alt={video.title} 

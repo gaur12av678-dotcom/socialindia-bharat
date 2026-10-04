@@ -294,16 +294,43 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     }
   };
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isFull = !!document.fullscreenElement;
+      setIsFullscreen(isFull);
+      if (!isFull) {
+        if (window.screen && window.screen.orientation && typeof window.screen.orientation.unlock === 'function') {
+          try {
+            window.screen.orientation.unlock();
+          } catch (e) {}
+        }
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
 
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen().then(() => {
         setIsFullscreen(true);
+        // Force Landscape screen orientation lock on mobile devices (YouTube style)
+        if (window.screen && window.screen.orientation && typeof (window.screen.orientation as any).lock === 'function') {
+          (window.screen.orientation as any).lock('landscape').catch(() => {
+            // Fallback for browsers with strict orientation policies
+          });
+        }
       }).catch(console.error);
     } else {
       document.exitFullscreen().then(() => {
         setIsFullscreen(false);
+        if (window.screen && window.screen.orientation && typeof window.screen.orientation.unlock === 'function') {
+          try {
+            window.screen.orientation.unlock();
+          } catch (e) {}
+        }
       }).catch(console.error);
     }
   };
@@ -475,7 +502,11 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="relative aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-[#334155] group select-none"
+      className={`relative w-full bg-slate-950 overflow-hidden shadow-2xl group select-none transition-all ${
+        isFullscreen 
+          ? 'h-screen w-screen rounded-none border-none max-w-none max-h-none flex items-center justify-center' 
+          : 'aspect-video rounded-2xl border border-slate-200 dark:border-[#334155]'
+      }`}
     >
       {/* SKELETON LOADING OVERLAY (Displayed until media stream is ready) */}
       <AnimatePresence>

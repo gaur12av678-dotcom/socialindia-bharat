@@ -7,6 +7,7 @@ import { videoService } from '../services/videoService';
 import { getInitials } from '../utils/videoUtils';
 import { 
   Settings as SettingsIcon, 
+  ArrowLeft,
   Moon, 
   Sun, 
   Monitor, 
@@ -342,14 +343,26 @@ export const Settings: React.FC = () => {
       />
 
       {/* TOP HEADER: Channel Customization & Auto-Save Indicator */}
-      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/40 text-[#065fd4] dark:text-blue-400 rounded-2xl flex items-center justify-center shrink-0">
-            <SettingsIcon className="w-6 h-6" />
+        <div className="flex items-center gap-3">
+          {/* Mobile & Desktop Back Button */}
+          <button
+            onClick={() => navigate('home')}
+            className="px-3.5 py-2 bg-slate-100 hover:bg-blue-600 dark:bg-[#1e293b] dark:hover:bg-blue-600 text-slate-800 dark:text-slate-200 hover:text-white dark:hover:text-white rounded-2xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 shrink-0 border border-slate-200 dark:border-slate-800 shadow-2xs active:scale-95"
+            title="Back to Home"
+            aria-label="Back to Home"
+          >
+            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+            <span>Back</span>
+          </button>
+
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/40 text-[#065fd4] dark:text-blue-400 rounded-2xl flex items-center justify-center shrink-0">
+            <SettingsIcon className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
               <span>Channel Customization</span>
               {currentUserProfile?.role === 'creator' && (
                 <span className="bg-blue-600 text-white text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider">

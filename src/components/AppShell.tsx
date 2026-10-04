@@ -6,6 +6,7 @@ import { AuthModal } from './AuthModal';
 import { SocialIndiaLogo } from './SocialIndiaLogo';
 import { 
   Home, 
+  ArrowLeft,
   TrendingUp, 
   Film, 
   Zap,
@@ -32,8 +33,7 @@ import {
   MoreVertical,
   ArrowDownToLine,
   WifiOff,
-  Info,
-  Coins
+  Info
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
@@ -182,7 +182,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const studioItems = [
     { label: 'Creator Studio', path: 'studio', icon: PlusSquare, protected: true },
-    { label: 'Coins Wallet', path: 'wallet', icon: Coins, protected: true },
     { label: 'Settings', path: 'settings', icon: Settings, protected: true },
   ];
 
@@ -256,14 +255,29 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       )}
 
       {/* HEADER / NAVIGATION BAR */}
-      <header className={`px-4 h-14 flex items-center justify-between gap-4 transition-all duration-300 z-40 ${
+      <header className={`px-2.5 sm:px-4 h-14 flex items-center justify-between gap-2 max-w-full overflow-hidden transition-all duration-300 z-40 ${
             isShortsPage 
               ? 'absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent border-transparent text-white md:sticky md:bg-white dark:md:bg-[#0f0f0f] md:border-b md:border-slate-100 dark:md:border-slate-800 shadow-none' 
               : 'sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
           }`}>
             
             {/* Left Section */}
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
+              {route.path !== 'home' && (
+                <button 
+                  onClick={() => navigate('home')}
+                  className={`p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer flex items-center justify-center shrink-0 ${
+                    isShortsPage
+                      ? 'hover:bg-white/10 text-white'
+                      : 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
+                  }`}
+                  aria-label="Back to Home"
+                  title="Back to Home"
+                >
+                  <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+                </button>
+              )}
+
               <button 
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="hidden md:flex p-2 hover:bg-[#f2f2f2] dark:hover:bg-[#272727] rounded-full transition-colors cursor-pointer text-[#0f0f0f] dark:text-[#f1f1f1]"
@@ -299,11 +313,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             </form>
 
             {/* Right Controls */}
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
               {/* Mobile Search Button */}
               <button 
                 onClick={() => navigate('search')}
-                className={`flex md:hidden p-2 rounded-xl transition-colors cursor-pointer ${
+                className={`p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer ${
                   isShortsPage 
                     ? 'hover:bg-white/10 text-white' 
                     : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
@@ -319,7 +333,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   const isDarkActive = document.documentElement.classList.contains('dark');
                   setTheme(isDarkActive ? 'light' : 'dark');
                 }}
-                className={`p-2 rounded-full transition-colors cursor-pointer ${
+                className={`p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer ${
                   isShortsPage
                     ? 'hover:bg-white/10 text-white'
                     : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1]'
@@ -332,16 +346,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 ) : (
                   <Moon className="w-5 h-5 text-[#065fd4]" />
                 )}
-              </button>
-
-              {/* SocialCoins Wallet Button */}
-              <button
-                onClick={() => triggerProtectedAction(() => navigate('wallet'))}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-black text-amber-700 dark:text-amber-300 bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-800/80 rounded-full transition-all shadow-2xs cursor-pointer active:scale-95"
-                title="SocialCoins Wallet & Creator Economy"
-              >
-                <Coins className="w-4 h-4 text-amber-500 animate-pulse" />
-                <span className="hidden sm:inline">🪙 Wallet</span>
               </button>
 
               {/* Publish Video Button (Primary Action) */}

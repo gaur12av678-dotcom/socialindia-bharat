@@ -10,6 +10,7 @@ import { categoriesList } from './Home';
 import { SoundLibraryModal } from '../components/SoundLibraryModal';
 import { 
   LayoutDashboard, 
+  ArrowLeft,
   Video as VideoIcon, 
   BarChart3, 
   Plus, 
@@ -586,11 +587,20 @@ export const CreatorStudio: React.FC = () => {
       {/* Upper header section */}
       <div className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-slate-200 dark:border-[#334155]">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
-            <LayoutDashboard className="w-6 h-6" />
+          <button
+            onClick={() => navigate('home')}
+            className="p-2.5 bg-slate-100 dark:bg-[#1e293b] hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 border border-slate-200/80 dark:border-slate-800 active:scale-95 shadow-2xs"
+            title="Back to Home"
+            aria-label="Back to Home"
+          >
+            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/20 shrink-0">
+            <LayoutDashboard className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
-            <h1 className="text-lg font-black tracking-tight text-slate-900 dark:text-[#F8FAFC]">Studio Hub</h1>
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-[#F8FAFC]">Studio Hub</h1>
             <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-bold">Manage @{currentUserProfile?.username}</p>
           </div>
         </div>
