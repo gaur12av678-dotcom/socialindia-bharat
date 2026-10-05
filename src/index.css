@@ -4,18 +4,18 @@
 
 @layer base {
   :root {
-    --bg-main: #ffffff;
+    --bg-main: #f3f4f6;        /* grey — pehle #ffffff tha */
     --bg-surface: #ffffff;
-    --text-main: #0f0f0f;
-    --border-color: #e5e5e5;
+    --text-main: #111827;
+    --border-color: #e5e7eb;
     --primary-blue: #065fd4;
     --primary-hover: #0556bf;
-    --light-blue: #f2f2f2;
+    --light-blue: #e5e7eb;
   }
 
   .dark {
     --bg-main: #0f0f0f;
-    --bg-surface: #0f0f0f;
+    --bg-surface: #1a1a1a;
     --text-main: #f1f1f1;
     --border-color: #3f3f3f;
     --primary-blue: #3ea6ff;
@@ -23,9 +23,17 @@
     --light-blue: #272727;
   }
 
-  body {
-    background-color: var(--bg-main);
+  html, body {
+    background-color: var(--bg-main) !important;
     color: var(--text-main);
+  }
+
+  /* Safety net: kabhi bhi light mode me white-on-white text nahi */
+  html.light .text-white:not([class*="bg-"]):not(button):not([class*="from-"]) {
+    color: #111827 !important;
+  }
+  html.light body * {
+    border-color: var(--border-color);
   }
 }
 
@@ -41,6 +49,10 @@
   color: #2563eb !important;
 }
 
+.dark .text-social-blue {
+  color: #3ea6ff !important;
+}
+
 .bg-social-light-blue {
   background-color: #eff6ff !important;
 }
@@ -51,6 +63,22 @@
 
 .border-social-blue {
   border-color: #2563eb !important;
+}
+
+/* Mobile par desktop layout fix — koi bhi fixed width overflow na kare */
+@media (max-width: 640px) {
+  img, video {
+    max-width: 100%;
+  }
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  pre, code {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
 }
 
 @utility animate-slide-in {
@@ -69,34 +97,20 @@
   }
 }
 
-/* Safe Area Inset Bottom utility helper */
 @utility safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 @keyframes slideIn {
-  from {
-    transform: translateY(1rem);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(1rem); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes zoomIn {
-  from {
-    transform: scale(0.95);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
 
-/* Accessibility: Support prefers-reduced-motion specifications */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;
