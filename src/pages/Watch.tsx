@@ -11,7 +11,10 @@ import { historyService } from '../services/historyService';
 import { notificationService } from '../services/notificationService';
 import { reportService } from '../services/reportService';
 import { downloadService } from '../services/downloadService';
-import { Video, Comment, User } from '../types';
+import { paidVideoService } from '../services/paidVideoService';
+import { adService } from '../services/adService';
+import { Video, Comment, User, AdCampaign } from '../types';
+import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 import { UserAvatar } from '../components/UserAvatar';
@@ -31,7 +34,10 @@ import {
   ArrowDownToLine,
   CheckCircle2,
   Loader2,
-  Pin
+  Pin,
+  Lock,
+  Wallet,
+  Sparkles
 } from 'lucide-react';
 
 export const Watch: React.FC = () => {
@@ -65,6 +71,19 @@ export const Watch: React.FC = () => {
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [seekToTime, setSeekToTime] = useState<number | undefined>(undefined);
+
+  // Paid Video Unlock & Paywall states
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [checkingUnlock, setCheckingUnlock] = useState(true);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
+
+  // Active User-Sponsored Ads
+  const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
+
+  useEffect(() => {
+    adService.getActiveAds(5).then(setActiveAds).catch(console.warn);
+  }, []);
 
   // Keyboard shortcut listener for 't' (Theater Mode)
   useEffect(() => {
@@ -126,6 +145,29 @@ export const Watch: React.FC = () => {
         // Set video object and close page loading IMMEDIATELY!
         setVideo(vid);
         setLoading(false);
+
+        // Check Paid Video Access
+        if (vid.isPaid && (vid.price || 0) > 0) {
+          if (currentUser?.uid === vid.creatorId || currentUserProfile?.role === 'admin') {
+            setIsUnlocked(true);
+            setCheckingUnlock(false);
+          } else if (currentUser) {
+            paidVideoService.hasUserPurchasedVideo(currentUser.uid, vid.videoId).then(unlocked => {
+              if (isMounted) {
+                setIsUnlocked(unlocked);
+                setCheckingUnlock(false);
+              }
+            }).catch(() => {
+              if (isMounted) setCheckingUnlock(false);
+            });
+          } else {
+            setIsUnlocked(false);
+            setCheckingUnlock(false);
+          }
+        } else {
+          setIsUnlocked(true);
+          setCheckingUnlock(false);
+        }
 
         // Secondary background fetches (Non-blocking)
         videoService.incrementViewCount(videoId).catch(console.error);
@@ -529,6 +571,39 @@ export const Watch: React.FC = () => {
     setEditingCommentText('');
   };
 
+  const handleUnlockVideo = async () => {
+    if (!currentUser) {
+      addToast('Please sign in to unlock this video.', 'info');
+      navigate('signin');
+      return;
+    }
+    if (!video) return;
+
+    const walletBal = currentUserProfile?.walletBalance || 0;
+    const bonusBal = currentUserProfile?.bonusBalance || 0;
+    const totalBal = Number((walletBal + bonusBal).toFixed(2));
+    const price = video.price || 0;
+
+    if (totalBal < price) {
+      addToast(`Insufficient balance! Price is ₹${price}, your balance is ₹${totalBal.toFixed(2)}. Please top up your wallet.`, 'error');
+      return;
+    }
+
+    setIsPurchasing(true);
+    setUnlockError('');
+    try {
+      await paidVideoService.purchaseVideo(currentUser.uid, video);
+      setIsUnlocked(true);
+      await refreshProfile();
+      addToast(`🎉 Payment successful! Video unlocked for ₹${price}. Enjoy watching!`, 'success');
+    } catch (err: any) {
+      setUnlockError(err.message || 'Payment failed.');
+      addToast(err.message || 'Payment failed.', 'error');
+    } finally {
+      setIsPurchasing(false);
+    }
+  };
+
   const handlePostReply = async (parentCommentId: string) => {
     if (!currentUser || !currentUserProfile || !editingCommentText.trim()) return;
 
@@ -563,13 +638,100 @@ export const Watch: React.FC = () => {
       {/* LEFT COLUMN: Player + Details + Comments */}
       <div className={`${isTheaterMode ? 'lg:col-span-1' : 'lg:col-span-2'} space-y-6`}>
         
-        {/* SocialIndia Custom Video Player */}
-        <CustomVideoPlayer 
-          video={video} 
-          isTheaterMode={isTheaterMode}
-          onToggleTheaterMode={() => setIsTheaterMode(prev => !prev)}
-          seekToTime={seekToTime}
-        />
+        {/* SocialIndia Custom Video Player or Paid Paywall Lock */}
+        {video?.isPaid && (video?.price || 0) > 0 && !isUnlocked && !isVideoOwner && currentUserProfile?.role !== 'admin' ? (
+          <div className="relative aspect-video w-full rounded-2xl md:rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 shadow-2xl flex items-center justify-center p-6 text-center">
+            {video.thumbnailUrl && (
+              <img 
+                src={video.thumbnailUrl} 
+                alt={video.title} 
+                className="absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-105"
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-900/60" />
+
+            <div className="relative z-10 max-w-md w-full space-y-4 text-white">
+              <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-amber-500 to-emerald-500 text-white flex items-center justify-center mx-auto shadow-xl shadow-amber-500/25">
+                <Lock className="w-7 h-7 stroke-[2.5]" />
+              </div>
+
+              <div className="space-y-1">
+                <span className="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  Exclusive Paid Video
+                </span>
+                <h2 className="text-lg sm:text-xl font-black tracking-tight line-clamp-1">{video.title}</h2>
+                <p className="text-xs text-slate-300 font-medium">
+                  By <strong>@{video.creatorUsername}</strong>. Unlock full video access for lifetime.
+                </p>
+              </div>
+
+              <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 space-y-2 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300">Access Fee:</span>
+                  <span className="text-xl font-black font-mono text-emerald-400">
+                    ₹{video.price} INR
+                  </span>
+                </div>
+
+                <div className="h-px bg-white/10" />
+
+                <div className="flex items-center justify-between text-[11px] font-medium text-slate-300">
+                  <span>Your Wallet Balance:</span>
+                  <span className="font-mono font-bold text-white">
+                    ₹{(currentUserProfile?.walletBalance || 0).toFixed(2)}
+                  </span>
+                </div>
+                {(currentUserProfile?.bonusBalance || 0) > 0 && (
+                  <div className="flex items-center justify-between text-[11px] font-medium text-amber-300">
+                    <span>Bonus Money Available:</span>
+                    <span className="font-mono font-bold">
+                      +₹{(currentUserProfile?.bonusBalance || 0).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {unlockError && (
+                <div className="p-2.5 bg-rose-500/20 border border-rose-500/40 rounded-xl text-rose-300 text-xs font-bold">
+                  {unlockError}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2.5 pt-1">
+                {((currentUserProfile?.walletBalance || 0) + (currentUserProfile?.bonusBalance || 0)) >= (video.price || 0) ? (
+                  <button
+                    onClick={handleUnlockVideo}
+                    disabled={isPurchasing}
+                    className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-500/30 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+                  >
+                    {isPurchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    <span>Pay ₹{video.price} & Unlock Video</span>
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="p-2 bg-amber-500/20 border border-amber-500/30 rounded-xl text-[11px] font-bold text-amber-300">
+                      Insufficient Balance (Need ₹{((video.price || 0) - ((currentUserProfile?.walletBalance || 0) + (currentUserProfile?.bonusBalance || 0))).toFixed(2)} more)
+                    </div>
+                    <button
+                      onClick={() => navigate('settings')}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Wallet className="w-4 h-4" />
+                      <span>Top Up Wallet Now</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <CustomVideoPlayer 
+            video={video} 
+            isTheaterMode={isTheaterMode}
+            onToggleTheaterMode={() => setIsTheaterMode(prev => !prev)}
+            seekToTime={seekToTime}
+          />
+        )}
 
         {/* Video Title and Social Interactions block */}
         <div className="space-y-4">
@@ -1023,6 +1185,11 @@ export const Watch: React.FC = () => {
 
       {/* RIGHT COLUMN: Recommended Sidebar */}
       <div className="space-y-4">
+        {/* Promoted / Sponsored User Ad */}
+        {activeAds.length > 0 && (
+          <SponsoredAdCard ad={activeAds[0]} layout="sidebar" />
+        )}
+
         <h3 className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Related Videos</h3>
         
         <div className="space-y-3">

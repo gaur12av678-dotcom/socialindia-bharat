@@ -4,10 +4,11 @@ import { db } from '../firebase';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { videoService, getCloudinaryConfig, setCloudinaryConfig } from '../services/videoService';
-import { Video, SoundTrack } from '../types';
+import { Video, SoundTrack, VideoPurchase } from '../types';
 import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, formatTimeAgo, captureFrameFromVideoFile } from '../utils/videoUtils';
 import { categoriesList } from './Home';
 import { soundService } from '../services/soundService';
+import { paidVideoService } from '../services/paidVideoService';
 import { SoundLibraryModal } from '../components/SoundLibraryModal';
 import { 
   LayoutDashboard, 
@@ -38,6 +39,8 @@ import {
   Send,
   Music,
   DollarSign,
+  Wallet,
+  Gift,
   CornerDownRight,
   Reply,
   FileText,
@@ -58,12 +61,18 @@ export const CreatorStudio: React.FC = () => {
   const { route, navigate } = useRouter();
 
   // Navigation tab inside Studio
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'analytics' | 'comments'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'analytics' | 'comments' | 'earn'>('dashboard');
 
   // Multi-step Upload Wizard State (PlayTube / YouTube Studio Architecture)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [uploadMode, setUploadMode] = useState<'video' | 'short'>('video');
   const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>('allow');
+
+  // Paid Video & Earnings State
+  const [isPaid, setIsPaid] = useState(false);
+  const [price, setPrice] = useState<number>(10);
+  const [creatorPurchases, setCreatorPurchases] = useState<VideoPurchase[]>([]);
+  const [loadingPurchases, setLoadingPurchases] = useState(false);
 
   // Studio Comments state for community replies
   const [studioComments, setStudioComments] = useState<(Comment & { videoTitle: string; isShort?: boolean })[]>([]);
@@ -175,6 +184,17 @@ export const CreatorStudio: React.FC = () => {
 
     return () => unsubscribe();
   }, [currentUser, currentUserProfile?.followersCount]);
+
+  // Load Creator Video Purchases when viewing Earn Tab
+  useEffect(() => {
+    if (currentUser && activeTab === 'earn') {
+      setLoadingPurchases(true);
+      paidVideoService.getCreatorPurchases(currentUser.uid)
+        .then(setCreatorPurchases)
+        .catch(console.warn)
+        .finally(() => setLoadingPurchases(false));
+    }
+  }, [currentUser, activeTab]);
 
   // Generate real dynamic views time-series based on actual video metrics and chosen date range
   const chartData = useMemo(() => {
@@ -467,6 +487,8 @@ export const CreatorStudio: React.FC = () => {
           duration: finalDuration,
           visibility,
           isShort,
+          isPaid: isPaid && (currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin'),
+          price: isPaid ? Number(price || 0) : 0,
         });
         addToast('Video details updated successfully!', 'success');
       } else {
@@ -486,6 +508,10 @@ export const CreatorStudio: React.FC = () => {
           soundCoverUrl: selectedSoundTrack?.coverUrl,
           soundAudioUrl: selectedSoundTrack?.audioUrl,
           isMonetized,
+          isPaid: isPaid && (currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin'),
+          price: isPaid ? Number(price || 0) : 0,
+          paidSalesCount: 0,
+          paidEarnings: 0,
           creatorId: currentUser.uid,
           creatorUsername: currentUserProfile.username,
           creatorDisplayName: currentUserProfile.displayName,
@@ -528,6 +554,8 @@ export const CreatorStudio: React.FC = () => {
     setVisibility(video.visibility);
     setIsShort(video.isShort);
     setIsMonetized(video.isMonetized ?? true);
+    setIsPaid(video.isPaid || false);
+    setPrice(video.price || 10);
     setPublishModalOpen(true);
   };
 
@@ -575,6 +603,8 @@ export const CreatorStudio: React.FC = () => {
     setIsShort(false);
     setSelectedSoundTrack(null);
     setIsMonetized(true);
+    setIsPaid(false);
+    setPrice(10);
     setCommentsMode('allow');
     setIsPublishing(false);
     setUploadProgress(0);
@@ -688,6 +718,21 @@ export const CreatorStudio: React.FC = () => {
           <MessageSquare className="w-4 h-4" />
           <span>Comments ({studioComments.length})</span>
         </button>
+
+        {/* EARN TAB BUTTON (Exclusively for Monetized Creators) */}
+        {(currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin') && (
+          <button
+            onClick={() => setActiveTab('earn')}
+            className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
+              activeTab === 'earn'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800/40'
+            }`}
+          >
+            <DollarSign className="w-4 h-4 stroke-[2.5]" />
+            <span>Earn & Monetization</span>
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -1295,6 +1340,265 @@ export const CreatorStudio: React.FC = () => {
             </div>
           )}
 
+          {/* EARN & MONETIZATION TAB VIEW (Only for Monetized Creators) */}
+          {activeTab === 'earn' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              
+              {/* Header Banner */}
+              <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 text-white p-6 sm:p-8 rounded-3xl shadow-lg relative overflow-hidden">
+                <div className="relative z-10 space-y-2 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black tracking-wider uppercase">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Channel Monetization Active</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                    Creator Revenue & Paid Videos Hub
+                  </h2>
+                  <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-medium">
+                    Set access prices on your videos. When viewers unlock your paid content, 100% of their payment is credited directly from their SocialIndia Wallet into your account balance.
+                  </p>
+                </div>
+                <div className="absolute -right-8 -bottom-8 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+              </div>
+
+              {/* Earnings & Wallet Metrics 5-Column Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs space-y-2">
+                  <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Paid Earnings</span>
+                    <DollarSign className="w-4 h-4 stroke-[2.5]" />
+                  </div>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white">
+                    ₹{videos.filter(v => v.isPaid).reduce((acc, curr) => acc + (curr.paidEarnings || 0), 0).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-400">Lifetime revenue from video unlocks</p>
+                </div>
+
+                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs space-y-2">
+                  <div className="flex items-center justify-between text-blue-600 dark:text-blue-400">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Video Unlocks</span>
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white">
+                    {videos.filter(v => v.isPaid).reduce((acc, curr) => acc + (curr.paidSalesCount || 0), 0)}
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-400">Viewer purchases completed</p>
+                </div>
+
+                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs space-y-2">
+                  <div className="flex items-center justify-between text-purple-600 dark:text-purple-400">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Paid Videos Online</span>
+                    <Film className="w-4 h-4" />
+                  </div>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white">
+                    {videos.filter(v => v.isPaid).length}
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-400">Videos generating paid revenue</p>
+                </div>
+
+                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs space-y-2">
+                  <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Main Wallet</span>
+                    <Wallet className="w-4 h-4" />
+                  </div>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white">
+                    ₹{(currentUserProfile?.walletBalance || 0).toFixed(2)}
+                  </p>
+                  <button
+                    onClick={() => navigate('settings')}
+                    className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Manage & Withdraw</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="bg-white dark:bg-[#111827] border border-amber-500/30 p-5 rounded-2xl shadow-xs space-y-2 relative overflow-hidden">
+                  <div className="flex items-center justify-between text-amber-500">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <Gift className="w-3.5 h-3.5" />
+                      <span>Bonus Money</span>
+                    </span>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">Reward</span>
+                  </div>
+                  <p className="text-2xl font-black text-slate-900 dark:text-white font-mono">
+                    ₹{(currentUserProfile?.bonusBalance || 0).toFixed(2)}
+                  </p>
+                  <button
+                    onClick={() => navigate('settings')}
+                    className="text-[10px] font-black text-amber-600 dark:text-amber-400 hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Transfer in Settings</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Paid Videos Breakdown Section */}
+              <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between gap-4 flex-wrap pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                      Your Paid Videos & Performance
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">Individual earnings per monetized video</p>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      resetForm();
+                      setIsPaid(true);
+                      setPublishModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>Upload New Paid Video</span>
+                  </button>
+                </div>
+
+                {videos.filter(v => v.isPaid).length === 0 ? (
+                  <div className="py-12 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center mx-auto">
+                      <Lock className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white">No Paid Videos Created Yet</h4>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto font-medium">
+                      You are an approved monetized creator! Start charging for premium video content to earn revenue from your channel fans.
+                    </p>
+                    <button
+                      onClick={() => {
+                        resetForm();
+                        setIsPaid(true);
+                        setPublishModalOpen(true);
+                      }}
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer"
+                    >
+                      Make Your First Paid Video
+                    </button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                          <th className="p-3">Video</th>
+                          <th className="p-3">Price</th>
+                          <th className="p-3">Unlocks / Sales</th>
+                          <th className="p-3">Total Earned</th>
+                          <th className="p-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {videos.filter(v => v.isPaid).map((v) => (
+                          <tr key={v.videoId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                            <td className="p-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-14 aspect-video rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-800 shrink-0">
+                                  <img src={v.thumbnailUrl} className="w-full h-full object-cover" />
+                                </div>
+                                <div className="min-w-0 max-w-xs">
+                                  <p className="font-bold text-slate-900 dark:text-white truncate">{v.title}</p>
+                                  <p className="text-[10px] text-slate-500">{v.category} • {formatTimeAgo(v.createdAt)}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3">
+                              <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-xs">
+                                ₹{(v.price || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">
+                              {v.paidSalesCount || 0} unlocks
+                            </td>
+                            <td className="p-3">
+                              <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                ₹{(v.paidEarnings || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right space-x-1.5">
+                              <button
+                                onClick={() => navigate(v.isShort ? 'shorts' : 'watch', v.videoId)}
+                                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold cursor-pointer"
+                              >
+                                View
+                              </button>
+                              <button
+                                onClick={() => handleEditClick(v)}
+                                className="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg text-[10px] font-bold cursor-pointer"
+                              >
+                                Edit Price
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Recent Unlocks / Purchases Log */}
+              <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                    Recent Viewer Unlocks & Direct Payments
+                  </h3>
+                  <span className="text-xs text-slate-400 font-bold">{creatorPurchases.length} total transactions</span>
+                </div>
+
+                {loadingPurchases ? (
+                  <div className="py-8 flex justify-center items-center gap-2 text-slate-400 text-xs">
+                    <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                    <span>Loading transactions...</span>
+                  </div>
+                ) : creatorPurchases.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-400 font-medium">
+                    No video purchases yet. As soon as viewers unlock your videos, receipt logs will appear here.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-900/50 text-[10px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                          <th className="p-3">Viewer</th>
+                          <th className="p-3">Video Unlocked</th>
+                          <th className="p-3">Payment Method</th>
+                          <th className="p-3">Amount Credited</th>
+                          <th className="p-3 text-right">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {creatorPurchases.slice(0, 15).map((p) => (
+                          <tr key={p.purchaseId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                            <td className="p-3 font-bold text-slate-900 dark:text-white">
+                              @{p.username}
+                            </td>
+                            <td className="p-3 font-medium text-slate-700 dark:text-slate-300 max-w-xs truncate">
+                              {p.videoTitle}
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
+                                {p.paidWith === 'bonus' ? 'Bonus Money' : p.paidWith === 'hybrid' ? 'Wallet + Bonus' : 'Wallet Balance'}
+                              </span>
+                            </td>
+                            <td className="p-3 font-mono font-black text-emerald-600 dark:text-emerald-400">
+                              +₹{p.amount.toFixed(2)}
+                            </td>
+                            <td className="p-3 text-right text-slate-400 text-[11px]">
+                              {formatTimeAgo(p.createdAt)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+
         </div>
       )}
 
@@ -1781,28 +2085,85 @@ export const CreatorStudio: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 2. Video Monetization & Creator Fund */}
-                    <div className="p-5 bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                          <DollarSign className="w-4 h-4 stroke-[2.5]" />
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Video Monetization</h4>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Earn creator revenue share & reward points from views</p>
-                        </div>
-                      </div>
+                    {/* 2. Make Video Paid (Exclusive for Monetized Channels) */}
+                    {(currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin') ? (
+                      <div className="p-5 bg-gradient-to-r from-emerald-50/70 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/10 rounded-3xl border border-emerald-300/80 dark:border-emerald-800/60 space-y-4 shadow-xs">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/30">
+                              <Lock className="w-5 h-5 stroke-[2.5]" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                  Make Video Paid
+                                </h4>
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-200/70 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                                  ✓ Monetized
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                                Charge viewers to watch this video. Revenue is credited 100% directly to your wallet.
+                              </p>
+                            </div>
+                          </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setIsMonetized(!isMonetized)}
-                        className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
-                          isMonetized ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                        }`}
-                      >
-                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isMonetized ? 'translate-x-6' : 'translate-x-0'}`} />
-                      </button>
-                    </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsPaid(!isPaid)}
+                            className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
+                              isPaid ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                            }`}
+                          >
+                            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isPaid ? 'translate-x-6' : 'translate-x-0'}`} />
+                          </button>
+                        </div>
+
+                        {isPaid && (
+                          <div className="pt-3 border-t border-emerald-200/80 dark:border-emerald-800/50 flex items-center justify-between gap-4 flex-wrap animate-in fade-in duration-200">
+                            <div className="flex-1 min-w-[200px]">
+                              <label className="block text-[11px] font-black text-slate-800 dark:text-slate-200 mb-1.5">
+                                Set Video Access Price (₹ INR) *
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-emerald-600 dark:text-emerald-400">
+                                  ₹
+                                </span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={10000}
+                                  value={price}
+                                  onChange={(e) => setPrice(Math.max(1, Number(e.target.value)))}
+                                  placeholder="e.g. 10"
+                                  className="w-full pl-8 pr-4 py-2.5 bg-white dark:bg-[#1A1A1A] border-2 border-emerald-400 dark:border-emerald-600 rounded-xl text-xs font-black text-slate-900 dark:text-white focus:outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">Quick Presets:</span>
+                              <div className="flex gap-1.5 items-center flex-wrap">
+                                {[5, 10, 20, 50, 100].map((preset) => (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => setPrice(preset)}
+                                    className={`px-3 py-1.5 text-[11px] font-black rounded-lg cursor-pointer transition-all ${
+                                      price === preset
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'bg-white dark:bg-[#1E1E1E] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                                    }`}
+                                  >
+                                    ₹{preset}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
 
                     {/* 3. Shorts Vertical Format Toggle */}
                     <div className="p-5 bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">

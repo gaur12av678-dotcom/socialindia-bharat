@@ -482,6 +482,10 @@ export const videoService = {
       soundAudioUrl,
       isMonetized: videoData.isMonetized !== undefined ? videoData.isMonetized : true,
       estimatedEarnings: 0,
+      isPaid: videoData.isPaid || false,
+      price: videoData.price || 0,
+      paidSalesCount: 0,
+      paidEarnings: 0,
       createdAt: now,
       updatedAt: now,
     };

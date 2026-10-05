@@ -53,6 +53,8 @@ export const UploadPage: React.FC = () => {
   const [selectedSoundTrack, setSelectedSoundTrack] = useState<SoundTrack | null>(null);
   const [soundModalOpen, setSoundModalOpen] = useState(false);
   const [isMonetized, setIsMonetized] = useState(true);
+  const [isPaid, setIsPaid] = useState(false);
+  const [price, setPrice] = useState<number>(10);
   const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>('allow');
 
   // File Upload & Preview States
@@ -264,6 +266,10 @@ export const UploadPage: React.FC = () => {
         soundCoverUrl: selectedSoundTrack?.coverUrl,
         soundAudioUrl: selectedSoundTrack?.audioUrl,
         isMonetized,
+        isPaid: isPaid && (currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin'),
+        price: isPaid ? Number(price || 0) : 0,
+        paidSalesCount: 0,
+        paidEarnings: 0,
         creatorId: currentUser.uid,
         creatorUsername: currentUserProfile.username,
         creatorDisplayName: currentUserProfile.displayName,
@@ -787,28 +793,85 @@ export const UploadPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* 2. Video Monetization */}
-              <div className="p-5 bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                    <DollarSign className="w-4 h-4 stroke-[2.5]" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black text-slate-900 dark:text-blue-400 uppercase tracking-wider">Video Monetization</h4>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Earn creator revenue share & reward points from views</p>
-                  </div>
-                </div>
+              {/* 2. Make Video Paid (Exclusively Visible to Monetized Channels) */}
+              {(currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin') ? (
+                <div className="p-5 bg-linear-to-r from-emerald-50/70 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/10 rounded-3xl border border-emerald-300/80 dark:border-emerald-800/60 space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/30">
+                        <Lock className="w-5 h-5 stroke-[2.5]" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                            Make Video Paid
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-200/70 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                            ✓ Monetized
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                          Charge viewers to watch this video. Revenue is credited 100% directly to your wallet.
+                        </p>
+                      </div>
+                    </div>
 
-                <button
-                  type="button"
-                  onClick={() => setIsMonetized(!isMonetized)}
-                  className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
-                    isMonetized ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
-                  }`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isMonetized ? 'translate-x-6' : 'translate-x-0'}`} />
-                </button>
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsPaid(!isPaid)}
+                      className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
+                        isPaid ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isPaid ? 'translate-x-6' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+
+                  {isPaid && (
+                    <div className="pt-3 border-t border-emerald-200/80 dark:border-emerald-800/50 flex items-center justify-between gap-4 flex-wrap animate-in fade-in duration-200">
+                      <div className="flex-1 min-w-[200px]">
+                        <label className="block text-[11px] font-black text-slate-800 dark:text-slate-200 mb-1.5">
+                          Set Video Access Price (₹ INR) *
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-emerald-600 dark:text-emerald-400">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={10000}
+                            value={price}
+                            onChange={(e) => setPrice(Math.max(1, Number(e.target.value)))}
+                            placeholder="e.g. 10"
+                            className="w-full pl-8 pr-4 py-2.5 bg-white dark:bg-[#1A1A1A] border-2 border-emerald-400 dark:border-emerald-600 rounded-xl text-xs font-black text-slate-900 dark:text-white focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block">Quick Presets:</span>
+                        <div className="flex gap-1.5 items-center flex-wrap">
+                          {[5, 10, 20, 50, 100].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => setPrice(preset)}
+                              className={`px-3 py-1.5 text-[11px] font-black rounded-lg cursor-pointer transition-all ${
+                                price === preset
+                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                  : 'bg-white dark:bg-[#1E1E1E] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                              }`}
+                            >
+                              ₹{preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
 
               {/* 3. Shorts Vertical Format Toggle */}
               <div className="p-5 bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">

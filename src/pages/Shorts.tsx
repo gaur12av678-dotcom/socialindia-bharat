@@ -34,9 +34,13 @@ import {
   Flag,
   Copy,
   Music,
-  Bookmark
+  Bookmark,
+  Lock,
+  Wallet,
+  Sparkles
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { paidVideoService } from '../services/paidVideoService';
 import { SoundLibraryModal } from '../components/SoundLibraryModal';
 import { SoundDetailsModal } from '../components/SoundDetailsModal';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
@@ -343,6 +347,11 @@ export const Shorts: React.FC = () => {
   const [soundDetailsModalOpen, setSoundDetailsModalOpen] = useState(false);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
 
+  // Paid Short Unlock States
+  const [isShortUnlocked, setIsShortUnlocked] = useState(false);
+  const [isPurchasingShort, setIsPurchasingShort] = useState(false);
+  const [shortUnlockError, setShortUnlockError] = useState('');
+
   const targetShortId = route.param;
 
   const fetchShorts = async () => {
@@ -384,6 +393,12 @@ export const Shorts: React.FC = () => {
   }, [targetShortId]);
 
   const activeShort = shorts[currentIndex];
+
+  const isShortOwner = currentUser?.uid === activeShort?.creatorId;
+  const isShortAdmin = currentUserProfile?.role === 'admin';
+  const isShortPaid = !!(activeShort?.isPaid && (activeShort?.price || 0) > 0);
+  const isShortLocked = isShortPaid && !isShortOwner && !isShortAdmin && !isShortUnlocked;
+  const viewerTotalBalance = (currentUserProfile?.walletBalance || 0) + (currentUserProfile?.bonusBalance || 0);
 
   // Sync like and comments stats for active short & increment view count
   useEffect(() => {
@@ -427,7 +442,56 @@ export const Shorts: React.FC = () => {
     // Check offline download status
     downloadService.isDownloaded(activeShort.videoId).then(setIsDownloaded).catch(() => {});
     setOptionsMenuOpen(false);
-  }, [activeShort?.videoId, currentUser?.uid]);
+
+    // Paid Short Verification
+    if (activeShort.isPaid && (activeShort.price || 0) > 0) {
+      if (currentUser?.uid === activeShort.creatorId || currentUserProfile?.role === 'admin') {
+        setIsShortUnlocked(true);
+      } else if (currentUser) {
+        paidVideoService.hasUserPurchasedVideo(currentUser.uid, activeShort.videoId)
+          .then(setIsShortUnlocked)
+          .catch(() => setIsShortUnlocked(false));
+      } else {
+        setIsShortUnlocked(false);
+      }
+    } else {
+      setIsShortUnlocked(true);
+    }
+  }, [activeShort?.videoId, currentUser?.uid, currentUserProfile?.role]);
+
+  const handleUnlockShort = async () => {
+    if (!currentUser) {
+      addToast('Please sign in to unlock this exclusive Short.', 'info');
+      navigate('signin');
+      return;
+    }
+    if (!activeShort) return;
+
+    const walletBal = currentUserProfile?.walletBalance || 0;
+    const bonusBal = currentUserProfile?.bonusBalance || 0;
+    const totalBal = Number((walletBal + bonusBal).toFixed(2));
+    const price = activeShort.price || 0;
+
+    if (totalBal < price) {
+      addToast(`Insufficient balance! Price is ₹${price}, your balance is ₹${totalBal.toFixed(2)}. Please top up your wallet.`, 'error');
+      return;
+    }
+
+    setIsPurchasingShort(true);
+    setShortUnlockError('');
+    try {
+      await paidVideoService.purchaseVideo(currentUser.uid, activeShort);
+      setIsShortUnlocked(true);
+      setIsPlaying(true);
+      await refreshProfile();
+      addToast(`🎉 Payment successful! Short unlocked for ₹${price}. Enjoy watching!`, 'success');
+    } catch (err: any) {
+      setShortUnlockError(err.message || 'Payment failed.');
+      addToast(err.message || 'Payment failed.', 'error');
+    } finally {
+      setIsPurchasingShort(false);
+    }
+  };
 
   const handleDownloadShort = async () => {
     if (!activeShort) return;
@@ -767,12 +831,91 @@ export const Shorts: React.FC = () => {
             <ShortVideoMedia 
               key={activeShort.videoId} 
               short={activeShort} 
-              isPlaying={isPlaying && !swipeDirection}
+              isPlaying={isPlaying && !swipeDirection && !isShortLocked}
               volume={volume}
               isMuted={isMuted}
               onMediaReady={() => setIsMediaReady(true)}
             />
           </div>
+
+          {/* PAID SHORT PAYWALL OVERLAY */}
+          {isShortLocked && (
+            <div className="absolute inset-0 z-35 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-white">
+              {activeShort.thumbnailUrl && (
+                <img 
+                  src={activeShort.thumbnailUrl} 
+                  alt={activeShort.title} 
+                  className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-20 scale-110 pointer-events-none"
+                />
+              )}
+              <div className="relative z-10 max-w-xs w-full space-y-4">
+                <div className="w-14 h-14 rounded-3xl bg-linear-to-tr from-amber-500 to-emerald-500 text-white flex items-center justify-center mx-auto shadow-xl shadow-amber-500/25">
+                  <Lock className="w-7 h-7 stroke-[2.5]" />
+                </div>
+
+                <div className="space-y-1">
+                  <span className="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    Exclusive Paid Short
+                  </span>
+                  <h3 className="text-base font-black tracking-tight line-clamp-2">{activeShort.title}</h3>
+                  <p className="text-xs text-slate-300 font-medium">
+                    By <strong>@{activeShort.creatorUsername}</strong>
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 space-y-2 text-left text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300 font-bold">Access Price:</span>
+                    <span className="font-mono font-black text-emerald-400 text-base">
+                      ₹{activeShort.price} INR
+                    </span>
+                  </div>
+                  <div className="h-px bg-white/10" />
+                  <div className="flex items-center justify-between text-[11px] text-slate-300">
+                    <span>Wallet Balance:</span>
+                    <span className="font-mono font-bold text-white">
+                      ₹{(currentUserProfile?.walletBalance || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  {(currentUserProfile?.bonusBalance || 0) > 0 && (
+                    <div className="flex items-center justify-between text-[11px] text-amber-300">
+                      <span>Bonus Money:</span>
+                      <span className="font-mono font-bold">
+                        +₹{(currentUserProfile?.bonusBalance || 0).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {shortUnlockError && (
+                  <div className="p-2 bg-rose-500/20 border border-rose-500/40 rounded-xl text-rose-300 text-xs font-bold">
+                    {shortUnlockError}
+                  </div>
+                )}
+
+                <div className="pt-1">
+                  {viewerTotalBalance >= (activeShort.price || 0) ? (
+                    <button
+                      onClick={handleUnlockShort}
+                      disabled={isPurchasingShort}
+                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/30 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+                    >
+                      {isPurchasingShort ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      <span>Pay ₹{activeShort.price} & Unlock</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigate('settings')}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Wallet className="w-4 h-4" />
+                      <span>Top Up Wallet (Need ₹{((activeShort.price || 0) - viewerTotalBalance).toFixed(2)})</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* TOP BAR: YouTube-style 3-Dot More Options Menu */}
           <div className="absolute top-4 right-4 z-30">
@@ -859,10 +1002,10 @@ export const Shorts: React.FC = () => {
 
           {/* PLAY/PAUSE OVERLAY ON VIDEO */}
           <div 
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={() => !isShortLocked && setIsPlaying(!isPlaying)}
             className="absolute inset-0 z-10 cursor-pointer flex items-center justify-center"
           >
-            {!isPlaying && (
+            {!isPlaying && !isShortLocked && (
               <div className="w-20 h-20 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white animate-zoom-in">
                 <Play className="w-10 h-10 fill-current ml-1" />
               </div>

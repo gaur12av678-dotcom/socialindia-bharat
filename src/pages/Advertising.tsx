@@ -17,8 +17,12 @@ import {
   Sparkles,
   Play,
   Globe,
-  Film
+  Film,
+  Gift,
+  Eye,
+  ExternalLink
 } from 'lucide-react';
+import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
 
 export const countryList = [
   'United States', 'Canada', 'India', 'Afghanistan', 'Albania', 'Algeria', 'Argentina', 
@@ -40,6 +44,7 @@ export const AdvertisingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [previewAd, setPreviewAd] = useState<any | null>(null);
 
   // Form Fields for Create Ad
   const [adName, setAdName] = useState('');
@@ -121,9 +126,11 @@ export const AdvertisingPage: React.FC = () => {
       return;
     }
 
-    const currentWallet = currentUserProfile.walletBalance || 0;
-    if (currentWallet < totalLimit) {
-      setErrorMsg(`Insufficient Wallet Balance ($${currentWallet.toFixed(2)} USD). Convert points to wallet or top up balance first to cover $${totalLimit.toFixed(2)}.`);
+    const wallet = currentUserProfile.walletBalance || 0;
+    const bonus = currentUserProfile.bonusBalance || 0;
+    const totalAvailable = Number((wallet + bonus).toFixed(2));
+    if (totalAvailable < totalLimit) {
+      setErrorMsg(`Insufficient Balance (₹${totalAvailable.toFixed(2)} available: Wallet ₹${wallet.toFixed(2)}, Bonus ₹${bonus.toFixed(2)}). Total cost is ₹${totalLimit.toFixed(2)}.`);
       return;
     }
 
@@ -153,11 +160,11 @@ export const AdvertisingPage: React.FC = () => {
 
       await refreshProfile();
       await loadData();
-      setSuccessMsg(`✅ Ad campaign "${adName}" created successfully! $${totalLimit.toFixed(2)} deducted from Wallet.`);
+      setSuccessMsg(`✅ Ad campaign "${adName}" created successfully! It is now actively broadcasting live on Home Feed & Watch recommendations.`);
       setTimeout(() => {
         setCreateModalOpen(false);
         setSuccessMsg('');
-      }, 2000);
+      }, 2500);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to create ad campaign.');
     } finally {

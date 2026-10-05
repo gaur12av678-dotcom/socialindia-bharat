@@ -4,7 +4,6 @@ import { useRouter } from '../hooks/useRouter';
 import { ToastContainer } from './Toast';
 import { AuthModal } from './AuthModal';
 import { SocialIndiaLogo } from './SocialIndiaLogo';
-import { AdsterraSocialBar } from './ads/AdsterraSocialBar';
 import { 
   Home, 
   ArrowLeft,
@@ -893,7 +892,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
       {/* TOAST PANEL */}
       <ToastContainer />
-      <AdsterraSocialBar />
 
       {/* SIGN IN/SIGN UP OVERLAY */}
       <AuthModal 

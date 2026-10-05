@@ -4,7 +4,9 @@ import { recommendationService } from '../services/recommendationService';
 import { Video } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { useApp } from '../context/AppContext';
-import { AdsterraNativeBanner } from '../components/ads/AdsterraNativeBanner';
+import { adService } from '../services/adService';
+import { AdCampaign } from '../types';
+import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
 
 export const categoriesList = [
   'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Science', 'Vlogs', 'Comedy', 'Shorts', 'Other'
@@ -15,6 +17,11 @@ export const Home: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
+
+  useEffect(() => {
+    adService.getActiveAds(5).then(setActiveAds).catch(console.warn);
+  }, []);
 
   const fetchHomeVideos = async () => {
     setLoading(true);
@@ -80,7 +87,12 @@ export const Home: React.FC = () => {
         </div>
       )}
 
-      {selectedCategory === 'All' && <AdsterraNativeBanner />}
+      {/* Real User-Promoted Sponsored Ad on Home Feed */}
+      {activeAds.length > 0 && (
+        <div className="mb-4">
+          <SponsoredAdCard ad={activeAds[0]} layout="feed" />
+        </div>
+      )}
 
       {/* Video Feed Section */}
       <div className="space-y-4">

@@ -15,6 +15,7 @@ export interface User {
   // PlayTube Extended Settings & Rewards Fields
   points?: number;
   walletBalance?: number;
+  bonusBalance?: number;
   gender?: string;
   country?: string;
   age?: string;
@@ -76,8 +77,29 @@ export interface Video {
   isMonetized?: boolean;
   estimatedEarnings?: number;
 
+  // Paid Video Exclusive Access (In INR ₹)
+  isPaid?: boolean;
+  price?: number;
+  paidSalesCount?: number;
+  paidEarnings?: number;
+
   createdAt: any;
   updatedAt: any;
+}
+
+export interface VideoPurchase {
+  purchaseId: string;
+  videoId: string;
+  videoTitle: string;
+  videoThumbnailUrl?: string;
+  creatorId: string;
+  creatorUsername: string;
+  userId: string;
+  username: string;
+  userDisplayName?: string;
+  amount: number;
+  paidWith?: 'wallet' | 'bonus' | 'hybrid';
+  createdAt: any;
 }
 
 export interface SoundTrack {
@@ -132,8 +154,14 @@ export interface AdCampaign {
   dailyLimit?: number;
   totalLimit?: number;
   spent?: number;
+  impressions?: number;
+  clicks?: number;
+  results?: number;
   status?: 'active' | 'paused' | 'ended';
   creatorUid?: string;
+  creatorUsername?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Comment {

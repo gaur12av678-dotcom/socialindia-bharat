@@ -33,8 +33,10 @@ import {
   ThumbsDown,
   Eye,
   ArrowRightLeft,
-  ShoppingBag
+  ShoppingBag,
+  Gift
 } from 'lucide-react';
+import { paidVideoService } from '../services/paidVideoService';
 
 export const Settings: React.FC = () => {
   const { currentUser, currentUserProfile, theme, setTheme, refreshProfile, addToast } = useApp();
@@ -86,6 +88,8 @@ export const Settings: React.FC = () => {
 
   // Wallet / Balance (Starts at $0.00 for clean real data)
   const [walletBalance, setWalletBalance] = useState(0.00);
+  const [bonusBalance, setBonusBalance] = useState(0.00);
+  const [isConvertingBonus, setIsConvertingBonus] = useState(false);
   const [replenishAmount, setReplenishAmount] = useState(10);
   const [replenishModalOpen, setReplenishModalOpen] = useState(false);
   const [walletMsg, setWalletMsg] = useState('');
@@ -132,6 +136,7 @@ export const Settings: React.FC = () => {
       setAge(currentUserProfile.age || 'Not selected');
       setPoints(currentUserProfile.points ?? 0);
       setWalletBalance(currentUserProfile.walletBalance ?? 0.00);
+      setBonusBalance(currentUserProfile.bonusBalance ?? 0.00);
       setInstagram(currentUserProfile.socialLinks?.instagram || '');
       setTwitter(currentUserProfile.socialLinks?.twitter || '');
       setYtLink(currentUserProfile.socialLinks?.youtube || '');
@@ -256,6 +261,24 @@ export const Settings: React.FC = () => {
       setWalletMsg(`✅ Successfully added $${replenishAmount.toFixed(2)} to your wallet balance!`);
     } catch (err) {
       setWalletMsg('❌ Failed to top up wallet balance.');
+    }
+  };
+
+  // Convert Bonus to Wallet Balance Handler
+  const handleConvertBonusToWallet = async () => {
+    if (!currentUser || bonusBalance <= 0) return;
+    setIsConvertingBonus(true);
+    setWalletMsg('');
+    try {
+      const res = await paidVideoService.convertBonusToWallet(currentUser.uid, bonusBalance);
+      setBonusBalance(res.newBonus);
+      setWalletBalance(res.newWallet);
+      await refreshProfile();
+      setWalletMsg(`✅ Successfully transferred ₹${bonusBalance.toFixed(2)} Bonus Money to your Main Wallet Balance!`);
+    } catch (err: any) {
+      setWalletMsg(`❌ ${err.message || 'Failed to convert bonus.'}`);
+    } finally {
+      setIsConvertingBonus(false);
     }
   };
 
@@ -667,19 +690,60 @@ export const Settings: React.FC = () => {
                       <span>Channel Monetization Program</span>
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
-                      Earn ad revenue share and view rewards directly into your wallet.
+                      Earn revenue from Paid Videos and viewer support directly into your wallet.
                     </p>
                   </div>
 
-                  {currentUserProfile?.isMonetized && (
-                    <span className="px-3.5 py-1.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Monetization Active</span>
+                  {currentUserProfile?.isMonetized ? (
+                    <span className="px-4 py-2 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-xs">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <span>Monetization Done & Enabled</span>
+                    </span>
+                  ) : (
+                    <span className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Not Monetized</span>
                     </span>
                   )}
                 </div>
 
-                {monetizationMsg && (
+                {/* PROMINENT MONETIZATION ACTIVE BANNER */}
+                {currentUserProfile?.isMonetized ? (
+                  <div className="p-6 bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-blue-500/15 border-2 border-emerald-500/30 rounded-3xl space-y-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/30 shrink-0">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-emerald-800 dark:text-emerald-300">
+                          🎉 Monetization Done & Enabled!
+                        </h3>
+                        <p className="text-xs text-emerald-700/90 dark:text-emerald-400/90 font-semibold">
+                          Your channel is officially monetized by SocialIndia Admin. Criteria requirement is complete / approved.
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+                      You can now publish <strong>Paid Videos</strong> with custom access prices, earn 100% of viewer unlock payments directly into your wallet balance, and track performance in the Creator Studio Earn Hub.
+                    </p>
+                    <div className="pt-2 flex items-center gap-3 flex-wrap">
+                      <button
+                        onClick={() => navigate('studio')}
+                        className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2 active:scale-95"
+                      >
+                        <DollarSign className="w-4 h-4 stroke-[3]" />
+                        <span>Go to Creator Studio Earn Hub</span>
+                      </button>
+                      <button
+                        onClick={() => navigate('upload')}
+                        className="px-5 py-2.5 bg-white dark:bg-[#1A1A1A] border border-emerald-500/40 text-emerald-700 dark:text-emerald-400 font-black text-xs rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Upload className="w-4 h-4" />
+                        <span>Upload Paid Video</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : monetizationMsg ? (
                   <div className={`p-4 rounded-2xl text-xs font-bold ${
                     monetizationMsg.startsWith('🎉') 
                       ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900' 
@@ -687,7 +751,7 @@ export const Settings: React.FC = () => {
                   }`}>
                     {monetizationMsg}
                   </div>
-                )}
+                ) : null}
 
                 {/* Requirement Cards Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -696,9 +760,9 @@ export const Settings: React.FC = () => {
                   <div className="p-5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Requirement 1</span>
-                      {(currentUserProfile?.followersCount || 0) >= 500 ? (
+                      {currentUserProfile?.isMonetized || (currentUserProfile?.followersCount || 0) >= 500 ? (
                         <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-4 h-4" /> Unlocked
+                          <CheckCircle2 className="w-4 h-4" /> {currentUserProfile?.isMonetized ? 'Approved (Done)' : 'Unlocked'}
                         </span>
                       ) : (
                         <span className="text-xs font-bold text-amber-600 dark:text-amber-400">In Progress</span>
@@ -709,14 +773,16 @@ export const Settings: React.FC = () => {
                       <h3 className="text-2xl font-black text-slate-900 dark:text-white">
                         {currentUserProfile?.followersCount || 0} <span className="text-sm text-slate-500 dark:text-slate-400 font-bold">/ 500 Subscribers</span>
                       </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">Minimum 500 channel subscribers required.</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
+                        {currentUserProfile?.isMonetized ? 'Criteria completed or granted by admin.' : 'Minimum 500 channel subscribers required.'}
+                      </p>
                     </div>
 
                     {/* Progress bar */}
                     <div className="w-full h-2.5 bg-slate-200 dark:bg-[#2B2B2B] rounded-full overflow-hidden">
                       <div
                         className="h-full bg-linear-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(100, (((currentUserProfile?.followersCount || 0) / 500) * 100))}%` }}
+                        style={{ width: currentUserProfile?.isMonetized ? '100%' : `${Math.min(100, (((currentUserProfile?.followersCount || 0) / 500) * 100))}%` }}
                       />
                     </div>
                   </div>
@@ -725,9 +791,9 @@ export const Settings: React.FC = () => {
                   <div className="p-5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Requirement 2</span>
-                      {userTotalViews >= 1000 ? (
+                      {currentUserProfile?.isMonetized || userTotalViews >= 1000 ? (
                         <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-4 h-4" /> Unlocked
+                          <CheckCircle2 className="w-4 h-4" /> {currentUserProfile?.isMonetized ? 'Approved (Done)' : 'Unlocked'}
                         </span>
                       ) : (
                         <span className="text-xs font-bold text-amber-600 dark:text-amber-400">In Progress</span>
@@ -738,14 +804,16 @@ export const Settings: React.FC = () => {
                       <h3 className="text-2xl font-black text-slate-900 dark:text-white">
                         {userTotalViews} <span className="text-sm text-slate-500 dark:text-slate-400 font-bold">/ 1,000 Views</span>
                       </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">Minimum 1,000 total video views required.</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
+                        {currentUserProfile?.isMonetized ? 'Criteria completed or granted by admin.' : 'Minimum 1,000 total video views required.'}
+                      </p>
                     </div>
 
                     {/* Progress bar */}
                     <div className="w-full h-2.5 bg-slate-200 dark:bg-[#2B2B2B] rounded-full overflow-hidden">
                       <div
                         className="h-full bg-linear-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-300"
-                        style={{ width: `${Math.min(100, ((userTotalViews / 1000) * 100))}%` }}
+                        style={{ width: currentUserProfile?.isMonetized ? '100%' : `${Math.min(100, ((userTotalViews / 1000) * 100))}%` }}
                       />
                     </div>
                   </div>
@@ -753,19 +821,39 @@ export const Settings: React.FC = () => {
                 </div>
 
                 <div className="pt-2 flex items-center justify-between flex-wrap gap-4">
-                  {(currentUserProfile?.followersCount || 0) >= 500 && userTotalViews >= 1000 ? (
+                  {currentUserProfile?.isMonetized ? (
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl flex items-center justify-between gap-4 w-full flex-wrap">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+                        <div>
+                          <p className="text-xs font-black text-emerald-800 dark:text-emerald-300">
+                            Channel Monetization Status: Active & Operational
+                          </p>
+                          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                            You can publish paid videos and manage your earnings directly from Creator Studio.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => navigate('studio')}
+                        className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer"
+                      >
+                        Open Studio Earn Hub
+                      </button>
+                    </div>
+                  ) : (currentUserProfile?.followersCount || 0) >= 500 && userTotalViews >= 1000 ? (
                     <button
                       onClick={handleRequestMonetization}
-                      disabled={isRequestingMonetization || currentUserProfile?.isMonetized}
+                      disabled={isRequestingMonetization}
                       className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-700 text-white font-black text-xs rounded-full shadow-md transition-all cursor-pointer flex items-center gap-2"
                     >
                       {isRequestingMonetization ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      <span>{currentUserProfile?.isMonetized ? 'Monetization Approved' : 'Enable Monetization Now'}</span>
+                      <span>Enable Monetization Now</span>
                     </button>
                   ) : (
                     <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl flex items-center gap-3 text-amber-700 dark:text-amber-400 text-xs font-bold w-full">
                       <Lock className="w-5 h-5 shrink-0" />
-                      <span>Reach 500 subscribers & 1,000 video views to unlock channel monetization.</span>
+                      <span>Reach 500 subscribers & 1,000 video views to unlock channel monetization (or request approval from admin).</span>
                     </div>
                   )}
                 </div>
@@ -831,14 +919,17 @@ export const Settings: React.FC = () => {
               </div>
             )}
 
-            {/* TAB 6: BALANCE / WALLET (Clean Real Balance Data) */}
+            {/* TAB 6: BALANCE / WALLET (Real Balance & Bonus Data) */}
             {activeTab === 'balance' && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-[#222222]">
                   <h2 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
                     <Wallet className="w-6 h-6 text-[#00A3FF]" />
-                    <span>Wallet</span>
+                    <span>Wallet & Balances</span>
                   </h2>
+                  <span className="text-xs font-bold text-slate-500">
+                    Total Funds: <strong className="text-emerald-600 dark:text-emerald-400 font-mono font-black">₹{(walletBalance + bonusBalance).toFixed(2)}</strong>
+                  </span>
                 </div>
 
                 {walletMsg && (
@@ -851,52 +942,84 @@ export const Settings: React.FC = () => {
                   </div>
                 )}
 
-                {/* Wallet Cards 2-Column Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                {/* 3-Card Wallet Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   
-                  {/* Left Wallet Card */}
-                  <div className="md:col-span-5 p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl flex flex-col items-center text-center justify-between space-y-6 shadow-sm">
-                    <div className="w-20 h-20 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-4xl">
-                      🪙
-                    </div>
+                  {/* Card 1: Total Purchasing Power */}
+                  <div className="p-6 bg-linear-to-br from-blue-600 to-indigo-700 rounded-3xl text-white flex flex-col justify-between space-y-4 shadow-lg shadow-blue-500/15">
                     <div>
-                      <h3 className="text-lg font-black text-slate-900 dark:text-white">Wallet Balance</h3>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold mt-1">
-                        Current Balance: <span className="text-[#00A3FF] font-black">${walletBalance.toFixed(2)} USD</span>
+                      <span className="text-[11px] font-black uppercase tracking-wider text-blue-200">Total Usable Balance</span>
+                      <h2 className="text-3xl font-black mt-2 font-mono">₹{(walletBalance + bonusBalance).toFixed(2)}</h2>
+                      <p className="text-[11px] text-blue-100/90 mt-1 font-medium">
+                        Wallet (₹{walletBalance.toFixed(2)}) + Bonus (₹{bonusBalance.toFixed(2)})
                       </p>
                     </div>
-
-                    <button
-                      onClick={() => setReplenishModalOpen(true)}
-                      className="w-full py-3 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md transition-all cursor-pointer active:scale-95 uppercase tracking-wider"
-                    >
-                      Top Up Balance
-                    </button>
+                    <div className="pt-2 text-[10px] text-blue-200/80 font-medium">
+                      ✓ Instant checkout for all paid videos & shorts
+                    </div>
                   </div>
 
-                  {/* Right Balance Card */}
-                  <div className="md:col-span-7 p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl flex flex-col justify-between space-y-6 shadow-sm">
+                  {/* Card 2: Main Withdrawable Wallet */}
+                  <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl flex flex-col justify-between space-y-4 shadow-xs">
                     <div>
-                      <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Available balance</span>
-                      <h2 className="text-4xl font-black text-slate-900 dark:text-white mt-2">${walletBalance.toFixed(2)}</h2>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Main Wallet</span>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">Withdrawable</span>
+                      </div>
+                      <h2 className="text-3xl font-black text-slate-900 dark:text-white mt-2 font-mono">₹{walletBalance.toFixed(2)}</h2>
+                      <p className="text-[11px] text-slate-500 mt-1">Creator earnings, video unlock payouts & top-ups</p>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        if (walletBalance <= 0) {
-                          setWalletMsg('❌ Wallet balance is $0.00. Convert points or top up balance first.');
-                          return;
-                        }
-                        setWalletMsg(`✅ Payout transfer request of $${walletBalance.toFixed(2)} submitted successfully!`);
-                      }}
-                      className="px-8 py-3 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md transition-all cursor-pointer active:scale-95 w-fit uppercase tracking-wider"
-                    >
-                      Transfer Payout
-                    </button>
+                    <div className="space-y-2 pt-2">
+                      <button
+                        onClick={() => setReplenishModalOpen(true)}
+                        className="w-full py-2.5 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                      >
+                        + Top Up Balance
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (walletBalance <= 0) {
+                            setWalletMsg('❌ Wallet balance is ₹0.00. Convert bonus or points first.');
+                            return;
+                          }
+                          setWalletMsg(`✅ Payout transfer request of ₹${walletBalance.toFixed(2)} submitted successfully!`);
+                        }}
+                        className="w-full py-2.5 bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#333] hover:bg-slate-100 dark:hover:bg-[#202020] text-slate-800 dark:text-slate-200 font-black text-xs rounded-xl transition-all cursor-pointer active:scale-95"
+                      >
+                        Transfer Payout
+                      </button>
+                    </div>
+                  </div>
 
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                      💡 Points earned by liking, watching, commenting, or uploading videos can be converted into Wallet Balance at any time in the Points tab!
-                    </p>
+                  {/* Card 3: Bonus Money */}
+                  <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border-2 border-amber-500/30 rounded-3xl flex flex-col justify-between space-y-4 shadow-xs relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-xl pointer-events-none" />
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                          <Gift className="w-3.5 h-3.5" />
+                          <span>Bonus Money</span>
+                        </span>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">Admin Reward</span>
+                      </div>
+                      <h2 className="text-3xl font-black text-slate-900 dark:text-white mt-2 font-mono">₹{bonusBalance.toFixed(2)}</h2>
+                      <p className="text-[11px] text-slate-500 mt-1">Special funds added by Admin or platform promotions</p>
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                      <button
+                        disabled={bonusBalance <= 0 || isConvertingBonus}
+                        onClick={handleConvertBonusToWallet}
+                        className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
+                      >
+                        {isConvertingBonus ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
+                        <span>Transfer Bonus to Main Wallet</span>
+                      </button>
+                      <p className="text-[10px] text-slate-400 font-medium text-center">
+                        Usable to watch paid videos or transfer to wallet
+                      </p>
+                    </div>
                   </div>
 
                 </div>

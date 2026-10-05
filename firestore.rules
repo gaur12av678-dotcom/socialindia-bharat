@@ -29,15 +29,17 @@ service cloud.firestore {
       
       // Initial registration profile write
       allow create: if isOwner(uid) && 
-        request.resource.data.role == 'user' && 
-        request.resource.data.points == 10 && 
-        request.resource.data.walletBalance == 0.0;
+        request.resource.data.role == 'user';
 
-      // Update allowed only by owner, EXCLUDING protected parameters
+      // Update allowed by owner (protecting role and status), admin, or wallet/bonus balance updates
       allow update: if (isOwner(uid) && 
         !(request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'role', 'points', 'walletBalance', 'status', 'followersCount', 'followingCount', 'videosCount'
-        ]))) || isAdmin();
+          'role', 'status'
+        ]))) || isAdmin() || (
+          isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'walletBalance', 'bonusBalance', 'isMonetized', 'monetizationStatus', 'points', 'updatedAt'
+          ])
+        );
 
       // Only admins can delete profiles
       allow delete: if isAdmin();
@@ -56,8 +58,32 @@ service cloud.firestore {
         request.resource.data.creatorId == request.auth.uid;
         
       allow update, delete: if isSignedIn() && (
-        resource.data.creatorId == request.auth.uid || isAdmin()
+        resource.data.creatorId == request.auth.uid || 
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'viewsCount', 'likesCount', 'commentsCount', 'sharesCount', 'paidSalesCount', 'paidEarnings'
+        ])
       );
+    }
+
+    // --- VIDEO PURCHASES COLLECTION ---
+    match /video_purchases/{purchaseId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.creatorId == request.auth.uid || 
+        isAdmin()
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // --- WALLET TRANSACTIONS COLLECTION ---
+    match /wallet_transactions/{txId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
 
     // --- COMMENTS COLLECTION ---
@@ -111,8 +137,22 @@ service cloud.firestore {
     match /ad_campaigns/{adId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || isAdmin()
+      allow update: if (isSignedIn() && (
+        resource.data.creatorUid == request.auth.uid || 
+        resource.data.userId == request.auth.uid || 
+        isAdmin() ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'impressions', 'clicks', 'results', 'spent', 'updatedAt'
+        ])
+      )) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'impressions', 'clicks', 'results', 'spent', 'updatedAt'
+        ])
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.creatorUid == request.auth.uid || 
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
       );
     }
 

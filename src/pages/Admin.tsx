@@ -3,13 +3,16 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { adminService } from '../services/adminService';
 import { feedbackService, FeedbackEntry } from '../services/feedbackService';
-import { User, Video, Report, TrashItem, SoundTrack } from '../types';
+import { User, Video, Report, TrashItem, SoundTrack, VideoPurchase } from '../types';
 import { trashService } from '../services/trashService';
 import { soundService } from '../services/soundService';
 import { userService } from '../services/userService';
+import { paidVideoService } from '../services/paidVideoService';
 import { 
   Users, 
   Wallet, 
+  DollarSign,
+  Gift,
   Video as VideoIcon, 
   AlertTriangle, 
   LayoutDashboard, 
@@ -60,6 +63,7 @@ import {
   Play,
   Pause,
   Plus,
+  X,
   Palette,
   BookOpen,
   FolderTree,
@@ -74,6 +78,7 @@ type AdminSection =
   | 'dashboard' 
   | 'users' 
   | 'videos' 
+  | 'paid_videos'
   | 'reports' 
   | 'feedback' 
   | 'storage' 
@@ -98,7 +103,7 @@ type AdminSection =
   | 'faq_docs';
 
 export const AdminPanel: React.FC = () => {
-  const { currentUser, currentUserProfile, addToast } = useApp();
+  const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
   const { navigate } = useRouter();
 
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
@@ -145,6 +150,18 @@ export const AdminPanel: React.FC = () => {
   const [walletModalUser, setWalletModalUser] = useState<User | null>(null);
   const [creditAmount, setCreditAmount] = useState<number>(10);
   const [isCrediting, setIsCrediting] = useState(false);
+
+  // Admin Bonus Money Modal state
+  const [bonusModalUser, setBonusModalUser] = useState<User | null>(null);
+  const [bonusAmount, setBonusAmount] = useState<number>(50);
+  const [bonusCreditTarget, setBonusCreditTarget] = useState<'bonus' | 'wallet'>('bonus');
+  const [bonusReason, setBonusReason] = useState<string>('Admin Promotion Bonus');
+  const [isAddingBonus, setIsAddingBonus] = useState(false);
+
+  // Paid Videos oversight state
+  const [paidVideosList, setPaidVideosList] = useState<Video[]>([]);
+  const [purchasesList, setPurchasesList] = useState<VideoPurchase[]>([]);
+  const [loadingPaidVideos, setLoadingPaidVideos] = useState(false);
 
   // Security Check: Only admins allowed
   useEffect(() => {
@@ -286,6 +303,55 @@ export const AdminPanel: React.FC = () => {
       setIsCrediting(false);
     }
   };
+
+  const handleAdminAddBonus = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bonusModalUser || bonusAmount <= 0) return;
+    setIsAddingBonus(true);
+    try {
+      const res = await paidVideoService.addBonusMoney(
+        bonusModalUser.uid, 
+        bonusAmount, 
+        bonusReason,
+        bonusCreditTarget
+      );
+      setUsers(prev => prev.map(u => u.uid === bonusModalUser.uid ? { 
+        ...u, 
+        bonusBalance: res.newBonus, 
+        walletBalance: res.newWallet 
+      } : u));
+
+      if (bonusModalUser.uid === currentUser?.uid) {
+        await refreshProfile();
+      }
+
+      addToast(
+        bonusCreditTarget === 'bonus'
+          ? `Added ₹${bonusAmount.toFixed(2)} Bonus Money to @${bonusModalUser.username}'s account!`
+          : `Added ₹${bonusAmount.toFixed(2)} Direct Cash to @${bonusModalUser.username}'s wallet!`,
+        'success'
+      );
+      setBonusModalUser(null);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to credit funds.', 'error');
+    } finally {
+      setIsAddingBonus(false);
+    }
+  };
+
+  // Load Paid Videos & Purchases when viewing paid_videos section
+  useEffect(() => {
+    if (activeSection === 'paid_videos') {
+      setLoadingPaidVideos(true);
+      Promise.all([
+        paidVideoService.getAllPaidVideos(),
+        paidVideoService.getAllPurchases()
+      ]).then(([pv, purchases]) => {
+        setPaidVideosList(pv);
+        setPurchasesList(purchases);
+      }).catch(console.warn).finally(() => setLoadingPaidVideos(false));
+    }
+  }, [activeSection]);
 
   const handleSaveStorage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -643,6 +709,14 @@ export const AdminPanel: React.FC = () => {
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1.5">Monetization</p>
 
           <button 
+            onClick={() => setActiveSection('paid_videos')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'paid_videos' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <DollarSign className="w-4 h-4 text-emerald-500" />
+            <span>Paid Videos & Earnings</span>
+          </button>
+
+          <button 
             onClick={() => setActiveSection('payments_ads')}
             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'payments_ads' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
           >
@@ -960,9 +1034,14 @@ export const AdminPanel: React.FC = () => {
                           </td>
                           <td className="px-6 py-4">
                             <p className="font-mono font-black text-blue-600 dark:text-blue-400">
-                              ${(u.walletBalance || 0).toFixed(2)} USD
+                              ₹{(u.walletBalance || 0).toFixed(2)}
                             </p>
-                            <p className="text-[10px] font-mono text-amber-500 font-bold">
+                            {(u.bonusBalance || 0) > 0 && (
+                              <p className="text-[10px] font-mono text-amber-500 font-bold">
+                                +₹{(u.bonusBalance || 0).toFixed(2)} Bonus
+                              </p>
+                            )}
+                            <p className="text-[10px] font-mono text-slate-400 font-bold">
                               {u.points || 0} pts
                             </p>
                           </td>
@@ -996,6 +1075,18 @@ export const AdminPanel: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right space-x-1.5">
+                            <button
+                              onClick={() => {
+                                setBonusModalUser(u);
+                                setBonusAmount(50);
+                                setBonusReason('Admin Promotion Bonus');
+                              }}
+                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
+                              title="Add Bonus Money to user account"
+                            >
+                              <Gift className="w-3.5 h-3.5" />
+                              <span>+ Bonus (₹)</span>
+                            </button>
                             <button
                               onClick={() => {
                                 setWalletModalUser(u);
@@ -1091,6 +1182,205 @@ export const AdminPanel: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Paid Videos & Earnings Oversight Section */}
+            {activeSection === 'paid_videos' && (
+              <div className="space-y-6">
+                
+                {/* Header Card */}
+                <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6 sm:p-8 rounded-3xl shadow-lg relative overflow-hidden">
+                  <div className="relative z-10 space-y-2 max-w-2xl">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-wider">
+                      <DollarSign className="w-3.5 h-3.5" />
+                      <span>Platform Monetization & Paid Videos</span>
+                    </span>
+                    <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                      Paid Videos & Creator Revenue Oversight
+                    </h2>
+                    <p className="text-xs sm:text-sm text-white/90 font-medium">
+                      Monitor all paid video content, track viewer purchases, and oversee creator wallet earnings across SocialIndia.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 4 Overview Stat Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] p-5 rounded-2xl shadow-xs space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Paid Videos</span>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">{paidVideosList.length}</p>
+                    <p className="text-[10px] font-bold text-slate-400">Published with access price</p>
+                  </div>
+
+                  <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] p-5 rounded-2xl shadow-xs space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Unlocks Completed</span>
+                    <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
+                      {purchasesList.length}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-400">Viewer wallet transactions</p>
+                  </div>
+
+                  <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] p-5 rounded-2xl shadow-xs space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Volume Generated</span>
+                    <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                      ₹{purchasesList.reduce((acc, curr) => acc + (curr.amount || 0), 0).toFixed(2)}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-400">Transferred to creator wallets</p>
+                  </div>
+
+                  <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] p-5 rounded-2xl shadow-xs space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Monetized Channels</span>
+                    <p className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                      {users.filter(u => u.isMonetized).length}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-400">Approved for paid content</p>
+                  </div>
+                </div>
+
+                {/* Table 1: All Available Paid Videos */}
+                <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl overflow-hidden shadow-sm">
+                  <div className="p-5 border-b border-slate-100 dark:border-[#272727] flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                        Available Paid Videos
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">All videos charging an unlock fee</p>
+                    </div>
+                    <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 rounded-full text-xs font-black">
+                      {paidVideosList.length} Active Paid Videos
+                    </span>
+                  </div>
+
+                  {loadingPaidVideos ? (
+                    <div className="py-12 flex justify-center items-center gap-2 text-slate-400 text-xs">
+                      <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+                      <span>Loading paid videos...</span>
+                    </div>
+                  ) : paidVideosList.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-slate-400 font-bold">
+                      No paid videos published yet on the platform.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-[#1a1a1a] text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-100 dark:border-[#272727]">
+                            <th className="px-6 py-4">Video</th>
+                            <th className="px-6 py-4">Creator</th>
+                            <th className="px-6 py-4">Price</th>
+                            <th className="px-6 py-4">Sales / Unlocks</th>
+                            <th className="px-6 py-4">Total Revenue</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-[#272727]">
+                          {paidVideosList.map((v) => (
+                            <tr key={v.videoId} className="text-xs hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-16 aspect-video rounded bg-slate-200 dark:bg-[#272727] shrink-0 overflow-hidden">
+                                    <img src={v.thumbnailUrl} className="w-full h-full object-cover" />
+                                  </div>
+                                  <div className="min-w-0 max-w-xs">
+                                    <p className="font-bold text-slate-900 dark:text-white truncate">{v.title}</p>
+                                    <p className="text-[10px] text-slate-500">{v.category} • {formatViews(v.viewsCount)} views</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">
+                                @{v.creatorUsername}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                  ₹{(v.price || 0).toFixed(2)}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-300">
+                                {v.paidSalesCount || 0} unlocks
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                  ₹{(v.paidEarnings || 0).toFixed(2)}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-right space-x-2">
+                                <button
+                                  onClick={() => navigate(v.isShort ? 'shorts' : 'watch', v.videoId)}
+                                  className="p-2 hover:bg-slate-50 dark:hover:bg-[#272727] rounded-lg text-blue-600 cursor-pointer"
+                                  title="Watch Video"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Table 2: Real-time Purchases Ledger */}
+                <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl overflow-hidden shadow-sm">
+                  <div className="p-5 border-b border-slate-100 dark:border-[#272727] flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                        Platform Video Purchases & Unlocks Ledger
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">Real-time purchase transactions across all users</p>
+                    </div>
+                    <span className="text-xs text-slate-400 font-bold">{purchasesList.length} Total Unlocks</span>
+                  </div>
+
+                  {purchasesList.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-slate-400 font-bold">
+                      No video purchase transactions recorded yet.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 dark:bg-[#1a1a1a] text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-100 dark:border-[#272727]">
+                            <th className="px-6 py-4">Buyer</th>
+                            <th className="px-6 py-4">Video Unlocked</th>
+                            <th className="px-6 py-4">Creator Credited</th>
+                            <th className="px-6 py-4">Method</th>
+                            <th className="px-6 py-4">Amount</th>
+                            <th className="px-6 py-4 text-right">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-[#272727]">
+                          {purchasesList.map((p) => (
+                            <tr key={p.purchaseId} className="text-xs hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50">
+                              <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">
+                                @{p.username}
+                              </td>
+                              <td className="px-6 py-4 font-medium text-slate-700 dark:text-slate-300 max-w-xs truncate">
+                                {p.videoTitle}
+                              </td>
+                              <td className="px-6 py-4 font-bold text-slate-600 dark:text-slate-400">
+                                @{p.creatorUsername}
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
+                                  {p.paidWith === 'bonus' ? 'Bonus Money' : p.paidWith === 'hybrid' ? 'Wallet + Bonus' : 'Wallet Balance'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                ₹{p.amount.toFixed(2)}
+                              </td>
+                              <td className="px-6 py-4 text-right text-slate-400 text-[11px]">
+                                {new Date(p.createdAt).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
 
@@ -2492,6 +2782,146 @@ export const AdminPanel: React.FC = () => {
                   >
                     {isCrediting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                     <span>Add ${creditAmount.toFixed(2)} to Wallet</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+        {/* BONUS MONEY CREDIT MODAL */}
+        {bonusModalUser && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#121215] border border-slate-200 dark:border-[#222] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-zoom-in">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#222] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+                    <Gift className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Add Bonus Money</h3>
+                    <p className="text-xs text-slate-500">Reward bonus funds into user account</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setBonusModalUser(null)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#222] text-slate-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* User details card */}
+              <div className="p-4 bg-slate-50 dark:bg-[#1a1a1a] rounded-2xl border border-slate-200/60 dark:border-[#2b2b2b] flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                  {bonusModalUser.photoURL ? <img src={bonusModalUser.photoURL} className="w-full h-full object-cover" /> : getInitials(bonusModalUser.displayName)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{bonusModalUser.displayName}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    @{bonusModalUser.username} • Bonus: ₹{(bonusModalUser.bonusBalance || 0).toFixed(2)} • Wallet: ₹{(bonusModalUser.walletBalance || 0).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleAdminAddBonus} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Credit Destination
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBonusCreditTarget('bonus')}
+                      className={`p-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        bonusCreditTarget === 'bonus'
+                          ? 'bg-amber-500/15 border-amber-500 text-amber-500 shadow-xs'
+                          : 'bg-slate-50 dark:bg-[#1a1a1a] border-slate-200 dark:border-[#333] text-slate-500'
+                      }`}
+                    >
+                      <Gift className="w-4 h-4" />
+                      <span>🎁 Bonus Money (₹)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBonusCreditTarget('wallet')}
+                      className={`p-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        bonusCreditTarget === 'wallet'
+                          ? 'bg-emerald-500/15 border-emerald-500 text-emerald-500 shadow-xs'
+                          : 'bg-slate-50 dark:bg-[#1a1a1a] border-slate-200 dark:border-[#333] text-slate-500'
+                      }`}
+                    >
+                      <Wallet className="w-4 h-4" />
+                      <span>💰 Main Wallet (₹)</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {bonusCreditTarget === 'bonus' 
+                      ? 'Bonus Money can be used to unlock & watch paid videos/shorts.'
+                      : 'Direct cash added to creator wallet balance, withdrawable anytime.'}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+                    Amount to Add (₹ INR) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-emerald-600">₹</span>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      max="100000"
+                      required
+                      value={bonusAmount}
+                      onChange={(e) => setBonusAmount(parseFloat(e.target.value) || 0)}
+                      className="w-full pl-8 pr-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {[20, 50, 100, 200, 500].map((amt) => (
+                    <button
+                      type="button"
+                      key={amt}
+                      onClick={() => setBonusAmount(amt)}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-black border transition-all cursor-pointer ${bonusAmount === amt ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs' : 'bg-slate-50 dark:bg-[#1a1a1a] border-slate-200 dark:border-[#333] text-slate-600 dark:text-slate-300'}`}
+                    >
+                      +₹{amt}
+                    </button>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+                    Reason / Description
+                  </label>
+                  <input
+                    type="text"
+                    value={bonusReason}
+                    onChange={(e) => setBonusReason(e.target.value)}
+                    placeholder="e.g. Creator Welcome Gift, Festival Bonus"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setBonusModalUser(null)}
+                    disabled={isAddingBonus}
+                    className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-[#333] text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isAddingBonus || bonusAmount <= 0}
+                    className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isAddingBonus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
+                    <span>Add ₹{bonusAmount.toFixed(2)} Bonus</span>
                   </button>
                 </div>
               </form>
