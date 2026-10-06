@@ -65,7 +65,7 @@ export const GoProPage: React.FC = () => {
                 <span className="px-3 py-1 bg-[#00A3FF] text-white text-xs font-black rounded-lg uppercase">PRO</span>
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
-                Discover more features with PlayTube Pro package! 🚀
+                Discover more features with SocialIndia Pro package 🚀
               </p>
             </div>
           </div>
@@ -160,7 +160,7 @@ export const GoProPage: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
                   <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[#00A3FF] stroke-[3]" /><span>Verified badge ✓</span></div>
                   <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[#00A3FF] stroke-[3]" /><span>Featured videos</span></div>
-                  <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[#00A3FF] stroke-[3]" /><span>Upload up to 96 MB</span></div>
+                  <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[#00A3FF] stroke-[3]" /><span>Upload up to 500 MB</span></div>
                   <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[#00A3FF] stroke-[3]" /><span>Ad Revenue Sharing</span></div>
                 </div>
               </div>
