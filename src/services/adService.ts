@@ -132,6 +132,22 @@ export const adService = {
     }, { merge: true });
   },
 
+  // Get single ad by ID
+  async getAdById(adId: string): Promise<AdCampaign | null> {
+    if (!adId) return null;
+    try {
+      const docRef = doc(db, 'ad_campaigns', adId);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        return snap.data() as AdCampaign;
+      }
+      return null;
+    } catch (err) {
+      console.warn('getAdById error:', err);
+      return null;
+    }
+  },
+
   // Get user's ad campaigns
   async getUserAds(uid: string): Promise<AdCampaign[]> {
     try {

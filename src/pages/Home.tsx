@@ -18,6 +18,7 @@ export const Home: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
+  const [adDismissed, setAdDismissed] = useState(false);
 
   useEffect(() => {
     adService.getActiveAds(5).then(setActiveAds).catch(console.warn);
@@ -87,14 +88,7 @@ export const Home: React.FC = () => {
         </div>
       )}
 
-      {/* Real User-Promoted Sponsored Ad on Home Feed */}
-      {activeAds.length > 0 && (
-        <div className="mb-4">
-          <SponsoredAdCard ad={activeAds[0]} layout="feed" />
-        </div>
-      )}
-
-      {/* Video Feed Section */}
+      {/* Video Feed Section (With Embedded YouTube Style Sponsored Feed Card) */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-extrabold tracking-wider text-slate-900 dark:text-white uppercase">
@@ -105,6 +99,8 @@ export const Home: React.FC = () => {
         <VideoGrid 
           videos={videos} 
           loading={loading} 
+          activeAds={adDismissed ? [] : activeAds}
+          onDismissAd={() => setAdDismissed(true)}
           emptyHeading="No videos available yet"
           emptyMessage="Videos published on SocialIndia will appear here."
         />

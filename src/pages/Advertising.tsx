@@ -134,11 +134,16 @@ export const AdvertisingPage: React.FC = () => {
       return;
     }
 
-    let finalMedia = uploadedMediaUrl;
+    let finalBanner = uploadedMediaUrl;
+    let finalVideo = uploadedMediaUrl;
+    let finalCtaUrl = targetUrl.trim();
+
     if (mediaType === 'socialindia_video') {
       const pickedVid = userVideos.find(v => v.videoId === selectedVideoId);
       if (pickedVid) {
-        finalMedia = pickedVid.videoUrl || pickedVid.thumbnailUrl;
+        finalBanner = pickedVid.thumbnailUrl || pickedVid.videoUrl || '';
+        finalVideo = pickedVid.videoUrl || '';
+        finalCtaUrl = `#/watch/${pickedVid.videoId}`;
       }
     }
 
@@ -147,15 +152,15 @@ export const AdvertisingPage: React.FC = () => {
       await adService.createAdCampaign(currentUser.uid, {
         name: adName.trim(),
         targetAudience: targetCountry,
-        ctaUrl: targetUrl.trim(),
-        title: adTitle.trim(),
+        ctaUrl: finalCtaUrl,
+        title: adTitle.trim() || (mediaType === 'socialindia_video' ? userVideos.find(v => v.videoId === selectedVideoId)?.title : adName),
         description: adDesc.trim(),
         pricingType,
         placement,
         dailyLimit,
         totalLimit,
-        videoUrl: finalMedia,
-        bannerUrl: finalMedia
+        videoUrl: finalVideo,
+        bannerUrl: finalBanner
       });
 
       await refreshProfile();

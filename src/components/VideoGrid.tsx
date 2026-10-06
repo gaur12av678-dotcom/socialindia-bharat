@@ -1,6 +1,7 @@
 import React from 'react';
-import { Video } from '../types';
+import { Video, AdCampaign } from '../types';
 import { VideoCard } from './VideoCard';
+import { SponsoredAdCard } from './ads/SponsoredAdCard';
 import { Play, Plus } from 'lucide-react';
 import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
@@ -8,6 +9,8 @@ import { useApp } from '../context/AppContext';
 interface VideoGridProps {
   videos: Video[];
   loading: boolean;
+  activeAds?: AdCampaign[];
+  onDismissAd?: () => void;
   emptyHeading?: string;
   emptyMessage?: string;
   gridColsClass?: string;
@@ -16,6 +19,8 @@ interface VideoGridProps {
 export const VideoGrid: React.FC<VideoGridProps> = ({ 
   videos, 
   loading, 
+  activeAds = [],
+  onDismissAd,
   emptyHeading = 'No videos available yet',
   emptyMessage = 'Videos published on SocialIndia will appear here.',
   gridColsClass = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-10'
@@ -47,33 +52,61 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
 
   if (videos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4 text-center my-4 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl shadow-xs">
-        <div className="w-16 h-16 bg-[#eff6ff] dark:bg-[#1e293b] text-[#2563eb] dark:text-[#3b82f6] rounded-2xl flex items-center justify-center mb-4 border border-blue-100 dark:border-blue-900/30 shadow-xs">
-          <Play className="w-7 h-7 fill-current ml-0.5" />
-        </div>
-        <h4 className="text-base font-extrabold text-slate-900 dark:text-[#f8fafc]">
-          {emptyHeading}
-        </h4>
-        <p className="text-xs text-slate-500 dark:text-[#94a3b8] mt-1 max-w-sm font-medium">
-          {emptyMessage}
-        </p>
+      <div className="space-y-6">
+        {activeAds && activeAds.length > 0 && (
+          <SponsoredAdCard ad={activeAds[0]} layout="feed" onDismiss={onDismissAd} />
+        )}
 
-        <button
-          onClick={() => navigate('studio')}
-          className="mt-5 px-4 py-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold rounded-xl text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>Publish Video</span>
-        </button>
+        <div className="flex flex-col items-center justify-center py-16 px-4 text-center my-4 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-3xl shadow-xs">
+          <div className="w-16 h-16 bg-[#eff6ff] dark:bg-[#1e293b] text-[#2563eb] dark:text-[#3b82f6] rounded-2xl flex items-center justify-center mb-4 border border-blue-100 dark:border-blue-900/30 shadow-xs">
+            <Play className="w-7 h-7 fill-current ml-0.5" />
+          </div>
+          <h4 className="text-base font-extrabold text-slate-900 dark:text-[#f8fafc]">
+            {emptyHeading}
+          </h4>
+          <p className="text-xs text-slate-500 dark:text-[#94a3b8] mt-1 max-w-sm font-medium">
+            {emptyMessage}
+          </p>
+
+          <button
+            onClick={() => navigate('studio')}
+            className="mt-5 px-4 py-2.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-bold rounded-xl text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Publish Video</span>
+          </button>
+        </div>
       </div>
     );
   }
 
+  // Insert Sponsored Ad item at position 1 (between 1st and 2nd video, or 2nd and 3rd video)
+  const hasAd = activeAds && activeAds.length > 0;
+  const adInsertIndex = videos.length >= 2 ? 1 : 0;
+
   return (
     <div className={gridColsClass}>
-      {videos.map((video) => (
-        <VideoCard key={video.videoId} video={video} />
+      {videos.map((video, idx) => (
+        <React.Fragment key={video.videoId}>
+          {hasAd && idx === adInsertIndex && (
+            <SponsoredAdCard 
+              ad={activeAds[0]} 
+              layout="feed" 
+              onDismiss={onDismissAd} 
+            />
+          )}
+          <VideoCard video={video} />
+        </React.Fragment>
       ))}
+
+      {/* If videos list is shorter than insert index, append ad */}
+      {hasAd && videos.length <= adInsertIndex && (
+        <SponsoredAdCard 
+          ad={activeAds[0]} 
+          layout="feed" 
+          onDismiss={onDismissAd} 
+        />
+      )}
     </div>
   );
 };

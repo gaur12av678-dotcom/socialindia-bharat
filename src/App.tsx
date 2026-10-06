@@ -23,6 +23,7 @@ import { Downloads } from './pages/Downloads';
 import { AboutPage } from './pages/About';
 import { UploadPage } from './pages/Upload';
 import { AdvertisingPage } from './pages/Advertising';
+import { AdInfoPage } from './pages/AdInfo';
 import { GoProPage } from './pages/GoPro';
 import { SignInPage } from './pages/SignIn';
 import { ChatPage } from './pages/Chat';
@@ -115,6 +116,9 @@ function MainAppContent() {
         return <ChatPage />;
       case 'advertising':
         return <AdvertisingPage />;
+      case 'ad-info':
+      case 'ad':
+        return <AdInfoPage />;
       case 'gopro':
       case 'pro':
         return <GoProPage />;

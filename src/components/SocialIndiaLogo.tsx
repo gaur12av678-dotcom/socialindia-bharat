@@ -45,10 +45,11 @@ export const SocialIndiaLogo: React.FC<SocialIndiaLogoProps> = ({
       <div className={`${containerSizes[size]} bg-[#2563eb] text-white flex items-center justify-center shadow-md shadow-blue-600/25 shrink-0 border border-white/20 transition-transform active:scale-95`}>
         <svg 
           viewBox="0 0 24 24" 
-          fill="currentColor" 
-          className={`${playIconSizes[size]} text-white`}
+          fill="#ffffff" 
+          className={`${playIconSizes[size]}`}
+          style={{ fill: '#ffffff', color: '#ffffff' }}
         >
-          <path d="M8 5.14v13.72a1 1 0 001.5.86l11-6.86a1 1 0 000-1.72l-11-6.86a1 1 0 00-1.5.86z" />
+          <path d="M8 5.14v13.72a1 1 0 001.5.86l11-6.86a1 1 0 000-1.72l-11-6.86a1 1 0 00-1.5.86z" fill="#ffffff" />
         </svg>
       </div>
 
