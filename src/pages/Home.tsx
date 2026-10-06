@@ -54,7 +54,7 @@ export const Home: React.FC = () => {
     <div className="p-4 md:p-6 space-y-6">
       
       {/* Category Horizontal Scrolling Bar */}
-      <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 md:mx-0 md:px-0 sticky top-0 bg-white dark:bg-[#0f0f0f] z-20 pt-2 mb-2">
+      <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 md:mx-0 md:px-0 sticky top-0 bg-transparent z-20 pt-2 mb-2">
         {categoriesList.map((category) => {
           const isSelected = selectedCategory === category;
           return (
@@ -63,8 +63,8 @@ export const Home: React.FC = () => {
               onClick={() => setSelectedCategory(category)}
               className={`px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold transition-all shrink-0 cursor-pointer ${
                 isSelected
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-[#272727] dark:hover:bg-[#383838] dark:text-slate-200 border border-slate-200/60 dark:border-transparent'
+                  ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-xs'
+                  : 'bg-slate-200/80 hover:bg-slate-300/80 text-slate-800 dark:bg-[#272727] dark:hover:bg-[#383838] dark:text-slate-200 border border-slate-300/50 dark:border-transparent'
               }`}
             >
               {category}

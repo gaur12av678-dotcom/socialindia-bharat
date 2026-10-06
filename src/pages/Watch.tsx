@@ -37,7 +37,9 @@ import {
   Pin,
   Lock,
   Wallet,
-  Sparkles
+  Sparkles,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 
 export const Watch: React.FC = () => {
@@ -86,6 +88,7 @@ export const Watch: React.FC = () => {
   }, []);
 
   // Keyboard shortcut listener for 't' (Theater Mode)
+  const [commentsCollapsed, setCommentsCollapsed] = useState(false);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing inside input, textarea, or contentEditable
@@ -633,10 +636,10 @@ export const Watch: React.FC = () => {
   };
 
   return (
-    <div className={`p-4 md:p-6 grid grid-cols-1 ${isTheaterMode ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-6 max-w-7xl mx-auto pb-20 transition-all`}>
+    <div className={`p-0 sm:p-4 md:p-6 grid grid-cols-1 ${isTheaterMode ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-4 md:gap-6 max-w-7xl mx-auto pb-12 transition-all`}>
       
       {/* LEFT COLUMN: Player + Details + Comments */}
-      <div className={`${isTheaterMode ? 'lg:col-span-1' : 'lg:col-span-2'} space-y-6`}>
+      <div className={`${isTheaterMode ? 'lg:col-span-1' : 'lg:col-span-2'} space-y-4 md:space-y-6`}>
         
         {/* SocialIndia Custom Video Player or Paid Paywall Lock */}
         {video?.isPaid && (video?.price || 0) > 0 && !isUnlocked && !isVideoOwner && currentUserProfile?.role !== 'admin' ? (
@@ -734,7 +737,7 @@ export const Watch: React.FC = () => {
         )}
 
         {/* Video Title and Social Interactions block */}
-        <div className="space-y-4">
+        <div className="px-3.5 sm:px-0 space-y-4">
           <h1 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-[#F8FAFC] leading-snug">
             <RichText text={video.title} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
           </h1>
@@ -780,7 +783,7 @@ export const Watch: React.FC = () => {
             </div>
 
             {/* Video Social controls (Likes, Saves, Share, Report) */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 max-w-full">
               <button
                 onClick={handleLikeToggle}
                 className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all border cursor-pointer ${
@@ -912,13 +915,32 @@ export const Watch: React.FC = () => {
         </div>
 
         {/* Comments Section */}
-        <div className="space-y-4">
-          <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
-            Comments ({video.commentsCount})
-          </h3>
+        <div className="space-y-4 bg-white dark:bg-[#111827] p-4 rounded-2xl border border-slate-200/80 dark:border-[#334155] shadow-xs">
+          <div 
+            onClick={() => setCommentsCollapsed(!commentsCollapsed)}
+            className="flex items-center justify-between cursor-pointer select-none pb-1"
+          >
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
+                Comments ({video.commentsCount})
+              </h3>
+              <span className="text-[10px] text-slate-500 font-bold">
+                • Tap to {commentsCollapsed ? 'open' : 'close'}
+              </span>
+            </div>
 
-          {/* Form to submit comment */}
-          <form onSubmit={handlePostComment} className="flex gap-3">
+            <button
+              type="button"
+              className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors cursor-pointer"
+            >
+              {commentsCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            </button>
+          </div>
+
+          {!commentsCollapsed && (
+            <>
+              {/* Form to submit comment */}
+              <form onSubmit={handlePostComment} className="flex gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-600 shrink-0 flex items-center justify-center text-white font-bold text-xs select-none border border-slate-200 dark:border-slate-700">
               {currentUserProfile ? getInitials(currentUserProfile.displayName) : 'SI'}
             </div>
@@ -1180,11 +1202,13 @@ export const Watch: React.FC = () => {
               ))
             )}
           </div>
-        </div>
+        </>
+      )}
+    </div>
       </div>
 
       {/* RIGHT COLUMN: Recommended Sidebar */}
-      <div className="space-y-4">
+      <div className="px-3.5 sm:px-0 space-y-4">
         {/* Promoted / Sponsored User Ad */}
         {activeAds.length > 0 && (
           <SponsoredAdCard ad={activeAds[0]} layout="sidebar" />

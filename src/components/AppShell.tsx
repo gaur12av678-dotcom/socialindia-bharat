@@ -58,6 +58,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   
   const { route, navigate } = useRouter();
   const isShortsPage = route.path === 'shorts';
+  const isWatchPage = route.path === 'watch';
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -279,10 +280,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       )}
 
       {/* HEADER / NAVIGATION BAR */}
-      <header className={`px-2.5 sm:px-4 h-14 flex items-center justify-between gap-2 max-w-full relative overflow-visible transition-all duration-300 z-40 safe-bottom ${
-            isShortsPage 
-              ? 'absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent border-transparent text-white md:sticky md:bg-white dark:md:bg-[#0f0f0f] md:border-b md:border-slate-100 dark:md:border-slate-800 shadow-none' 
-              : 'sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
+      <header className={`px-2.5 sm:px-4 h-14 items-center justify-between gap-2 max-w-full relative overflow-visible transition-all duration-300 z-40 safe-bottom ${
+            isWatchPage
+              ? 'hidden md:flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
+              : isShortsPage 
+                ? 'flex absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent border-transparent text-white md:sticky md:bg-white dark:md:bg-[#0f0f0f] md:border-b md:border-slate-100 dark:md:border-slate-800 shadow-none' 
+                : 'flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
           }`}>
             
             {mobileSearchOpen ? (
@@ -812,13 +815,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </aside>
 
         {/* CONTENT VIEWPORT */}
-        <main className="flex-1 min-w-0 pb-20 md:pb-8 overflow-y-auto">
+        <main className={`flex-1 min-w-0 ${isWatchPage ? 'pb-0' : 'pb-20 md:pb-8'} overflow-y-auto`}>
           {children}
         </main>
       </div>
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <nav className={`block md:hidden fixed bottom-0 left-0 right-0 h-14 z-40 select-none transition-all duration-300 ${
+      <nav className={`${isWatchPage ? 'hidden' : 'block md:hidden'} fixed bottom-0 left-0 right-0 z-40 select-none transition-all duration-300 pb-safe ${
         isShortsPage 
           ? 'bg-black/90 backdrop-blur-md border-t border-white/10 text-white shadow-none' 
           : 'bg-white dark:bg-[#0f0f0f] border-t border-[#e5e5e5] dark:border-[#3f3f3f] shadow-lg'

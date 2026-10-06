@@ -505,7 +505,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       className={`relative w-full bg-slate-950 overflow-hidden shadow-2xl group select-none transition-all ${
         isFullscreen 
           ? 'h-screen w-screen rounded-none border-none max-w-none max-h-none flex items-center justify-center' 
-          : 'aspect-video rounded-2xl border border-slate-200 dark:border-[#334155]'
+          : 'aspect-video rounded-none sm:rounded-2xl border-none sm:border border-slate-200 dark:border-[#334155]'
       }`}
     >
       {/* SKELETON LOADING OVERLAY (Displayed until media stream is ready) */}
@@ -548,10 +548,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         )}
       </AnimatePresence>
 
-      {/* VIDEO IFRAME / VIDEO LAYER (Cropped with scale-128 to completely push YouTube's native top title bar, center play icon, and bottom watermark/share buttons out of bounds) */}
+      {/* VIDEO IFRAME / VIDEO LAYER */}
       <div className="absolute inset-0 overflow-hidden flex items-center justify-center bg-black">
         {parsedMedia.type === 'youtube' ? (
-          <div className="absolute -inset-[14%] w-[128%] h-[128%] scale-[1.28] pointer-events-none flex items-center justify-center">
+          <div className="w-full h-full flex items-center justify-center">
             <div id={`yt-player-${video.videoId}`} className="w-full h-full" />
           </div>
         ) : parsedMedia.type === 'drive' ? (

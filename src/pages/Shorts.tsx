@@ -253,8 +253,7 @@ const ShortVideoMedia: React.FC<{
       )}
 
       {parsedMedia.type === 'youtube' ? (
-        /* Reduced crop from 22% to 12% and scale from 1.44 to 1.15 to prevent important content from being cut off while still hiding some YT UI */
-        <div className="absolute -inset-[12%] w-[124%] h-[124%] scale-[1.15] pointer-events-none flex items-center justify-center">
+        <div className="w-full h-full flex items-center justify-center bg-black">
           <div id={containerId} className="w-full h-full" />
         </div>
       ) : parsedMedia.type === 'drive' ? (
@@ -528,28 +527,18 @@ export const Shorts: React.FC = () => {
   };
 
   const handleNext = () => {
-    if (swipeDirection) return;
     if (currentIndex < shorts.length - 1) {
-      setTransitionDirection('up');
-      setTimeout(() => {
-        setIsMediaReady(false);
-        setIsPlaying(true);
-        setCurrentIndex(prev => prev + 1);
-        setTransitionDirection(null);
-      }, 220);
+      setIsMediaReady(false);
+      setIsPlaying(true);
+      setCurrentIndex(prev => prev + 1);
     }
   };
 
   const handlePrev = () => {
-    if (swipeDirection) return;
     if (currentIndex > 0) {
-      setTransitionDirection('down');
-      setTimeout(() => {
-        setIsMediaReady(false);
-        setIsPlaying(true);
-        setCurrentIndex(prev => prev - 1);
-        setTransitionDirection(null);
-      }, 220);
+      setIsMediaReady(false);
+      setIsPlaying(true);
+      setCurrentIndex(prev => prev - 1);
     }
   };
 
@@ -787,9 +776,9 @@ export const Shorts: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center p-4 md:p-6 min-h-[calc(100vh-4rem)] relative select-none max-w-6xl mx-auto">
+    <div className="flex flex-col items-center justify-center p-0 md:p-6 min-h-[calc(100vh-3.5rem)] md:min-h-[calc(100vh-4rem)] relative select-none max-w-6xl mx-auto">
       
-      <div className="flex flex-col md:flex-row items-center md:items-stretch justify-center gap-6 w-full h-[650px] md:h-[750px]">
+      <div className="flex flex-col md:flex-row items-center md:items-stretch justify-center gap-6 w-full h-[calc(100vh-3.5rem)] md:h-[750px]">
         
         {/* Navigation Arrows for desktop (Left side) */}
         <div className="hidden md:flex flex-col justify-center gap-4">
@@ -817,7 +806,7 @@ export const Shorts: React.FC = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          className="relative w-full max-w-[420px] aspect-[9/16] bg-black rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-pan-y"
+          className="relative w-full max-w-full md:max-w-[420px] h-[calc(100vh-3.5rem)] md:h-auto md:aspect-[9/16] bg-black rounded-none md:rounded-[2.5rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-pan-y"
         >
           
           {/* Media Player Component Wrapper with Smooth Sliding Transitions */}
@@ -917,17 +906,28 @@ export const Shorts: React.FC = () => {
             </div>
           )}
 
-          {/* TOP BAR: YouTube-style 3-Dot More Options Menu */}
-          <div className="absolute top-4 right-4 z-30">
+          {/* TOP BAR: Mute Button & YouTube-style 3-Dot More Options Menu */}
+          <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMuted(!isMuted);
+              }}
+              className="w-8 h-8 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-black/60 transition-all cursor-pointer shadow-lg active:scale-95"
+              title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+            >
+              {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
+            </button>
+
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setOptionsMenuOpen(!optionsMenuOpen);
               }}
-              className="w-10 h-10 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-black/60 transition-all cursor-pointer shadow-lg active:scale-95"
+              className="w-8 h-8 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-black/60 transition-all cursor-pointer shadow-lg active:scale-95"
               title="More options"
             >
-              <MoreVertical className="w-5 h-5 text-white" />
+              <MoreVertical className="w-4 h-4 text-white" />
             </button>
 
             {/* YouTube-style Options Dropdown Menu */}
@@ -1191,9 +1191,11 @@ export const Shorts: React.FC = () => {
           selectedSoundId={activeShort.soundId}
         />
 
-        {/* SIDE-OPENING COMMENTS DRAWER (WEB) */}
+        {/* YOUTUBE SHORTS OVERLAY COMMENTS DRAWER */}
         {showComments && (
-          <div className="flex-1 max-w-[400px] bg-white dark:bg-[#111827] rounded-[2.5rem] border border-slate-200 dark:border-[#334155] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right-10 duration-300">
+          <div className="fixed inset-x-0 bottom-14 md:bottom-0 top-1/3 md:top-auto md:right-4 md:inset-x-auto md:w-[380px] md:h-[580px] bg-white dark:bg-[#111827] rounded-t-3xl md:rounded-3xl border border-slate-200 dark:border-[#334155] shadow-2xl flex flex-col overflow-hidden z-50 animate-in slide-in-from-bottom-10 duration-250">
+            {/* Top Drag Handle indicator for Mobile */}
+            <div className="w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mt-2.5 md:hidden" />
             {/* Comments Header */}
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/20">
               <div>

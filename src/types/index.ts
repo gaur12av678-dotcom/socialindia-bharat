@@ -16,6 +16,7 @@ export interface User {
   points?: number;
   walletBalance?: number;
   bonusBalance?: number;
+  isPro?: boolean;
   gender?: string;
   country?: string;
   age?: string;
