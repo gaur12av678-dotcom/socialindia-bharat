@@ -341,7 +341,7 @@ export const ChatPage: React.FC = () => {
             </div>
 
             {/* Scrollable messages bubble board */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-none bg-[#f8fafc] dark:bg-[#101010]">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scrollbar-none bg-[#f8fafc] dark:bg-[#101010]">
               {messages.length === 0 ? (
                 <div className="py-20 text-center text-slate-400 dark:text-slate-500 max-w-sm mx-auto space-y-2">
                   <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-500 flex items-center justify-center mx-auto mb-2">
@@ -356,7 +356,7 @@ export const ChatPage: React.FC = () => {
                   return (
                     <div
                       key={m.id}
-                      className={`flex gap-2.5 max-w-[85%] md:max-w-[70%] ${isMine ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
+                     className={`flex gap-2.5 w-fit max-w-[85%] md:max-w-[70%] min-w-0 ${isMine ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
                     >
                       {/* Avatar */}
                       <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 overflow-hidden">
