@@ -64,6 +64,32 @@ export const notificationService = {
     }
   },
 
+  // Send system or financial notification to a user
+  async sendSystemNotification(recipientId: string, title: string, message: string): Promise<void> {
+    if (!recipientId) return;
+    const notificationId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const now = new Date().toISOString();
+
+    const notification: Notification = {
+      notificationId,
+      recipientId,
+      actorId: 'system',
+      actorUsername: 'SocialIndia',
+      actorDisplayName: title || 'SocialIndia System',
+      actorPhotoURL: '',
+      type: 'system',
+      message,
+      read: false,
+      createdAt: now,
+    };
+
+    try {
+      await setDoc(doc(db, 'users', recipientId, 'notifications', notificationId), notification);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `users/${recipientId}/notifications/${notificationId}`);
+    }
+  },
+
   // Get notifications for a user
   async getNotifications(recipientId: string): Promise<Notification[]> {
     const colRef = collection(db, 'users', recipientId, 'notifications');

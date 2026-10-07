@@ -129,24 +129,58 @@ export const userService = {
     }
   },
 
-  // Convert points to wallet balance (e.g., 100 points = $1.00 balance)
+  // Convert points to wallet balance (100 points = ₹1.00 / $1.00 balance)
   async convertPointsToWallet(uid: string, pointsToConvert: number): Promise<{ newPoints: number; newWalletBalance: number }> {
+    if (!uid) throw new Error('User UID is missing');
     const user = await this.getUserProfile(uid);
-    if (!user) throw new Error('User not found');
-    const currentPoints = user.points || 0;
-    if (pointsToConvert <= 0 || currentPoints < pointsToConvert) {
-      throw new Error(`Insufficient points balance. You need at least ${pointsToConvert} points.`);
+    if (!user) throw new Error('User profile not found');
+    
+    const currentPoints = Number(user.points || 0);
+    const requestedPoints = Math.floor(Number(pointsToConvert));
+
+    if (requestedPoints <= 0) {
+      throw new Error('Please enter a positive number of points to convert.');
+    }
+    if (currentPoints < requestedPoints) {
+      throw new Error(`Insufficient points balance. You have ${currentPoints} points, but requested ${requestedPoints}.`);
     }
 
-    // Rate: 100 points = $1.00 USD (i.e. $0.01 per point)
-    const dollarAmount = pointsToConvert * 0.01;
-    const newPoints = currentPoints - pointsToConvert;
-    const newWalletBalance = Number(((user.walletBalance || 0) + dollarAmount).toFixed(2));
+    // Rate: 100 points = 1.00 unit (0.01 per point)
+    const addedAmount = Number((requestedPoints * 0.01).toFixed(2));
+    const newPoints = Math.max(0, currentPoints - requestedPoints);
+    const newWalletBalance = Number(((Number(user.walletBalance) || 0) + addedAmount).toFixed(2));
 
-    await this.updateProfile(uid, {
-      points: newPoints,
-      walletBalance: newWalletBalance
-    });
+    const userRef = doc(db, 'users', uid);
+    try {
+      await updateDoc(userRef, {
+        points: newPoints,
+        walletBalance: newWalletBalance,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (updateErr) {
+      await setDoc(userRef, {
+        points: newPoints,
+        walletBalance: newWalletBalance,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+
+    // Record in wallet_transactions ledger safely
+    try {
+      const txRef = doc(collection(db, 'wallet_transactions'));
+      await setDoc(txRef, {
+        txId: txRef.id,
+        userId: uid,
+        username: user.username || 'user',
+        amount: addedAmount,
+        pointsConverted: requestedPoints,
+        type: 'points_to_wallet',
+        description: `Converted ${requestedPoints} Points to ₹${addedAmount.toFixed(2)} Wallet Balance`,
+        createdAt: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn('Could not record points conversion transaction:', e);
+    }
 
     return { newPoints, newWalletBalance };
   },

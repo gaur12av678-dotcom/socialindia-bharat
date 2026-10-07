@@ -14,13 +14,15 @@ export interface User {
   
   // PlayTube Extended Settings & Rewards Fields
   points?: number;
-  walletBalance?: number;
+  walletBalance?: number; // Used for shopping / website purchases
+  mainBalance?: number;   // Balance available for withdraw (formerly withdrawable / earnings)
   bonusBalance?: number;
   isPro?: boolean;
   gender?: string;
   country?: string;
   age?: string;
   paypalEmail?: string;
+  upiId?: string;
   isMonetized?: boolean;
   monetizationStatus?: 'not_eligible' | 'eligible' | 'requested' | 'approved';
   lastPasswordChangedAt?: string;
@@ -203,7 +205,7 @@ export interface Notification {
   actorUsername: string;
   actorDisplayName: string;
   actorPhotoURL?: string;
-  type: 'like' | 'comment' | 'follow' | 'upload';
+  type: 'like' | 'comment' | 'follow' | 'upload' | 'system';
   videoId?: string;
   videoTitle?: string;
   commentId?: string;
@@ -294,4 +296,23 @@ export interface ChatSession {
   lastMessage?: string;
   lastMessageTime?: any;
   unreadCount: number;
+}
+
+export interface WithdrawalRequest {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  userEmail?: string;
+  userPhotoURL?: string;
+  amount: number;
+  upiId: string;
+  accountHolderName?: string;
+  phone?: string;
+  status: 'pending' | 'completed' | 'rejected';
+  adminNotes?: string;
+  paidAt?: string;
+  rejectedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -3,11 +3,12 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { adminService } from '../services/adminService';
 import { feedbackService, FeedbackEntry } from '../services/feedbackService';
-import { User, Video, Report, TrashItem, SoundTrack, VideoPurchase } from '../types';
+import { User, Video, Report, TrashItem, SoundTrack, VideoPurchase, WithdrawalRequest } from '../types';
 import { trashService } from '../services/trashService';
 import { soundService } from '../services/soundService';
 import { userService } from '../services/userService';
 import { paidVideoService } from '../services/paidVideoService';
+import { payoutService } from '../services/payoutService';
 import { 
   Users, 
   Wallet, 
@@ -79,6 +80,7 @@ type AdminSection =
   | 'users' 
   | 'videos' 
   | 'paid_videos'
+  | 'withdrawals'
   | 'reports' 
   | 'feedback' 
   | 'storage' 
@@ -114,6 +116,9 @@ export const AdminPanel: React.FC = () => {
   const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
   const [adCampaigns, setAdCampaigns] = useState<any[]>([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
+  const [isProcessingPayoutId, setIsProcessingPayoutId] = useState<string | null>(null);
+  const [withdrawalFilter, setWithdrawalFilter] = useState<'all' | 'pending' | 'completed' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
@@ -178,7 +183,7 @@ export const AdminPanel: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [u, v, r, f, s, t, soundList, ads] = await Promise.all([
+      const [u, v, r, f, s, t, soundList, ads, payouts] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getAllVideos(),
         adminService.getAllReports(),
@@ -186,7 +191,8 @@ export const AdminPanel: React.FC = () => {
         adminService.getStorageConfig(),
         trashService.getAllTrash(),
         soundService.getSounds(),
-        adminService.getAllAdCampaigns()
+        adminService.getAllAdCampaigns(),
+        payoutService.getWithdrawalRequests()
       ]);
       setUsers(u);
       setVideos(v);
@@ -195,6 +201,7 @@ export const AdminPanel: React.FC = () => {
       setTrashItems(t);
       setSounds(soundList);
       setAdCampaigns(ads);
+      setWithdrawalRequests(payouts);
       if (s) {
         setCloudName(s.cloudName || '');
         setUploadPreset(s.uploadPreset || '');
@@ -204,6 +211,41 @@ export const AdminPanel: React.FC = () => {
       addToast('Failed to load administrative data.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Approve & Mark Withdrawal as Paid (Tick)
+  const handleApprovePayout = async (req: WithdrawalRequest) => {
+    if (!window.confirm(`Mark ₹${req.amount.toFixed(2)} as Paid to @${req.username} on UPI (${req.upiId})? Ensure you have sent the payment via Paytm / UPI app.`)) {
+      return;
+    }
+    setIsProcessingPayoutId(req.id);
+    try {
+      await payoutService.approveWithdrawal(req.id, 'Paid via Paytm / UPI app');
+      setWithdrawalRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'completed', paidAt: new Date().toISOString(), adminNotes: 'Paid via Paytm / UPI' } : r));
+      addToast(`✓ Payout of ₹${req.amount.toFixed(2)} marked as Paid to @${req.username}!`, 'success');
+    } catch (err: any) {
+      addToast(err.message || 'Failed to mark as paid.', 'error');
+    } finally {
+      setIsProcessingPayoutId(null);
+    }
+  };
+
+  // Reject Withdrawal and Refund Balance to User
+  const handleRejectPayout = async (req: WithdrawalRequest) => {
+    const reason = window.prompt(`Reject withdrawal request of ₹${req.amount.toFixed(2)} for @${req.username} and refund money to user's Balance? Enter reason:`, 'Invalid UPI ID or account verification needed');
+    if (reason === null) return;
+    setIsProcessingPayoutId(req.id);
+    try {
+      await payoutService.rejectWithdrawal(req.id, reason || 'Rejected by Admin');
+      setWithdrawalRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', adminNotes: reason || 'Rejected by Admin', rejectedAt: new Date().toISOString() } : r));
+      addToast(`Withdrawal of ₹${req.amount.toFixed(2)} rejected and refunded to @${req.username}'s Balance.`, 'info');
+      // refresh users list to show updated balance
+      adminService.getAllUsers().then(setUsers);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to reject withdrawal.', 'error');
+    } finally {
+      setIsProcessingPayoutId(null);
     }
   };
 
@@ -288,6 +330,10 @@ export const AdminPanel: React.FC = () => {
   const handleAdminCreditWallet = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!walletModalUser || creditAmount <= 0) return;
+    if (!walletModalUser.isMonetized) {
+      addToast('Wallet Credit can only be granted to Monetized Creators.', 'error');
+      return;
+    }
     setIsCrediting(true);
     try {
       const current = walletModalUser.walletBalance || 0;
@@ -307,6 +353,10 @@ export const AdminPanel: React.FC = () => {
   const handleAdminAddBonus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bonusModalUser || bonusAmount <= 0) return;
+    if (!bonusModalUser.isMonetized) {
+      addToast('Admin Reward can only be given to Monetized users. Please enable monetization first.', 'error');
+      return;
+    }
     setIsAddingBonus(true);
     try {
       const res = await paidVideoService.addBonusMoney(
@@ -706,7 +756,22 @@ export const AdminPanel: React.FC = () => {
 
         {/* SECTION 2: MONETIZATION & ADS */}
         <div className="space-y-1">
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1.5">Monetization</p>
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-2 mb-1.5">Monetization & Payouts</p>
+
+          <button 
+            onClick={() => setActiveSection('withdrawals')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'withdrawals' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <div className="flex items-center gap-2.5">
+              <DollarSign className="w-4 h-4 text-emerald-400" />
+              <span>Withdrawals (UPI)</span>
+            </div>
+            {withdrawalRequests.filter(r => r.status === 'pending').length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-950 animate-pulse">
+                {withdrawalRequests.filter(r => r.status === 'pending').length}
+              </span>
+            )}
+          </button>
 
           <button 
             onClick={() => setActiveSection('paid_videos')}
@@ -912,12 +977,40 @@ export const AdminPanel: React.FC = () => {
             {/* Dashboard Section */}
             {activeSection === 'dashboard' && (
               <div className="space-y-8">
+                {/* Pending UPI Payouts Alert */}
+                {withdrawalRequests.filter(r => r.status === 'pending').length > 0 && (
+                  <div className="p-5 bg-linear-to-r from-emerald-600 via-teal-700 to-cyan-800 rounded-3xl text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-2">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-black shrink-0">
+                        <DollarSign className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black flex items-center gap-2">
+                          <span>Pending UPI Payout Requests</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-black">
+                            {withdrawalRequests.filter(r => r.status === 'pending').length} Pending
+                          </span>
+                        </h4>
+                        <p className="text-xs text-white/80 mt-0.5">
+                          Total ₹{withdrawalRequests.filter(r => r.status === 'pending').reduce((acc, r) => acc + (r.amount || 0), 0).toFixed(2)} waiting for Paytm / UPI settlement.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveSection('withdrawals')}
+                      className="px-5 py-2.5 bg-white text-emerald-800 hover:bg-emerald-50 font-black text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 shrink-0"
+                    >
+                      Process Payouts Queue →
+                    </button>
+                  </div>
+                )}
+
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                   <StatCard icon={Users} label="Total Users" value={users.length} color="blue" />
                   <StatCard icon={VideoIcon} label="Total Videos" value={videos.length} color="indigo" />
+                  <StatCard icon={DollarSign} label="Pending Payouts" value={withdrawalRequests.filter(r => r.status === 'pending').length} color="emerald" />
                   <StatCard icon={AlertTriangle} label="Pending Reports" value={reports.filter(r => r.status === 'pending').length} color="amber" />
-                  <StatCard icon={MessageSquare} label="New Feedback" value={feedback.filter(f => f.status === 'pending').length} color="emerald" />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1075,28 +1168,53 @@ export const AdminPanel: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right space-x-1.5">
-                            <button
-                              onClick={() => {
-                                setBonusModalUser(u);
-                                setBonusAmount(50);
-                                setBonusReason('Admin Promotion Bonus');
-                              }}
-                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
-                              title="Add Bonus Money to user account"
-                            >
-                              <Gift className="w-3.5 h-3.5" />
-                              <span>+ Bonus (₹)</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setWalletModalUser(u);
-                                setCreditAmount(10);
-                              }}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
-                              title="Give money to user wallet"
-                            >
-                              <span>+ Wallet ($)</span>
-                            </button>
+                            {u.isMonetized ? (
+                              <button
+                                onClick={() => {
+                                  setBonusModalUser(u);
+                                  setBonusAmount(50);
+                                  setBonusReason('Admin Promotion Bonus');
+                                }}
+                                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
+                                title="Add Admin Reward / Bonus Funds to monetized user"
+                              >
+                                <Gift className="w-3.5 h-3.5" />
+                                <span>+ Reward (₹)</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  addToast('Monetization Required: Enable monetization to award Admin Rewards to this creator.', 'info');
+                                }}
+                                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer opacity-70 hover:opacity-100"
+                                title="Admin Reward is only available for Monetized Users. Click Enable Monetization first."
+                              >
+                                <Gift className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Reward (Locked)</span>
+                              </button>
+                            )}
+                            {u.isMonetized ? (
+                              <button
+                                onClick={() => {
+                                  setWalletModalUser(u);
+                                  setCreditAmount(10);
+                                }}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
+                                title="Give money to monetized user wallet"
+                              >
+                                <span>+ Wallet ($)</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  addToast('Monetization Required: Enable monetization to credit user wallet balance.', 'info');
+                                }}
+                                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer opacity-70 hover:opacity-100"
+                                title="Wallet Credit is only available for Monetized Users. Click Enable Monetization first."
+                              >
+                                <span>Wallet (Locked)</span>
+                              </button>
+                            )}
                             <button 
                               onClick={() => handleUpdateUserStatus(u.uid, u.status)}
                               className={`p-1.5 rounded-lg transition-colors ${u.status === 'active' ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'}`}
@@ -1182,6 +1300,246 @@ export const AdminPanel: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* WITHDRAWAL REQUESTS & PAYOUT QUEUE SECTION */}
+            {activeSection === 'withdrawals' && (
+              <div className="space-y-6">
+                
+                {/* Header Card */}
+                <div className="bg-gradient-to-r from-emerald-600 via-teal-700 to-cyan-800 text-white p-6 sm:p-8 rounded-3xl shadow-lg relative overflow-hidden">
+                  <div className="relative z-10 space-y-2 max-w-2xl">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black uppercase tracking-wider">
+                      <DollarSign className="w-3.5 h-3.5" />
+                      <span>Payouts & UPI Settlement</span>
+                    </span>
+                    <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+                      Creator Withdrawal Requests & UPI Settlement
+                    </h2>
+                    <p className="text-xs sm:text-sm text-white/90 font-medium leading-relaxed">
+                      Review user payout requests, send money via Paytm / PhonePe / GooglePay UPI to the user&apos;s UPI ID, and click the <strong>Tick (✓)</strong> button to confirm payment.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stat Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white dark:bg-[#0f0f0f] border-2 border-amber-500/40 p-5 rounded-2xl shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Pending Payouts</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400">
+                        {withdrawalRequests.filter(r => r.status === 'pending').length} Requests
+                      </span>
+                    </div>
+                    <p className="text-3xl font-black font-mono text-amber-600 dark:text-amber-400">
+                      ₹{withdrawalRequests.filter(r => r.status === 'pending').reduce((acc, r) => acc + (r.amount || 0), 0).toFixed(2)}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-400">Awaiting your Paytm / UPI transfer</p>
+                  </div>
+
+                  <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] p-5 rounded-2xl shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total Settled (Paid)</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400">
+                        {withdrawalRequests.filter(r => r.status === 'completed').length} Paid
+                      </span>
+                    </div>
+                    <p className="text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                      ₹{withdrawalRequests.filter(r => r.status === 'completed').reduce((acc, r) => acc + (r.amount || 0), 0).toFixed(2)}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-400">Successfully disbursed to creators</p>
+                  </div>
+
+                  <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] p-5 rounded-2xl shadow-xs space-y-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Lifetime Requests</span>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white">{withdrawalRequests.length}</p>
+                    <p className="text-[10px] font-bold text-slate-400">All creator withdrawal attempts</p>
+                  </div>
+                </div>
+
+                {/* Filter Controls */}
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-[#151515] rounded-xl">
+                    {(['all', 'pending', 'completed', 'rejected'] as const).map(tab => (
+                      <button
+                        key={tab}
+                        onClick={() => setWithdrawalFilter(tab)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          withdrawalFilter === tab
+                            ? 'bg-white dark:bg-[#252525] text-slate-900 dark:text-white shadow-xs'
+                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        {tab} ({withdrawalRequests.filter(r => tab === 'all' ? true : r.status === tab).length})
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      payoutService.getWithdrawalRequests().then(setWithdrawalRequests);
+                      addToast('Withdrawal queue refreshed.', 'info');
+                    }}
+                    className="px-3.5 py-1.5 bg-slate-100 dark:bg-[#1a1a1a] hover:bg-slate-200 dark:hover:bg-[#252525] text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Refresh Queue</span>
+                  </button>
+                </div>
+
+                {/* Withdrawal Requests Table */}
+                <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl overflow-hidden shadow-xs">
+                  {withdrawalRequests.filter(r => withdrawalFilter === 'all' ? true : r.status === withdrawalFilter).length === 0 ? (
+                    <div className="py-16 text-center text-slate-400 space-y-2">
+                      <DollarSign className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
+                      <p className="text-xs font-bold">No withdrawal requests found under &quot;{withdrawalFilter}&quot;.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 dark:bg-[#151515] border-b border-slate-200 dark:border-[#272727] text-slate-400 text-[10px] uppercase font-black tracking-wider">
+                          <tr>
+                            <th className="px-6 py-4">Creator / User</th>
+                            <th className="px-6 py-4">Amount to Pay</th>
+                            <th className="px-6 py-4">UPI Payment ID</th>
+                            <th className="px-6 py-4">Requested At</th>
+                            <th className="px-6 py-4">Status</th>
+                            <th className="px-6 py-4 text-right">Admin Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-[#202020]">
+                          {withdrawalRequests
+                            .filter(r => withdrawalFilter === 'all' ? true : r.status === withdrawalFilter)
+                            .map((req) => (
+                              <tr key={req.id} className="hover:bg-slate-50/50 dark:hover:bg-[#151515]/50 transition-colors">
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                                      {req.userPhotoURL ? <img src={req.userPhotoURL} className="w-full h-full object-cover" /> : getInitials(req.displayName)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-slate-900 dark:text-white truncate">{req.displayName}</p>
+                                      <p className="text-[10px] text-slate-500 truncate">@{req.username} • {req.userEmail}</p>
+                                      {req.phone && (
+                                        <p className="text-[9px] font-mono text-slate-400">📞 {req.phone}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="px-6 py-4">
+                                  <p className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400">
+                                    ₹{req.amount.toFixed(2)}
+                                  </p>
+                                </td>
+
+                                <td className="px-6 py-4">
+                                  <div className="space-y-1">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-lg">
+                                      <span className="font-mono font-black text-slate-900 dark:text-white select-all text-xs">
+                                        {req.upiId}
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(req.upiId);
+                                          addToast(`Copied UPI ID: ${req.upiId}`, 'info');
+                                        }}
+                                        className="text-slate-400 hover:text-blue-500 cursor-pointer"
+                                        title="Copy UPI ID"
+                                      >
+                                        📋
+                                      </button>
+                                    </div>
+                                    {req.accountHolderName && (
+                                      <p className="text-[10px] text-slate-500">Name: <strong className="text-slate-700 dark:text-slate-300">{req.accountHolderName}</strong></p>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="px-6 py-4 text-slate-500">
+                                  <p className="font-medium text-slate-700 dark:text-slate-300">
+                                    {new Date(req.createdAt).toLocaleDateString()}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400">
+                                    {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </td>
+
+                                <td className="px-6 py-4">
+                                  {req.status === 'pending' && (
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+                                      ⏳ Pending Transfer
+                                    </span>
+                                  )}
+                                  {req.status === 'completed' && (
+                                    <div className="space-y-0.5">
+                                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                                        ✓ Paid (Settled)
+                                      </span>
+                                      {req.paidAt && (
+                                        <p className="text-[9px] text-slate-400 font-mono">
+                                          {new Date(req.paidAt).toLocaleDateString()}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                  {req.status === 'rejected' && (
+                                    <div className="space-y-0.5">
+                                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">
+                                        ✕ Rejected & Refunded
+                                      </span>
+                                      {req.adminNotes && (
+                                        <p className="text-[9px] text-rose-500 font-medium truncate max-w-xs">{req.adminNotes}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+
+                                <td className="px-6 py-4 text-right space-x-2">
+                                  {req.status === 'pending' ? (
+                                    <div className="inline-flex items-center gap-1.5">
+                                      <button
+                                        onClick={() => handleApprovePayout(req)}
+                                        disabled={isProcessingPayoutId === req.id}
+                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                                        title="Click after transferring money via Paytm / UPI"
+                                      >
+                                        {isProcessingPayoutId === req.id ? (
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        ) : (
+                                          <Check className="w-4 h-4 stroke-[3]" />
+                                        )}
+                                        <span>Tick (Mark as Paid)</span>
+                                      </button>
+                                      <button
+                                        onClick={() => handleRejectPayout(req)}
+                                        disabled={isProcessingPayoutId === req.id}
+                                        className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 font-black text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                                        title="Reject and refund money to user balance"
+                                      >
+                                        <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                                        <span>Reject</span>
+                                      </button>
+                                    </div>
+                                  ) : req.status === 'completed' ? (
+                                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                                      ✓ Settled
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] font-bold text-slate-400">
+                                      Refunded
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
 

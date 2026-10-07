@@ -43,7 +43,7 @@ match /adminSettings/{docId} {
           'role', 'status'
         ]))) || isAdmin() || (
           isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'walletBalance', 'bonusBalance', 'isMonetized', 'monetizationStatus', 'points', 'updatedAt'
+            'walletBalance', 'mainBalance', 'bonusBalance', 'isMonetized', 'monetizationStatus', 'points', 'upiId', 'updatedAt'
           ])
         );
 
@@ -54,6 +54,15 @@ match /adminSettings/{docId} {
       match /private/{docId} {
         allow read, write: if isOwner(uid);
       }
+    }
+
+    // --- WITHDRAWAL / PAYOUT REQUESTS COLLECTION ---
+    match /withdrawal_requests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
     }
 
     // --- VIDEOS COLLECTION ---

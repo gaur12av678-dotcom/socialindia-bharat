@@ -34,9 +34,12 @@ import {
   Eye,
   ArrowRightLeft,
   ShoppingBag,
-  Gift
+  Gift,
+  AlertCircle
 } from 'lucide-react';
 import { paidVideoService } from '../services/paidVideoService';
+import { payoutService } from '../services/payoutService';
+import { WithdrawalRequest } from '../types';
 
 export const Settings: React.FC = () => {
   const { currentUser, currentUserProfile, theme, setTheme, refreshProfile, addToast } = useApp();
@@ -86,13 +89,29 @@ export const Settings: React.FC = () => {
   const [confirmPass, setConfirmPass] = useState('');
   const [passwordStatusMsg, setPasswordStatusMsg] = useState('');
 
-  // Wallet / Balance (Starts at $0.00 for clean real data)
+  // Wallet / Balance States
   const [walletBalance, setWalletBalance] = useState(0.00);
+  const [mainBalance, setMainBalance] = useState(0.00);
   const [bonusBalance, setBonusBalance] = useState(0.00);
   const [isConvertingBonus, setIsConvertingBonus] = useState(false);
-  const [replenishAmount, setReplenishAmount] = useState(10);
+  const [replenishAmount, setReplenishAmount] = useState(100);
   const [replenishModalOpen, setReplenishModalOpen] = useState(false);
   const [walletMsg, setWalletMsg] = useState('');
+
+  // Withdrawal States
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState(100);
+  const [withdrawUpiId, setWithdrawUpiId] = useState('');
+  const [withdrawAccountName, setWithdrawAccountName] = useState('');
+  const [withdrawPhone, setWithdrawPhone] = useState('');
+  const [isSubmittingWithdraw, setIsSubmittingWithdraw] = useState(false);
+  const [withdrawMsg, setWithdrawMsg] = useState('');
+  const [myWithdrawals, setMyWithdrawals] = useState<WithdrawalRequest[]>([]);
+
+  // Transfer Wallet -> Balance State (To allow withdraw after replenish)
+  const [transferToBalanceModalOpen, setTransferToBalanceModalOpen] = useState(false);
+  const [transferToBalanceAmount, setTransferToBalanceAmount] = useState(50);
+  const [isTransferringToBalance, setIsTransferringToBalance] = useState(false);
 
   // Points State
   const [points, setPoints] = useState(0);
@@ -136,7 +155,14 @@ export const Settings: React.FC = () => {
       setAge(currentUserProfile.age || 'Not selected');
       setPoints(currentUserProfile.points ?? 0);
       setWalletBalance(currentUserProfile.walletBalance ?? 0.00);
+      setMainBalance(currentUserProfile.mainBalance ?? 0.00);
       setBonusBalance(currentUserProfile.bonusBalance ?? 0.00);
+      if (currentUserProfile.upiId) {
+        setWithdrawUpiId(currentUserProfile.upiId);
+      }
+      if (currentUserProfile.displayName) {
+        setWithdrawAccountName(currentUserProfile.displayName);
+      }
       setInstagram(currentUserProfile.socialLinks?.instagram || '');
       setTwitter(currentUserProfile.socialLinks?.twitter || '');
       setYtLink(currentUserProfile.socialLinks?.youtube || '');
@@ -153,6 +179,8 @@ export const Settings: React.FC = () => {
         const total = videos.reduce((acc: number, v: any) => acc + (v.viewsCount || 0), 0);
         setUserTotalViews(total);
       }).catch(console.warn);
+
+      payoutService.getWithdrawalRequests(currentUser.uid).then(setMyWithdrawals).catch(console.warn);
     }
   }, [currentUser, currentUserProfile]);
 
@@ -219,7 +247,7 @@ export const Settings: React.FC = () => {
     }
   };
 
-  // Convert Points Handler with exact points formula (100 points = $1.00 USD)
+  // Convert Points Handler with exact points formula (100 points = ₹1.00 / $1.00 balance)
   const handleConvertPoints = async () => {
     if (!currentUser) return;
     setPointsConvertMsg('');
@@ -240,27 +268,113 @@ export const Settings: React.FC = () => {
       setPoints(res.newPoints);
       setWalletBalance(res.newWalletBalance);
       await refreshProfile();
-      const addedDollar = (convertPointsInput * 0.01).toFixed(2);
-      setPointsConvertMsg(`✅ Converted ${convertPointsInput} points to $${addedDollar} Wallet Balance!`);
+      const addedAmount = (convertPointsInput * 0.01).toFixed(2);
+      const successText = `✅ Successfully converted ${convertPointsInput} points to ₹${addedAmount} Wallet Balance!`;
+      setPointsConvertMsg(successText);
+      setWalletMsg(successText);
+      addToast(`Converted ${convertPointsInput} points to ₹${addedAmount} Wallet Balance!`, 'success');
     } catch (err: any) {
-      setPointsConvertMsg(`❌ ${err.message || 'Failed to convert points.'}`);
+      const errorText = `❌ ${err.message || 'Failed to convert points.'}`;
+      setPointsConvertMsg(errorText);
+      addToast(err.message || 'Failed to convert points.', 'error');
     } finally {
       setIsConverting(false);
     }
   };
 
-  // Replenish Wallet Handler
+  // Top Up Wallet Handler (In INR ₹)
   const handleReplenishWallet = async () => {
     if (!currentUser) return;
     setWalletMsg('');
+    if (replenishAmount <= 0) {
+      setWalletMsg('❌ Please enter a valid top-up amount.');
+      return;
+    }
     try {
       const newBal = await userService.replenishWallet(currentUser.uid, replenishAmount);
       setWalletBalance(newBal);
       await refreshProfile();
       setReplenishModalOpen(false);
-      setWalletMsg(`✅ Successfully added $${replenishAmount.toFixed(2)} to your wallet balance!`);
+      const msg = `✅ Successfully added ₹${replenishAmount.toFixed(2)} to your Shopping Wallet!`;
+      setWalletMsg(msg);
+      addToast(msg, 'success');
     } catch (err) {
       setWalletMsg('❌ Failed to top up wallet balance.');
+      addToast('Failed to top up wallet balance.', 'error');
+    }
+  };
+
+  // Transfer Funds from Shopping Wallet to Withdrawable Balance
+  const handleTransferWalletToBalance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    if (transferToBalanceAmount <= 0) {
+      setWalletMsg('❌ Please enter a valid amount to transfer.');
+      return;
+    }
+    if (walletBalance < transferToBalanceAmount) {
+      setWalletMsg(`❌ Insufficient Wallet balance. You have ₹${walletBalance.toFixed(2)} in Wallet.`);
+      return;
+    }
+    setIsTransferringToBalance(true);
+    try {
+      const res = await payoutService.transferWalletToBalance(currentUser.uid, transferToBalanceAmount);
+      setWalletBalance(res.newWallet);
+      setMainBalance(res.newBalance);
+      await refreshProfile();
+      setTransferToBalanceModalOpen(false);
+      const msg = `✅ Transferred ₹${transferToBalanceAmount.toFixed(2)} from Wallet to Withdrawable Balance!`;
+      setWalletMsg(msg);
+      addToast(msg, 'success');
+    } catch (err: any) {
+      setWalletMsg(`❌ ${err.message || 'Failed to transfer funds.'}`);
+      addToast(err.message || 'Failed to transfer.', 'error');
+    } finally {
+      setIsTransferringToBalance(false);
+    }
+  };
+
+  // Submit UPI Withdrawal Request
+  const handleWithdrawSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    setWithdrawMsg('');
+
+    const amt = Number(withdrawAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setWithdrawMsg('❌ Please enter a valid withdrawal amount.');
+      return;
+    }
+    if (mainBalance < amt) {
+      setWithdrawMsg(`❌ Insufficient Balance. You have ₹${mainBalance.toFixed(2)} available for withdrawal, but requested ₹${amt.toFixed(2)}.`);
+      return;
+    }
+    if (!withdrawUpiId.trim()) {
+      setWithdrawMsg('❌ Please enter your valid UPI ID (e.g. yourname@okhdfcbank / phone@paytm).');
+      return;
+    }
+
+    setIsSubmittingWithdraw(true);
+    try {
+      const req = await payoutService.createWithdrawalRequest(
+        currentUser.uid,
+        amt,
+        withdrawUpiId.trim(),
+        withdrawAccountName.trim(),
+        withdrawPhone.trim()
+      );
+      setMainBalance(prev => Math.max(0, Number((prev - amt).toFixed(2))));
+      setMyWithdrawals(prev => [req, ...prev.filter(r => r.id !== req.id)]);
+      await refreshProfile();
+      setWithdrawModalOpen(false);
+      const successMsg = `✅ Withdrawal request of ₹${amt.toFixed(2)} submitted to UPI: ${withdrawUpiId.trim()}! Status: Pending Admin Payout.`;
+      setWalletMsg(successMsg);
+      addToast(`Withdrawal of ₹${amt.toFixed(2)} requested successfully!`, 'success');
+    } catch (err: any) {
+      setWithdrawMsg(`❌ ${err.message || 'Failed to submit withdrawal request.'}`);
+      addToast(err.message || 'Failed to submit withdrawal request.', 'error');
+    } finally {
+      setIsSubmittingWithdraw(false);
     }
   };
 
@@ -928,7 +1042,7 @@ export const Settings: React.FC = () => {
                     <span>Wallet & Balances</span>
                   </h2>
                   <span className="text-xs font-bold text-slate-500">
-                    Total Funds: <strong className="text-emerald-600 dark:text-emerald-400 font-mono font-black">₹{(walletBalance + bonusBalance).toFixed(2)}</strong>
+                    Total Funds: <strong className="text-emerald-600 dark:text-emerald-400 font-mono font-black">₹{(walletBalance + mainBalance + bonusBalance).toFixed(2)}</strong>
                   </span>
                 </div>
 
@@ -945,54 +1059,77 @@ export const Settings: React.FC = () => {
                 {/* 3-Card Wallet Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   
-                  {/* Card 1: Total Purchasing Power */}
+                  {/* Card 1: WALLET (Shopping & In-App Purchases) */}
                   <div className="p-6 bg-linear-to-br from-blue-600 to-indigo-700 rounded-3xl text-white flex flex-col justify-between space-y-4 shadow-lg shadow-blue-500/15">
                     <div>
-                      <span className="text-[11px] font-black uppercase tracking-wider text-blue-200">Total Usable Balance</span>
-                      <h2 className="text-3xl font-black mt-2 font-mono">₹{(walletBalance + bonusBalance).toFixed(2)}</h2>
-                      <p className="text-[11px] text-blue-100/90 mt-1 font-medium">
-                        Wallet (₹{walletBalance.toFixed(2)}) + Bonus (₹{bonusBalance.toFixed(2)})
-                      </p>
-                    </div>
-                    <div className="pt-2 text-[10px] text-blue-200/80 font-medium">
-                      ✓ Instant checkout for all paid videos & shorts
-                    </div>
-                  </div>
-
-                  {/* Card 2: Main Withdrawable Wallet */}
-                  <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl flex flex-col justify-between space-y-4 shadow-xs">
-                    <div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Main Wallet</span>
-                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">Withdrawable</span>
+                        <span className="text-[11px] font-black uppercase tracking-wider text-blue-200">Wallet</span>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-500/40 text-blue-100">
+                          Shopping Money
+                        </span>
                       </div>
-                      <h2 className="text-3xl font-black text-slate-900 dark:text-white mt-2 font-mono">₹{walletBalance.toFixed(2)}</h2>
-                      <p className="text-[11px] text-slate-500 mt-1">Creator earnings, video unlock payouts & top-ups</p>
+                      <h2 className="text-3xl font-black mt-2 font-mono">₹{walletBalance.toFixed(2)}</h2>
+                      <p className="text-[11px] text-blue-100/90 mt-1 font-medium">
+                        Used to buy paid videos, shorts, promote ads & unlock features.
+                      </p>
                     </div>
 
                     <div className="space-y-2 pt-2">
                       <button
-                        onClick={() => setReplenishModalOpen(true)}
-                        className="w-full py-2.5 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer active:scale-95"
+                        onClick={() => {
+                          setTransferToBalanceAmount(Math.min(walletBalance, 100));
+                          setTransferToBalanceModalOpen(true);
+                        }}
+                        disabled={walletBalance <= 0}
+                        className="w-full py-2.5 bg-white text-blue-700 hover:bg-blue-50 disabled:opacity-50 font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
                       >
-                        + Top Up Balance
+                        <ArrowRightLeft className="w-3.5 h-3.5" />
+                        <span>Replenish to Balance (For Withdraw)</span>
                       </button>
                       <button
-                        onClick={() => {
-                          if (walletBalance <= 0) {
-                            setWalletMsg('❌ Wallet balance is ₹0.00. Convert bonus or points first.');
-                            return;
-                          }
-                          setWalletMsg(`✅ Payout transfer request of ₹${walletBalance.toFixed(2)} submitted successfully!`);
-                        }}
-                        className="w-full py-2.5 bg-white dark:bg-[#141414] border border-slate-200 dark:border-[#333] hover:bg-slate-100 dark:hover:bg-[#202020] text-slate-800 dark:text-slate-200 font-black text-xs rounded-xl transition-all cursor-pointer active:scale-95"
+                        onClick={() => setReplenishModalOpen(true)}
+                        className="w-full py-2.5 bg-blue-500/30 hover:bg-blue-500/50 text-white font-black text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        Transfer Payout
+                        <span>+ Top Up Wallet</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Card 3: Bonus Money */}
+                  {/* Card 2: BALANCE (Withdrawable Earnings & Funds) */}
+                  <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border-2 border-emerald-500/30 rounded-3xl flex flex-col justify-between space-y-4 shadow-xs relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Balance</span>
+                        <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">
+                          Withdrawable
+                        </span>
+                      </div>
+                      <h2 className="text-3xl font-black text-slate-900 dark:text-white mt-2 font-mono">₹{mainBalance.toFixed(2)}</h2>
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Creator video earnings & funds ready for bank / UPI withdrawal.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                      <button
+                        onClick={() => {
+                          setWithdrawMsg('');
+                          setWithdrawAmount(mainBalance > 0 ? mainBalance : 100);
+                          setWithdrawModalOpen(true);
+                        }}
+                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        <span>WITHDRAW (UPI Payout)</span>
+                      </button>
+                      <p className="text-[10px] text-slate-400 font-medium text-center">
+                        Instant payout request to Paytm / GPay / PhonePe UPI
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 3: BONUS MONEY (ADMIN REWARD) */}
                   <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border-2 border-amber-500/30 rounded-3xl flex flex-col justify-between space-y-4 shadow-xs relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-xl pointer-events-none" />
                     <div>
@@ -1004,7 +1141,22 @@ export const Settings: React.FC = () => {
                         <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">Admin Reward</span>
                       </div>
                       <h2 className="text-3xl font-black text-slate-900 dark:text-white mt-2 font-mono">₹{bonusBalance.toFixed(2)}</h2>
-                      <p className="text-[11px] text-slate-500 mt-1">Special funds added by Admin or platform promotions</p>
+                      <p className="text-[11px] text-slate-500 mt-1">Special platform funds added by Admin for promotions</p>
+                      
+                      {/* Monetization status note for Admin Rewards */}
+                      <div className="mt-3 p-2.5 rounded-xl text-[10px] font-bold border leading-snug bg-slate-100 dark:bg-[#141414] border-slate-200 dark:border-[#2b2b2b]">
+                        {currentUserProfile?.isMonetized ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            <span>Monetized Channel: Eligible for platform rewards & bonus payouts.</span>
+                          </span>
+                        ) : (
+                          <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Non-Monetized: Admin Rewards are reserved for monetized creators.</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-2 pt-2">
@@ -1014,7 +1166,7 @@ export const Settings: React.FC = () => {
                         className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
                       >
                         {isConvertingBonus ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
-                        <span>Transfer Bonus to Main Wallet</span>
+                        <span>Transfer Bonus to Wallet</span>
                       </button>
                       <p className="text-[10px] text-slate-400 font-medium text-center">
                         Usable to watch paid videos or transfer to wallet
@@ -1023,6 +1175,124 @@ export const Settings: React.FC = () => {
                   </div>
 
                 </div>
+
+                {/* Instant Points to Wallet Conversion Banner in Balance Tab */}
+                <div className="p-5 bg-linear-to-r from-blue-500/10 via-indigo-500/10 to-sky-500/10 border border-blue-500/20 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shrink-0 shadow-md">
+                      <ArrowRightLeft className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Convert Your Points to Wallet Balance</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-mono font-bold">
+                          {points} pts available
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                        Convert points into real wallet balance (100 Points = ₹1.00 Balance).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <input
+                      type="number"
+                      min={10}
+                      step={10}
+                      value={convertPointsInput}
+                      onChange={(e) => setConvertPointsInput(Number(e.target.value))}
+                      className="w-24 px-3 py-2 bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-mono font-black text-slate-900 dark:text-white text-center focus:outline-none focus:border-[#00A3FF]"
+                    />
+                    <button
+                      onClick={handleConvertPoints}
+                      disabled={isConverting || points < convertPointsInput || convertPointsInput <= 0}
+                      className="px-4 py-2 bg-[#00A3FF] hover:bg-[#0082CC] disabled:opacity-40 text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                    >
+                      {isConverting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      <span>Convert to ₹{(convertPointsInput * 0.01).toFixed(2)}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Recent Withdrawal Requests History Card */}
+                <div className="p-6 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Recent Withdrawal Requests</span>
+                        <span className="text-xs font-bold text-slate-400">({myWithdrawals.length})</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-500">Track payouts sent to your Paytm / UPI ID</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (currentUser) {
+                          payoutService.getWithdrawalRequests(currentUser.uid).then(setMyWithdrawals);
+                        }
+                      }}
+                      className="text-xs font-bold text-[#00A3FF] hover:underline cursor-pointer"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  {myWithdrawals.length === 0 ? (
+                    <div className="py-8 text-center text-slate-400 text-xs font-bold border border-dashed border-slate-200 dark:border-[#333] rounded-2xl">
+                      No withdrawal requests yet. Click &quot;WITHDRAW&quot; above to request a payout.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200 dark:border-[#2B2B2B] text-slate-400 text-[10px] uppercase font-black tracking-wider">
+                            <th className="pb-3">Date</th>
+                            <th className="pb-3">Amount</th>
+                            <th className="pb-3">UPI ID</th>
+                            <th className="pb-3">Status</th>
+                            <th className="pb-3 text-right">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-[#2B2B2B]">
+                          {myWithdrawals.map((req) => (
+                            <tr key={req.id} className="hover:bg-white/50 dark:hover:bg-[#151515]">
+                              <td className="py-3 font-medium text-slate-500">
+                                {new Date(req.createdAt).toLocaleDateString()} {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </td>
+                              <td className="py-3 font-mono font-black text-emerald-600 dark:text-emerald-400">
+                                ₹{req.amount.toFixed(2)}
+                              </td>
+                              <td className="py-3 font-mono font-bold text-slate-900 dark:text-white">
+                                {req.upiId}
+                              </td>
+                              <td className="py-3">
+                                {req.status === 'completed' && (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                                    ✓ Paid
+                                  </span>
+                                )}
+                                {req.status === 'pending' && (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+                                    ⏳ Pending Admin Payout
+                                  </span>
+                                )}
+                                {req.status === 'rejected' && (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">
+                                    ✕ Rejected & Refunded
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 text-right text-[11px] text-slate-500 font-medium">
+                                {req.adminNotes || (req.status === 'pending' ? 'Processing by admin' : 'Completed')}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
               </div>
             )}
 
@@ -1189,8 +1459,18 @@ export const Settings: React.FC = () => {
                         <span>Convert Points to Balance</span>
                       </h4>
                       <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-                        Convert points into Wallet Balance. Rate: 100 Points = $1.00 USD ($0.01 / point).
+                        Convert points into Wallet Balance. Rate: 100 Points = ₹1.00 Balance (₹0.01 / point).
                       </p>
+
+                      {pointsConvertMsg && (
+                        <div className={`p-3 rounded-xl text-xs font-bold ${
+                          pointsConvertMsg.startsWith('✅')
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900'
+                        }`}>
+                          {pointsConvertMsg}
+                        </div>
+                      )}
 
                       <div>
                         <input
@@ -1202,7 +1482,7 @@ export const Settings: React.FC = () => {
                           className="w-full px-4 py-2.5 bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
                         />
                         <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono mt-1 font-bold">
-                          Converted Wallet Value: ${(convertPointsInput * 0.01).toFixed(2)} USD
+                          Converted Wallet Value: ₹{(convertPointsInput * 0.01).toFixed(2)}
                         </p>
                       </div>
 
@@ -1416,38 +1696,282 @@ export const Settings: React.FC = () => {
 
         </div>
 
-        {/* Replenish Wallet Modal */}
+        {/* Top Up Shopping Wallet Modal */}
         {replenishModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
             <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
-              <h3 className="text-lg font-black text-slate-900 dark:text-white">Top Up Wallet Balance</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Enter amount to add to your wallet balance:</p>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Wallet className="w-5 h-5 text-[#00A3FF]" />
+                  <span>Top Up Wallet</span>
+                </h3>
+                <button 
+                  onClick={() => setReplenishModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white text-sm font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Add money to your platform shopping wallet for buying paid videos, shorts, ads & upgrades:
+              </p>
 
               <div>
-                <label className="block text-xs font-bold text-slate-900 dark:text-white mb-1">Amount ($ USD)</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={replenishAmount}
-                  onChange={(e) => setReplenishAmount(Number(e.target.value))}
-                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
-                />
+                <label className="block text-xs font-bold text-slate-900 dark:text-white mb-1.5">Amount (₹ INR)</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    min={10}
+                    step={10}
+                    value={replenishAmount}
+                    onChange={(e) => setReplenishAmount(Number(e.target.value))}
+                    className="w-full pl-8 pr-4 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                {[50, 100, 200, 500].map(amt => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setReplenishAmount(amt)}
+                    className={`py-1.5 rounded-lg text-xs font-black border transition-all cursor-pointer ${
+                      replenishAmount === amt 
+                        ? 'bg-[#00A3FF] text-white border-[#00A3FF]' 
+                        : 'bg-slate-50 dark:bg-[#1A1A1A] border-slate-200 dark:border-[#333] text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    +₹{amt}
+                  </button>
+                ))}
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => setReplenishModalOpen(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleReplenishWallet}
-                  className="px-6 py-2 bg-[#00A3FF] hover:bg-[#0082CC] text-white text-xs font-black rounded-full"
+                  className="px-6 py-2.5 bg-[#00A3FF] hover:bg-[#0082CC] text-white text-xs font-black rounded-full shadow-md cursor-pointer transition-all active:scale-95"
                 >
-                  Confirm Top Up
+                  Confirm Top Up (₹{replenishAmount})
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transfer Wallet to Withdrawable Balance Modal */}
+        {transferToBalanceModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <ArrowRightLeft className="w-5 h-5 text-blue-600" />
+                  <span>Replenish to Balance</span>
+                </h3>
+                <button 
+                  onClick={() => setTransferToBalanceModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white text-sm font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Move money from your <strong>Shopping Wallet</strong> to <strong>Withdrawable Balance</strong> so you can withdraw to UPI/Paytm:
+              </p>
+
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-900 text-xs font-bold flex justify-between text-blue-900 dark:text-blue-200">
+                <span>Available in Wallet:</span>
+                <span className="font-mono font-black">₹{walletBalance.toFixed(2)}</span>
+              </div>
+
+              <form onSubmit={handleTransferWalletToBalance} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-900 dark:text-white mb-1.5">Amount to Move to Balance (₹)</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={walletBalance}
+                      step={1}
+                      value={transferToBalanceAmount}
+                      onChange={(e) => setTransferToBalanceAmount(Number(e.target.value))}
+                      className="w-full pl-8 pr-4 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  {[25, 50, 100, walletBalance].filter(a => a > 0 && a <= walletBalance).map((amt, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setTransferToBalanceAmount(amt)}
+                      className="flex-1 py-1 rounded-lg text-[11px] font-bold border border-slate-200 dark:border-[#333] hover:bg-slate-100 dark:hover:bg-[#202020] text-slate-600 dark:text-slate-300"
+                    >
+                      {amt === walletBalance ? 'All' : `₹${amt}`}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setTransferToBalanceModalOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isTransferringToBalance || transferToBalanceAmount <= 0 || transferToBalanceAmount > walletBalance}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-black rounded-full shadow-md cursor-pointer transition-all flex items-center gap-1.5"
+                  >
+                    {isTransferringToBalance ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                    <span>Move to Balance</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* WITHDRAW MODAL (UPI ID & Payout Request) */}
+        {withdrawModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#2B2B2B] rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black">
+                    <DollarSign className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">Withdraw Balance</h3>
+                    <p className="text-[11px] text-slate-500">Instant UPI payout request to Admin</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setWithdrawModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-white text-sm font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Available Withdrawable Balance Card */}
+              <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-900 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-black tracking-wider text-emerald-700 dark:text-emerald-400">Available to Withdraw</span>
+                  <p className="text-2xl font-black font-mono text-emerald-800 dark:text-emerald-200 mt-0.5">₹{mainBalance.toFixed(2)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWithdrawAmount(mainBalance)}
+                  className="px-3 py-1 bg-emerald-600 text-white text-[11px] font-black rounded-lg hover:bg-emerald-700 cursor-pointer"
+                >
+                  Withdraw All
+                </button>
+              </div>
+
+              {withdrawMsg && (
+                <div className={`p-3 rounded-xl text-xs font-bold ${
+                  withdrawMsg.startsWith('✅')
+                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                    : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
+                }`}>
+                  {withdrawMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleWithdrawSubmit} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Withdrawal Amount (₹ INR) *
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={mainBalance}
+                      step="any"
+                      required
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(Number(e.target.value))}
+                      className="w-full pl-8 pr-4 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    UPI ID (Paytm / GPay / PhonePe / BHIM) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 9876543210@paytm or yourname@okhdfcbank"
+                    value={withdrawUpiId}
+                    onChange={(e) => setWithdrawUpiId(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Admin will send money directly to this UPI address.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                      Account Name (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Name on UPI"
+                      value={withdrawAccountName}
+                      onChange={(e) => setWithdrawAccountName(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-medium text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">
+                      Phone Number (Optional)
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="Linked mobile"
+                      value={withdrawPhone}
+                      onChange={(e) => setWithdrawPhone(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-xs font-medium text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setWithdrawModalOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingWithdraw || withdrawAmount <= 0 || withdrawAmount > mainBalance || !withdrawUpiId.trim()}
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-black rounded-full shadow-lg shadow-emerald-600/20 cursor-pointer transition-all flex items-center gap-2"
+                  >
+                    {isSubmittingWithdraw ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <DollarSign className="w-3.5 h-3.5" />}
+                    <span>Request Payout (₹{withdrawAmount})</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
