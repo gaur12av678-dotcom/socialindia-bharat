@@ -53,21 +53,8 @@
     max-width: 100vw;
   }
 
-  /* LIGHT MODE: white text kabhi invisible na ho, hamesha dark slate/black ho */
   html.light, html:not(.dark) {
-    color: #111827 !important;
-  }
-
-  html.light .text-white:not([class*="bg-"]):not(button):not([class*="from-"]):not(svg):not(path) {
-    color: #111827 !important;
-  }
-
-  html.light h1:not([class*="bg-"]):not(.text-white),
-  html.light h2:not([class*="bg-"]):not(.text-white),
-  html.light h3:not([class*="bg-"]):not(.text-white),
-  html.light h4:not([class*="bg-"]):not(.text-white),
-  html.light p:not([class*="bg-"]):not(.text-white) {
-    color: #111827 !important;
+    color: #111827;
   }
   html.light body * {
     border-color: var(--border-color);

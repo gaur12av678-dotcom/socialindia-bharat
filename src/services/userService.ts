@@ -55,6 +55,26 @@ export const userService = {
     }
   },
 
+  // Get user profile by email
+  async getUserByEmail(email: string): Promise<User | null> {
+    const cleanEmail = email.trim().toLowerCase();
+    const q = query(
+      collection(db, 'users'),
+      where('email', '==', cleanEmail),
+      limit(1)
+    );
+    try {
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return snap.docs[0].data() as User;
+      }
+      return null;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, 'users');
+      return null;
+    }
+  },
+
   // Create user profile
   async createUserProfile(uid: string, profile: Partial<User>): Promise<void> {
     const docRef = doc(db, 'users', uid);
@@ -64,6 +84,7 @@ export const userService = {
       uid,
       username: (profile.username || '').trim().toLowerCase(),
       email: profile.email || '',
+      emailVerified: profile.emailVerified || false,
       displayName: profile.displayName || profile.username || 'User',
       bio: profile.bio || '',
       photoURL: profile.photoURL || '',

@@ -48,8 +48,14 @@ function MainAppContent() {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [route.path, route.param]);
 
-  if (route.path === 'login' || route.path === 'signin') {
-    return <SignInPage />;
+  if (
+    route.path === 'login' || 
+    route.path === 'signin' || 
+    route.path === 'signup' || 
+    route.path === 'register' || 
+    route.path === 'create-account'
+  ) {
+    return <SignInPage initialMode={route.path === 'login' || route.path === 'signin' ? 'login' : 'register'} />;
   }
   if (route.path === 'about') {
     return <AboutPage />;
