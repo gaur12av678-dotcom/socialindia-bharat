@@ -339,7 +339,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       onClick={() => navigate('home')}
                       className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer flex items-center justify-center shrink-0 ${
                         isShortsPage
-                          ? 'hover:bg-white/10 text-white'
+                          ? 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
                           : 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
                       }`}
                       aria-label="Back to Home"
@@ -359,7 +359,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   
                   <SocialIndiaLogo 
                     onClick={() => navigate('home')}
-                    forceWhiteText={isShortsPage}
+                    forceWhiteText={false}
                   />
                 </div>
 

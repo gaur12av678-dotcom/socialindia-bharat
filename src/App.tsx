@@ -53,9 +53,17 @@ function MainAppContent() {
     route.path === 'signin' || 
     route.path === 'signup' || 
     route.path === 'register' || 
-    route.path === 'create-account'
+    route.path === 'create-account' ||
+    route.path === 'forgot-password' ||
+    route.path === 'reset-password'
   ) {
-    return <SignInPage initialMode={route.path === 'login' || route.path === 'signin' ? 'login' : 'register'} />;
+    let mode: 'login' | 'register' | 'forgot-password' = 'login';
+    if (route.path === 'signup' || route.path === 'register' || route.path === 'create-account') {
+      mode = 'register';
+    } else if (route.path === 'forgot-password' || route.path === 'reset-password') {
+      mode = 'forgot-password';
+    }
+    return <SignInPage initialMode={mode} />;
   }
   if (route.path === 'about') {
     return <AboutPage />;

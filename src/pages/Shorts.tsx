@@ -6,6 +6,7 @@ import { userService } from '../services/userService';
 import { likeService } from '../services/likeService';
 import { commentService } from '../services/commentService';
 import { downloadService } from '../services/downloadService';
+import { subscriptionService } from '../services/subscriptionService';
 import { DEFAULT_SOUNDS } from '../services/soundService';
 import { Video, Comment, User } from '../types';
 import { parseVideoUrl, getInitials, formatTimeAgo } from '../utils/videoUtils';
@@ -351,6 +352,10 @@ export const Shorts: React.FC = () => {
   const [isPurchasingShort, setIsPurchasingShort] = useState(false);
   const [shortUnlockError, setShortUnlockError] = useState('');
 
+  // Subscription State
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+
   const targetShortId = route.param;
 
   const fetchShorts = async () => {
@@ -442,6 +447,15 @@ export const Shorts: React.FC = () => {
     downloadService.isDownloaded(activeShort.videoId).then(setIsDownloaded).catch(() => {});
     setOptionsMenuOpen(false);
 
+    // Check subscription status
+    if (currentUser?.uid && activeShort.creatorId && currentUser.uid !== activeShort.creatorId) {
+      subscriptionService.isSubscribed(currentUser.uid, activeShort.creatorId)
+        .then(setIsSubscribed)
+        .catch(() => setIsSubscribed(false));
+    } else {
+      setIsSubscribed(false);
+    }
+
     // Paid Short Verification
     if (activeShort.isPaid && (activeShort.price || 0) > 0) {
       if (currentUser?.uid === activeShort.creatorId || currentUserProfile?.role === 'admin') {
@@ -456,7 +470,42 @@ export const Shorts: React.FC = () => {
     } else {
       setIsShortUnlocked(true);
     }
-  }, [activeShort?.videoId, currentUser?.uid, currentUserProfile?.role]);
+  }, [activeShort?.videoId, activeShort?.creatorId, currentUser?.uid, currentUserProfile?.role]);
+
+  const handleSubscribeToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser) {
+      addToast('Please sign in to subscribe to creators.', 'info');
+      navigate('signin');
+      return;
+    }
+    if (!activeShort?.creatorId || activeShort.creatorId === currentUser.uid) {
+      return;
+    }
+    setSubscribing(true);
+    try {
+      const newStatus = await subscriptionService.toggleSubscription(
+        currentUser.uid,
+        activeShort.creatorId,
+        {
+          username: activeShort.creatorUsername,
+          displayName: activeShort.creatorDisplayName,
+          photoURL: activeShort.creatorPhotoURL
+        }
+      );
+      setIsSubscribed(newStatus);
+      addToast(
+        newStatus 
+          ? `Subscribed to @${activeShort.creatorUsername}!` 
+          : `Unsubscribed from @${activeShort.creatorUsername}`, 
+        'success'
+      );
+    } catch (err) {
+      addToast('Could not update subscription.', 'error');
+    } finally {
+      setSubscribing(false);
+    }
+  };
 
   const handleUnlockShort = async () => {
     if (!currentUser) {
@@ -906,26 +955,49 @@ export const Shorts: React.FC = () => {
             </div>
           )}
 
-          {/* TOP BAR: Mute Button & YouTube-style 3-Dot More Options Menu */}
+          {/* TOP BAR: Single Sound / Volume Button & YouTube-style 3-Dot More Options Menu */}
           <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMuted(!isMuted);
-              }}
-              className="w-8 h-8 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-black/60 transition-all cursor-pointer shadow-lg active:scale-95"
-              title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
-            >
-              {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
-            </button>
+            <div className="group/vol relative flex items-center">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMuted(!isMuted);
+                }}
+                className="w-8.5 h-8.5 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/15 hover:bg-black/65 transition-all cursor-pointer shadow-lg active:scale-95"
+                title={isMuted ? 'Unmute Sound' : 'Mute Sound'}
+                aria-label={isMuted ? 'Unmute sound' : 'Mute sound'}
+              >
+                {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
+              </button>
+
+              {/* Horizontal Volume Slider on Hover for Desktop */}
+              <div className="hidden md:group-hover/vol:flex absolute right-10 items-center bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15 animate-in fade-in duration-150 shadow-xl">
+                <input 
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    const val = parseFloat(e.target.value);
+                    setVolume(val);
+                    setIsMuted(val === 0);
+                  }}
+                  className="w-20 h-1.5 accent-blue-500 cursor-pointer"
+                  title={`Volume: ${Math.round(volume * 100)}%`}
+                />
+              </div>
+            </div>
 
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 setOptionsMenuOpen(!optionsMenuOpen);
               }}
-              className="w-8 h-8 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 hover:bg-black/60 transition-all cursor-pointer shadow-lg active:scale-95"
+              className="w-8.5 h-8.5 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/15 hover:bg-black/65 transition-all cursor-pointer shadow-lg active:scale-95"
               title="More options"
+              aria-label="More options"
             >
               <MoreVertical className="w-4 h-4 text-white" />
             </button>
@@ -1013,73 +1085,49 @@ export const Shorts: React.FC = () => {
           </div>
 
           {/* Interaction Side Overlay */}
-          <div className="absolute right-4 bottom-24 flex flex-col gap-5 text-white z-20">
-            {/* VOLUME BUTTON */}
-            <div className="group/volume relative flex flex-col items-center">
-              <button 
-                onClick={() => setIsMuted(!isMuted)}
-                className="w-12 h-12 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 cursor-pointer transition-all hover:scale-110 active:scale-95"
-              >
-                {isMuted || volume === 0 ? <VolumeX className="w-6 h-6 text-white" /> : <Volume2 className="w-6 h-6 text-white" />}
-              </button>
-              
-              {/* Vertical Volume Slider on Hover */}
-              <div className="absolute bottom-14 hidden group-hover/volume:flex h-32 w-10 bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 items-center justify-center p-3 animate-in slide-in-from-bottom-2">
-                <input 
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={volume}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setVolume(val);
-                    setIsMuted(val === 0);
-                  }}
-                  className="w-24 h-1.5 accent-blue-500 -rotate-90 cursor-pointer origin-center"
-                />
-              </div>
-            </div>
-
+          <div className="absolute right-3.5 sm:right-4 bottom-24 flex flex-col gap-4 text-white z-20">
+            {/* LIKE BUTTON */}
             <button 
               onClick={handleLikeToggle}
-              className="group/btn flex flex-col items-center gap-1"
+              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className={`w-12 h-12 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 cursor-pointer transition-all hover:scale-110 active:scale-95 ${isLiked ? 'bg-rose-600/20 border-rose-600/40' : 'hover:bg-black/60'}`}>
+              <div className={`w-12 h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${isLiked ? 'bg-rose-600/30 border-rose-500/50' : 'hover:bg-black/65'}`}>
                 <Heart className={`w-6 h-6 transition-colors ${isLiked ? 'text-rose-500 fill-rose-500' : 'text-white'}`} />
               </div>
-              <span className="text-[10px] font-black drop-shadow-md">{likesCount}</span>
+              <span className="text-[11px] font-bold drop-shadow-md">{likesCount}</span>
             </button>
 
+            {/* COMMENTS BUTTON */}
             <button 
               onClick={handleToggleComments}
-              className="group/btn flex flex-col items-center gap-1"
+              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className={`w-12 h-12 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 cursor-pointer transition-all hover:scale-110 active:scale-95 ${showComments ? 'bg-blue-600/20 border-blue-600/40' : 'hover:bg-black/60'}`}>
+              <div className={`w-12 h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${showComments ? 'bg-blue-600/30 border-blue-500/50' : 'hover:bg-black/65'}`}>
                 <MessageSquare className="w-6 h-6 text-white" />
               </div>
-              <span className="text-[10px] font-black drop-shadow-md">{commentsCount}</span>
+              <span className="text-[11px] font-bold drop-shadow-md">{commentsCount}</span>
             </button>
 
+            {/* SHARE BUTTON */}
             <button 
               onClick={handleShare}
-              className="group/btn flex flex-col items-center gap-1"
+              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className="w-12 h-12 bg-black/40 backdrop-blur-md hover:bg-black/60 rounded-full flex items-center justify-center border border-white/10 cursor-pointer transition-all hover:scale-110 active:scale-95">
+              <div className="w-12 h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
                 <Share2 className="w-6 h-6 text-white" />
               </div>
-              <span className="text-[10px] font-black drop-shadow-md">Share</span>
+              <span className="text-[11px] font-bold drop-shadow-md">Share</span>
             </button>
 
             {/* DOWNLOAD BUTTON */}
             <button 
               onClick={handleDownloadShort}
               disabled={downloadProgress !== null}
-              className="group/btn flex flex-col items-center gap-1"
+              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
               title={isDownloaded ? "Downloaded offline" : "Download short"}
             >
-              <div className={`w-12 h-12 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 cursor-pointer transition-all hover:scale-110 active:scale-95 ${
-                isDownloaded ? 'bg-emerald-600/30 border-emerald-500/50' : 'hover:bg-black/60'
+              <div className={`w-12 h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
+                isDownloaded ? 'bg-emerald-600/30 border-emerald-500/50' : 'hover:bg-black/65'
               }`}>
                 {downloadProgress !== null ? (
                   <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
@@ -1089,7 +1137,7 @@ export const Shorts: React.FC = () => {
                   <ArrowDownToLine className="w-5 h-5 text-white" />
                 )}
               </div>
-              <span className="text-[10px] font-black drop-shadow-md">
+              <span className="text-[11px] font-bold drop-shadow-md">
                 {downloadProgress !== null ? `${downloadProgress}%` : isDownloaded ? 'Saved' : 'Download'}
               </span>
             </button>
@@ -1097,43 +1145,61 @@ export const Shorts: React.FC = () => {
             {/* SAVE TO PLAYLIST BUTTON */}
             <button 
               onClick={() => setPlaylistModalOpen(true)}
-              className="group/btn flex flex-col items-center gap-1"
+              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
               title="Save to Playlist"
             >
-              <div className="w-12 h-12 bg-black/40 backdrop-blur-md hover:bg-black/60 rounded-full flex items-center justify-center border border-white/10 cursor-pointer transition-all hover:scale-110 active:scale-95">
+              <div className="w-12 h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
                 <Bookmark className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[10px] font-black drop-shadow-md">Save</span>
+              <span className="text-[11px] font-bold drop-shadow-md">Save</span>
             </button>
           </div>
 
           {/* Details Overlay bottom */}
-          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-6 text-white flex flex-col gap-3 z-10 pointer-events-none">
-            <div className="flex items-center gap-3 pointer-events-auto">
-              <UserAvatar 
-                uid={activeShort.creatorId}
-                fallbackPhotoURL={activeShort.creatorPhotoURL}
-                fallbackDisplayName={activeShort.creatorDisplayName}
-                size="md"
-                onClick={() => navigate('creator', activeShort.creatorUsername)}
-                className="rounded-[1rem] border-2 border-white/10 shadow-lg"
-              />
-              <div className="min-w-0">
-                <h4 onClick={() => navigate('creator', activeShort.creatorUsername)} className="text-xs font-black hover:underline cursor-pointer truncate drop-shadow-md flex items-center gap-1">
-                  <span>{activeShort.creatorDisplayName}</span>
-                  {(creator?.role === 'creator' || creator?.role === 'admin') && (
-                    <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0 shadow-md" title="Verified Creator">✓</span>
-                  )}
-                </h4>
-                <p className="text-[10px] text-blue-400 font-bold truncate drop-shadow-sm">@{activeShort.creatorUsername}</p>
+          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-5 sm:p-6 text-white flex flex-col gap-2.5 z-10 pointer-events-none">
+            {/* Creator Row + Subscribe Button */}
+            <div className="flex items-center justify-between gap-3 pointer-events-auto">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <UserAvatar 
+                  uid={activeShort.creatorId}
+                  fallbackPhotoURL={activeShort.creatorPhotoURL}
+                  fallbackDisplayName={activeShort.creatorDisplayName}
+                  size="md"
+                  onClick={() => navigate('creator', activeShort.creatorUsername)}
+                  className="rounded-full border-2 border-white/20 shadow-lg shrink-0 cursor-pointer"
+                />
+                <div className="min-w-0">
+                  <h4 onClick={() => navigate('creator', activeShort.creatorUsername)} className="text-xs sm:text-sm font-black hover:underline cursor-pointer truncate drop-shadow-md flex items-center gap-1">
+                    <span>{activeShort.creatorDisplayName}</span>
+                    {(creator?.role === 'creator' || creator?.role === 'admin') && (
+                      <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0 shadow-md" title="Verified Creator">✓</span>
+                    )}
+                  </h4>
+                  <p className="text-[11px] text-white/80 font-bold truncate drop-shadow-sm">@{activeShort.creatorUsername}</p>
+                </div>
               </div>
+
+              {/* Subscribe button (Screenshot 2 styling) */}
+              {currentUser?.uid !== activeShort.creatorId && (
+                <button
+                  onClick={handleSubscribeToggle}
+                  disabled={subscribing}
+                  className={`px-4 py-1.5 rounded-full text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer shrink-0 ${
+                    isSubscribed
+                      ? 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-md border border-white/20'
+                      : 'bg-white text-[#0F172A] hover:bg-slate-100 hover:scale-105'
+                  }`}
+                >
+                  {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                </button>
+              )}
             </div>
 
             <div className="pr-14">
-              <h3 className="text-xs font-bold leading-relaxed line-clamp-2 drop-shadow-lg">
+              <h3 className="text-xs sm:text-[13px] font-bold leading-relaxed line-clamp-2 drop-shadow-lg">
                 {activeShort.title}
               </h3>
-              <p className="text-[10px] text-[#00d2ff] font-black mt-1 uppercase tracking-widest drop-shadow-sm">#{activeShort.category}</p>
+              <p className="text-[11px] text-[#0070f3] dark:text-[#00d2ff] font-extrabold mt-1 uppercase tracking-wider drop-shadow-sm">#{activeShort.category}</p>
 
               {/* Sound / Music Track Banner & Rotating Vinyl Disk */}
               <div className="flex items-center justify-between gap-3 pt-2 pointer-events-auto">

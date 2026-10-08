@@ -55,13 +55,20 @@ export const SocialIndiaLogo: React.FC<SocialIndiaLogoProps> = ({
 
       {showText && (
         <span 
-          style={forceWhiteText ? { color: '#ffffff' } : undefined}
-          className={`font-extrabold tracking-tight ${textSizes[size]} ${forceWhiteText ? 'text-white' : 'text-[#0F172A] dark:text-white'} flex items-center`}
+          className={`font-extrabold tracking-tight ${textSizes[size]} flex items-center`}
         >
-          Social<span 
-            style={forceWhiteText ? { color: '#93C5FD' } : undefined}
+          <span 
+            style={{ color: forceWhiteText ? '#ffffff' : undefined }}
+            className={forceWhiteText ? 'text-white' : 'text-[#0F172A] dark:text-white'}
+          >
+            Social
+          </span>
+          <span 
+            style={{ color: forceWhiteText ? '#93C5FD' : undefined }}
             className={forceWhiteText ? 'text-[#93C5FD]' : 'text-[#2563EB] dark:text-[#3b82f6]'}
-          >India</span>
+          >
+            India
+          </span>
         </span>
       )}
     </div>

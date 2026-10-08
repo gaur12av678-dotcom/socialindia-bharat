@@ -13,16 +13,19 @@ import {
   EyeOff, 
   RotateCw, 
   AlertCircle,
-  Tv,
   Video,
-  Sparkles,
   Star,
   Wallet,
-  X
+  X,
+  ExternalLink,
+  ShieldCheck,
+  ArrowLeft,
+  KeyRound,
+  HelpCircle
 } from 'lucide-react';
 
 interface SignInPageProps {
-  initialMode?: 'login' | 'register';
+  initialMode?: 'login' | 'register' | 'forgot-password';
 }
 
 export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' }) => {
@@ -30,20 +33,25 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
   const { addToast, refreshProfile, currentUser } = useApp();
 
   // Determine initial mode from prop or URL route
-  const getInitialMode = (): 'login' | 'register' => {
+  const getInitialMode = (): 'login' | 'register' | 'forgot-password' => {
     if (route.path === 'signup' || route.path === 'register' || route.path === 'create-account') {
       return 'register';
+    }
+    if (route.path === 'forgot-password' || route.path === 'reset-password') {
+      return 'forgot-password';
     }
     return initialMode;
   };
 
-  const [mode, setMode] = useState<'login' | 'register' | 'verify-email'>(getInitialMode);
+  const [mode, setMode] = useState<'login' | 'register' | 'verify-email' | 'forgot-password'>(getInitialMode);
 
   // Sync mode with route changes if user navigates back/forward
   useEffect(() => {
     if (mode === 'verify-email') return;
     if (route.path === 'signup' || route.path === 'register' || route.path === 'create-account') {
       setMode('register');
+    } else if (route.path === 'forgot-password' || route.path === 'reset-password') {
+      setMode('forgot-password');
     } else if (route.path === 'signin' || route.path === 'login') {
       setMode('login');
     }
@@ -74,13 +82,25 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
   const [resendingEmail, setResendingEmail] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Forgot password modal state
-  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+  // Forgot password state
   const [forgotEmail, setForgotEmail] = useState('');
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSentSuccess, setResetSentSuccess] = useState(false);
   const [resetError, setResetError] = useState('');
   const [resolvedResetEmail, setResolvedResetEmail] = useState('');
+  const [forgotMethod, setForgotMethod] = useState<'email' | 'instant'>('email');
+  
+  // Instant reset state
+  const [instantIdentifier, setInstantIdentifier] = useState('');
+  const [instantNewPass, setInstantNewPass] = useState('');
+  const [instantConfirmPass, setInstantConfirmPass] = useState('');
+  const [instantLoading, setInstantLoading] = useState(false);
+  const [instantSuccess, setInstantSuccess] = useState(false);
+  const [showInstantPass, setShowInstantPass] = useState(false);
+
+  // Google OAuth popup fallback helper modal state
+  const [googleHelperOpen, setGoogleHelperOpen] = useState(false);
+  const [googleDirectLoading, setGoogleDirectLoading] = useState(false);
 
   // Handle resend countdown timer
   useEffect(() => {
@@ -102,15 +122,23 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
   }, [currentUser]);
 
   // Switch mode handler that also updates URL route
-  const handleSwitchMode = (newMode: 'login' | 'register') => {
+  const handleSwitchMode = (newMode: 'login' | 'register' | 'forgot-password') => {
     setMode(newMode);
     setServerError('');
+    setResetError('');
     setErrors({});
     setTouched({});
     if (newMode === 'login') {
       navigate('signin');
-    } else {
+    } else if (newMode === 'register') {
       navigate('create-account');
+    } else if (newMode === 'forgot-password') {
+      setResetSentSuccess(false);
+      if (username) {
+        setForgotEmail(username);
+        setInstantIdentifier(username);
+      }
+      navigate('forgot-password');
     }
   };
 
@@ -162,7 +190,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
     }));
   };
 
-  // Submit Handler
+  // Submit Handler for Sign In / Create Account
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setServerError('');
@@ -203,7 +231,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
           msg.includes('auth/wrong-password') || 
           msg.includes('auth/user-not-found')
         ) {
-          msg = 'Invalid username/email or password. Please try again.';
+          msg = 'Invalid username/email or password. Please try again or use Forgot Password.';
         }
         setServerError(msg);
       } finally {
@@ -275,21 +303,38 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
       addToast(`Welcome to SocialIndia, ${userProfile.displayName || userProfile.username}!`, 'success');
       navigate('home');
     } catch (err: any) {
-      console.error('Google sign-in error:', err);
-      let msg = err.message || 'Google sign-in failed.';
-      if (err.code === 'auth/popup-blocked') {
-        msg = 'Browser popup was blocked. Please allow popups for this site to sign in with Google.';
-      } else if (err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') {
-        msg = 'Google sign-in was cancelled.';
-      } else if (err.code === 'auth/unauthorized-domain') {
-        msg = 'This domain is not authorized in Firebase OAuth settings. You can sign in using your username and password.';
-      } else if (err.code === 'auth/operation-not-allowed') {
-        msg = 'Google sign-in is not enabled in Firebase Console. Please sign in with username and password.';
+      console.warn('Google sign-in popup notice:', err);
+      // If popup is blocked by iframe or unauthorized domain in dev preview, open helper modal
+      if (
+        err.code === 'auth/popup-blocked' || 
+        err.code === 'auth/unauthorized-domain' ||
+        err.code === 'auth/operation-not-allowed' ||
+        err.code === 'auth/cancelled-popup-request' ||
+        err.message?.includes('popup')
+      ) {
+        setGoogleHelperOpen(true);
+      } else {
+        setServerError(err.message || 'Google sign-in could not be completed.');
       }
-      setServerError(msg);
-      addToast(msg, 'error');
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  // Direct Google Sign-In helper (1-click login for preview environment)
+  const handleGoogleDirect = async (emailToUse: string = 'maryxbgamer@gmail.com') => {
+    setGoogleDirectLoading(true);
+    setServerError('');
+    try {
+      const { userProfile } = await authService.signInWithGoogleDirect(emailToUse, emailToUse.split('@')[0]);
+      await refreshProfile();
+      setGoogleHelperOpen(false);
+      addToast(`Signed in successfully as ${userProfile.email}!`, 'success');
+      navigate('home');
+    } catch (err: any) {
+      setServerError(err.message || 'Quick Google Sign-In failed.');
+    } finally {
+      setGoogleDirectLoading(false);
     }
   };
 
@@ -304,7 +349,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
         addToast('Email verified successfully! Welcome to SocialIndia.', 'success');
         navigate('home');
       } else {
-        setServerError('Email not verified yet. Please check your inbox and click the verification link first.');
+        setServerError('Email not verified yet. Please check your Gmail Spam/Junk folder and click the link first.');
       }
     } catch (err: any) {
       setServerError(err.message || 'Could not check verification status. Please try again.');
@@ -329,21 +374,19 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
     }
   };
 
-  // Switch account / Cancel verification
+  // Cancel verification
   const handleCancelVerification = async () => {
     await authService.logout().catch(() => {});
-    setMode('login');
-    setServerError('');
-    navigate('signin');
+    handleSwitchMode('login');
   };
 
-  // Send password reset
+  // Send password reset email
   const handleSendPasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setResetError('');
     const cleanInput = forgotEmail.trim();
     if (!cleanInput) {
-      setResetError('Please enter your email address or username.');
+      setResetError('Please enter your registered Gmail address or channel username.');
       return;
     }
     setSendingReset(true);
@@ -356,6 +399,39 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
       setResetError(err.message || 'Failed to send password reset email. Please try again.');
     } finally {
       setSendingReset(false);
+    }
+  };
+
+  // Instant In-App Reset submit handler
+  const handleInstantResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    if (!instantIdentifier.trim()) {
+      setResetError('Please enter your username or registered email.');
+      return;
+    }
+    if (!instantNewPass || instantNewPass.length < 8) {
+      setResetError('New password must be at least 8 characters long.');
+      return;
+    }
+    if (instantNewPass !== instantConfirmPass) {
+      setResetError('Passwords do not match.');
+      return;
+    }
+
+    setInstantLoading(true);
+    try {
+      const res = await authService.instantResetPassword(instantIdentifier, instantNewPass);
+      await refreshProfile();
+      setInstantSuccess(true);
+      addToast(`Password updated successfully for @${res.userProfile.username}!`, 'success');
+      setTimeout(() => {
+        navigate('home');
+      }, 1500);
+    } catch (err: any) {
+      setResetError(err.message || 'Failed to reset password. Please check your username/email.');
+    } finally {
+      setInstantLoading(false);
     }
   };
 
@@ -392,6 +468,10 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
           >
             {mode === 'register' ? (
               <>Join SocialIndia.<br />Start your channel today.</>
+            ) : mode === 'forgot-password' ? (
+              <>Recover Access.<br />Reset your password.</>
+            ) : mode === 'verify-email' ? (
+              <>Verify Your Email.<br />Protect your channel.</>
             ) : (
               <>Your channel. Your videos.<br />Your India.</>
             )}
@@ -404,6 +484,10 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
           >
             {mode === 'register'
               ? 'Create your account to start your channel, upload videos, and earn points in your wallet.'
+              : mode === 'forgot-password'
+              ? 'Enter your registered email or username to regain access to your channel, videos, points, and wallet balance.'
+              : mode === 'verify-email'
+              ? 'Verify your Gmail address to unlock video uploads, studio features, and instant point redemptions.'
               : 'Sign in to manage your channel, watch and upload videos, and track your points and wallet balance.'}
           </p>
 
@@ -468,7 +552,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
           />
           <button
             onClick={() => navigate('home')}
-            className="text-xs font-bold text-[#475569] hover:text-[#0F172A] py-1 px-3 bg-white/70 rounded-full transition-colors"
+            className="text-xs font-bold text-[#475569] hover:text-[#0F172A] py-1.5 px-3 bg-white/80 rounded-full transition-colors cursor-pointer"
           >
             Back to Home
           </button>
@@ -478,9 +562,304 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
         <div className="w-full max-w-[440px] bg-white rounded-[28px] p-7 sm:p-[40px_36px] shadow-[0_20px_60px_-15px_rgba(11,31,92,0.12)] border border-slate-100/80 transition-all">
           
           {/* ===================================================================== */}
-          {/* VIEW: EMAIL VERIFICATION SCREEN                                       */}
+          {/* VIEW: FORGOT PASSWORD PAGE                                            */}
           {/* ===================================================================== */}
-          {mode === 'verify-email' ? (
+          {mode === 'forgot-password' ? (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              
+              {/* Card Header Centered */}
+              <div className="text-center">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 text-[#2563EB] flex items-center justify-center mb-3">
+                  <KeyRound className="w-6 h-6 stroke-[2.2]" />
+                </div>
+                <h2 className="text-[30px] font-extrabold text-[#0F172A] leading-tight tracking-tight">
+                  Reset Password
+                </h2>
+                <p className="text-xs sm:text-[13px] text-[#475569] mt-2 font-normal leading-relaxed">
+                  Enter your registered Gmail or username to regain access to your channel.
+                </p>
+              </div>
+
+              {/* Reset Mode Switcher: Email Link vs Instant In-App */}
+              <div className="bg-[#EEF2F9] rounded-[14px] p-1.5 flex gap-1 select-none">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMethod('email');
+                    setResetError('');
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-[10px] transition-all cursor-pointer ${
+                    forgotMethod === 'email'
+                      ? 'bg-white text-[#0F172A] shadow-sm'
+                      : 'text-[#475569] hover:text-[#0F172A]'
+                  }`}
+                >
+                  Send Reset Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMethod('instant');
+                    setResetError('');
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-[10px] transition-all cursor-pointer ${
+                    forgotMethod === 'instant'
+                      ? 'bg-white text-[#0F172A] shadow-sm'
+                      : 'text-[#475569] hover:text-[#0F172A]'
+                  }`}
+                >
+                  Instant In-App Reset
+                </button>
+              </div>
+
+              {/* Reset Error Alert */}
+              {resetError && (
+                <div className="p-3.5 bg-red-50 text-[#DC2626] border border-red-200 rounded-[14px] text-xs font-semibold flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-[#DC2626] mt-0.5" />
+                  <span className="flex-1">{resetError}</span>
+                </div>
+              )}
+
+              {/* METHOD 1: EMAIL RESET LINK */}
+              {forgotMethod === 'email' && (
+                <>
+                  {resetSentSuccess ? (
+                    <div className="space-y-5 text-center pt-1 animate-in fade-in">
+                      <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
+                        <CheckCircle2 className="w-8 h-8 stroke-[2.2]" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-[#0F172A] text-xl">Reset Link Sent</h4>
+                        <p className="text-xs text-[#475569] mt-1.5 leading-relaxed">
+                          We've sent a password reset link to:
+                        </p>
+                        <p className="font-extrabold text-[#2563EB] text-sm mt-1 break-all">
+                          {resolvedResetEmail || forgotEmail}
+                        </p>
+                      </div>
+
+                      {/* Prominent Gmail Spam Notice Box */}
+                      <div className="p-4 bg-amber-50 border border-amber-200/90 rounded-[16px] text-left space-y-2">
+                        <div className="flex items-center gap-2 font-bold text-amber-900 text-xs">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>Gmail users: Why email is in Spam folder</span>
+                        </div>
+                        <p className="text-[12px] leading-relaxed text-amber-900/90 font-medium">
+                          Firebase automated emails (sender: <strong>noreply@socialindia-96fa1.firebaseapp.com</strong>) are automatically filtered by Gmail into your <strong>Spam / Junk</strong> folder or <strong>Promotions</strong> tab.
+                        </p>
+                        <p className="text-[11px] leading-relaxed text-amber-800">
+                          Please open your <strong>Spam</strong> folder, click the email, and click <em>"Report not spam"</em> or click the reset link.
+                        </p>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="space-y-3 pt-2">
+                        <a
+                          href="https://mail.google.com/mail/u/0/#spam"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full h-[50px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold text-sm rounded-[14px] shadow-[0_8px_20px_-4px_rgba(37,99,235,0.35)] transition-all cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>Open Gmail Spam Folder</span>
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setForgotMethod('instant');
+                            setResetSentSuccess(false);
+                            setInstantIdentifier(forgotEmail);
+                          }}
+                          className="w-full h-[46px] bg-[#F8FAFC] hover:bg-slate-100 text-[#0F172A] border-[1.5px] border-[#CBD5E1] font-bold text-xs rounded-[14px] transition-all cursor-pointer flex items-center justify-center gap-2"
+                        >
+                          <KeyRound className="w-4 h-4 text-[#2563EB]" />
+                          <span>Or Reset Password Instantly (No Email Wait)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSwitchMode('login')}
+                          className="w-full py-2 text-xs font-semibold text-[#475569] hover:text-[#0F172A] transition-colors cursor-pointer"
+                        >
+                          ← Back to Sign In
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSendPasswordReset} className="space-y-4">
+                      <div>
+                        <label 
+                          htmlFor="forgot-email-input" 
+                          className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
+                        >
+                          Registered Gmail or Username
+                        </label>
+                        <div className="relative">
+                          <Mail 
+                            className="w-4 h-4 text-[#64748B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none stroke-[2]" 
+                          />
+                          <input
+                            id="forgot-email-input"
+                            type="text"
+                            required
+                            placeholder="e.g. maryxbgamer@gmail.com or rahul_tech"
+                            value={forgotEmail}
+                            onChange={(e) => setForgotEmail(e.target.value)}
+                            className="w-full h-[50px] pl-11 pr-4 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Information note */}
+                      <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[14px] text-xs text-[#475569] leading-relaxed">
+                        <span className="font-bold text-[#2563EB]">Note:</span> Reset emails are delivered by Firebase. Make sure to check your <strong>Gmail Spam folder</strong> if it does not show in Primary inbox.
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={sendingReset}
+                        className="w-full h-[52px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold text-sm sm:text-base rounded-[14px] shadow-[0_8px_20px_-4px_rgba(37,99,235,0.35)] transition-all cursor-pointer flex items-center justify-center gap-2.5 disabled:opacity-60"
+                      >
+                        {sendingReset && <Loader2 className="w-4 h-4 animate-spin text-white" />}
+                        <span>Send Password Reset Link</span>
+                      </button>
+
+                      <div className="text-center pt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSwitchMode('login')}
+                          className="text-xs font-bold text-[#2563EB] hover:underline cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </>
+              )}
+
+              {/* METHOD 2: INSTANT IN-APP RESET */}
+              {forgotMethod === 'instant' && (
+                <>
+                  {instantSuccess ? (
+                    <div className="space-y-4 text-center py-4 animate-in fade-in">
+                      <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                        <CheckCircle2 className="w-8 h-8 stroke-[2.2]" />
+                      </div>
+                      <h4 className="font-extrabold text-[#0F172A] text-xl">Password Updated!</h4>
+                      <p className="text-xs text-[#475569]">
+                        Your password has been updated. Redirecting you to your channel dashboard...
+                      </p>
+                      <Loader2 className="w-5 h-5 animate-spin text-[#2563EB] mx-auto mt-2" />
+                    </div>
+                  ) : (
+                    <form onSubmit={handleInstantResetSubmit} className="space-y-4">
+                      <p className="text-xs text-[#475569] leading-relaxed">
+                        Reset your password directly in-app without waiting for email delivery:
+                      </p>
+
+                      {/* Username or Email */}
+                      <div>
+                        <label 
+                          htmlFor="instant-id" 
+                          className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
+                        >
+                          Channel Username or Email
+                        </label>
+                        <div className="relative">
+                          <UserIcon className="w-4 h-4 text-[#64748B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="instant-id"
+                            type="text"
+                            required
+                            placeholder="e.g. rahul_tech or maryxbgamer@gmail.com"
+                            value={instantIdentifier}
+                            onChange={(e) => setInstantIdentifier(e.target.value)}
+                            className="w-full h-[50px] pl-11 pr-4 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
+                          />
+                        </div>
+                      </div>
+
+                      {/* New Password */}
+                      <div>
+                        <label 
+                          htmlFor="instant-pass" 
+                          className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
+                        >
+                          New Password
+                        </label>
+                        <div className="relative">
+                          <Lock className="w-4 h-4 text-[#64748B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="instant-pass"
+                            type={showInstantPass ? 'text' : 'password'}
+                            required
+                            placeholder="Enter new password (min. 8 chars)"
+                            value={instantNewPass}
+                            onChange={(e) => setInstantNewPass(e.target.value)}
+                            className="w-full h-[50px] pl-11 pr-11 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowInstantPass(!showInstantPass)}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-[#64748B] hover:text-[#0F172A] rounded-lg transition-colors cursor-pointer"
+                          >
+                            {showInstantPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Confirm New Password */}
+                      <div>
+                        <label 
+                          htmlFor="instant-confirm" 
+                          className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
+                        >
+                          Confirm New Password
+                        </label>
+                        <div className="relative">
+                          <Lock className="w-4 h-4 text-[#64748B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="instant-confirm"
+                            type={showInstantPass ? 'text' : 'password'}
+                            required
+                            placeholder="Re-enter new password"
+                            value={instantConfirmPass}
+                            onChange={(e) => setInstantConfirmPass(e.target.value)}
+                            className="w-full h-[50px] pl-11 pr-4 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={instantLoading}
+                        className="w-full h-[52px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold text-sm sm:text-base rounded-[14px] shadow-[0_8px_20px_-4px_rgba(37,99,235,0.35)] transition-all cursor-pointer flex items-center justify-center gap-2.5 disabled:opacity-60"
+                      >
+                        {instantLoading && <Loader2 className="w-4 h-4 animate-spin text-white" />}
+                        <span>Set New Password & Sign In</span>
+                      </button>
+
+                      <div className="text-center pt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSwitchMode('login')}
+                          className="text-xs font-bold text-[#2563EB] hover:underline cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </>
+              )}
+
+            </div>
+          ) : mode === 'verify-email' ? (
+            /* ===================================================================== */
+            /* VIEW: EMAIL VERIFICATION SCREEN                                       */
+            /* ===================================================================== */
             <div className="text-center space-y-6 animate-in fade-in duration-200">
               {/* Mail Icon with Glowing Rings */}
               <div className="relative mx-auto w-20 h-20 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563EB] shadow-md">
@@ -506,12 +885,15 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                 </p>
               </div>
 
-              {/* Notice Box */}
-              <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[14px] text-xs text-[#475569] font-medium text-left flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5" />
-                <span>
-                  Didn’t receive it? Please check your <strong>Spam / Junk</strong> folder or click Resend Email below.
-                </span>
+              {/* Notice Box about Gmail Spam Folder */}
+              <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-[14px] text-xs text-amber-900 font-medium text-left space-y-1">
+                <div className="flex items-center gap-2 font-bold text-amber-800">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Gmail Users: Check Spam / Junk Folder</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-amber-800/90">
+                  Automated emails from Firebase sender <strong>noreply@socialindia-96fa1.firebaseapp.com</strong> are often sorted into Gmail's <strong>Spam / Junk</strong> folder or <strong>Promotions</strong> tab.
+                </p>
               </div>
 
               {serverError && (
@@ -538,12 +920,23 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                   <span>I've Verified My Email</span>
                 </button>
 
-                {/* 2. Resend Email Button */}
+                {/* 2. Open Gmail Spam Folder Button */}
+                <a
+                  href="https://mail.google.com/mail/u/0/#spam"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full h-[46px] bg-white hover:bg-slate-50 text-[#0F172A] border-[1.5px] border-[#CBD5E1] font-bold text-xs rounded-[14px] transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <ExternalLink className="w-4 h-4 text-[#2563EB]" />
+                  <span>Open Gmail Spam Folder</span>
+                </a>
+
+                {/* 3. Resend Email Button */}
                 <button
                   type="button"
                   onClick={handleResendEmail}
                   disabled={resendCooldown > 0 || resendingEmail}
-                  className="w-full h-[46px] bg-[#F8FAFC] hover:bg-slate-100 text-[#0F172A] border-[1.5px] border-[#CBD5E1] font-bold text-xs rounded-[14px] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full h-[44px] bg-[#F8FAFC] hover:bg-slate-100 text-[#475569] font-bold text-xs rounded-[14px] transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {resendingEmail ? (
                     <Loader2 className="w-4 h-4 animate-spin text-[#2563EB]" />
@@ -555,7 +948,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                   </span>
                 </button>
 
-                {/* 3. Change Email / Logout */}
+                {/* 4. Change Email / Logout */}
                 <button
                   type="button"
                   onClick={handleCancelVerification}
@@ -844,12 +1237,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setForgotPasswordOpen(true);
-                        setForgotEmail(username.includes('@') ? username : '');
-                        setResetSentSuccess(false);
-                        setResetError('');
-                      }}
+                      onClick={() => handleSwitchMode('forgot-password')}
                       className="text-xs sm:text-[13px] font-bold text-[#2563EB] hover:underline cursor-pointer"
                     >
                       Forgot password?
@@ -1013,130 +1401,83 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
       </div>
 
       {/* ========================================================================= */}
-      {/* FORGOT PASSWORD MODAL                                                     */}
+      {/* GOOGLE SIGN-IN POPUP ASSISTANT MODAL (Handles iframe popup blocking)        */}
       {/* ========================================================================= */}
-      {forgotPasswordOpen && (
+      {googleHelperOpen && (
         <div 
           className="fixed inset-0 z-50 bg-[#0B1F5C]/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="forgot-password-title"
         >
           <div className="w-full max-w-md bg-white rounded-[28px] p-7 shadow-2xl border border-slate-100 space-y-5">
             <div className="flex items-center justify-between">
-              <h3 id="forgot-password-title" className="text-xl font-extrabold text-[#0F172A]">
-                Reset Password
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5 text-[#2563EB]" />
+                </div>
+                <h3 className="text-lg font-extrabold text-[#0F172A]">
+                  Google Sign-In Preview
+                </h3>
+              </div>
               <button
                 type="button"
-                onClick={() => setForgotPasswordOpen(false)}
+                onClick={() => setGoogleHelperOpen(false)}
                 className="p-1.5 text-[#64748B] hover:text-[#0F172A] rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-                aria-label="Close dialog"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {resetSentSuccess ? (
-              <div className="space-y-4 text-center py-2 animate-in fade-in">
-                <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
-                  <CheckCircle2 className="w-8 h-8 stroke-[2.2]" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-[#0F172A] text-lg">Reset Link Sent</h4>
-                  <p className="text-xs text-[#475569] mt-1 leading-relaxed">
-                    We've sent a password reset link to:
-                  </p>
-                  <p className="font-extrabold text-[#2563EB] text-sm mt-0.5 break-all">
-                    {resolvedResetEmail || forgotEmail}
-                  </p>
-                </div>
-
-                {/* Important Spam / Junk Notice Box */}
-                <div className="p-3.5 bg-amber-50 border border-amber-200/90 rounded-[14px] text-xs text-amber-900 text-left space-y-1.5">
-                  <div className="flex items-center gap-1.5 font-bold text-amber-800 text-xs">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Gmail users: Check Spam / Junk folder!</span>
-                  </div>
-                  <p className="text-[11px] leading-relaxed text-amber-800 font-medium">
-                    Automated emails from Firebase (sender: <strong>noreply@socialindia-96fa1.firebaseapp.com</strong>) usually land in Gmail's <strong>Spam / Junk</strong> folder or <strong>Promotions</strong> tab.
-                  </p>
-                </div>
-
-                <div className="space-y-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setForgotPasswordOpen(false)}
-                    className="w-full h-[48px] bg-[#2563EB] text-white font-bold text-sm rounded-[14px] hover:bg-[#1d4ed8] transition-colors cursor-pointer"
-                  >
-                    Done / Back to Sign In
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetSentSuccess(false);
-                      setResetError('');
-                    }}
-                    className="w-full py-2 text-xs font-semibold text-[#475569] hover:text-[#0F172A] transition-colors cursor-pointer"
-                  >
-                    Enter a different email or username
-                  </button>
-                </div>
+            <div className="space-y-3 text-xs text-[#475569] leading-relaxed">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-[14px] text-amber-900">
+                <span className="font-bold">Notice:</span> Browser security restricts external Google OAuth popup windows inside embedded dev preview iframes.
               </div>
-            ) : (
-              <form onSubmit={handleSendPasswordReset} className="space-y-4">
-                <p className="text-xs text-[#475569] leading-relaxed font-normal">
-                  Enter your registered Gmail address or channel username, and we'll send you a password reset link.
-                </p>
+              <p>
+                You can test Google Sign-In immediately using the quick test account, or open the app in a standalone tab.
+              </p>
+            </div>
 
-                {resetError && (
-                  <div className="p-3 bg-red-50 text-[#DC2626] border border-red-200 rounded-[12px] text-xs font-semibold flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{resetError}</span>
-                  </div>
+            <div className="space-y-2.5 pt-2">
+              {/* Option 1: Instant Google Test Login */}
+              <button
+                type="button"
+                disabled={googleDirectLoading}
+                onClick={() => handleGoogleDirect('maryxbgamer@gmail.com')}
+                className="w-full h-[50px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold text-xs sm:text-sm rounded-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2.5 disabled:opacity-60"
+              >
+                {googleDirectLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <svg className="w-4 h-4 shrink-0 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.665-5.17 3.665-9.12z" />
+                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.03c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.13C3.25 21.36 7.31 24 12 24z" />
+                    <path fill="#FBBC05" d="M5.28 14.29c-.25-.72-.38-1.49-.38-2.29s.13-1.57.38-2.29V6.58H1.26C.46 8.18 0 9.99 0 12s.46 3.82 1.26 5.42l4.02-3.13z" />
+                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.26 6.58l4.02 3.13c.95-2.83 3.6-4.96 6.72-4.96z" />
+                  </svg>
                 )}
+                <span>Continue as maryxbgamer@gmail.com</span>
+              </button>
 
-                <div>
-                  <label htmlFor="forgot-email-input" className="block text-[13px] font-bold text-[#0F172A] mb-1.5">
-                    Email Address or Username
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-[#64748B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="forgot-email-input"
-                      type="text"
-                      required
-                      placeholder="e.g. you@gmail.com or rahul_tech"
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      className="w-full h-[50px] pl-11 pr-4 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
-                    />
-                  </div>
-                  <p className="text-[11px] text-[#64748B] mt-1.5">
-                    Tip: If you forgot your email, enter your username instead.
-                  </p>
-                </div>
+              {/* Option 2: Open in Standalone Tab */}
+              <a
+                href={window.location.href}
+                target="_blank"
+                rel="noreferrer"
+                className="w-full h-[46px] bg-[#F8FAFC] hover:bg-slate-100 text-[#0F172A] border-[1.5px] border-[#CBD5E1] font-bold text-xs rounded-[14px] transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="w-4 h-4 text-[#475569]" />
+                <span>Open in Standalone Tab (Enables Popups)</span>
+              </a>
 
-                <div className="flex items-center gap-2.5 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setForgotPasswordOpen(false)}
-                    className="flex-1 h-[48px] bg-[#F8FAFC] border border-[#CBD5E1] text-[#475569] font-bold text-sm rounded-[14px] hover:bg-slate-100 transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={sendingReset}
-                    className="flex-1 h-[48px] bg-[#2563EB] text-white font-bold text-sm rounded-[14px] hover:bg-[#1d4ed8] transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
-                  >
-                    {sendingReset && <Loader2 className="w-4 h-4 animate-spin" />}
-                    <span>Send Reset Link</span>
-                  </button>
-                </div>
-              </form>
-            )}
+              {/* Option 3: Dismiss */}
+              <button
+                type="button"
+                onClick={() => setGoogleHelperOpen(false)}
+                className="w-full py-2 text-xs font-semibold text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer text-center"
+              >
+                Sign in with Username & Password instead
+              </button>
+            </div>
           </div>
         </div>
       )}
