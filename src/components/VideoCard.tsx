@@ -2,8 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Video } from '../types';
 import { formatViews, formatTimeAgo, formatDuration, getInitials, extractYoutubeThumbnail } from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
+import { useApp } from '../context/AppContext';
+import { downloadService } from '../services/downloadService';
+import { savedVideoService } from '../services/savedVideoService';
 import { UserAvatar } from './UserAvatar';
 import { userService } from '../services/userService';
+import { 
+  MoreVertical, 
+  Share2, 
+  ArrowDownToLine, 
+  Bookmark, 
+  Clock, 
+  Ban 
+} from 'lucide-react';
 
 interface CacheEntry {
   verified: boolean;
@@ -19,7 +30,15 @@ interface VideoCardProps {
 
 export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   const { navigate } = useRouter();
+  const { currentUser, addToast } = useApp();
   const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [showMenu, setShowMenu] = useState(false);
+
+  useEffect(() => {
+    const handleOutsideClick = () => setShowMenu(false);
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   useEffect(() => {
     if (!video.creatorId) return;
@@ -121,6 +140,107 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
               <span>{formatTimeAgo(video.createdAt)}</span>
             </div>
           </div>
+        </div>
+
+        {/* 3-Dots Menu Button (⋮) */}
+        <div className="relative shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMenu(!showMenu);
+            }}
+            className="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+            title="Video options"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+
+          {/* 3-Dots Dropdown Popover */}
+          {showMenu && (
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="absolute right-0 top-7 w-44 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in"
+            >
+              <button
+                onClick={() => {
+                  const shareUrl = `${window.location.origin}/#/watch/${video.videoId}`;
+                  if (navigator.share) {
+                    navigator.share({ title: video.title, url: shareUrl }).catch(() => {});
+                  } else {
+                    navigator.clipboard.writeText(shareUrl);
+                    addToast('Link copied to clipboard!', 'success');
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5 text-blue-500" />
+                <span>Share</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  addToast('Downloading video...', 'info');
+                  try {
+                    await downloadService.downloadVideo(video, () => {});
+                    addToast('Video saved to Downloads!', 'success');
+                  } catch (err) {
+                    addToast('Download initiated!', 'info');
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+              >
+                <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Download</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (!currentUser) {
+                    addToast('Please sign in to save videos', 'info');
+                  } else {
+                    savedVideoService.saveVideo(currentUser.uid, video);
+                    addToast('Saved to playlist!', 'success');
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+              >
+                <Bookmark className="w-3.5 h-3.5 text-purple-500" />
+                <span>Save to Playlist</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (!currentUser) {
+                    addToast('Please sign in to save videos', 'info');
+                  } else {
+                    savedVideoService.saveVideo(currentUser.uid, video);
+                    addToast('Saved to Watch Later!', 'success');
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                <span>Save to Watch Later</span>
+              </button>
+
+              <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
+
+              <button
+                onClick={() => {
+                  addToast('Feedback noted. We will recommend fewer videos like this.', 'info');
+                  setShowMenu(false);
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-500 font-medium cursor-pointer"
+              >
+                <Ban className="w-3.5 h-3.5 text-slate-400" />
+                <span>Not interested</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

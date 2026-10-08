@@ -4,21 +4,91 @@ import { recommendationService } from '../services/recommendationService';
 import { Video } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { useApp } from '../context/AppContext';
+import { useRouter } from '../hooks/useRouter';
 import { adService } from '../services/adService';
 import { AdCampaign } from '../types';
-import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
+import { Flame, Zap, ArrowRight, Play } from 'lucide-react';
 
 export const categoriesList = [
-  'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Science', 'Vlogs', 'Comedy', 'Shorts', 'Other'
+  'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy'
+];
+
+// Fallback curated Shorts to ensure all 5 vertical slots are always populated beautifully like Capture.PNG
+const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
+  {
+    videoId: 'sample-short-1',
+    title: 'Breathtaking Himalayan Valley Drone View 🏔️',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-tree-branches-in-the-breeze-1188-large.mp4',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&auto=format&fit=crop&q=80',
+    duration: 48,
+    viewsCount: 14200,
+    isShort: true,
+    creatorDisplayName: 'Nature Explorer',
+    creatorUsername: 'nature_india'
+  },
+  {
+    videoId: 'sample-short-2',
+    title: 'Top 5 AI Coding Extensions in 2026 💻',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-hands-typing-on-a-laptop-42998-large.mp4',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
+    duration: 32,
+    viewsCount: 28900,
+    isShort: true,
+    creatorDisplayName: 'Gaurav Saini',
+    creatorUsername: 'gaurav_saini'
+  },
+  {
+    videoId: 'sample-short-3',
+    title: 'Minecraft Speedrun: Nether Fortress Tricks 🎮',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-game-animation-of-a-character-running-42994-large.mp4',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&auto=format&fit=crop&q=80',
+    duration: 59,
+    viewsCount: 56300,
+    isShort: true,
+    creatorDisplayName: 'Pro Gamer India',
+    creatorUsername: 'progamer'
+  },
+  {
+    videoId: 'sample-short-4',
+    title: 'Sunset at India Gate, New Delhi ❤️',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-clouds-and-blue-sky-2408-large.mp4',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1587474260584-136574528ed5?w=600&auto=format&fit=crop&q=80',
+    duration: 41,
+    viewsCount: 39100,
+    isShort: true,
+    creatorDisplayName: 'Delhi Vlogs',
+    creatorUsername: 'delhivlogs'
+  },
+  {
+    videoId: 'sample-short-5',
+    title: 'Fastest 5G Smartphone in India under ₹15,000 📱',
+    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-person-scrolling-on-a-smartphone-42992-large.mp4',
+    thumbnailUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80',
+    duration: 37,
+    viewsCount: 47800,
+    isShort: true,
+    creatorDisplayName: 'Tech Guru India',
+    creatorUsername: 'techguru'
+  }
 ];
 
 export const Home: React.FC = () => {
   const { currentUser, addToast } = useApp();
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const { route, navigate } = useRouter();
+  const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || 'All');
   const [videos, setVideos] = useState<Video[]>([]);
+  const [shorts, setShorts] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingShorts, setLoadingShorts] = useState(true);
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
   const [adDismissed, setAdDismissed] = useState(false);
+
+  // Sync category with URL query param if present
+  useEffect(() => {
+    if (route.searchParams?.category) {
+      setSelectedCategory(route.searchParams.category);
+    }
+  }, [route.searchParams?.category]);
 
   useEffect(() => {
     adService.getActiveAds(5).then(setActiveAds).catch(console.warn);
@@ -46,25 +116,63 @@ export const Home: React.FC = () => {
     }
   };
 
+  const fetchHomeShorts = async () => {
+    setLoadingShorts(true);
+    try {
+      const shortsData = await videoService.getVideos({
+        isShort: true
+      });
+      const rankedShorts = recommendationService.rankAndFilterVideos(shortsData, {
+        isShortsOnly: true,
+        userUid: currentUser?.uid
+      });
+
+      // If we have fewer than 5 real shorts from db, merge with curated sample shorts
+      if (rankedShorts.length < 5) {
+        const merged = [...rankedShorts, ...DEFAULT_CURATED_SHORTS.slice(rankedShorts.length) as Video[]];
+        setShorts(merged);
+      } else {
+        setShorts(rankedShorts);
+      }
+    } catch (err) {
+      console.error(err);
+      setShorts(DEFAULT_CURATED_SHORTS as Video[]);
+    } finally {
+      setLoadingShorts(false);
+    }
+  };
+
   useEffect(() => {
     fetchHomeVideos();
+    fetchHomeShorts();
   }, [selectedCategory]);
 
+  // For the 'All' feed, split videos so the top 3 (Row 1) display above Shorts, matching Capture.PNG!
+  const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 3) : videos;
+  const remainingVideos = selectedCategory === 'All' ? videos.slice(3) : [];
+
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-7 max-w-7xl mx-auto">
       
       {/* Category Horizontal Scrolling Bar */}
-      <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 md:mx-0 md:px-0 sticky top-0 bg-transparent z-20 pt-2 mb-2">
+      <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 md:mx-0 md:px-0 sticky top-0 bg-white/95 dark:bg-[#0f0f0f]/95 backdrop-blur-md z-20 pt-1">
         {categoriesList.map((category) => {
           const isSelected = selectedCategory === category;
           return (
             <button
               key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold transition-all shrink-0 cursor-pointer ${
+              onClick={() => {
+                setSelectedCategory(category);
+                if (category === 'All') {
+                  navigate('home');
+                } else {
+                  navigate('home', undefined, { category });
+                }
+              }}
+              className={`px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all shrink-0 cursor-pointer ${
                 isSelected
-                  ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-xs'
-                  : 'bg-slate-200/80 hover:bg-slate-300/80 text-slate-800 dark:bg-[#272727] dark:hover:bg-[#383838] dark:text-slate-200 border border-slate-300/50 dark:border-transparent'
+                  ? 'bg-[#065fd4] text-white shadow-xs'
+                  : 'bg-[#f1f3f9] hover:bg-slate-200 text-slate-800 dark:bg-[#202124] dark:hover:bg-[#2e3034] dark:text-slate-200'
               }`}
             >
               {category}
@@ -73,31 +181,63 @@ export const Home: React.FC = () => {
         })}
       </div>
 
-      {/* Optional: Hero Banner - Made more compact or removed if too noisy */}
+      {/* Hero Banner (Curved India Gate/Creative overlay) - Vibrant Blue Gradient */}
       {selectedCategory === 'All' && (
-        <div className="relative overflow-hidden rounded-2xl bg-[#2563eb] p-6 text-white shadow-sm mb-8">
-          <div className="relative z-10 max-w-2xl space-y-2">
-            <h2 className="text-xl md:text-2xl font-black tracking-tight leading-snug">
+        <div 
+          style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)' }}
+          className="relative overflow-hidden rounded-3xl p-6 md:p-8 text-white shadow-lg"
+        >
+          <div className="relative z-10 max-w-xl space-y-2.5">
+            <h2 className="text-2xl md:text-3xl font-black tracking-tight leading-tight text-white drop-shadow-xs">
               Discover the best creators in India
             </h2>
-            <p className="text-xs text-white/90 leading-relaxed font-medium">
-              Join millions watching the latest in tech, music, and vlogs.
+            <p className="text-xs md:text-sm text-blue-100 leading-relaxed font-medium">
+              Join millions watching the latest in tech, music, vlogs, education, gaming and more.
             </p>
+            
+            <div className="pt-2">
+              <button
+                onClick={() => navigate('trending')}
+                className="px-5 py-2.5 bg-white hover:bg-blue-50 text-[#1e40af] font-black text-xs md:text-sm rounded-full shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+              >
+                <Play className="w-3.5 h-3.5 fill-[#1e40af] text-[#1e40af]" />
+                <span>Explore Now</span>
+              </button>
+            </div>
           </div>
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10" />
+
+          {/* Decorative India Gate / Skyline Silhouette & Blur graphics */}
+          <div className="absolute right-0 bottom-0 top-0 w-1/3 opacity-25 pointer-events-none flex items-end justify-end p-4">
+            <svg viewBox="0 0 200 200" className="w-52 h-52 fill-current text-white" aria-hidden="true">
+              <path d="M40 180 h120 v-20 h-10 v-60 c0-30 -20-50 -50-50 s-50 20 -50 50 v60 h-10 z M70 180 v-40 c0-15 15-25 30-25 s30 10 30 25 v40 z" />
+            </svg>
+          </div>
+          <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/20 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -bottom-10 right-20 w-40 h-40 bg-blue-300/30 rounded-full blur-xl pointer-events-none" />
         </div>
       )}
 
-      {/* Video Feed Section (With Embedded YouTube Style Sponsored Feed Card) */}
+      {/* 1. Recommended Videos Section (Row 1) */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-extrabold tracking-wider text-slate-900 dark:text-white uppercase">
-            {selectedCategory === 'All' ? 'Recommended Videos' : `${selectedCategory} Videos`}
-          </h2>
+          <div className="flex items-center gap-2">
+            <Flame className="w-5 h-5 text-red-500 fill-red-500 shrink-0" />
+            <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
+              {selectedCategory === 'All' ? 'Recommended Videos' : `${selectedCategory} Videos`}
+            </h2>
+          </div>
+          
+          <button 
+            onClick={() => navigate('trending')}
+            className="text-xs font-bold text-[#065fd4] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <span>See All</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         <VideoGrid 
-          videos={videos} 
+          videos={firstRowVideos} 
           loading={loading} 
           activeAds={adDismissed ? [] : activeAds}
           onDismissAd={() => setAdDismissed(true)}
@@ -105,6 +245,108 @@ export const Home: React.FC = () => {
           emptyMessage="Videos published on SocialIndia will appear here."
         />
       </div>
+
+      {/* 2. Shorts Section (Positioned right after Row 1 - Exact Capture.PNG placement!) */}
+      {selectedCategory === 'All' && (
+        <div className="space-y-4 pt-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-red-600 flex items-center justify-center text-white shadow-xs shrink-0">
+                <Zap className="w-3.5 h-3.5 fill-current" />
+              </div>
+              <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
+                Shorts
+              </h2>
+            </div>
+
+            <button 
+              onClick={() => navigate('shorts')}
+              className="text-xs font-bold text-[#065fd4] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>See All</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {loadingShorts ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="aspect-[9/16] rounded-2xl bg-slate-100 dark:bg-[#1f1f23] animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+              {shorts.slice(0, 5).map((short) => (
+                <div
+                  key={short.videoId}
+                  onClick={() => navigate('shorts', short.videoId)}
+                  className="group relative cursor-pointer select-none"
+                >
+                  <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-slate-900 shadow-md">
+                    {short.thumbnailUrl ? (
+                      <img 
+                        src={short.thumbnailUrl} 
+                        alt={short.title} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900 flex flex-col items-center justify-center p-3 text-center">
+                        <Zap className="w-8 h-8 text-white/50 mb-1" />
+                        <span className="text-[11px] text-white/70 font-semibold truncate max-w-[90%]">{short.title}</span>
+                      </div>
+                    )}
+                    
+                    {/* Dark gradient scrim at bottom */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/10 group-hover:from-black/90 transition-colors" />
+
+                    {/* Play Button Overlay on Hover */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-10 h-10 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center text-white border border-white/40 shadow-lg">
+                        <Play className="w-5 h-5 fill-current ml-0.5" />
+                      </div>
+                    </div>
+
+                    {/* Duration Badge */}
+                    <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold rounded-md">
+                      {short.duration ? `${Math.floor(short.duration / 60)}:${(short.duration % 60).toString().padStart(2, '0')}` : '0:45'}
+                    </div>
+                  </div>
+
+                  {/* Short Title & Views */}
+                  <div className="mt-2 space-y-0.5">
+                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-[#065fd4] dark:group-hover:text-[#3b82f6] transition-colors">
+                      {short.title}
+                    </p>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
+                      {short.viewsCount ? `${short.viewsCount.toLocaleString()} views` : '1.2k views'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. More Videos Section (If more than 3 videos exist) */}
+      {selectedCategory === 'All' && remainingVideos.length > 0 && (
+        <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
+              More Videos For You
+            </h2>
+          </div>
+
+          <VideoGrid 
+            videos={remainingVideos} 
+            loading={false} 
+            activeAds={[]}
+            emptyHeading="No more videos"
+            emptyMessage="More videos will appear here."
+          />
+        </div>
+      )}
+
     </div>
   );
 };

@@ -18,7 +18,7 @@ import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 import { UserAvatar } from '../components/UserAvatar';
-import { parseVideoUrl, formatViews, formatTimeAgo, formatSubscribers, getInitials } from '../utils/videoUtils';
+import { parseVideoUrl, formatViews, formatTimeAgo, formatDuration, formatSubscribers, getInitials } from '../utils/videoUtils';
 import { RichText } from '../components/RichText';
 import { 
   Heart, 
@@ -29,6 +29,7 @@ import {
   Edit3,
   Send,
   MoreVertical,
+  MoreHorizontal,
   AlertTriangle,
   X,
   ArrowDownToLine,
@@ -39,7 +40,12 @@ import {
   Wallet,
   Sparkles,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  ThumbsUp,
+  ThumbsDown,
+  Clock,
+  Ban,
+  Check
 } from 'lucide-react';
 
 export const Watch: React.FC = () => {
@@ -57,8 +63,13 @@ export const Watch: React.FC = () => {
   // Status states
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState(false);
+  const [disliked, setDisliked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
+  const [activeRelatedMenuId, setActiveRelatedMenuId] = useState<string | null>(null);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
+  const [savedWatchLaterMap, setSavedWatchLaterMap] = useState<Record<string, boolean>>({});
   
   // Reporting state
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -427,6 +438,16 @@ export const Watch: React.FC = () => {
     }
   };
 
+  const handleWatchLaterToggle = (targetVideo: Video) => {
+    const isCurrentlySaved = !!savedWatchLaterMap[targetVideo.videoId];
+    setSavedWatchLaterMap(prev => ({
+      ...prev,
+      [targetVideo.videoId]: !isCurrentlySaved
+    }));
+    addToast(isCurrentlySaved ? 'Removed from Watch Later' : 'Saved to Watch Later!', 'success');
+    setActiveRelatedMenuId(null);
+  };
+
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !currentUserProfile) {
@@ -742,8 +763,8 @@ export const Watch: React.FC = () => {
             <RichText text={video.title} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
           </h1>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 py-2.5 border-y border-slate-200 dark:border-[#334155]">
-            {/* Creator Channel Card */}
+          <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-slate-200 dark:border-[#334155]">
+            {/* Creator Channel Card (Left Side) */}
             <div className="flex items-center gap-3">
               <UserAvatar 
                 uid={video.creatorId}
@@ -751,19 +772,17 @@ export const Watch: React.FC = () => {
                 fallbackDisplayName={video.creatorDisplayName}
                 size="md"
                 onClick={() => navigate('creator', video.creatorUsername)}
-                className="rounded-full shadow-xs"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full shadow-xs cursor-pointer hover:scale-105 transition-transform"
               />
               <div className="min-w-0">
                 <h4 
                   onClick={() => navigate('creator', video.creatorUsername)}
-                  className="text-sm font-extrabold text-slate-900 dark:text-[#F8FAFC] hover:underline cursor-pointer truncate flex items-center gap-1"
+                  className="text-xs sm:text-sm font-black text-slate-900 dark:text-[#F8FAFC] hover:underline cursor-pointer truncate flex items-center gap-1.5"
                 >
                   <span>{video.creatorDisplayName}</span>
-                  {(creator?.role === 'creator' || creator?.role === 'admin') && (
-                    <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
-                  )}
+                  <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
                 </h4>
-                <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-bold leading-none mt-1">
+                <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium leading-none mt-1">
                   {creator ? formatSubscribers(creator.followersCount) : '0 subscribers'}
                 </p>
               </div>
@@ -771,62 +790,67 @@ export const Watch: React.FC = () => {
               {currentUser?.uid !== video.creatorId && (
                 <button
                   onClick={handleSubscribeToggle}
-                  className={`ml-4 px-4.5 py-2 text-xs font-extrabold rounded-xl transition-all cursor-pointer border ${
+                  className={`ml-3 px-5 py-2 text-xs font-extrabold rounded-full transition-all cursor-pointer shadow-xs active:scale-95 ${
                     subscribed 
-                      ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-800 dark:text-[#F8FAFC] border-slate-300 dark:border-[#334155] shadow-xs' 
-                      : 'bg-[#065fd4] hover:bg-[#0556bf] text-white border-transparent shadow-md'
+                      ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-300' 
+                      : 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/85 dark:hover:bg-slate-200'
                   }`}
                 >
-                  {subscribed ? '✓ Subscribed' : 'Subscribe'}
+                  {subscribed ? 'Subscribed' : 'Subscribe'}
                 </button>
               )}
             </div>
 
-            {/* Video Social controls (Likes, Saves, Share, Report) */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 max-w-full">
-              <button
-                onClick={handleLikeToggle}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all border cursor-pointer ${
-                  liked 
-                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 font-extrabold' 
-                    : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-[#334155] hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-700 dark:text-[#F8FAFC]'
-                }`}
-              >
-                <Heart className={`w-4 h-4 ${liked ? 'fill-blue-600 text-blue-600 dark:fill-blue-400 dark:text-blue-400' : ''}`} />
-                <span>{video.likesCount}</span>
-              </button>
+            {/* Video Social controls (Likes/Dislike Split Pill, Share, Download, Save, 3-Dots) */}
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 max-w-full relative">
+              {/* Like / Dislike Split Pill */}
+              <div className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full flex items-center text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors shadow-xs">
+                <button
+                  onClick={handleLikeToggle}
+                  className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-l-full cursor-pointer transition-colors"
+                  title="Like"
+                >
+                  <ThumbsUp className={`w-4 h-4 ${liked ? 'fill-[#2563eb] text-[#2563eb]' : ''}`} />
+                  <span>{formatViews(video.likesCount || 0)}</span>
+                </button>
 
-              <button
-                onClick={() => setPlaylistModalOpen(true)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all border cursor-pointer ${
-                  saved 
-                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400' 
-                    : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-[#334155] hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-700 dark:text-[#F8FAFC]'
-                }`}
-              >
-                <Bookmark className={`w-4 h-4 ${saved ? 'fill-blue-600 text-blue-600 dark:fill-blue-400 dark:text-blue-400' : ''}`} />
-                <span>Save to Playlist</span>
-              </button>
+                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
 
+                <button
+                  onClick={() => {
+                    setDisliked(!disliked);
+                    if (liked) {
+                      setLiked(false);
+                      setVideo(prev => prev ? { ...prev, likesCount: Math.max(0, prev.likesCount - 1) } : null);
+                    }
+                  }}
+                  className="px-3 sm:px-3.5 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-r-full cursor-pointer transition-colors"
+                  title="Dislike"
+                >
+                  <ThumbsDown className={`w-4 h-4 ${disliked ? 'fill-slate-700 text-slate-700 dark:fill-white dark:text-white' : ''}`} />
+                </button>
+              </div>
+
+              {/* Share Pill */}
               <button
                 onClick={handleShare}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-700 dark:text-[#F8FAFC] transition-all cursor-pointer"
+                className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors cursor-pointer shadow-xs shrink-0"
+                title="Share"
               >
                 <Share2 className="w-4 h-4" />
                 <span>Share</span>
               </button>
 
+              {/* Download Pill */}
               <button
                 onClick={handleDownloadToggle}
                 disabled={downloadProgress !== null}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
-                  isDownloaded 
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' 
-                    : downloadProgress !== null 
-                      ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 text-blue-600 animate-pulse'
-                      : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-[#334155] hover:bg-blue-50 dark:hover:bg-slate-800 text-slate-700 dark:text-[#F8FAFC]'
+                className={`rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
+                  isDownloaded
+                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
                 }`}
-                title={isDownloaded ? 'Downloaded offline' : 'Download for offline viewing'}
+                title={isDownloaded ? 'Downloaded offline' : 'Download video'}
               >
                 {downloadProgress !== null ? (
                   <>
@@ -846,32 +870,125 @@ export const Watch: React.FC = () => {
                 )}
               </button>
 
+              {/* Save Pill */}
               <button
-                onClick={() => {
-                  setReportType('video');
-                  setReportTargetId(video.videoId);
-                  setReportModalOpen(true);
-                }}
-                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer"
-                title="Report Video"
+                onClick={() => setPlaylistModalOpen(true)}
+                className={`rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
+                  saved
+                    ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                    : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
+                }`}
+                title="Save to Playlist"
               >
-                <Flag className="w-4 h-4" />
+                <Bookmark className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
+                <span>Save</span>
               </button>
+
+              {/* 3-Dots More Button */}
+              <div className="relative shrink-0">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMoreActions(!showMoreActions);
+                  }}
+                  className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full w-9 h-9 flex items-center justify-center text-slate-800 dark:text-slate-100 transition-colors cursor-pointer shadow-xs"
+                  title="More actions"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+
+                {/* More Actions Dropdown Menu */}
+                {showMoreActions && (
+                  <div 
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute right-0 top-11 w-48 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-2 z-50 text-xs animate-in fade-in"
+                  >
+                    <button
+                      onClick={() => {
+                        handleShare();
+                        setShowMoreActions(false);
+                      }}
+                      className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                    >
+                      <Share2 className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Share Video</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleDownloadToggle();
+                        setShowMoreActions(false);
+                      }}
+                      className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                    >
+                      <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Download Video</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPlaylistModalOpen(true);
+                        setShowMoreActions(false);
+                      }}
+                      className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                    >
+                      <Bookmark className="w-3.5 h-3.5 text-purple-500" />
+                      <span>Save to Playlist</span>
+                    </button>
+                    <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
+                    <button
+                      onClick={() => {
+                        setReportType('video');
+                        setReportTargetId(video.videoId);
+                        setReportModalOpen(true);
+                        setShowMoreActions(false);
+                      }}
+                      className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2.5 text-left text-rose-600 font-bold cursor-pointer"
+                    >
+                      <Flag className="w-3.5 h-3.5" />
+                      <span>Report Video</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Video Description Box */}
-        <div className="p-4 bg-white dark:bg-[#111827] rounded-2xl border border-slate-200/80 dark:border-[#334155] shadow-xs space-y-3">
-          <div className="flex items-center gap-3 text-xs font-bold text-slate-500 dark:text-[#94A3B8]">
-            <span>{formatViews(video.viewsCount)}</span>
+        {/* Video Description Box (Shows real views, createdAt date, database tags, and real description) */}
+        <div className="p-4 bg-slate-100/90 dark:bg-[#1E293B]/70 rounded-2xl border border-slate-200/70 dark:border-slate-800 shadow-xs space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
+            <span>{formatViews(video.viewsCount || 0)} views</span>
             <span>•</span>
-            <span>{new Date(video.createdAt).toLocaleDateString()}</span>
-            <span>•</span>
-            <span className="uppercase text-blue-600 dark:text-blue-400 font-extrabold">{video.category}</span>
+            <span>{video.createdAt ? new Date(video.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Just now'}</span>
+            {video.category && (
+              <>
+                <span>•</span>
+                <span 
+                  onClick={() => navigate('home', undefined, { category: video.category })}
+                  className="uppercase text-[#0070f3] dark:text-[#00d2ff] hover:text-[#005cd6] dark:hover:text-[#67e8f9] hover:underline cursor-pointer font-bold transition-colors"
+                >
+                  #{video.category}
+                </span>
+              </>
+            )}
           </div>
 
-          <div className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+          {/* Real Hashtags from Database if tags exist (Electric Blue) */}
+          {video.tags && video.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-xs font-bold">
+              {video.tags.map((t, idx) => (
+                <span 
+                  key={idx}
+                  onClick={() => navigate('search', undefined, { q: `#${t}` })}
+                  className="text-[#0070f3] dark:text-[#00d2ff] hover:text-[#005cd6] dark:hover:text-[#67e8f9] hover:underline cursor-pointer transition-colors"
+                >
+                  #{t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Real Video Description from Database */}
+          <div className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed pt-1">
             {video.description ? (
               video.description.length <= 150 ? (
                 <RichText text={video.description} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
@@ -881,7 +998,7 @@ export const Watch: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsDescriptionExpanded(false)}
-                    className="mt-2 font-black text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer block text-xs"
+                    className="mt-2 font-black text-[#0070f3] dark:text-[#00d2ff] hover:underline cursor-pointer block text-xs"
                   >
                     Show less
                   </button>
@@ -892,26 +1009,16 @@ export const Watch: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIsDescriptionExpanded(true)}
-                    className="ml-1 font-black text-slate-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer inline-block text-xs"
+                    className="ml-1 font-black text-[#0070f3] dark:text-[#00d2ff] hover:underline cursor-pointer inline-block text-xs"
                   >
                     ...more
                   </button>
                 </div>
               )
             ) : (
-              "No description provided."
+              <p className="text-slate-400 dark:text-slate-500 italic">No description provided for this video.</p>
             )}
           </div>
-
-          {video.tags && video.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {video.tags.map((tag, i) => (
-                <span key={i} className="text-xs text-blue-600 dark:text-blue-400 font-bold">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Comments Section */}
@@ -1207,40 +1314,182 @@ export const Watch: React.FC = () => {
     </div>
       </div>
 
-      {/* RIGHT COLUMN: Recommended Sidebar */}
+      {/* RIGHT COLUMN: Recommended Sidebar (Matches Reference UI with Category Pills, Upload Dates, and 3-Dots Menu) */}
       <div className="px-3.5 sm:px-0 space-y-4">
         {/* Promoted / Sponsored User Ad */}
         {activeAds.length > 0 && (
           <SponsoredAdCard ad={activeAds[0]} layout="sidebar" />
         )}
 
-        <h3 className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Related Videos</h3>
+        {/* Category Filter Pills (Matches Reference) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {['All', `From ${video.creatorDisplayName?.split(' ')[0] || 'Creator'}`, 'Politics', 'Related'].map((pill) => (
+            <button
+              key={pill}
+              onClick={() => setSelectedCategoryFilter(pill)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-colors cursor-pointer shadow-xs ${
+                selectedCategoryFilter === pill
+                  ? 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black font-black'
+                  : 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
+              }`}
+            >
+              {pill}
+            </button>
+          ))}
+        </div>
         
+        {/* Related Videos List */}
         <div className="space-y-3">
-          {relatedVideos.length === 0 ? (
-            <p className="text-xs text-slate-400 font-medium">No related videos in this category.</p>
-          ) : (
-            relatedVideos.map((v) => (
+          {(() => {
+            const displayList = relatedVideos.filter(v => {
+              if (selectedCategoryFilter === 'All') return true;
+              if (selectedCategoryFilter.startsWith('From')) return v.creatorId === video.creatorId;
+              if (selectedCategoryFilter === 'Related') return true;
+              return v.category?.toLowerCase() === selectedCategoryFilter.toLowerCase();
+            });
+
+            if (displayList.length === 0) {
+              return <p className="text-xs text-slate-400 font-medium py-4 text-center">No related videos in this category.</p>;
+            }
+
+            return displayList.map((v) => (
               <div 
                 key={v.videoId}
                 onClick={() => navigate('watch', v.videoId)}
-                className="flex gap-3 bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-2.5 rounded-2xl cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all group"
+                className="flex items-start gap-3 bg-white dark:bg-[#111827] border border-slate-200/70 dark:border-[#334155] p-2.5 rounded-2xl cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 transition-all group relative"
               >
-                <div className="relative w-28 aspect-video bg-slate-100 dark:bg-[#1E293B] shrink-0 rounded-xl overflow-hidden">
-                  <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover group-hover:scale-103 transition-transform" />
+                {/* 16:9 Thumbnail with Duration Badge */}
+                <div className="relative w-36 sm:w-40 aspect-video bg-slate-900 shrink-0 rounded-xl overflow-hidden shadow-xs">
+                  <img 
+                    src={v.thumbnailUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60'} 
+                    alt={v.title} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                  />
+                  {/* Duration Badge */}
+                  {v.duration ? (
+                    <span className="absolute bottom-1 right-1 bg-black/85 text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow-xs">
+                      {formatDuration(v.duration)}
+                    </span>
+                  ) : null}
                 </div>
-                <div className="min-w-0 flex flex-col justify-between py-0.5">
+
+                {/* Video Info */}
+                <div className="min-w-0 flex-1 flex flex-col justify-between py-0.5">
                   <h4 className="text-xs font-bold text-slate-900 dark:text-[#F8FAFC] leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                     {v.title}
                   </h4>
-                  <div className="space-y-0.5 mt-1">
-                    <p className="text-[10px] text-slate-500 dark:text-[#94A3B8] truncate font-semibold">{v.creatorDisplayName}</p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">{formatViews(v.viewsCount)}</p>
+                  
+                  <div className="mt-1 space-y-0.5">
+                    {/* Creator Display Name with Verified Checkmark */}
+                    <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium truncate flex items-center gap-1">
+                      <span>{v.creatorDisplayName}</span>
+                      <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[7px] w-3 h-3 rounded-full font-black shrink-0">✓</span>
+                    </p>
+
+                    {/* Views Count and Upload Date (e.g. 10.3M views • 1 day ago) */}
+                    <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium">
+                      {formatViews(v.viewsCount)} views • {formatTimeAgo(v.createdAt)}
+                    </p>
                   </div>
                 </div>
+
+                {/* 3-Dots Menu Button (⋮) */}
+                <div className="relative shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveRelatedMenuId(activeRelatedMenuId === v.videoId ? null : v.videoId);
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                    title="Action menu"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+
+                  {/* 3-Dots Dropdown Popover */}
+                  {activeRelatedMenuId === v.videoId && (
+                    <div 
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute right-0 top-7 w-44 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in"
+                    >
+                      <button
+                        onClick={() => {
+                          const shareUrl = `${window.location.origin}/#/watch/${v.videoId}`;
+                          if (navigator.share) {
+                            navigator.share({ title: v.title, url: shareUrl }).catch(() => {});
+                          } else {
+                            navigator.clipboard.writeText(shareUrl);
+                            addToast('Link copied to clipboard!', 'success');
+                          }
+                          setActiveRelatedMenuId(null);
+                        }}
+                        className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Share</span>
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          addToast('Downloading video...', 'info');
+                          try {
+                            await downloadService.downloadVideo(v, () => {});
+                            addToast('Video saved to Downloads!', 'success');
+                          } catch (err) {
+                            addToast('Download initiated!', 'info');
+                          }
+                          setActiveRelatedMenuId(null);
+                        }}
+                        className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                      >
+                        <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Download</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (!currentUser) {
+                            addToast('Please sign in to save videos', 'info');
+                          } else {
+                            savedVideoService.saveVideo(currentUser.uid, v);
+                            addToast('Saved to playlist!', 'success');
+                          }
+                          setActiveRelatedMenuId(null);
+                        }}
+                        className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                      >
+                        <Bookmark className="w-3.5 h-3.5 text-purple-500" />
+                        <span>Save to Playlist</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          handleWatchLaterToggle(v);
+                        }}
+                        className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                      >
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        <span>{savedWatchLaterMap[v.videoId] ? 'Remove Watch Later' : 'Save to Watch Later'}</span>
+                      </button>
+
+                      <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
+
+                      <button
+                        onClick={() => {
+                          addToast('Feedback noted. We will recommend fewer videos like this.', 'info');
+                          setActiveRelatedMenuId(null);
+                        }}
+                        className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-500 font-medium cursor-pointer"
+                      >
+                        <Ban className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Not interested</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            ))
-          )}
+            ));
+          })()}
         </div>
       </div>
 

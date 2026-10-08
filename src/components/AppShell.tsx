@@ -35,7 +35,23 @@ import {
   WifiOff,
   Info,
   Upload,
-  UserCheck
+  UserCheck,
+  Crown,
+  ChevronRight,
+  Megaphone,
+  LayoutDashboard,
+  Flame,
+  Clock,
+  Music,
+  Gamepad2,
+  Cpu,
+  GraduationCap,
+  Newspaper,
+  Trophy,
+  Rocket,
+  MoreHorizontal,
+  Tv,
+  ListVideo
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
@@ -484,130 +500,241 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <div ref={profileRef} className="relative">
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="w-9 h-9 rounded-xl overflow-hidden bg-[#2563eb] flex items-center justify-center text-white border-2 border-slate-200 dark:border-slate-700 shadow-xs cursor-pointer select-none"
-                aria-label="User menu"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-[#2563eb] flex items-center justify-center text-white ring-2 ring-transparent hover:ring-[#2563eb]/40 focus:ring-[#2563eb]/50 transition-all duration-200 shadow-xs cursor-pointer select-none active:scale-95"
+                aria-label="User account menu"
+                aria-expanded={profileDropdownOpen}
               >
                 {currentUserProfile?.photoURL ? (
                   <img src={currentUserProfile.photoURL} alt={currentUserProfile.username} className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-xs font-black">{getInitials(currentUserProfile?.displayName || '')}</span>
+                  <span className="text-xs font-black tracking-tight">{getInitials(currentUserProfile?.displayName || 'User')}</span>
                 )}
               </button>
 
               {profileDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
-                  <div className="p-4 bg-slate-50 dark:bg-slate-900/50">
-                    <p className="text-sm font-extrabold text-slate-900 dark:text-slate-100 truncate">{currentUserProfile?.displayName}</p>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5 truncate">@{currentUserProfile?.username}</p>
+                <div className="absolute right-0 top-full mt-2.5 w-[290px] sm:w-[315px] max-w-[calc(100vw-24px)] bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-[#27272a] rounded-2xl shadow-[0_12px_42px_rgba(0,0,0,0.12),0_4px_14px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] z-50 overflow-hidden select-none animate-in fade-in zoom-in-95 duration-150 origin-top-right">
+                  
+                  {/* 1. Profile Header (Clickable -> My Channel) */}
+                  <div 
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      navigate('creator', currentUserProfile?.username);
+                    }}
+                    className="p-3.5 bg-slate-50/90 dark:bg-zinc-900/60 border-b border-slate-100 dark:border-zinc-800/80 hover:bg-slate-100/90 dark:hover:bg-zinc-900/90 transition-colors cursor-pointer group flex items-center gap-3"
+                    title="View your channel"
+                  >
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2563eb] text-white flex items-center justify-center shrink-0 border border-slate-200/80 dark:border-zinc-700 shadow-xs">
+                      {currentUserProfile?.photoURL ? (
+                        <img src={currentUserProfile.photoURL} alt={currentUserProfile.username} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xs font-black">{getInitials(currentUserProfile?.displayName || 'User')}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        {currentUserProfile?.displayName || 'SocialIndia Creator'}
+                      </p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
+                        @{currentUserProfile?.username || 'creator'}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] group-hover:translate-x-0.5 transition-all shrink-0 ml-auto" />
                   </div>
-                  <div className="py-2">
+
+                  {/* 2. Account / Creator Group */}
+                  <div className="p-1.5">
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate('creator', currentUserProfile?.username);
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <UserIcon className="w-4 h-4 text-slate-400" />
-                      <span>My Public Channel</span>
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        <UserIcon className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        My Channel
+                      </span>
                     </button>
+
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate('studio');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <PlusSquare className="w-4 h-4 text-slate-400" />
-                      <span>Creator Studio</span>
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        <LayoutDashboard className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        Creator Studio
+                      </span>
                     </button>
+
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('playlists');
+                      }}
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                    >
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        <ListVideo className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        Playlists
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('downloads');
+                      }}
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                    >
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        <ArrowDownToLine className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        Downloaded Videos
+                      </span>
+                    </button>
+
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate('gopro');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-[#00A3FF] flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-blue-50/70 dark:hover:bg-blue-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <Sparkles className="w-4 h-4 text-[#00A3FF]" />
-                      <span>Go Pro Package ($10)</span>
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-amber-500 group-hover:scale-110 transition-transform">
+                        <Crown className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors text-left">
+                        Go Pro Package
+                      </span>
+                      <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] dark:text-[#60a5fa] border border-blue-200/60 dark:border-blue-800/60 shrink-0">
+                        $10/month
+                      </span>
                     </button>
+                  </div>
+
+                  {/* 3. Platform Group */}
+                  <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate('advertising');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <Users className="w-4 h-4 text-slate-400" />
-                      <span>Advertising (Promote)</span>
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        <Megaphone className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        Advertising (Promote)
+                      </span>
                     </button>
+
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate('settings');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <Settings className="w-4 h-4 text-slate-400" />
-                      <span>Settings</span>
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        <Settings className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        Settings
+                      </span>
                     </button>
+
                     {currentUserProfile?.role === 'admin' && (
                       <button
                         onClick={() => {
                           setProfileDropdownOpen(false);
                           navigate('admin');
                         }}
-                        className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-2.5 cursor-pointer"
+                        className="w-full px-3 py-2 rounded-xl hover:bg-blue-50/70 dark:hover:bg-blue-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                       >
-                        <ShieldCheck className="w-4 h-4 text-blue-600" />
-                        <span>Admin Hub</span>
+                        <div className="w-5 h-5 flex items-center justify-center shrink-0 text-[#2563eb] dark:text-[#3b82f6]">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-semibold text-[#2563eb] dark:text-[#3b82f6] flex-1 text-left">
+                          Admin Hub
+                        </span>
                       </button>
                     )}
                   </div>
-                  
-                  {/* Support Section inside Profile Menu */}
-                  <div className="py-2">
+
+                  {/* 4. Support Group */}
+                  <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate('help');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <HelpCircle className="w-4 h-4 text-slate-400" />
-                      <span>Help Center</span>
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        <HelpCircle className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        Help Center
+                      </span>
                     </button>
+
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate('feedback');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <MessageSquare className="w-4 h-4 text-slate-400" />
-                      <span>Send Feedback</span>
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        <MessageSquare className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        Send Feedback
+                      </span>
                     </button>
                   </div>
 
-                  <div className="py-2">
+                  {/* 5. Account Switch & Sign Out */}
+                  <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
                         navigate('login');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <UserCheck className="w-4 h-4 text-blue-500" />
-                      <span>Switch Account</span>
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                        <UserCheck className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        Switch Account
+                      </span>
                     </button>
+
                     <button
                       onClick={handleSignOut}
-                      className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-left text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-rose-50/80 dark:hover:bg-rose-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400"
                     >
-                      <LogOut className="w-4 h-4" />
-                      <span>Sign Out</span>
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-400 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                        <LogOut className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold flex-1 text-left">
+                        Sign Out
+                      </span>
                     </button>
                   </div>
+
                 </div>
               )}
             </div>
@@ -622,49 +749,49 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </button>
 
               {guestMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
-                  <div className="py-2">
+                <div className="absolute right-0 top-full mt-2.5 w-60 bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-[#27272a] rounded-2xl shadow-[0_12px_42px_rgba(0,0,0,0.12),0_4px_14px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] z-50 overflow-hidden select-none animate-in fade-in zoom-in-95 duration-150 origin-top-right">
+                  <div className="p-1.5">
                     <button
                       onClick={() => {
                         setGuestMenuOpen(false);
                         navigate('help');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <HelpCircle className="w-4 h-4 text-slate-400" />
-                      <span>Help Center</span>
+                      <HelpCircle className="w-4 h-4 text-slate-400 group-hover:text-[#2563eb] transition-colors" />
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1 text-left">Help Center</span>
                     </button>
                     <button
                       onClick={() => {
                         setGuestMenuOpen(false);
                         navigate('feedback');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <MessageSquare className="w-4 h-4 text-slate-400" />
-                      <span>Send Feedback</span>
+                      <MessageSquare className="w-4 h-4 text-slate-400 group-hover:text-[#2563eb] transition-colors" />
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1 text-left">Send Feedback</span>
                     </button>
                   </div>
-                  <div className="py-2">
+                  <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
                     <button
                       onClick={() => {
                         setGuestMenuOpen(false);
                         navigate('about');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <Info className="w-4 h-4 text-slate-400" />
-                      <span>About SocialIndia</span>
+                      <Info className="w-4 h-4 text-slate-400 group-hover:text-[#2563eb] transition-colors" />
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1 text-left">About SocialIndia</span>
                     </button>
                     <button
                       onClick={() => {
                         setGuestMenuOpen(false);
                         navigate('privacy');
                       }}
-                      className="w-full px-4 py-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-left text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2.5 cursor-pointer"
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
-                      <FileText className="w-4 h-4 text-slate-400" />
-                      <span>Privacy & Terms</span>
+                      <FileText className="w-4 h-4 text-slate-400 group-hover:text-[#2563eb] transition-colors" />
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1 text-left">Privacy & Terms</span>
                     </button>
                   </div>
                 </div>
@@ -690,125 +817,216 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         <aside 
           className={`hidden md:block shrink-0 bg-white dark:bg-[#111827] border-r border-slate-200 dark:border-[#334155] transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-60' : 'w-0 overflow-hidden border-r-0'}`}
         >
-          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto p-3 space-y-5 scrollbar-none">
+          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto p-3 space-y-4 scrollbar-none">
             
-            {/* Discover Section */}
+            {/* 1. Main Navigation Items */}
             <div className="space-y-1">
-              <span className="px-3 text-[11px] font-extrabold tracking-wider text-slate-400 dark:text-slate-500 uppercase block mb-1.5">Discover</span>
-              {menuItems.map((item) => {
+              <button
+                onClick={() => navigate('home')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                  route.path === 'home' && !route.searchParams?.category
+                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
+                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <Home className={`w-5 h-5 shrink-0 ${route.path === 'home' && !route.searchParams?.category ? 'text-[#065fd4] dark:text-[#60a5fa] fill-[#065fd4]/20' : 'text-slate-600 dark:text-slate-400'}`} />
+                <span className="truncate">Home</span>
+              </button>
+
+              <button
+                onClick={() => navigate('shorts')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                  route.path === 'shorts'
+                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
+                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <Zap className={`w-5 h-5 shrink-0 ${route.path === 'shorts' ? 'text-[#065fd4] dark:text-[#60a5fa] fill-current' : 'text-slate-600 dark:text-slate-400'}`} />
+                <span className="truncate">Shorts</span>
+              </button>
+
+              <button
+                onClick={() => navigate('trending')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                  route.path === 'trending'
+                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
+                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <Flame className={`w-5 h-5 shrink-0 ${route.path === 'trending' ? 'text-red-500 fill-red-500' : 'text-slate-600 dark:text-slate-400'}`} />
+                <span className="truncate">Trending</span>
+              </button>
+
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('subscriptions'))}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                  route.path === 'subscriptions'
+                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
+                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <Tv className={`w-5 h-5 shrink-0 ${route.path === 'subscriptions' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
+                <span className="truncate">Subscriptions</span>
+              </button>
+
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('history'))}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                  route.path === 'history'
+                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
+                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <Clock className={`w-5 h-5 shrink-0 ${route.path === 'history' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
+                <span className="truncate">Library / History</span>
+              </button>
+
+              {/* Playlists / Playlist */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('playlists'))}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                  route.path === 'playlists' || route.path === 'playlist' || route.path === 'saved'
+                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
+                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <ListVideo className={`w-5 h-5 shrink-0 ${route.path === 'playlists' || route.path === 'playlist' || route.path === 'saved' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
+                <span className="truncate">Playlists</span>
+              </button>
+
+              {/* Downloaded / Downloads */}
+              <button
+                onClick={() => navigate('downloads')}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                  route.path === 'downloads'
+                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
+                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <ArrowDownToLine className={`w-5 h-5 shrink-0 ${route.path === 'downloads' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
+                <span className="truncate">Downloaded</span>
+              </button>
+            </div>
+
+            <div className="h-px bg-slate-100 dark:bg-slate-800" />
+
+            {/* 2. Explore Section */}
+            <div className="space-y-1">
+              <span className="px-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">
+                Explore
+              </span>
+
+              {[
+                { label: 'Music', icon: Music, cat: 'Music' },
+                { label: 'Gaming', icon: Gamepad2, cat: 'Gaming' },
+                { label: 'Technology', icon: Cpu, cat: 'Technology' },
+                { label: 'Education', icon: GraduationCap, cat: 'Education' },
+                { label: 'News', icon: Newspaper, cat: 'News' },
+                { label: 'Sports', icon: Trophy, cat: 'Sports' },
+                { label: 'Entertainment', icon: Film, cat: 'Entertainment' },
+              ].map((item) => {
                 const Icon = item.icon;
-                const isActive = route.path === item.path;
+                const isCatActive = route.path === 'home' && route.searchParams?.category === item.cat;
                 return (
                   <button
                     key={item.label}
-                    onClick={() => {
-                      if (item.protected) {
-                        triggerProtectedAction(() => navigate(item.path));
-                      } else {
-                        navigate(item.path);
-                      }
-                    }}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                      isActive 
-                        ? 'bg-[#f2f2f2] dark:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1] font-bold' 
-                        : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1]'
+                    onClick={() => navigate('home', undefined, { category: item.cat })}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                      isCatActive
+                        ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold'
+                        : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#0f0f0f] dark:text-[#f1f1f1]' : 'text-slate-600 dark:text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 shrink-0 ${isCatActive ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-500 dark:text-slate-400'}`} />
                     <span className="truncate">{item.label}</span>
                   </button>
                 );
               })}
-            </div>
 
-            <div className="h-px bg-slate-200 dark:bg-[#334155]" />
-
-            {/* Creator Tools Section */}
-            <div className="space-y-1">
-              <span className="px-3 text-[11px] font-extrabold tracking-wider text-slate-400 dark:text-slate-500 uppercase block mb-1.5">Creator Tools</span>
-              {studioItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = route.path === item.path;
-                return (
-                  <button
-                    key={item.label}
-                    onClick={() => triggerProtectedAction(() => navigate(item.path))}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                      isActive 
-                        ? 'bg-[#f2f2f2] dark:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1] font-bold' 
-                        : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1]'
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#0f0f0f] dark:text-[#f1f1f1]' : 'text-slate-600 dark:text-slate-400'}`} />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Subscriptions Mini Section */}
-            {followedCreators.length > 0 && (
-              <>
-                <div className="space-y-1">
-                  <span className="px-3 text-[11px] font-extrabold tracking-wider text-slate-400 dark:text-slate-500 uppercase block mb-1.5">Subscriptions</span>
-                  {followedCreators.slice(0, 5).map((sub) => (
-                    <button
-                      key={sub.creatorId}
-                      onClick={() => navigate('creator', sub.creatorUsername)}
-                      className="w-full flex items-center gap-3 px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-slate-100 dark:hover:bg-[#272727] transition-all cursor-pointer"
-                    >
-                      <div className="w-6 h-6 rounded-full bg-blue-600 shrink-0 overflow-hidden">
-                        {sub.creatorPhotoURL ? (
-                          <img src={sub.creatorPhotoURL} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-white font-black text-[10px]">{sub.creatorDisplayName[0]}</div>
-                        )}
-                      </div>
-                      <span className="truncate text-slate-700 dark:text-slate-300">{sub.creatorDisplayName}</span>
-                      <div className="w-1 h-1 bg-blue-600 rounded-full ml-auto" />
-                    </button>
-                  ))}
-                  {followedCreators.length > 5 && (
-                    <button onClick={() => navigate('subscriptions')} className="px-3 text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest hover:underline pt-1">Show More</button>
-                  )}
+              <button
+                onClick={() => navigate('home')}
+                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-300 transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-3">
+                  <MoreHorizontal className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+                  <span>More</span>
                 </div>
-                <div className="h-px bg-slate-100 dark:bg-slate-800" />
-              </>
-            )}
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              </button>
+            </div>
+
+            <div className="h-px bg-slate-100 dark:bg-slate-800" />
+
+            {/* 3. Creator / Platform Admin Hub */}
             {currentUserProfile?.role === 'admin' && (
-              <>
-                <div className="space-y-1">
-                  <span className="px-3 text-[11px] font-extrabold tracking-wider text-slate-400 dark:text-slate-500 uppercase block mb-1.5">Platform Admin</span>
-                  <button
-                    onClick={() => navigate('admin')}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                      route.path === 'admin' 
-                        ? 'bg-[#f2f2f2] dark:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1] font-bold' 
-                        : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1]'
-                    }`}
-                  >
-                    <ShieldCheck className={`w-5 h-5 shrink-0 ${route.path === 'admin' ? 'text-blue-600' : 'text-slate-600 dark:text-slate-400'}`} />
-                    <span className="truncate">Admin Hub</span>
-                  </button>
-                </div>
-                <div className="h-px bg-slate-200 dark:bg-[#334155]" />
-              </>
+              <div className="space-y-1">
+                <button
+                  onClick={() => navigate('admin')}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    route.path === 'admin' 
+                      ? 'bg-blue-50 dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa]' 
+                      : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-[#065fd4] dark:text-[#60a5fa]'
+                  }`}
+                >
+                  <ShieldCheck className="w-4 h-4 shrink-0 text-[#065fd4] dark:text-[#60a5fa]" />
+                  <span className="truncate">Admin Hub</span>
+                </button>
+                <div className="h-px bg-slate-100 dark:bg-slate-800" />
+              </div>
             )}
 
-            {/* Elegant 2-Column Policy & Legal Links Grid for SocialIndia (Matches Capture.PNG) */}
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 px-3 space-y-3 select-none">
-              <div className="grid grid-cols-2 gap-y-2 gap-x-1.5 text-[11px] font-black text-slate-500 dark:text-slate-400">
-                <button onClick={() => navigate('refund')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Refund Policy</button>
-                <button onClick={() => navigate('faq')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">FAQs</button>
-                <button onClick={() => navigate('terms')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Terms of use</button>
-                <button onClick={() => navigate('privacy')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Privacy Policy</button>
-                <button onClick={() => navigate('about')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">About us</button>
-                <button onClick={() => navigate('contact')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Contact us</button>
-                <button onClick={() => navigate('developers')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Developers</button>
-                <button onClick={() => navigate('language')} className="text-left hover:text-blue-600 hover:underline cursor-pointer">Language</button>
+            {/* 4. Subscriptions Mini List (if following creators) */}
+            {followedCreators.length > 0 && (
+              <div className="space-y-1">
+                <span className="px-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">
+                  Subscriptions
+                </span>
+                {followedCreators.slice(0, 4).map((sub) => (
+                  <button
+                    key={sub.creatorId}
+                    onClick={() => navigate('creator', sub.creatorUsername)}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-[#272727] transition-all cursor-pointer text-left"
+                  >
+                    <div className="w-5 h-5 rounded-full bg-blue-600 shrink-0 overflow-hidden">
+                      {sub.creatorPhotoURL ? (
+                        <img src={sub.creatorPhotoURL} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white font-black text-[9px]">{sub.creatorDisplayName[0]}</div>
+                      )}
+                    </div>
+                    <span className="truncate text-slate-700 dark:text-slate-300">{sub.creatorDisplayName}</span>
+                  </button>
+                ))}
+                <div className="h-px bg-slate-100 dark:bg-slate-800" />
               </div>
-              <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 font-bold leading-relaxed">
-                <p>Copyright © {new Date().getFullYear()} SocialIndia. All rights reserved.</p>
+            )}
+
+            {/* 5. Bottom Callout Card: Create. Share. Grow. (Matches Capture.PNG) */}
+            <div 
+              onClick={() => triggerProtectedAction(() => navigate('upload'))}
+              className="p-3.5 bg-gradient-to-br from-blue-50/90 to-indigo-50/70 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-100/80 dark:border-blue-900/40 rounded-2xl space-y-1 shadow-xs cursor-pointer hover:border-blue-300 dark:hover:border-blue-800 transition-all active:scale-98 group"
+            >
+              <div className="flex items-center gap-2 text-xs font-extrabold text-[#065fd4] dark:text-[#60a5fa]">
+                <Rocket className="w-4 h-4 text-[#065fd4] dark:text-[#60a5fa] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                <span>Create. Share. Grow.</span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-snug">
+                Be part of India's next gen video platform.
+              </p>
+            </div>
+
+            {/* 6. Elegant 2-Column Policy & Legal Links */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 px-2 space-y-2 select-none">
+              <div className="grid grid-cols-2 gap-y-1.5 gap-x-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                <button onClick={() => navigate('refund')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">Refund</button>
+                <button onClick={() => navigate('faq')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">FAQs</button>
+                <button onClick={() => navigate('terms')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">Terms</button>
+                <button onClick={() => navigate('privacy')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">Privacy</button>
+                <button onClick={() => navigate('about')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">About us</button>
+                <button onClick={() => navigate('contact')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">Contact</button>
+              </div>
+              <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 font-medium leading-tight">
+                <p>© {new Date().getFullYear()} SocialIndia.</p>
               </div>
             </div>
           </div>

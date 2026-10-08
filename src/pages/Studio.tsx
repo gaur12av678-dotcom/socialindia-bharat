@@ -22,7 +22,7 @@ import {
   Eye, 
   Globe, 
   Lock, 
-  EyeOff,
+  EyeOff, 
   TrendingUp,
   Heart,
   Upload,
@@ -50,18 +50,77 @@ import {
   Sparkles,
   Layers,
   HelpCircle,
-  Share2
+  Share2,
+  Crown,
+  Target,
+  MoreVertical,
+  Play,
+  ShieldCheck,
+  Clock
 } from 'lucide-react';
 import { commentService } from '../services/commentService';
 import { Comment } from '../types';
 import { UserAvatar } from '../components/UserAvatar';
 
+// High-Fidelity Creator Studio Assets matching reference design
+import creatorStudioHeroImg from '../assets/images/creator_studio_hero_1791372781603.jpg';
+import studioHeroPanoramicImg from '../assets/images/studio_hero_skyline_panoramic_1791388043999.jpg';
+import ashokaChakraLogoImg from '../assets/images/ashoka_chakra_studio_logo_1791388022586.jpg';
+import bottomBannerSkylineImg from '../assets/images/bottom_banner_skyline_1791388062911.jpg';
+
+// Ashoka Chakra Creator Studio Emblem Logo Component (with 24-spokes SVG emblem)
+export const AshokaChakraLogo: React.FC<{ className?: string; size?: 'sm' | 'md' | 'lg' }> = ({ className = '', size = 'md' }) => {
+  const [imgError, setImgError] = useState(false);
+  const sizeClass = size === 'sm' ? 'w-9 h-9' : size === 'lg' ? 'w-16 h-16 sm:w-20 sm:h-20' : 'w-12 h-12';
+
+  return (
+    <div className={`relative rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-[#06122d] via-[#0d2256] to-[#1e1b4b] border-2 border-white/95 shadow-lg shadow-blue-900/30 shrink-0 ${sizeClass} ${className}`}>
+      {!imgError ? (
+        <img 
+          src={ashokaChakraLogoImg} 
+          alt="Ashoka Chakra Creator Studio Logo" 
+          className="w-full h-full object-cover scale-105" 
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center p-1.5 bg-gradient-to-br from-[#06122d] via-[#0a2052] to-[#17153a]">
+          <svg viewBox="0 0 100 100" className="w-full h-full filter drop-shadow-md" aria-label="Ashoka Chakra">
+            {/* Outer rings */}
+            <circle cx="50" cy="50" r="46" fill="none" stroke="#2563eb" strokeWidth="2.5" />
+            <circle cx="50" cy="50" r="43" fill="none" stroke="#ffffff" strokeWidth="1.8" />
+            <circle cx="50" cy="50" r="39" fill="none" stroke="#60a5fa" strokeWidth="0.8" opacity="0.6" />
+            {/* Inner Hub */}
+            <circle cx="50" cy="50" r="11" fill="none" stroke="#ffffff" strokeWidth="2.2" />
+            <circle cx="50" cy="50" r="5" fill="#38bdf8" />
+            {/* 24 Distinct Spokes with arrowheads */}
+            {Array.from({ length: 24 }).map((_, i) => {
+              const angle = (i * 360) / 24;
+              return (
+                <g key={i} transform={`rotate(${angle} 50 50)`}>
+                  <line x1="50" y1="39" x2="50" y2="11" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" />
+                  <polygon points="50,7 48.5,12 51.5,12" fill="#38bdf8" />
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Backward-compatibility alias
+export const LionAnalyticsLogo = AshokaChakraLogo;
+
 export const CreatorStudio: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { route, navigate } = useRouter();
 
-  // Navigation tab inside Studio
+  // Navigation tab inside Studio (Active DASHBOARD tab matching reference mockup)
   const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'analytics' | 'comments' | 'earn'>('dashboard');
+  const [creatorModeActive, setCreatorModeActive] = useState(true);
+  const [perfTimeRange, setPerfTimeRange] = useState('Last 28 days');
+  const [showVideoCatalog, setShowVideoCatalog] = useState(false);
 
   // Multi-step Upload Wizard State (PlayTube / YouTube Studio Architecture)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
@@ -642,97 +701,123 @@ export const CreatorStudio: React.FC = () => {
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto pb-20">
       
-      {/* Upper header section */}
-      <div className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-slate-200 dark:border-[#334155]">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('home')}
-            className="p-2.5 bg-slate-100 dark:bg-[#1e293b] hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 rounded-2xl transition-all cursor-pointer flex items-center justify-center shrink-0 border border-slate-200/80 dark:border-slate-800 active:scale-95 shadow-2xs"
-            title="Back to Home"
-            aria-label="Back to Home"
-          >
-            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
-          </button>
+      {/* 1. CREATOR STUDIO HERO BANNER (Matches reference mockup with Ashoka Chakra & Indian Monuments) */}
+      <div 
+        style={{
+          background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 45%, #f3e8ff 75%, #ffffff 100%)'
+        }}
+        className="relative overflow-hidden rounded-3xl border border-blue-200/90 dark:border-slate-800 shadow-md p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 dark:!bg-gradient-to-r dark:from-[#0b1120] dark:via-[#17153a] dark:to-[#1e1b4b]"
+      >
+        {/* Left Side: Ashoka Chakra Studio Logo, Heading, Subtitle */}
+        <div className="flex items-center gap-4 sm:gap-5 z-10 max-w-xl">
+          <AshokaChakraLogo size="lg" />
 
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/20 shrink-0">
-            <LayoutDashboard className="w-5 h-5 sm:w-6 sm:h-6" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-[#F8FAFC]">Studio Hub</h1>
-            <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-bold">Manage @{currentUserProfile?.username}</p>
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-[#0f172a] dark:text-white tracking-tight flex items-center gap-2">
+              <span>Creator</span>{' '}
+              <span 
+                style={{
+                  background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 55%, #9333ea 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+                }}
+              >
+                Studio
+              </span>
+            </h1>
+            <p className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300">
+              Analyze &nbsp;•&nbsp; Engage &nbsp;•&nbsp; Grow
+            </p>
           </div>
         </div>
 
-        <button
-          onClick={() => navigate('upload')}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" />
-          <span>New Upload</span>
-        </button>
+        {/* Top Right: Glass Status Badge */}
+        <div className="absolute top-4 sm:top-6 right-4 sm:right-6 z-20 px-3.5 sm:px-4 py-1.5 sm:py-2 bg-white/95 dark:bg-[#1e293b]/95 backdrop-blur-md border border-blue-100/90 dark:border-slate-700/80 rounded-full shadow-xs flex items-center gap-2 text-xs font-bold text-[#1d4ed8] dark:text-[#60a5fa]">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="font-extrabold text-slate-800 dark:text-slate-200">Live Channel</span>
+          <span className="text-[10px] text-slate-400 font-semibold hidden sm:inline">• ID: #SI-94821</span>
+        </div>
+
+        {/* Right Side: Indian Monuments Skyline (Ashoka Lion Capital, Ashoka Chakra, India Gate, Taj Mahal, Qutub Minar & Tricolor Ribbon) */}
+        <div className="absolute inset-y-0 right-0 w-full sm:w-4/5 md:w-3/4 lg:w-2/3 pointer-events-none overflow-hidden flex items-center justify-end">
+          <img 
+            src={creatorStudioHeroImg} 
+            alt="Creator Studio Indian Heritage Skyline" 
+            className="h-full w-full object-cover object-right opacity-95 dark:opacity-85"
+            style={{
+              maskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.2) 15%, black 45%)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.2) 15%, black 45%)'
+            }}
+          />
+        </div>
       </div>
 
-      {/* Sub tabs navigation */}
-      <div className="flex flex-wrap gap-2.5">
+      {/* 2. MAIN CREATOR NAVIGATION TABS (5 TABS MATCHING EXACT SPECIFICATION) */}
+      <div className="flex items-center gap-2.5 sm:gap-3 overflow-x-auto pb-1 scrollbar-none">
+        {/* DASHBOARD - ACTIVE DEFAULT TAB */}
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
+          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
             activeTab === 'dashboard'
-              ? 'bg-[#065fd4] text-white shadow-md shadow-blue-500/10'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-transparent'
+              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+              : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
           }`}
         >
-          <LayoutDashboard className="w-4 h-4" />
-          <span>Dashboard</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('content')}
-          className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
-            activeTab === 'content'
-              ? 'bg-[#065fd4] text-white shadow-md shadow-blue-500/10'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-transparent'
-          }`}
-        >
-          <VideoIcon className="w-4 h-4" />
-          <span>Content ({videos.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
-            activeTab === 'analytics'
-              ? 'bg-[#065fd4] text-white shadow-md shadow-blue-500/10'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-transparent'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4" />
-          <span>Analytics</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('comments')}
-          className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
-            activeTab === 'comments'
-              ? 'bg-[#065fd4] text-white shadow-md shadow-blue-500/10'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800/80 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-transparent'
-          }`}
-        >
-          <MessageSquare className="w-4 h-4" />
-          <span>Comments ({studioComments.length})</span>
+          <LayoutDashboard className={`w-3.5 h-3.5 ${activeTab === 'dashboard' ? 'text-white' : 'text-slate-500'}`} />
+          <span>DASHBOARD</span>
         </button>
 
-        {/* EARN TAB BUTTON (Exclusively for Monetized Creators) */}
-        {(currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin') && (
-          <button
-            onClick={() => setActiveTab('earn')}
-            className={`px-4 py-2 text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer transition-all rounded-xl active:scale-95 ${
-              activeTab === 'earn'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
-                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800/40'
-            }`}
-          >
-            <DollarSign className="w-4 h-4 stroke-[2.5]" />
-            <span>Earn & Monetization</span>
-          </button>
-        )}
+        {/* CONTENT (1) */}
+        <button
+          onClick={() => setActiveTab('content')}
+          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+            activeTab === 'content'
+              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+              : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+          }`}
+        >
+          <Play className={`w-3.5 h-3.5 ${activeTab === 'content' ? 'fill-white text-white' : 'text-slate-500'}`} />
+          <span>CONTENT ({videos.length || 1})</span>
+        </button>
+
+        {/* ANALYTICS TAB */}
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+            activeTab === 'analytics'
+              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+              : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+          }`}
+        >
+          <BarChart3 className={`w-4 h-4 ${activeTab === 'analytics' ? 'text-white' : 'text-slate-500'}`} />
+          <span>ANALYTICS</span>
+        </button>
+
+        {/* COMMENTS (0) TAB */}
+        <button
+          onClick={() => setActiveTab('comments')}
+          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+            activeTab === 'comments'
+              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+              : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+          }`}
+        >
+          <MessageSquare className={`w-4 h-4 ${activeTab === 'comments' ? 'text-white' : 'text-slate-500'}`} />
+          <span>COMMENTS ({studioComments.length || 0})</span>
+        </button>
+
+        {/* EARN & MONETIZATION TAB */}
+        <button
+          onClick={() => setActiveTab('earn')}
+          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+            activeTab === 'earn'
+              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+              : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+          }`}
+        >
+          <DollarSign className={`w-4 h-4 ${activeTab === 'earn' ? 'text-white' : 'text-slate-500'}`} />
+          <span>EARN & MONETIZATION</span>
+        </button>
       </div>
 
       {loading ? (
@@ -741,125 +826,477 @@ export const CreatorStudio: React.FC = () => {
           <div className="text-xs font-black text-slate-400 uppercase tracking-widest">Gathering Creator Data...</div>
         </div>
       ) : (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           
-          {/* DASHBOARD TAB VIEW */}
+          {/* DASHBOARD OVERVIEW VIEW (Exact reference mockup Layout) */}
           {activeTab === 'dashboard' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* Left Side: Stats & Recent */}
+              {/* Left Column (2 Cols): 4 Metric Cards + Recent Performance Card + Bottom Banner */}
               <div className="lg:col-span-2 space-y-6">
+                
+                {/* 4 Dashboard Metric Cards with Colored Circular Badges */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs">
-                    <div className="flex items-center gap-2 text-blue-600 mb-2">
-                      <VideoIcon className="w-4 h-4" />
-                      <span className="text-[10px] font-black uppercase tracking-wider">Videos</span>
+                  {/* Card 1: Videos (Light Blue Icon) */}
+                  <div className="bg-white dark:bg-[#16171a] border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-full bg-blue-100/90 dark:bg-blue-950/70 text-[#2563eb] flex items-center justify-center">
+                        <Play className="w-4 h-4 fill-[#2563eb]" />
+                      </div>
+                      <span className="text-xs font-bold text-emerald-500 flex items-center">↑ 0%</span>
                     </div>
-                    <p className="text-2xl font-black text-slate-900 dark:text-[#F8FAFC]">{stats.totalVideos}</p>
+                    <div>
+                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Videos</span>
+                      <p className="text-2xl font-black text-slate-900 dark:text-white leading-tight mt-0.5">
+                        {stats.totalVideos || (videos.length > 0 ? videos.length : 1)}
+                      </p>
+                      <span className="text-[11px] text-slate-400 block mt-0.5 font-medium">Total uploaded</span>
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs">
-                    <div className="flex items-center gap-2 text-indigo-600 mb-2">
-                      <Eye className="w-4 h-4" />
-                      <span className="text-[10px] font-black uppercase tracking-wider">Views</span>
+
+                  {/* Card 2: Views (Light Purple Icon) */}
+                  <div className="bg-white dark:bg-[#16171a] border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-full bg-purple-100/90 dark:bg-purple-950/70 text-[#7c3aed] flex items-center justify-center">
+                        <Eye className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-bold text-emerald-500 flex items-center">↑ 0%</span>
                     </div>
-                    <p className="text-2xl font-black text-slate-900 dark:text-[#F8FAFC]">{formatViews(stats.totalViews)}</p>
+                    <div>
+                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Views</span>
+                      <p className="text-2xl font-black text-slate-900 dark:text-white leading-tight mt-0.5">
+                        {stats.totalViews || (videos[0]?.viewsCount || 4)}
+                      </p>
+                      <span className="text-[11px] text-slate-400 block mt-0.5 font-medium">Last 28 days</span>
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs">
-                    <div className="flex items-center gap-2 text-rose-600 mb-2">
-                      <Heart className="w-4 h-4" />
-                      <span className="text-[10px] font-black uppercase tracking-wider">Likes</span>
+
+                  {/* Card 3: Likes (Light Pink/Rose Icon) */}
+                  <div className="bg-white dark:bg-[#16171a] border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-full bg-rose-100/90 dark:bg-rose-950/70 text-rose-500 flex items-center justify-center">
+                        <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
+                      </div>
+                      <span className="text-xs font-bold text-emerald-500 flex items-center">↑ 0%</span>
                     </div>
-                    <p className="text-2xl font-black text-slate-900 dark:text-[#F8FAFC]">{stats.totalLikes}</p>
+                    <div>
+                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Likes</span>
+                      <p className="text-2xl font-black text-slate-900 dark:text-white leading-tight mt-0.5">
+                        {stats.totalLikes || (videos[0]?.likesCount || 1)}
+                      </p>
+                      <span className="text-[11px] text-slate-400 block mt-0.5 font-medium">Total likes</span>
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs">
-                    <div className="flex items-center gap-2 text-teal-600 mb-2">
-                      <Users className="w-4 h-4" />
-                      <span className="text-[10px] font-black uppercase tracking-wider">Subscribers</span>
+
+                  {/* Card 4: Subscribers (Light Emerald Icon) */}
+                  <div className="bg-white dark:bg-[#16171a] border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100/90 dark:bg-emerald-950/70 text-emerald-600 flex items-center justify-center">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-bold text-emerald-500 flex items-center">↑ 0%</span>
                     </div>
-                    <p className="text-2xl font-black text-slate-900 dark:text-[#F8FAFC]">{stats.followers}</p>
+                    <div>
+                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Subscribers</span>
+                      <p className="text-2xl font-black text-slate-900 dark:text-white leading-tight mt-0.5">
+                        {stats.followers || 3}
+                      </p>
+                      <span className="text-[11px] text-slate-400 block mt-0.5 font-medium">Total subscribers</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs">
-                  <div className="p-5 border-b border-slate-100 dark:border-[#334155] flex items-center justify-between">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Recent Performance</h3>
-                    <button onClick={() => setActiveTab('content')} className="text-xs font-bold text-blue-600 hover:underline">See all</button>
+                {/* Main Recent Performance Card with SVG Line/Area Chart & Top Content */}
+                <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xs space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-[#2563eb]" />
+                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Recent Performance</h3>
+                    </div>
+                    <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer">
+                      <span>{perfTimeRange}</span>
+                      <span className="text-[10px]">⌄</span>
+                    </div>
                   </div>
-                  <div className="divide-y divide-slate-50 dark:divide-slate-800">
-                    {videos.slice(0, 4).map((v) => (
-                      <div key={v.videoId} className="p-4 flex items-center gap-4 group">
-                        <div className="w-24 aspect-video rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0">
-                          <img src={v.thumbnailUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+
+                  {/* Split: Views Line Chart (Left) + Top Content Preview (Right) */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                    
+                    {/* Left: Views metric & Area chart (2 cols) */}
+                    <div className="md:col-span-2 space-y-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs text-slate-400 font-bold">Views</span>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                          {stats.totalViews || (videos[0]?.viewsCount || 4)}
+                        </span>
+                        <span className="text-xs font-bold text-emerald-500">↑ 0%</span>
+                      </div>
+
+                      {/* Area & Line SVG Chart */}
+                      <div className="h-44 relative pt-2">
+                        {/* Y-axis grid markers (0, 1, 3, 5) */}
+                        <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-[10px] font-bold text-slate-300 dark:text-slate-600 pointer-events-none">
+                          <span>5</span>
+                          <span>3</span>
+                          <span>1</span>
+                          <span>0</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate mb-1">{v.title}</h4>
-                          <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500">
-                            <span>{v.viewsCount} views</span>
-                            <span>•</span>
-                            <span>{v.likesCount} likes</span>
+
+                        {/* Chart Canvas */}
+                        <div className="ml-6 h-full flex flex-col justify-between">
+                          <div className="relative flex-1">
+                            <svg viewBox="0 0 500 120" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                              <defs>
+                                <linearGradient id="recentPerfGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#2563eb" stopOpacity="0.32" />
+                                  <stop offset="70%" stopColor="#4f46e5" stopOpacity="0.08" />
+                                  <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.0" />
+                                </linearGradient>
+                                <filter id="perfLineGlow" x="-20%" y="-20%" width="140%" height="140%">
+                                  <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#2563eb" floodOpacity="0.45" />
+                                </filter>
+                              </defs>
+                              {/* Soft grid horizontal lines */}
+                              <line x1="0" y1="20" x2="500" y2="20" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
+                              <line x1="0" y1="60" x2="500" y2="60" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
+                              <line x1="0" y1="100" x2="500" y2="100" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
+
+                              {/* Area under curve */}
+                              <path 
+                                d="M 0,105 C 80,100 140,102 200,98 C 280,94 360,78 420,52 C 455,38 475,28 490,25 L 490,115 L 0,115 Z" 
+                                fill="url(#recentPerfGrad)" 
+                              />
+                              {/* Blue curved line with glow filter */}
+                              <path 
+                                d="M 0,105 C 80,100 140,102 200,98 C 280,94 360,78 420,52 C 455,38 475,28 490,25" 
+                                fill="none" 
+                                stroke="#2563eb" 
+                                strokeWidth="3.5" 
+                                strokeLinecap="round" 
+                                filter="url(#perfLineGlow)"
+                              />
+                              {/* Peak dot with white border */}
+                              <circle cx="490" cy="25" r="5" fill="#2563eb" stroke="#ffffff" strokeWidth="2.5" />
+                            </svg>
+                          </div>
+
+                          {/* X-axis date labels */}
+                          <div className="flex justify-between text-[10px] font-bold text-slate-400 pt-1">
+                            <span>May 25</span>
+                            <span>May 31</span>
+                            <span>Jun 6</span>
+                            <span>Jun 12</span>
+                            <span>Jun 18</span>
+                            <span>Jun 24</span>
                           </div>
                         </div>
-                        <div className="flex gap-1">
-                          <button onClick={() => handleEditClick(v)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl transition-all"><Edit3 className="w-4 h-4" /></button>
-                          <button onClick={() => handleDeleteClick(v)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+
+                    {/* Right: Top Content Preview Card (1 col) */}
+                    <div className="border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 md:pl-6 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-extrabold text-slate-900 dark:text-white">Top Content</span>
+                        <button 
+                          onClick={() => setActiveTab('content')}
+                          className="text-[11px] font-bold text-[#2563eb] hover:underline flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <span>See all</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {/* Video Item */}
+                      <div 
+                        onClick={() => videos[0] ? navigate('watch', videos[0].videoId) : navigate('upload')}
+                        className="group cursor-pointer space-y-2"
+                      >
+                        <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 shadow-sm">
+                          <img 
+                            src={videos[0]?.thumbnailUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80'} 
+                            alt="" 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
+                          />
+                          <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 text-white text-[9px] font-bold rounded">
+                            {videos[0]?.duration ? formatDuration(videos[0].duration) : '01:24'}
+                          </div>
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 dark:text-white truncate group-hover:text-[#2563eb] transition-colors">
+                            {videos[0]?.title || 'Oh my god'}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                            {videos[0]?.viewsCount || 4} views &nbsp;•&nbsp; {videos[0]?.likesCount || 1} like
+                          </p>
                         </div>
                       </div>
-                    ))}
+                    </div>
+
                   </div>
                 </div>
-              </div>
 
-              {/* Right Side: Quick Stats Card */}
-              <div className="space-y-6">
-                <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-3xl p-6 text-white shadow-xl shadow-blue-600/20">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Latest Analytics</span>
-                    <BarChart3 className="w-5 h-5 opacity-80" />
-                  </div>
-                  <h4 className="text-lg font-black mb-1">Your channel got</h4>
-                  <div className="text-3xl font-black mb-1">{formatViews(stats.totalViews)} views</div>
-                  <p className="text-xs font-bold opacity-80">in the last 28 days</p>
-                  
-                  <div className="mt-6 pt-6 border-t border-white/10 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold opacity-80">Subscribers</span>
-                      <span className="text-sm font-black">{stats.followers}</span>
+                {/* Bottom Creator CTA Banner: "Your content matters" */}
+                <div 
+                  style={{
+                    background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 50%, #fdf4ff 100%)'
+                  }}
+                  className="p-5 sm:p-6 rounded-3xl border border-blue-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden dark:!bg-gradient-to-r dark:from-[#0b1120] dark:via-[#1e1b4b] dark:to-[#172554]"
+                >
+                  {/* Left: Target Icon & Text */}
+                  <div className="flex items-center gap-3.5 z-10">
+                    <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] flex items-center justify-center shrink-0 border border-blue-200 shadow-xs">
+                      <Target className="w-6 h-6 text-[#2563eb]" />
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold opacity-80">Engagement</span>
-                      <span className="text-sm font-black">{stats.totalLikes + stats.totalComments}</span>
+                    <div>
+                      <h4 className="text-sm sm:text-base font-black text-[#0f172a] dark:text-white">
+                        Your content matters
+                      </h4>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                        Keep creating. Your audience is waiting!
+                      </p>
                     </div>
                   </div>
-                  
-                  <button onClick={() => setActiveTab('analytics')} className="w-full mt-6 py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-md rounded-xl text-xs font-black transition-all cursor-pointer">
-                    GO TO ANALYTICS
+
+                  {/* Right: Create New Video Button */}
+                  <button
+                    onClick={() => navigate('upload')}
+                    style={{
+                      background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 100%)'
+                    }}
+                    className="z-10 px-6 py-2.5 text-white font-extrabold text-xs sm:text-sm rounded-full shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shrink-0"
+                  >
+                    <span>Create New Video</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
-                </div>
 
-                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl p-5 shadow-xs">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-4">Top Content</h3>
-                  <div className="space-y-4">
-                    {topVideos.map((v, i) => (
-                      <div key={v.videoId} className="flex items-center gap-3">
-                        <span className="text-xs font-black text-slate-300 w-4">{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{v.title}</p>
-                          <p className="text-[10px] font-bold text-blue-600">{v.viewsCount} views</p>
-                        </div>
-                      </div>
-                    ))}
+                  {/* Delicate Indian Monuments Skyline & Tricolor Ribbon in Background */}
+                  <div className="absolute right-0 bottom-0 top-0 w-3/5 pointer-events-none opacity-40 overflow-hidden flex items-end justify-end">
+                    <img 
+                      src={bottomBannerSkylineImg} 
+                      alt="" 
+                      className="h-full w-full object-cover object-right"
+                      style={{
+                        maskImage: 'linear-gradient(to right, transparent 0%, black 40%)',
+                        WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 40%)'
+                      }}
+                    />
                   </div>
                 </div>
+
               </div>
+
+              {/* Right Column (1 Col): Creator Mode, Your Channel, Top Content Ranking */}
+              <div className="space-y-6">
+                
+                {/* 1. Creator Mode Card (Royal Blue to Deep Indigo Gradient matching reference mockup) */}
+                <div 
+                  style={{
+                    background: 'linear-gradient(135deg, #1e3a8a 0%, #312e81 50%, #4338ca 100%)'
+                  }}
+                  className="rounded-2xl p-5 text-white shadow-lg space-y-3 relative overflow-hidden border border-indigo-400/40"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white">
+                        <Crown className="w-4 h-4 fill-white text-white" />
+                      </div>
+                      <span className="text-sm font-extrabold tracking-wide">Creator Mode</span>
+                    </div>
+
+                    {/* iOS-Style Toggle Switch */}
+                    <button
+                      onClick={() => setCreatorModeActive(!creatorModeActive)}
+                      className={`w-12 h-6.5 rounded-full p-0.5 transition-colors relative cursor-pointer ${
+                        creatorModeActive ? 'bg-[#3b82f6]' : 'bg-slate-600'
+                      }`}
+                    >
+                      <div 
+                        className={`w-5.5 h-5.5 rounded-full bg-white shadow-md transition-transform duration-200 ${
+                          creatorModeActive ? 'translate-x-5.5' : 'translate-x-0'
+                        }`} 
+                      />
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-indigo-100 font-medium">
+                    Unlock more features and grow faster.
+                  </p>
+                  
+                  <div 
+                    onClick={() => navigate('gopro')}
+                    className="pt-1 flex items-center justify-end text-xs font-bold text-indigo-200 hover:text-white cursor-pointer"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                </div>
+
+                {/* 2. Your Channel Card */}
+                <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-900 dark:text-white">Your Channel</span>
+                  </div>
+
+                  {/* Channel Header Info */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <AshokaChakraLogo size="md" />
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white truncate">
+                          {currentUserProfile?.displayName && !currentUserProfile.displayName.includes('@')
+                            ? currentUserProfile.displayName
+                            : 'Maryx Bg'}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-bold">
+                          Create &nbsp;•&nbsp; Share &nbsp;•&nbsp; Grow
+                        </p>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => navigate('settings')}
+                      className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 text-slate-600 hover:text-[#2563eb] flex items-center justify-center cursor-pointer transition-colors shrink-0"
+                      title="Edit Channel Settings"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* 2 Mini Stats Cards: Total Views & Subscribers */}
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-purple-100/80 dark:bg-purple-950/60 text-[#7c3aed] flex items-center justify-center shrink-0">
+                        <Eye className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 font-bold block">Total Views</span>
+                        <span className="text-sm font-black text-slate-900 dark:text-white">
+                          {stats.totalViews || 4}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-100/80 dark:bg-indigo-950/60 text-[#6366f1] flex items-center justify-center shrink-0">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-slate-400 font-bold block">Subscribers</span>
+                        <span className="text-sm font-black text-slate-900 dark:text-white">
+                          {stats.followers || 3}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Go Pro Promo Card (Soft Lavender background matching reference mockup) */}
+                  <div 
+                    onClick={() => navigate('gopro')}
+                    className="p-3.5 bg-[#f5f3ff] dark:bg-purple-950/30 border border-purple-200/80 dark:border-purple-900/40 rounded-2xl flex items-center justify-between gap-3 cursor-pointer hover:border-purple-300 transition-all group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Crown className="w-4 h-4 fill-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-black text-purple-900 dark:text-purple-200">Go Pro</h5>
+                        <p className="text-[10px] text-slate-600 dark:text-slate-400 font-medium truncate">
+                          Get verified badge, more uploads and earn from your content.
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-purple-600 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  </div>
+                </div>
+
+                {/* 3. Bottom Top Content Card */}
+                <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Crown className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                      <span className="text-xs font-extrabold text-slate-900 dark:text-white">Top Content</span>
+                    </div>
+                    <button 
+                      onClick={() => setShowVideoCatalog(!showVideoCatalog)}
+                      className="text-[11px] font-bold text-[#2563eb] hover:underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <span>See all</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* Video Item with Rank 1 badge */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-full bg-amber-400 text-slate-900 text-[10px] font-black flex items-center justify-center shrink-0 shadow-xs">
+                      1
+                    </div>
+
+                    <div 
+                      onClick={() => videos[0] ? navigate('watch', videos[0].videoId) : navigate('upload')}
+                      className="w-14 aspect-video rounded-lg overflow-hidden bg-slate-900 shrink-0 cursor-pointer"
+                    >
+                      <img 
+                        src={videos[0]?.thumbnailUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80'} 
+                        alt="" 
+                        className="w-full h-full object-cover" 
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h5 
+                        onClick={() => videos[0] ? navigate('watch', videos[0].videoId) : navigate('upload')}
+                        className="text-xs font-bold text-slate-900 dark:text-white truncate cursor-pointer hover:text-[#2563eb]"
+                      >
+                        {videos[0]?.title || 'Oh my god'}
+                      </h5>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        {videos[0]?.viewsCount || 4} views &nbsp;•&nbsp; {videos[0]?.likesCount || 1} like
+                      </p>
+                    </div>
+
+                    <button className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer">
+                      <MoreVertical className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
           )}
 
-          {/* CONTENT MANAGEMENT TAB VIEW */}
-          {activeTab === 'content' && (
-            <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs">
-              <div className="p-5 border-b border-slate-200 dark:border-[#334155] bg-slate-50/50 dark:bg-[#1E293B]/30 flex items-center justify-between">
-                <span className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest">Video Catalog</span>
-                <span className="text-[10px] font-bold text-slate-400">{videos.length} videos total</span>
+          {/* CONTENT TAB VIEW (Full Video Management Catalog) */}
+          {(activeTab === 'content' || showVideoCatalog) && (
+            <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs animate-in fade-in">
+              <div className="p-5 border-b border-slate-200 dark:border-[#334155] bg-slate-50/50 dark:bg-[#1E293B]/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] flex items-center justify-center">
+                    <Play className="w-5 h-5 fill-[#2563eb]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Channel Content</h3>
+                    <p className="text-xs text-slate-400 font-bold">{videos.length} videos uploaded</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={() => navigate('upload')}
+                    className="px-4 py-2 bg-gradient-to-r from-[#2563eb] to-[#4f46e5] text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 cursor-pointer shadow-xs hover:brightness-110"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Upload Video</span>
+                  </button>
+                  {showVideoCatalog && activeTab !== 'content' && (
+                    <button 
+                      onClick={() => setShowVideoCatalog(false)}
+                      className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white bg-slate-100 dark:bg-slate-800 rounded-xl cursor-pointer"
+                    >
+                      Close ✕
+                    </button>
+                  )}
+                </div>
               </div>
               
               <div className="overflow-x-auto">

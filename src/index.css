@@ -90,6 +90,14 @@
 .dark .bg-social-light-blue { background-color: #1e293b !important; }
 .border-social-blue { border-color: #2563eb !important; }
 
+/* ELECTRIC BLUE PALETTE (For hashtags, links, and high-energy highlights) */
+.text-electric-blue { color: #0070f3 !important; }
+.dark .text-electric-blue { color: #00d2ff !important; }
+.hover\:text-electric-blue:hover { color: #005cd6 !important; }
+.dark .hover\:text-electric-blue:hover { color: #67e8f9 !important; }
+.bg-electric-blue { background-color: #0070f3 !important; }
+.dark .bg-electric-blue { background-color: #00d2ff !important; }
+
 /* MOBILE FIXES */
 @media (max-width: 640px) {
   img, video { max-width: 100%; }

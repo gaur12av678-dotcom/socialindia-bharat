@@ -37,7 +37,7 @@ export const RichText: React.FC<RichTextProps> = ({ text, className = '', onTime
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
-                  className="text-blue-600 dark:text-blue-400 hover:underline font-semibold break-all inline"
+                  className="text-[#0070f3] dark:text-[#00d2ff] hover:text-[#005cd6] dark:hover:text-[#67e8f9] hover:underline font-semibold break-all inline transition-colors"
                 >
                   {part}
                 </a>
@@ -51,7 +51,7 @@ export const RichText: React.FC<RichTextProps> = ({ text, className = '', onTime
                     e.stopPropagation();
                     navigate('search', undefined, { q: part });
                   }}
-                  className="text-blue-600 dark:text-blue-400 hover:underline font-bold cursor-pointer inline"
+                  className="text-[#0070f3] dark:text-[#00d2ff] hover:text-[#005cd6] dark:hover:text-[#67e8f9] hover:underline font-bold cursor-pointer inline transition-colors"
                 >
                   {part}
                 </span>
@@ -67,7 +67,7 @@ export const RichText: React.FC<RichTextProps> = ({ text, className = '', onTime
                     const seconds = parseTimestampToSeconds(part);
                     onTimestampClick?.(seconds);
                   }}
-                  className="text-blue-600 dark:text-blue-400 hover:underline font-black cursor-pointer inline bg-blue-50 dark:bg-blue-950/50 px-1.5 py-0.5 rounded-md text-xs border border-blue-200/60 dark:border-blue-800/50 mx-0.5 shadow-2xs"
+                  className="text-[#0070f3] dark:text-[#00d2ff] hover:underline font-black cursor-pointer inline bg-blue-50/90 dark:bg-blue-950/60 px-1.5 py-0.5 rounded-md text-xs border border-blue-200/60 dark:border-blue-800/50 mx-0.5 shadow-2xs transition-colors"
                   title={`Jump to ${part}`}
                 >
                   {part}

@@ -1133,7 +1133,7 @@ export const Shorts: React.FC = () => {
               <h3 className="text-xs font-bold leading-relaxed line-clamp-2 drop-shadow-lg">
                 {activeShort.title}
               </h3>
-              <p className="text-[10px] text-blue-500 font-black mt-1 uppercase tracking-widest drop-shadow-sm">#{activeShort.category}</p>
+              <p className="text-[10px] text-[#00d2ff] font-black mt-1 uppercase tracking-widest drop-shadow-sm">#{activeShort.category}</p>
 
               {/* Sound / Music Track Banner & Rotating Vinyl Disk */}
               <div className="flex items-center justify-between gap-3 pt-2 pointer-events-auto">

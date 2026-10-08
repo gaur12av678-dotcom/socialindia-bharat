@@ -18,7 +18,9 @@ import {
   Globe,
   Lock,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  ListVideo,
+  ArrowDownToLine
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 
@@ -109,16 +111,32 @@ export const MobileMenu: React.FC = () => {
           <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">My Library & Playlists</p>
           <div className="bg-slate-50/60 dark:bg-[#161616]/40 border border-slate-100 dark:border-slate-800 p-2 rounded-3xl space-y-1">
             <button
-              onClick={() => navigate('studio')}
+              onClick={() => navigate('playlists')}
               className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
             >
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500 rounded-xl">
-                  <PlusSquare className="w-4 h-4" />
+                  <ListVideo className="w-4 h-4" />
                 </div>
                 <div>
                   <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">My Playlists</p>
                   <p className="text-[10px] text-slate-500">Manage video playlists</p>
+                </div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-400" />
+            </button>
+
+            <button
+              onClick={() => navigate('downloads')}
+              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 rounded-xl">
+                  <ArrowDownToLine className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Downloaded Videos</p>
+                  <p className="text-[10px] text-slate-500">Offline playback library</p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />

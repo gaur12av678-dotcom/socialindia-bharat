@@ -13,6 +13,7 @@ import { Trending } from './pages/Trending';
 import { Subscriptions } from './pages/Subscriptions';
 import { WatchHistory } from './pages/History';
 import { SavedVideos } from './pages/Saved';
+import { PlaylistsPage } from './pages/Playlists';
 import { CreatorProfile } from './pages/Creator';
 import { CreatorStudio } from './pages/Studio';
 import { Settings } from './pages/Settings';
@@ -103,6 +104,9 @@ function MainAppContent() {
         return <WatchHistory />;
       case 'saved':
         return <SavedVideos />;
+      case 'playlists':
+      case 'playlist':
+        return <PlaylistsPage />;
       case 'creator':
         return <CreatorProfile />;
       case 'studio':
