@@ -53,6 +53,11 @@ export const TermsPage: React.FC = () => {
               <h4 className="font-extrabold text-slate-900 dark:text-white uppercase tracking-wide mb-1 text-[11px]">3. Points System & Rewards Fraud Prevention</h4>
               <p>Points collected by watching videos, leaving comments, or liking shorts are platform promotional tokens and carry no intrinsic cash properties. Point-farming, bot-directed viewing, automated scripts, or manipulative engagement cycles represent breaches of trust and result in immediate account deletion, wallet forfeiture, and permanent IP address banning.</p>
             </div>
+
+            <div>
+              <h4 className="font-extrabold text-slate-900 dark:text-white uppercase tracking-wide mb-1 text-[11px]">4. Creator Partner Program & Monetization Policy</h4>
+              <p>Creators become eligible for SocialIndia Partner Monetization and ad-revenue sharing upon meeting both milestones: (1) At least 500 active channel subscribers, and (2) At least 1,000 verified views on ANY single published video (the view requirement is based strictly on the single highest-viewed video, not cumulative channel views). Approved creators can withdraw earnings directly via UPI or Bank Transfer once verified.</p>
+            </div>
           </div>
         </div>
 

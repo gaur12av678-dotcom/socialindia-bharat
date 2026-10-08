@@ -494,12 +494,6 @@ export const Shorts: React.FC = () => {
         }
       );
       setIsSubscribed(newStatus);
-      addToast(
-        newStatus 
-          ? `Subscribed to @${activeShort.creatorUsername}!` 
-          : `Unsubscribed from @${activeShort.creatorUsername}`, 
-        'success'
-      );
     } catch (err) {
       addToast('Could not update subscription.', 'error');
     } finally {
@@ -665,14 +659,11 @@ export const Shorts: React.FC = () => {
         setIsLiked(false);
         setLikesCount(prev => Math.max(0, prev - 1));
         await likeService.unlikeVideo(activeShort.videoId, currentUser.uid);
-        addToast('Removed from liked videos', 'info');
       } else {
         setIsLiked(true);
         setLikesCount(prev => prev + 1);
         await likeService.likeVideo(activeShort.videoId, currentUser.uid);
-        await userService.awardPoints(currentUser.uid, 5);
-        await refreshProfile();
-        addToast('Added to liked videos! (+5 Points)', 'success');
+        userService.awardPoints(currentUser.uid, 5).catch(console.error);
       }
     } catch (err) {
       console.error(err);

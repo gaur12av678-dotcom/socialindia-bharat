@@ -20,7 +20,15 @@ import {
   Clock,
   Share2,
   MoreVertical,
-  Check
+  Check,
+  Repeat,
+  Subtitles,
+  ChevronRight,
+  ArrowLeft as ArrowLeftIcon,
+  X as XIcon,
+  Copy,
+  Sliders,
+  Sparkles
 } from 'lucide-react';
 
 interface CustomVideoPlayerProps {
@@ -29,6 +37,8 @@ interface CustomVideoPlayerProps {
   isTheaterMode?: boolean;
   onToggleTheaterMode?: () => void;
   seekToTime?: number;
+  onNextVideo?: () => void;
+  hasNextVideo?: boolean;
 }
 
 declare global {
@@ -43,7 +53,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   onEnded, 
   isTheaterMode = false, 
   onToggleTheaterMode,
-  seekToTime 
+  seekToTime,
+  onNextVideo,
+  hasNextVideo = false
 }) => {
   const { navigate } = useRouter();
   const parsedMedia = parseVideoUrl(video.videoUrl);
@@ -86,11 +98,30 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [isTimelineHovered, setIsTimelineHovered] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPercent, setHoverPercent] = useState<number>(0);
-  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
-  const [showTopMenu, setShowTopMenu] = useState(false);
   const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [isSavedWatchLater, setIsSavedWatchLater] = useState(false);
+  const [showPlayerMenu, setShowPlayerMenu] = useState(false);
+  const [playerSubMenu, setPlayerSubMenu] = useState<'main' | 'speed' | 'quality'>('main');
+  const [isLooping, setIsLooping] = useState(false);
+  const [selectedQuality, setSelectedQuality] = useState('1080p HD');
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const toggleLoop = () => {
+    setIsLooping(prev => {
+      const next = !prev;
+      if (videoRef.current) {
+        videoRef.current.loop = next;
+      }
+      return next;
+    });
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2200);
+  };
 
   const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!timelineRef.current || !duration) return;
@@ -646,6 +677,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             }}
             onTimeUpdate={handleDirectTimeUpdate}
             onEnded={() => {
+              if (isLooping) {
+                if (videoRef.current) {
+                  videoRef.current.currentTime = 0;
+                  videoRef.current.play().catch(() => {});
+                }
+                return;
+              }
               setIsPlaying(false);
               if (onEnded) onEnded();
             }}
@@ -777,46 +815,14 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowTopMenu(!showTopMenu);
+                  setShowPlayerMenu(true);
+                  setPlayerSubMenu('main');
                 }}
                 className="p-2 text-white hover:bg-white/20 rounded-full transition-colors cursor-pointer"
-                title="More Options"
+                title="Playback Settings & More"
               >
                 <MoreVertical className="w-4 h-4 text-white" />
               </button>
-
-              {/* Top 3-Dots Dropdown Popover */}
-              {showTopMenu && (
-                <div 
-                  onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-10 w-44 bg-slate-900/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl py-2 z-50 text-white text-xs animate-in fade-in"
-                >
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(window.location.href);
-                      setShowTopMenu(false);
-                    }}
-                    className="w-full px-4 py-2 hover:bg-white/10 flex items-center gap-2.5 text-left cursor-pointer"
-                  >
-                    <Share2 className="w-3.5 h-3.5 text-blue-400" />
-                    <span>Copy Video Link</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsSavedWatchLater(!isSavedWatchLater);
-                      setShowTopMenu(false);
-                    }}
-                    className="w-full px-4 py-2 hover:bg-white/10 flex items-center gap-2.5 text-left cursor-pointer"
-                  >
-                    <Clock className="w-3.5 h-3.5 text-blue-400" />
-                    <span>{isSavedWatchLater ? 'Remove Watch Later' : 'Save to Watch Later'}</span>
-                  </button>
-                  <div className="h-px bg-white/10 my-1" />
-                  <div className="px-4 py-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                    Quality: 1080p HD
-                  </div>
-                </div>
-              )}
             </div>
           </motion.div>
         )}
@@ -909,11 +915,17 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
                 </button>
 
-                {/* Next Video Button */}
+                {/* Next Video Button (Skips to next video in playlist queue, or seeks +10s) */}
                 <button
-                  onClick={() => skipSeconds(10)}
+                  onClick={() => {
+                    if (hasNextVideo && onNextVideo) {
+                      onNextVideo();
+                    } else {
+                      skipSeconds(10);
+                    }
+                  }}
                   className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
-                  title="Next / Skip 10s"
+                  title={hasNextVideo ? "Next Video in Playlist (Shift+N)" : "Skip 10s"}
                 >
                   <SkipForward className="w-4 h-4 fill-current" />
                 </button>
@@ -960,49 +972,20 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   CC
                 </button>
 
-                {/* Settings with HD Badge */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-                    className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-white"
-                    title="Settings"
-                  >
-                    <Settings className="w-4 h-4" />
-                    <span className="text-[9px] font-black bg-[#2563eb] text-white px-1 py-0.2 rounded shadow-xs">
-                      HD
-                    </span>
-                  </button>
-
-                  {/* Settings Menu Popover */}
-                  {showSettingsMenu && (
-                    <div 
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute right-0 bottom-10 w-48 bg-slate-900/95 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl p-3 z-50 text-white text-xs space-y-2 animate-in fade-in"
-                    >
-                      <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                        Playback Speed
-                      </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => handleSpeedChange(s)}
-                            className={`py-1 rounded text-[10px] font-bold cursor-pointer ${
-                              playbackSpeed === s ? 'bg-[#2563eb] text-white' : 'hover:bg-white/10 text-slate-300'
-                            }`}
-                          >
-                            {s}x
-                          </button>
-                        ))}
-                      </div>
-                      <div className="h-px bg-white/10" />
-                      <div className="flex items-center justify-between text-[11px] font-medium text-slate-300">
-                        <span>Quality:</span>
-                        <span className="font-bold text-blue-400">1080p HD ✓</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Settings with HD Badge (YouTube Style) */}
+                <button
+                  onClick={() => {
+                    setShowPlayerMenu(true);
+                    setPlayerSubMenu('main');
+                  }}
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-white"
+                  title="Playback Settings"
+                >
+                  <Settings className="w-4 h-4" />
+                  <span className="text-[9px] font-black bg-[#2563eb] text-white px-1 py-0.2 rounded shadow-xs">
+                    HD
+                  </span>
+                </button>
 
                 {/* Theater Mode Button */}
                 {onToggleTheaterMode && (
@@ -1028,6 +1011,198 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* YOUTUBE-STYLE BOTTOM SHEET / CENTERED POPUP SETTINGS MENU */}
+      <AnimatePresence>
+        {showPlayerMenu && (
+          <div 
+            onClick={() => setShowPlayerMenu(false)}
+            className="absolute inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-150"
+          >
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 50, opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="w-full sm:max-w-sm bg-[#16171d]/95 backdrop-blur-md border-t sm:border border-white/15 sm:rounded-3xl rounded-t-3xl p-4 shadow-2xl text-white select-none max-h-[85vh] overflow-y-auto"
+            >
+              {playerSubMenu === 'main' && (
+                <div className="space-y-1">
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-300">
+                      Playback Settings
+                    </span>
+                    <button
+                      onClick={() => setShowPlayerMenu(false)}
+                      className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* 1. Quality */}
+                  <button
+                    onClick={() => setPlayerSubMenu('quality')}
+                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Sliders className="w-4 h-4 text-blue-400" />
+                      <span className="text-xs font-bold">Quality</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <span className="font-semibold">{selectedQuality}</span>
+                      <ChevronRight className="w-4 h-4 text-slate-500" />
+                    </div>
+                  </button>
+
+                  {/* 2. Playback Speed */}
+                  <button
+                    onClick={() => setPlayerSubMenu('speed')}
+                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Play className="w-4 h-4 text-blue-400 fill-current" />
+                      <span className="text-xs font-bold">Playback Speed</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                      <span className="font-semibold">{playbackSpeed === 1 ? 'Normal' : `${playbackSpeed}x`}</span>
+                      <ChevronRight className="w-4 h-4 text-slate-500" />
+                    </div>
+                  </button>
+
+                  {/* 3. Loop Video */}
+                  <button
+                    onClick={toggleLoop}
+                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Repeat className={`w-4 h-4 ${isLooping ? 'text-blue-400' : 'text-slate-400'}`} />
+                      <span className="text-xs font-bold">Loop Video</span>
+                    </div>
+                    <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${isLooping ? 'bg-blue-600 text-white' : 'bg-white/10 text-slate-400'}`}>
+                      {isLooping ? 'On' : 'Off'}
+                    </span>
+                  </button>
+
+                  {/* 4. Subtitles / CC */}
+                  <button
+                    onClick={() => setIsCaptionsOn(!isCaptionsOn)}
+                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Subtitles className={`w-4 h-4 ${isCaptionsOn ? 'text-blue-400' : 'text-slate-400'}`} />
+                      <span className="text-xs font-bold">Captions</span>
+                    </div>
+                    <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${isCaptionsOn ? 'bg-blue-600 text-white' : 'bg-white/10 text-slate-400'}`}>
+                      {isCaptionsOn ? 'English' : 'Off'}
+                    </span>
+                  </button>
+
+                  {/* 5. Watch Later */}
+                  <button
+                    onClick={() => setIsSavedWatchLater(!isSavedWatchLater)}
+                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Clock className={`w-4 h-4 ${isSavedWatchLater ? 'text-blue-400 fill-blue-400/40' : 'text-slate-400'}`} />
+                      <span className="text-xs font-bold">
+                        {isSavedWatchLater ? 'Remove from Watch Later' : 'Save to Watch Later'}
+                      </span>
+                    </div>
+                    {isSavedWatchLater && (
+                      <Check className="w-4 h-4 text-emerald-400" />
+                    )}
+                  </button>
+
+                  {/* 6. Copy Video Link */}
+                  <button
+                    onClick={handleCopyLink}
+                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Copy className="w-4 h-4 text-blue-400" />
+                      <span className="text-xs font-bold">Copy Video Link</span>
+                    </div>
+                    {linkCopied && (
+                      <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" /> Copied!
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Sub-menu: Quality */}
+              {playerSubMenu === 'quality' && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 pb-3 border-b border-white/10 mb-2">
+                    <button
+                      onClick={() => setPlayerSubMenu('main')}
+                      className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <ArrowLeftIcon className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-300">
+                      Quality for Current Video
+                    </span>
+                  </div>
+
+                  {['1080p HD (Auto)', '1080p Premium 60fps', '720p HD', '480p High', '360p Data Saver', 'Auto'].map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => {
+                        setSelectedQuality(q);
+                        setPlayerSubMenu('main');
+                      }}
+                      className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
+                    >
+                      <span className={`text-xs ${selectedQuality === q ? 'font-black text-blue-400' : 'font-semibold text-slate-300'}`}>
+                        {q}
+                      </span>
+                      {selectedQuality === q && <Check className="w-4 h-4 text-blue-400" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Sub-menu: Speed */}
+              {playerSubMenu === 'speed' && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 pb-3 border-b border-white/10 mb-2">
+                    <button
+                      onClick={() => setPlayerSubMenu('main')}
+                      className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <ArrowLeftIcon className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-300">
+                      Playback Speed
+                    </span>
+                  </div>
+
+                  {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        handleSpeedChange(s);
+                        setPlayerSubMenu('main');
+                      }}
+                      className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
+                    >
+                      <span className={`text-xs ${playbackSpeed === s ? 'font-black text-blue-400' : 'font-semibold text-slate-300'}`}>
+                        {s === 1 ? 'Normal' : `${s}x`}
+                      </span>
+                      {playbackSpeed === s && <Check className="w-4 h-4 text-blue-400" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

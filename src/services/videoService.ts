@@ -77,6 +77,18 @@ export async function getCloudinaryConfigAsync(): Promise<{ cloudName: string; p
 // In-memory session viewed set as a secondary guard layer if localStorage is blocked
 const sessionViewedSet = new Set<string>();
 
+// High-performance in-memory cache for ultra-fast page transitions & instant queries
+const memoryVideoCache = new Map<string, { data: Video[]; timestamp: number }>();
+const memoryVideoDetailCache = new Map<string, { data: Video; timestamp: number }>();
+const memorySearchCache = new Map<string, { data: Video[]; timestamp: number }>();
+const CACHE_TTL_MS = 30000; // 30 seconds instant memory cache
+
+export const clearVideoCache = () => {
+  memoryVideoCache.clear();
+  memoryVideoDetailCache.clear();
+  memorySearchCache.clear();
+};
+
 export const videoService = {
   // Generate safe random video ID
   generateId(): string {
@@ -493,6 +505,7 @@ export const videoService = {
     try {
       await setDoc(doc(db, 'videos', videoId), fullVideo);
       await userService.incrementVideoCount(fullVideo.creatorId, 1);
+      clearVideoCache();
       return fullVideo;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `videos/${videoId}`);
@@ -508,6 +521,7 @@ export const videoService = {
         ...updates,
         updatedAt: new Date().toISOString(),
       });
+      clearVideoCache();
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `videos/${videoId}`);
     }
@@ -535,18 +549,26 @@ export const videoService = {
 
       await deleteDoc(doc(db, 'videos', videoId));
       await userService.incrementVideoCount(creatorId, -1);
+      clearVideoCache();
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `videos/${videoId}`);
     }
   },
 
-  // Get a specific video
+  // Get a specific video with instant memory cache
   async getVideo(videoId: string): Promise<Video | null> {
+    const cached = memoryVideoDetailCache.get(videoId);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     const docRef = doc(db, 'videos', videoId);
     try {
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        return snap.data() as Video;
+        const vData = snap.data() as Video;
+        memoryVideoDetailCache.set(videoId, { data: vData, timestamp: Date.now() });
+        return vData;
       }
       return null;
     } catch (err) {
@@ -613,8 +635,14 @@ export const videoService = {
     }
   },
 
-  // Get public videos with optional filters
+  // Get public videos with instant memory cache
   async getVideos(filters?: { category?: string; creatorId?: string; isShort?: boolean }): Promise<Video[]> {
+    const cacheKey = `${filters?.category || 'All'}_${filters?.creatorId || 'all'}_${filters?.isShort !== undefined ? filters.isShort : 'all'}`;
+    const cached = memoryVideoCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     let q = query(collection(db, 'videos'), where('visibility', '==', 'public'));
 
     if (filters?.category && filters.category !== 'All') {
@@ -632,25 +660,41 @@ export const videoService = {
       const videos = snap.docs.map((d: any) => d.data() as Video);
       
       // Sort newest first in memory to avoid needing complex composite Firestore indexes
-      return videos.sort((a: Video, b: Video) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const sorted = videos.sort((a: Video, b: Video) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      // Store in memory cache
+      memoryVideoCache.set(cacheKey, { data: sorted, timestamp: Date.now() });
+      // Also cache individual videos for instant watch navigation
+      sorted.forEach(v => {
+        if (v.videoId) {
+          memoryVideoDetailCache.set(v.videoId, { data: v, timestamp: Date.now() });
+        }
+      });
+
+      return sorted;
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, 'videos');
       return [];
     }
   },
 
-  // Search videos across titles, description, creators, tags, category
+  // Search videos across titles, description, creators, tags, category with instant query cache
   async searchVideos(term: string): Promise<Video[]> {
     if (!term.trim()) return this.getVideos();
     const cleanTerm = term.trim().toLowerCase();
     const cleanTagTerm = cleanTerm.replace('#', '');
 
+    const cachedSearch = memorySearchCache.get(cleanTerm);
+    if (cachedSearch && Date.now() - cachedSearch.timestamp < CACHE_TTL_MS) {
+      return cachedSearch.data;
+    }
+
     try {
-      // Get all public videos
+      // Get all public videos (from memory cache if available!)
       const videos = await this.getVideos();
       
       // Perform strict multi-field search in-memory to deliver accurate user queries
-      return videos.filter(v => {
+      const results = videos.filter(v => {
         const titleMatch = v.title.toLowerCase().includes(cleanTerm);
         const descMatch = v.description.toLowerCase().includes(cleanTerm);
         const creatorMatch = v.creatorUsername.toLowerCase().includes(cleanTerm) || v.creatorDisplayName.toLowerCase().includes(cleanTerm);
@@ -658,6 +702,9 @@ export const videoService = {
         const tagMatch = v.tags.some(tag => tag.toLowerCase().includes(cleanTerm) || tag.toLowerCase().includes(cleanTagTerm));
         return titleMatch || descMatch || creatorMatch || categoryMatch || tagMatch;
       });
+
+      memorySearchCache.set(cleanTerm, { data: results, timestamp: Date.now() });
+      return results;
     } catch (err) {
       console.error('Search error:', err);
       return [];

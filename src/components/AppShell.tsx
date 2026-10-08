@@ -51,7 +51,8 @@ import {
   Rocket,
   MoreHorizontal,
   Tv,
-  ListVideo
+  ListVideo,
+  MessageCircle
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
@@ -75,6 +76,29 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const { route, navigate } = useRouter();
   const isShortsPage = route.path === 'shorts';
   const isWatchPage = route.path === 'watch';
+
+  // Mobile bottom bar & tools hidden on:
+  // 1. Settings ('settings')
+  // 2. Downloads ('downloads')
+  // 3. User Profile / Channel ('creator')
+  // 4. Search ('search' and when mobile search bar is active)
+  // 5. Advertising ('advertising', 'ad-info', 'ad')
+  // 6. GoPro ('gopro', 'pro')
+  // 7. Admin Hub ('admin')
+  // 8. Watch ('watch')
+  const shouldHideBottomNav = 
+    isWatchPage ||
+    route.path === 'settings' ||
+    route.path === 'downloads' ||
+    route.path === 'creator' ||
+    route.path === 'search' ||
+    route.path === 'advertising' ||
+    route.path === 'ad-info' ||
+    route.path === 'ad' ||
+    route.path === 'gopro' ||
+    route.path === 'pro' ||
+    route.path === 'chat' ||
+    route.path === 'admin';
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -876,6 +900,19 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 <ArrowDownToLine className={`w-5 h-5 shrink-0 ${route.path === 'downloads' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
                 <span className="truncate">Downloaded</span>
               </button>
+
+              {/* Chat (Direct Messages & Conversations) */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('chat'))}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                  route.path === 'chat'
+                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
+                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <MessageCircle className={`w-5 h-5 shrink-0 ${route.path === 'chat' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
+                <span className="truncate">Chat</span>
+              </button>
             </div>
 
             <div className="h-px bg-slate-100 dark:bg-slate-800" />
@@ -1003,13 +1040,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </aside>
 
         {/* CONTENT VIEWPORT */}
-        <main className={`flex-1 min-w-0 ${isWatchPage ? 'pb-0' : 'pb-20 md:pb-8'} overflow-y-auto`}>
+        <main className={`flex-1 min-w-0 ${shouldHideBottomNav ? 'pb-0 md:pb-8' : 'pb-20 md:pb-8'} overflow-y-auto`}>
           {children}
         </main>
       </div>
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <nav className={`${isWatchPage ? 'hidden' : 'block md:hidden'} fixed bottom-0 left-0 right-0 z-40 select-none transition-all duration-300 pb-safe ${
+      <nav className={`${shouldHideBottomNav ? 'hidden' : 'block md:hidden'} fixed bottom-0 left-0 right-0 z-40 select-none transition-all duration-300 pb-safe ${
         isShortsPage 
           ? 'bg-black/90 backdrop-blur-md border-t border-white/10 text-white shadow-none' 
           : 'bg-white dark:bg-[#0f0f0f] border-t border-[#e5e5e5] dark:border-[#3f3f3f] shadow-lg'

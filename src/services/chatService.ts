@@ -15,22 +15,67 @@ import { db } from '../firebase';
 import { ChatMessage, ChatSession, User } from '../types';
 import { userService } from './userService';
 
+const getChatCacheKey = (userA: string, userB: string) => {
+  const sorted = [userA, userB].sort().join('_');
+  return `socialindia_chat_msgs_${sorted}`;
+};
+
 export const chatService = {
+  // Local storage cache helpers for instant zero-latency loading
+  getCachedSessions(currentUserId: string): ChatSession[] {
+    try {
+      const saved = localStorage.getItem(`socialindia_chat_sessions_${currentUserId}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  setCachedSessions(currentUserId: string, sessions: ChatSession[]): void {
+    try {
+      localStorage.setItem(`socialindia_chat_sessions_${currentUserId}`, JSON.stringify(sessions));
+    } catch (e) {
+      console.warn('Error saving chat sessions to cache:', e);
+    }
+  },
+
+  getCachedMessages(userA: string, userB: string): ChatMessage[] {
+    try {
+      const key = getChatCacheKey(userA, userB);
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  setCachedMessages(userA: string, userB: string, messages: ChatMessage[]): void {
+    try {
+      const key = getChatCacheKey(userA, userB);
+      // Keep up to 200 most recent messages in cache to keep localStorage light & snappy
+      const trimmed = messages.slice(-200);
+      localStorage.setItem(key, JSON.stringify(trimmed));
+    } catch (e) {
+      console.warn('Error saving messages to cache:', e);
+    }
+  },
+
   // Send a direct chat message
-  async sendMessage(senderId: string, receiverId: string, text: string): Promise<void> {
-    if (!text.trim()) return;
+  async sendMessage(senderId: string, receiverId: string, text: string): Promise<string> {
+    if (!text.trim()) return '';
 
     const messagesCol = collection(db, 'chats');
-    await addDoc(messagesCol, {
+    const docRef = await addDoc(messagesCol, {
       senderId,
       receiverId,
       text: text.trim(),
       createdAt: Timestamp.now(),
       read: false
     });
+    return docRef.id;
   },
 
-  // Listen for messages between two users in real-time
+  // Listen for messages between two users in real-time with instant cache persistence
   listenToMessages(userA: string, userB: string, callback: (messages: ChatMessage[]) => void) {
     const messagesCol = collection(db, 'chats');
     
@@ -59,6 +104,8 @@ export const chatService = {
         (m.senderId === userB && m.receiverId === userA)
       );
 
+      // Persist to local cache for instant future loads
+      this.setCachedMessages(userA, userB, filtered);
       callback(filtered);
     });
   },
@@ -110,7 +157,7 @@ export const chatService = {
     }
 
     // Sort active conversations to the top
-    return sessions.sort((a, b) => {
+    const sorted = sessions.sort((a, b) => {
       if (a.lastMessageTime && b.lastMessageTime) {
         return new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime();
       }
@@ -118,6 +165,9 @@ export const chatService = {
       if (b.lastMessageTime) return 1;
       return a.displayName.localeCompare(b.displayName);
     });
+
+    this.setCachedSessions(currentUserId, sorted);
+    return sorted;
   },
 
   // Delete chat history between two users

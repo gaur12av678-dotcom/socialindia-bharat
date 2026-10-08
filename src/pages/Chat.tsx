@@ -27,22 +27,33 @@ export const ChatPage: React.FC = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<ChatSession | null>(null);
 
-  // Chat lists & messages
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  // Chat lists & messages with instant localStorage cache hydration
+  const [sessions, setSessions] = useState<ChatSession[]>(() => {
+    return currentUser ? chatService.getCachedSessions(currentUser.uid) : [];
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
   const [messageText, setMessageText] = useState('');
-  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(() => {
+    return currentUser ? chatService.getCachedSessions(currentUser.uid).length === 0 : true;
+  });
   const [isSending, setIsSending] = useState(false);
 
   // Refs for scroll container
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load chat sessions on mount & refresh every 5 seconds dynamically
+  // Load chat sessions on mount & refresh dynamically in background
   useEffect(() => {
     if (!currentUser) return;
+
+    // Immediately hydrate from cache if not already loaded
+    const cached = chatService.getCachedSessions(currentUser.uid);
+    if (cached.length > 0) {
+      setSessions(cached);
+      setLoadingSessions(false);
+    }
 
     const loadSessions = async () => {
       try {
@@ -56,7 +67,7 @@ export const ChatPage: React.FC = () => {
     };
 
     loadSessions();
-    const interval = setInterval(loadSessions, 4000);
+    const interval = setInterval(loadSessions, 5000);
     return () => clearInterval(interval);
   }, [currentUser]);
 
@@ -93,14 +104,20 @@ export const ChatPage: React.FC = () => {
     }
   }, [route.param, sessions]);
 
-  // Real-time listener for current selected chat
+  // Real-time listener for current selected chat with instant cache preload
   useEffect(() => {
     if (!currentUser || !selectedUserId) {
       setMessages([]);
       return;
     }
 
-    // Set up Firestore real-time snapshot listener
+    // 1. Immediately hydrate cached conversation messages (0ms instant display!)
+    const cachedMsgs = chatService.getCachedMessages(currentUser.uid, selectedUserId);
+    if (cachedMsgs.length > 0) {
+      setMessages(cachedMsgs);
+    }
+
+    // 2. Set up Firestore real-time snapshot listener
     const unsubscribe = chatService.listenToMessages(
       currentUser.uid,
       selectedUserId,
@@ -127,16 +144,39 @@ export const ChatPage: React.FC = () => {
     const content = messageText.trim();
     setMessageText('');
 
-    try {
-      await chatService.sendMessage(currentUser.uid, selectedUserId, content);
-      // Refresh local session lastMessage text instantly
-      setSessions(prev => prev.map(s => {
+    // Instant optimistic message rendering
+    const tempId = `temp_${Date.now()}`;
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      senderId: currentUser.uid,
+      receiverId: selectedUserId,
+      text: content,
+      createdAt: new Date().toISOString(),
+      read: false
+    };
+
+    setMessages(prev => {
+      const updated = [...prev, optimisticMessage];
+      chatService.setCachedMessages(currentUser.uid, selectedUserId, updated);
+      return updated;
+    });
+
+    // Update local session preview instantly
+    setSessions(prev => {
+      const updated = prev.map(s => {
         if (s.userId === selectedUserId) {
           return { ...s, lastMessage: content, lastMessageTime: new Date().toISOString() };
         }
         return s;
-      }));
+      });
+      chatService.setCachedSessions(currentUser.uid, updated);
+      return updated;
+    });
+
+    try {
+      await chatService.sendMessage(currentUser.uid, selectedUserId, content);
     } catch (err) {
+      console.error('Failed to deliver message:', err);
       addToast('Failed to deliver message.', 'error');
     } finally {
       setIsSending(false);

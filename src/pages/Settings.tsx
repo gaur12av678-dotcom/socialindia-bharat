@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { userService } from '../services/userService';
 import { videoService } from '../services/videoService';
-import { getInitials } from '../utils/videoUtils';
+import { getInitials, formatDuration, formatTimeAgo, formatViews } from '../utils/videoUtils';
 import { 
   ArrowLeft,
   Settings as SettingsIcon,
@@ -37,10 +37,14 @@ import {
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
-  Eye
+  Eye,
+  Film,
+  Play,
+  HelpCircle,
+  Trophy
 } from 'lucide-react';
 import { payoutService } from '../services/payoutService';
-import { WithdrawalRequest } from '../types';
+import { WithdrawalRequest, Video } from '../types';
 
 export const Settings: React.FC = () => {
   const { currentUser, currentUserProfile, refreshProfile, addToast } = useApp();
@@ -123,7 +127,9 @@ export const Settings: React.FC = () => {
   const [isConverting, setIsConverting] = useState(false);
   const [pointsConvertMsg, setPointsConvertMsg] = useState('');
 
-  // Monetization Progress
+  // Monetization & Video Stats
+  const [creatorVideos, setCreatorVideos] = useState<Video[]>([]);
+  const [loadingCreatorVideos, setLoadingCreatorVideos] = useState(false);
   const [userTotalViews, setUserTotalViews] = useState(0);
   const [isRequestingMonetization, setIsRequestingMonetization] = useState(false);
   const [monetizationMsg, setMonetizationMsg] = useState('');
@@ -178,10 +184,14 @@ export const Settings: React.FC = () => {
     }
 
     if (currentUser) {
-      videoService.getCreatorVideos(currentUser.uid).then((videos: any[]) => {
-        const total = videos.reduce((acc: number, v: any) => acc + (v.viewsCount || 0), 0);
+      setLoadingCreatorVideos(true);
+      videoService.getCreatorVideos(currentUser.uid).then((videos: Video[]) => {
+        setCreatorVideos(videos || []);
+        const total = (videos || []).reduce((acc: number, v: any) => acc + (Number(v.viewsCount ?? (v as any).views ?? 0)), 0);
         setUserTotalViews(total);
-      }).catch(console.warn);
+      }).catch(console.warn).finally(() => {
+        setLoadingCreatorVideos(false);
+      });
 
       payoutService.getWithdrawalRequests(currentUser.uid).then(setMyWithdrawals).catch(console.warn);
     }
@@ -396,6 +406,34 @@ export const Settings: React.FC = () => {
     }
   };
 
+  // Monetization calculations (500 Subscribers & 1,000 Views on single highest video rule)
+  const publishedVideos = (creatorVideos || []).filter(v => 
+    v.status !== 'removed' && v.status !== 'hidden'
+  );
+
+  const highestViewedVideo = publishedVideos.length > 0
+    ? publishedVideos.reduce((highest, current) => {
+        const currentViews = Number(current.viewsCount ?? (current as any).views ?? 0);
+        const highestViews = Number(highest.viewsCount ?? (highest as any).views ?? 0);
+        return currentViews > highestViews ? current : highest;
+      })
+    : null;
+
+  const highestVideoViews = highestViewedVideo 
+    ? Number(highestViewedVideo.viewsCount ?? (highestViewedVideo as any).views ?? 0)
+    : 0;
+
+  const currentSubscribers = currentUserProfile?.followersCount ?? 0;
+  const subscriberRequirementMet = currentSubscribers >= 500;
+  const videoRequirementMet = highestVideoViews >= 1000;
+  const isEligibleForMonetization = subscriberRequirementMet && videoRequirementMet;
+
+  const monetizationStatusType: 'In Progress' | 'Almost There' | 'Eligible' = isEligibleForMonetization
+    ? 'Eligible'
+    : (subscriberRequirementMet || videoRequirementMet)
+    ? 'Almost There'
+    : 'In Progress';
+
   // Request Monetization
   const handleRequestMonetization = async () => {
     if (!currentUser) return;
@@ -403,8 +441,8 @@ export const Settings: React.FC = () => {
     setMonetizationMsg('');
 
     const subs = currentUserProfile?.followersCount || 0;
-    if (subs < 500 || userTotalViews < 1000) {
-      setMonetizationMsg('Criteria not met: 500 Subscribers and 1,000 Views required.');
+    if (subs < 500 || highestVideoViews < 1000) {
+      setMonetizationMsg('Criteria not met: 500 Subscribers and 1,000 Views on at least one video required.');
       setIsRequestingMonetization(false);
       return;
     }
@@ -412,13 +450,15 @@ export const Settings: React.FC = () => {
     try {
       await userService.updateProfile(currentUser.uid, {
         isMonetized: true,
-        monetizationStatus: 'approved'
+        monetizationStatus: 'approved',
+        role: currentUserProfile?.role === 'user' ? 'creator' : (currentUserProfile?.role || 'creator')
       });
       await refreshProfile();
       setMonetizationMsg('Monetization enabled successfully.');
-      addToast('Channel Monetization Enabled!', 'success');
+      addToast('Channel Monetization Enabled! Welcome to the SocialIndia Partner Program.', 'success');
     } catch (err: any) {
-      setMonetizationMsg(err.message);
+      setMonetizationMsg(err.message || 'Failed to activate monetization.');
+      addToast('Failed to activate monetization.', 'error');
     } finally {
       setIsRequestingMonetization(false);
     }
@@ -1157,19 +1197,404 @@ export const Settings: React.FC = () => {
           {/* ====================================================== */}
           {activeTab === 'monetization' && (
             <div className="space-y-6">
-              <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Monetization
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Partner program status and criteria.
+              
+              {/* 1. HEADER CARD (Matches Capture.PNG top card) */}
+              <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-4 sm:gap-5">
+                  <div className="w-14 h-14 rounded-full bg-[#2563EB] text-white flex items-center justify-center font-black text-2xl shadow-md shadow-blue-500/25 shrink-0">
+                    $
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                      Monetization
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                      Track your eligibility and creator earnings on SocialIndia.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Status Badge Pill */}
+                <div className="shrink-0 self-start sm:self-auto">
+                  {monetizationStatusType === 'Eligible' ? (
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>Eligible</span>
+                    </div>
+                  ) : monetizationStatusType === 'Almost There' ? (
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/50 text-[#2563EB] dark:text-blue-300">
+                      <Sparkles className="w-4 h-4 text-[#2563EB] dark:text-blue-400 shrink-0" />
+                      <span>Almost There</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-blue-100 dark:border-blue-900/50 bg-[#eff6ff] dark:bg-blue-950/50 text-[#2563EB] dark:text-blue-300">
+                      <Clock className="w-4 h-4 text-[#2563EB] dark:text-blue-400 shrink-0" />
+                      <span>In Progress</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. ELIGIBILITY PROGRESS CARD (Matches Capture.PNG main card) */}
+              <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-6">
+                
+                {/* Title and Requirements Banner */}
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                      Partner Program Eligibility
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2 font-medium">
+                      To become eligible for the SocialIndia Partner Program, you need:
+                    </p>
+                    <div className="space-y-2 mt-3">
+                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
+                        <span>500 Subscribers</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
+                        <span>1,000 Views on at least one video</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Info Callout Box (as shown in Capture.PNG) */}
+                  <div className="lg:max-w-md bg-[#eff6ff]/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 rounded-2xl p-4 flex items-start gap-3">
+                    <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <Info className="w-3.5 h-3.5" />
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                      Your video-view requirement is based on your single highest-viewed video, not your total channel views.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Two Requirements Progress Sub-Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                  
+                  {/* Subscribers Sub-Card */}
+                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <User className="w-5 h-5 stroke-[2.2]" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Subscribers</div>
+                        <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                          {currentSubscribers} <span className="text-base font-bold text-slate-400">/ 500</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.round((currentSubscribers / 500) * 100))}%` }}
+                      />
+                    </div>
+
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                      {subscriberRequirementMet ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4" /> 500+ subscribers reached
+                        </span>
+                      ) : (
+                        <span>{500 - currentSubscribers} more subscribers needed</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Highest Video Views Sub-Card */}
+                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0">
+                        <Film className="w-5 h-5 stroke-[2.2]" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Highest Video Views</div>
+                        <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                          {highestVideoViews} <span className="text-base font-bold text-slate-400">/ 1,000</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, Math.round((highestVideoViews / 1000) * 100))}%` }}
+                      />
+                    </div>
+
+                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                      {videoRequirementMet ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4" /> 1,000+ views reached
+                        </span>
+                      ) : (
+                        <span>{1000 - highestVideoViews} more views needed</span>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Success / Status Action Banner */}
+                {isEligibleForMonetization ? (
+                  <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/70 dark:from-blue-950/50 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm font-extrabold text-[#2563EB] dark:text-blue-400">
+                        <Sparkles className="w-4 h-4" />
+                        <span>You're eligible for the SocialIndia Partner Program</span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                        Both requirements are complete! Continue below to enable channel monetization.
+                      </p>
+                    </div>
+
+                    {currentUserProfile?.isMonetized || currentUserProfile?.monetizationStatus === 'approved' ? (
+                      <div className="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shrink-0 shadow-xs">
+                        <CheckCircle2 className="w-4 h-4" /> Partner Monetization Active
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleRequestMonetization}
+                        disabled={isRequestingMonetization}
+                        className="px-6 py-2.5 bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md flex items-center gap-2 shrink-0 transition-all active:scale-98"
+                      >
+                        {isRequestingMonetization ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                        <span>Continue to Apply</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  (subscriberRequirementMet || videoRequirementMet) && (
+                    <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/50 flex items-center gap-3">
+                      <Clock className="w-4 h-4 text-[#2563EB] dark:text-blue-400 shrink-0" />
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        {subscriberRequirementMet
+                          ? "You have reached the subscriber requirement. Get 1,000 views on one video to become eligible."
+                          : "Your video has reached 1,000 views. Reach 500 subscribers to become eligible."}
+                      </p>
+                    </div>
+                  )
+                )}
+
+                {monetizationMsg && (
+                  <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-[#2563EB] dark:text-blue-300 text-xs font-bold rounded-xl">
+                    {monetizationMsg}
+                  </div>
+                )}
+              </div>
+
+              {/* 3. HIGHEST-VIEWED VIDEO CARD */}
+              <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                    Your Highest-Viewed Video
+                  </h3>
+                  {highestViewedVideo && (
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                      Auto-tracks dynamic views
+                    </span>
+                  )}
+                </div>
+
+                {loadingCreatorVideos ? (
+                  <div className="py-8 flex items-center justify-center gap-2 text-xs font-bold text-slate-500">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#2563EB]" />
+                    <span>Loading channel video metrics...</span>
+                  </div>
+                ) : highestViewedVideo ? (
+                  <div
+                    onClick={() => navigate('watch', highestViewedVideo.videoId)}
+                    className="group cursor-pointer bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 rounded-2xl p-4 sm:p-5 transition-all flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5 shadow-2xs"
+                  >
+                    {/* Video Thumbnail */}
+                    <div className="relative w-full sm:w-52 h-32 rounded-xl overflow-hidden bg-slate-900 shrink-0">
+                      {highestViewedVideo.thumbnailUrl ? (
+                        <img
+                          src={highestViewedVideo.thumbnailUrl}
+                          alt={highestViewedVideo.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-600">
+                          <Film className="w-8 h-8" />
+                        </div>
+                      )}
+
+                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#2563EB] text-white text-[9px] font-black uppercase tracking-wider rounded-md shadow-xs flex items-center gap-1">
+                        <Trophy className="w-3 h-3" /> Highest Views
+                      </div>
+
+                      {highestViewedVideo.duration > 0 && (
+                        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 text-white text-[10px] font-bold rounded">
+                          {formatDuration(highestViewedVideo.duration)}
+                        </div>
+                      )}
+
+                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 flex items-center justify-center transition-colors">
+                        <div className="w-9 h-9 rounded-full bg-white/95 text-slate-900 flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Video Details & Progress */}
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 border border-blue-100 dark:border-blue-900/40">
+                          Highest Views
+                        </span>
+                        <span className="text-xs text-slate-400">•</span>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          {highestVideoViews.toLocaleString()} views
+                        </span>
+                      </div>
+
+                      <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-[#2563EB] transition-colors line-clamp-2">
+                        {highestViewedVideo.title}
+                      </h4>
+
+                      <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        Published {formatTimeAgo(highestViewedVideo.createdAt) || 'Recently'}
+                      </div>
+
+                      <div className="pt-1.5 space-y-1">
+                        <div className="flex items-center justify-between text-xs font-bold">
+                          <span className="text-slate-500 dark:text-slate-400">Progress to 1,000 views:</span>
+                          <span className="text-[#2563EB] dark:text-blue-400 font-black">
+                            {highestVideoViews.toLocaleString()} / 1,000 views
+                          </span>
+                        </div>
+
+                        <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.round((highestVideoViews / 1000) * 100))}%` }}
+                          />
+                        </div>
+
+                        <div className="text-[11px] font-medium pt-0.5">
+                          {highestVideoViews >= 1000 ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> 1,000+ views requirement reached
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 dark:text-slate-400">
+                              {1000 - highestVideoViews} more views needed on this video
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-10 px-4 bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] flex items-center justify-center mx-auto">
+                      <Film className="w-6 h-6 stroke-[2]" />
+                    </div>
+                    <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                      No videos published yet
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-medium">
+                      Publish your first video to start building your audience and tracking your monetization progress.
+                    </p>
+                    <button
+                      onClick={() => navigate('upload')}
+                      className="mt-2 px-5 py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-xs inline-flex items-center gap-2 transition-all active:scale-95"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>Publish Video</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. REQUIREMENTS EXPLANATION CARD */}
+              <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-3">
+                <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 text-[#2563EB]" />
+                  <span>How eligibility works</span>
+                </h4>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                  To become eligible for SocialIndia monetization, you need:
+                </p>
+                <div className="space-y-1.5 pl-3">
+                  <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
+                    <span>500 subscribers</span>
+                  </div>
+                  <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
+                    <span>1,000 views on at least one video</span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed pt-1">
+                  Your video-view requirement is based on your single highest-viewed video, not your total channel views.
                 </p>
               </div>
 
-              <div className="p-6 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2">
-                <h4 className="text-base font-bold text-slate-900 dark:text-white">Status: In Progress</h4>
-                <p className="text-xs text-slate-500">Requirement: 500 Subscribers and 1,000 Views</p>
+              {/* 5. CREATOR EARNINGS / WALLET SUMMARY */}
+              <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] flex items-center justify-center font-bold">
+                      <CreditCard className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
+                        Creator Earnings & Wallet
+                      </h3>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Real-time balances from your SocialIndia account
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleSelectTab('balance')}
+                    className="text-xs font-bold text-[#2563EB] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Manage Balance & Payouts</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                      Withdrawable Balance
+                    </span>
+                    <span className="text-xl font-black text-slate-900 dark:text-white mt-1 block">
+                      ₹{Number(currentUserProfile?.mainBalance ?? 0).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                      Shopping Wallet
+                    </span>
+                    <span className="text-xl font-black text-[#2563EB] dark:text-blue-400 mt-1 block">
+                      ₹{Number(currentUserProfile?.walletBalance ?? 0).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                      Reward Points
+                    </span>
+                    <span className="text-xl font-black text-amber-500 mt-1 block">
+                      {currentUserProfile?.points ?? 0}
+                    </span>
+                  </div>
+                </div>
               </div>
+
             </div>
           )}
 

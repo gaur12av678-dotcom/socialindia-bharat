@@ -160,10 +160,10 @@ export const PlaylistsPage: React.FC = () => {
     }
   };
 
-  // Play All: Starts watch page on first video
+  // Play All: Starts watch page on first video with playlist queue
   const handlePlayAll = () => {
-    if (playlistVideos.length > 0) {
-      navigate('watch', playlistVideos[0].videoId);
+    if (playlistVideos.length > 0 && activePlaylist) {
+      navigate('watch', playlistVideos[0].videoId, { list: activePlaylist.playlistId });
     } else {
       addToast('This playlist has no videos yet.', 'info');
     }
@@ -350,7 +350,7 @@ export const PlaylistsPage: React.FC = () => {
               playlistVideos.map((vid, idx) => (
                 <div
                   key={vid.videoId}
-                  onClick={() => navigate('watch', vid.videoId)}
+                  onClick={() => navigate('watch', vid.videoId, activePlaylist ? { list: activePlaylist.playlistId } : undefined)}
                   className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-slate-800/90 hover:border-[#0070f3]/60 dark:hover:border-[#00d2ff]/50 rounded-2xl p-2.5 sm:p-3 flex items-center gap-3 sm:gap-4 transition-all hover:shadow-xs cursor-pointer group"
                 >
                   {/* Rank Index */}

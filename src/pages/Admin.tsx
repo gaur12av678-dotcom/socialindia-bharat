@@ -66,6 +66,7 @@ import {
   Plus,
   X,
   Palette,
+  ArrowLeft,
   BookOpen,
   FolderTree,
   Globe,
@@ -684,13 +685,30 @@ export const AdminPanel: React.FC = () => {
         {/* Header Badging */}
         <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl">
           <div className="flex items-center justify-between">
-            <h1 className="text-sm font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-              <ShieldCheck className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
-              <span>Admin Hub</span>
-            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('home')}
+                className="p-1.5 md:hidden bg-white/80 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 rounded-lg text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-xs"
+                title="Back to Home"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <h1 className="text-sm font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
+                <ShieldCheck className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
+                <span>Admin Hub</span>
+              </h1>
+            </div>
             <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">Super</span>
           </div>
           <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">SocialIndia Systems</p>
+          
+          <button
+            onClick={() => navigate('home')}
+            className="w-full mt-2.5 py-1.5 px-3 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 border border-blue-200/80 dark:border-blue-900/60 shadow-2xs transition-all active:scale-95 cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Main Website</span>
+          </button>
         </div>
 
         {/* SECTION 1: CORE SYSTEMS */}

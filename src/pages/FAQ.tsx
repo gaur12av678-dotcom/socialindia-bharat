@@ -58,6 +58,13 @@ export const FAQPage: React.FC = () => {
           </div>
 
           <div className="bg-slate-50 dark:bg-[#161616] border border-slate-100 dark:border-slate-800 p-6 rounded-3xl space-y-2">
+            <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white">Q: How do I qualify for the SocialIndia Partner & Monetization Program?</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+              A: To qualify for the SocialIndia Partner Program, you need: (1) At least 500 channel subscribers, and (2) At least 1,000 views on ANY single video. Note that your view requirement is evaluated on your single highest-viewed video, not total channel views. Once both milestones are met, you can apply directly from Settings &gt; Monetization.
+            </p>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-[#161616] border border-slate-100 dark:border-slate-800 p-6 rounded-3xl space-y-2">
             <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white">Q: Who qualifies for the verified creator badge?</h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
               A: Creators with active profile portfolios can apply from the Settings page. Applications are evaluated for genuine quality, copyright ownership, and constructive engagement parameters by our platform safety team.

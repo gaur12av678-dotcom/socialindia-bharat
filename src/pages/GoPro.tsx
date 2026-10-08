@@ -13,7 +13,8 @@ import {
   TrendingUp, 
   Zap, 
   CheckCircle2, 
-  Loader2
+  Loader2,
+  ArrowLeft
 } from 'lucide-react';
 
 // High-Fidelity Artwork Generated Assets matching reference design
@@ -84,6 +85,18 @@ export const GoProPage: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6 select-none relative pb-12">
       
+      {/* Mobile Top Navigation Bar (YouTube style) */}
+      <div className="flex items-center gap-3 md:hidden">
+        <button
+          onClick={() => navigate('home')}
+          className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-xs"
+          title="Back to Home"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <span className="text-lg font-black text-slate-900 dark:text-white">SocialIndia Pro</span>
+      </div>
+
       {/* 1. SOCIALINDIA PRO HERO BANNER (Matches Reference Design Image 1:1) */}
       <div 
         style={{

@@ -13,7 +13,8 @@ import { reportService } from '../services/reportService';
 import { downloadService } from '../services/downloadService';
 import { paidVideoService } from '../services/paidVideoService';
 import { adService } from '../services/adService';
-import { Video, Comment, User, AdCampaign } from '../types';
+import { playlistService } from '../services/playlistService';
+import { Video, Comment, User, AdCampaign, Playlist } from '../types';
 import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
@@ -45,7 +46,12 @@ import {
   ThumbsDown,
   Clock,
   Ban,
-  Check
+  Check,
+  ListVideo,
+  Shuffle,
+  Repeat,
+  Play as PlayIcon,
+  SkipForward
 } from 'lucide-react';
 
 export const Watch: React.FC = () => {
@@ -118,6 +124,51 @@ export const Watch: React.FC = () => {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState('');
   const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+
+  // Active Playlist Queue State (YouTube Style)
+  const playlistId = route.searchParams?.list;
+  const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(null);
+  const [playlistVideos, setPlaylistVideos] = useState<Video[]>([]);
+  const [isPlaylistLoop, setIsPlaylistLoop] = useState(false);
+  const [isPlaylistShuffle, setIsPlaylistShuffle] = useState(false);
+  const [isPlaylistPanelOpen, setIsPlaylistPanelOpen] = useState(true);
+
+  // Load Playlist details & videos if playlistId is present
+  useEffect(() => {
+    if (!playlistId) {
+      setActivePlaylist(null);
+      setPlaylistVideos([]);
+      return;
+    }
+    let isMounted = true;
+    playlistService.getPlaylistWithVideos(playlistId).then(({ playlist, videos }) => {
+      if (isMounted) {
+        if (playlist) setActivePlaylist(playlist);
+        setPlaylistVideos(videos);
+      }
+    }).catch(err => {
+      console.warn('Failed to load playlist queue:', err);
+    });
+
+    return () => { isMounted = false; };
+  }, [playlistId]);
+
+  // Current Playlist Navigation Logic
+  const currentPlaylistIndex = playlistVideos.findIndex(v => v.videoId === videoId);
+  const hasNextPlaylistVideo = playlistVideos.length > 1 && (
+    (currentPlaylistIndex >= 0 && currentPlaylistIndex < playlistVideos.length - 1) || isPlaylistLoop
+  );
+  const nextPlaylistVideo = currentPlaylistIndex >= 0
+    ? (currentPlaylistIndex < playlistVideos.length - 1
+        ? playlistVideos[currentPlaylistIndex + 1]
+        : (isPlaylistLoop ? playlistVideos[0] : null))
+    : (playlistVideos.length > 0 ? playlistVideos[0] : null);
+
+  const handlePlayNextInPlaylist = () => {
+    if (nextPlaylistVideo) {
+      navigate('watch', nextPlaylistVideo.videoId, { list: playlistId });
+    }
+  };
 
   const isVideoOwner = !!(
     currentUser &&
@@ -208,21 +259,12 @@ export const Watch: React.FC = () => {
           if (isMounted) setIsDownloaded(isD);
         }).catch(console.error);
 
-        if (currentUser) {
-          historyService.addToHistory(currentUser.uid, vid).catch(console.error);
-          likeService.hasLiked(videoId, currentUser.uid).then(isL => isMounted && setLiked(isL)).catch(console.error);
-          savedVideoService.isSaved(currentUser.uid, videoId).then(isS => isMounted && setSaved(isS)).catch(console.error);
-          subscriptionService.isSubscribed(currentUser.uid, vid.creatorId).then(isSub => isMounted && setSubscribed(isSub)).catch(console.error);
-          // Award 2 points for watching video & update wallet/points state
-          userService.awardPoints(currentUser.uid, 2).then(() => refreshProfile()).catch(console.error);
-        }
-
         commentService.getComments(videoId).then(commList => {
           if (isMounted) setComments(commList);
         }).catch(console.error);
 
         videoService.getVideos({ category: vid.category }).then(rel => {
-          if (isMounted) setRelatedVideos(rel.filter(v => v.videoId !== videoId).slice(0, 6));
+          if (isMounted) setRelatedVideos(rel.filter(v => v.videoId !== videoId).slice(0, 8));
         }).catch(console.error);
 
       } catch (err) {
@@ -236,7 +278,28 @@ export const Watch: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [videoId, currentUser]);
+  }, [videoId]);
+
+  // Separate non-blocking user interaction checks (liked, saved, subscribed, history)
+  useEffect(() => {
+    if (!videoId || !currentUser?.uid) return;
+    let isMounted = true;
+
+    if (video) {
+      historyService.addToHistory(currentUser.uid, video).catch(console.error);
+    }
+    likeService.hasLiked(videoId, currentUser.uid).then(isL => isMounted && setLiked(isL)).catch(console.error);
+    savedVideoService.isSaved(currentUser.uid, videoId).then(isS => isMounted && setSaved(isS)).catch(console.error);
+    if (video?.creatorId) {
+      subscriptionService.isSubscribed(currentUser.uid, video.creatorId).then(isSub => isMounted && setSubscribed(isSub)).catch(console.error);
+    }
+    // Award 2 points for watching quietly
+    userService.awardPoints(currentUser.uid, 2).catch(console.error);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [videoId, currentUser?.uid, video?.creatorId]);
 
   if (loading) {
     return (
@@ -308,20 +371,17 @@ export const Watch: React.FC = () => {
       if (!prev) return null;
       return {
         ...prev,
-        likesCount: prev.likesCount + (previouslyLiked ? -1 : 1)
+        likesCount: Math.max(0, prev.likesCount + (previouslyLiked ? -1 : 1))
       };
     });
 
     try {
       if (previouslyLiked) {
         await likeService.unlikeVideo(video.videoId, currentUser.uid);
-        addToast('Removed from liked videos.', 'info');
       } else {
         await likeService.likeVideo(video.videoId, currentUser.uid);
-        // Award 5 points for liking video & refresh profile
-        await userService.awardPoints(currentUser.uid, 5);
-        await refreshProfile();
-        addToast('Added to liked videos! (+5 Points)', 'success');
+        // Award 5 points for liking video quietly in background
+        userService.awardPoints(currentUser.uid, 5).catch(console.error);
 
         notificationService.createNotification(video.creatorId, currentUserProfile, 'like', {
           videoId: video.videoId,
@@ -352,11 +412,9 @@ export const Watch: React.FC = () => {
       if (saved) {
         await savedVideoService.unsaveVideo(currentUser.uid, video.videoId);
         setSaved(false);
-        addToast('Removed from saved videos.', 'info');
       } else {
         await savedVideoService.saveVideo(currentUser.uid, video);
         setSaved(true);
-        addToast('Saved to Watch Later!', 'success');
       }
     } catch (err) {
       addToast('Failed to save video.', 'error');
@@ -369,6 +427,16 @@ export const Watch: React.FC = () => {
       return;
     }
 
+    const previousSubState = subscribed;
+    const nextSubState = !previousSubState;
+
+    // 100% INSTANT OPTIMISTIC UPDATE (0ms latency, YouTube style!)
+    setSubscribed(nextSubState);
+    setCreator(prev => prev ? { 
+      ...prev, 
+      followersCount: Math.max(0, (prev.followersCount || 0) + (nextSubState ? 1 : -1)) 
+    } : null);
+
     try {
       const isSub = await subscriptionService.toggleSubscription(currentUser.uid, video.creatorId, {
         username: video.creatorUsername,
@@ -376,14 +444,17 @@ export const Watch: React.FC = () => {
         photoURL: video.creatorPhotoURL
       });
       setSubscribed(isSub);
-      setCreator(prev => prev ? { ...prev, followersCount: prev.followersCount + (isSub ? 1 : -1) } : null);
-      
-      addToast(isSub ? `Subscribed to ${video.creatorDisplayName}!` : `Unsubscribed from ${video.creatorDisplayName}.`, 'success');
 
       if (isSub) {
-        await notificationService.createNotification(video.creatorId, currentUserProfile, 'follow', {});
+        notificationService.createNotification(video.creatorId, currentUserProfile, 'follow', {}).catch(console.error);
       }
     } catch (err) {
+      // Rollback on failure
+      setSubscribed(previousSubState);
+      setCreator(prev => prev ? { 
+        ...prev, 
+        followersCount: Math.max(0, (prev.followersCount || 0) + (previousSubState ? 1 : -1)) 
+      } : null);
       addToast('Subscription change failed.', 'error');
     }
   };
@@ -631,22 +702,46 @@ export const Watch: React.FC = () => {
   const handlePostReply = async (parentCommentId: string) => {
     if (!currentUser || !currentUserProfile || !editingCommentText.trim()) return;
 
+    const replyText = editingCommentText.trim();
+    const tempReplyId = `temp-reply-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    const tempReply: Comment = {
+      commentId: tempReplyId,
+      videoId: video!.videoId,
+      uid: currentUser.uid,
+      username: currentUserProfile.username,
+      displayName: currentUserProfile.displayName,
+      photoURL: currentUserProfile.photoURL || '',
+      text: replyText,
+      likesCount: 0,
+      parentCommentId,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    // Instant optimistic render (0ms!)
+    setComments(prev => [...prev, tempReply]);
+    setEditingCommentId(null);
+    setEditingCommentText('');
+    setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
+
     try {
       const newReply = await commentService.addComment(video!.videoId, {
         uid: currentUser.uid,
         username: currentUserProfile.username,
         displayName: currentUserProfile.displayName,
         photoURL: currentUserProfile.photoURL || '',
-        text: editingCommentText.trim(),
+        text: replyText,
         parentCommentId
       });
 
-      setComments(prev => [...prev, newReply]);
-      setEditingCommentId(null);
-      setEditingCommentText('');
-      setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
-      addToast('Reply posted!', 'success');
+      setComments(prev => prev.map(c => c.commentId === tempReplyId ? newReply : c));
     } catch (err) {
+      // Rollback on error
+      setComments(prev => prev.filter(c => c.commentId !== tempReplyId));
+      setVideo(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null);
+      setEditingCommentText(replyText);
       addToast('Failed to post reply.', 'error');
     }
   };
@@ -754,7 +849,85 @@ export const Watch: React.FC = () => {
             isTheaterMode={isTheaterMode}
             onToggleTheaterMode={() => setIsTheaterMode(prev => !prev)}
             seekToTime={seekToTime}
+            onEnded={() => {
+              if (activePlaylist && nextPlaylistVideo) {
+                handlePlayNextInPlaylist();
+              }
+            }}
+            onNextVideo={nextPlaylistVideo ? handlePlayNextInPlaylist : undefined}
+            hasNextVideo={!!nextPlaylistVideo}
           />
+        )}
+
+        {/* MOBILE COLLAPSIBLE PLAYLIST BAR (YouTube Style) */}
+        {activePlaylist && (
+          <div className="block lg:hidden px-3.5 sm:px-0">
+            <div 
+              onClick={() => setIsPlaylistPanelOpen(!isPlaylistPanelOpen)}
+              className="bg-slate-900 text-white p-3 rounded-2xl border border-white/10 flex items-center justify-between cursor-pointer shadow-md"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <ListVideo className="w-4 h-4 text-blue-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-bold truncate">
+                    Playlist: {activePlaylist.title}
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Video {currentPlaylistIndex >= 0 ? currentPlaylistIndex + 1 : 1} of {playlistVideos.length} • @{activePlaylist.creatorUsername}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {hasNextPlaylistVideo && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePlayNextInPlaylist();
+                    }}
+                    className="p-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-all cursor-pointer shadow-xs active:scale-95"
+                    title="Next in Playlist"
+                  >
+                    <SkipForward className="w-3.5 h-3.5 fill-current" />
+                  </button>
+                )}
+                {isPlaylistPanelOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </div>
+            </div>
+
+            {isPlaylistPanelOpen && (
+              <div className="mt-2 bg-slate-900/95 text-white p-2.5 rounded-2xl border border-white/10 max-h-64 overflow-y-auto space-y-1.5 scrollbar-thin">
+                {playlistVideos.map((pVid, pIdx) => {
+                  const isCurrent = pVid.videoId === videoId;
+                  return (
+                    <div
+                      key={pVid.videoId}
+                      onClick={() => navigate('watch', pVid.videoId, { list: activePlaylist.playlistId })}
+                      className={`flex items-center gap-2.5 p-2 rounded-xl transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-blue-600/30 border border-blue-500/50 text-white font-bold'
+                          : 'hover:bg-white/10 text-slate-300'
+                      }`}
+                    >
+                      <div className="w-5 text-center shrink-0">
+                        {isCurrent ? (
+                          <PlayIcon className="w-3.5 h-3.5 text-blue-400 fill-current mx-auto animate-pulse" />
+                        ) : (
+                          <span className="text-[11px] font-bold text-slate-400">{pIdx + 1}</span>
+                        )}
+                      </div>
+                      <img src={pVid.thumbnailUrl} alt={pVid.title} className="w-16 aspect-video rounded-lg object-cover shrink-0 border border-white/10" />
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-xs truncate ${isCurrent ? 'text-blue-300 font-bold' : 'text-slate-200'}`}>
+                          {pVid.title}
+                        </p>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">{pVid.creatorDisplayName}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Video Title and Social Interactions block */}
@@ -1316,6 +1489,107 @@ export const Watch: React.FC = () => {
 
       {/* RIGHT COLUMN: Recommended Sidebar (Matches Reference UI with Category Pills, Upload Dates, and 3-Dots Menu) */}
       <div className="px-3.5 sm:px-0 space-y-4">
+        
+        {/* YOUTUBE-STYLE PLAYLIST QUEUE CARD (Desktop) */}
+        {activePlaylist && (
+          <div className="hidden lg:block bg-slate-900 text-white rounded-3xl p-4 shadow-xl border border-white/10 space-y-3 overflow-hidden">
+            {/* Playlist Header */}
+            <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <ListVideo className="w-4 h-4 text-blue-400" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">
+                    Now Playing Playlist
+                  </span>
+                </div>
+                <h3 className="text-sm font-black text-white truncate" title={activePlaylist.title}>
+                  {activePlaylist.title}
+                </h3>
+                <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
+                  @{activePlaylist.creatorUsername} • {currentPlaylistIndex >= 0 ? currentPlaylistIndex + 1 : 1} / {playlistVideos.length}
+                </p>
+              </div>
+
+              {/* Action Buttons: Loop, Shuffle, Collapse */}
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setIsPlaylistLoop(!isPlaylistLoop)}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isPlaylistLoop ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title={isPlaylistLoop ? "Loop Playlist (On)" : "Loop Playlist (Off)"}
+                >
+                  <Repeat className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsPlaylistShuffle(!isPlaylistShuffle)}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isPlaylistShuffle ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title={isPlaylistShuffle ? "Shuffle (On)" : "Shuffle (Off)"}
+                >
+                  <Shuffle className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsPlaylistPanelOpen(!isPlaylistPanelOpen)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  title={isPlaylistPanelOpen ? "Collapse Queue" : "Expand Queue"}
+                >
+                  {isPlaylistPanelOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Playlist Video Queue */}
+            {isPlaylistPanelOpen && (
+              <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                {playlistVideos.map((pVid, pIdx) => {
+                  const isCurrent = pVid.videoId === videoId;
+                  return (
+                    <div
+                      key={pVid.videoId}
+                      onClick={() => navigate('watch', pVid.videoId, { list: activePlaylist.playlistId })}
+                      className={`flex items-center gap-2.5 p-2 rounded-2xl transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-blue-600/30 border border-blue-500/50 text-white font-bold shadow-xs'
+                          : 'hover:bg-white/10 text-slate-300'
+                      }`}
+                    >
+                      {/* Track index / Playing indicator */}
+                      <div className="w-5 text-center shrink-0">
+                        {isCurrent ? (
+                          <PlayIcon className="w-3.5 h-3.5 text-blue-400 fill-current mx-auto animate-pulse" />
+                        ) : (
+                          <span className="text-[11px] font-bold text-slate-400">{pIdx + 1}</span>
+                        )}
+                      </div>
+
+                      {/* Thumbnail */}
+                      <div className="relative w-20 aspect-video rounded-lg overflow-hidden bg-black shrink-0 border border-white/10">
+                        <img src={pVid.thumbnailUrl} alt={pVid.title} className="w-full h-full object-cover" />
+                        {pVid.duration ? (
+                          <span className="absolute bottom-0.5 right-0.5 px-1 py-0.2 bg-black/80 text-[8px] font-bold rounded text-white">
+                            {formatDuration(pVid.duration)}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {/* Info */}
+                      <div className="min-w-0 flex-1">
+                        <h4 className={`text-xs font-bold line-clamp-1 ${isCurrent ? 'text-blue-300' : 'text-slate-200'}`}>
+                          {pVid.title}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                          {pVid.creatorDisplayName}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {/* Promoted / Sponsored User Ad */}
         {activeAds.length > 0 && (
           <SponsoredAdCard ad={activeAds[0]} layout="sidebar" />

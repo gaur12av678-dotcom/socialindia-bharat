@@ -14,7 +14,8 @@ import {
   CheckCircle2, 
   X,
   ArrowDownToLine,
-  Download
+  Download,
+  ArrowLeft
 } from 'lucide-react';
 import { UserAvatar } from '../components/UserAvatar';
 
@@ -108,6 +109,18 @@ export const Downloads: React.FC = () => {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       
+      {/* Mobile Top Navigation Bar (YouTube style) */}
+      <div className="flex items-center gap-3 md:hidden">
+        <button
+          onClick={() => navigate('home')}
+          className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-xs"
+          title="Back to Home"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <span className="text-lg font-black text-slate-900 dark:text-white">Downloads</span>
+      </div>
+
       {/* TOP STORAGE HEADER BANNER - Guaranteed High Contrast */}
       <div 
         style={{ backgroundColor: '#0f172a' }}

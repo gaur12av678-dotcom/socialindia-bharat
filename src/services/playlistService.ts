@@ -154,5 +154,26 @@ export const playlistService = {
       handleFirestoreError(err, OperationType.DELETE, `playlists/${playlistId}`);
       throw err;
     }
+  },
+
+  // Fetch playlist along with populated video objects
+  async getPlaylistWithVideos(playlistId: string): Promise<{ playlist: Playlist | null; videos: Video[] }> {
+    const playlist = await this.getPlaylistById(playlistId);
+    if (!playlist || !playlist.videoIds || playlist.videoIds.length === 0) {
+      return { playlist, videos: [] };
+    }
+
+    const videos: Video[] = [];
+    for (const vidId of playlist.videoIds) {
+      try {
+        const snap = await getDoc(doc(db, 'videos', vidId));
+        if (snap.exists()) {
+          videos.push(snap.data() as Video);
+        }
+      } catch (err) {
+        console.warn(`Could not load playlist video ${vidId}:`, err);
+      }
+    }
+    return { playlist, videos };
   }
 };

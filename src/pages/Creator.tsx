@@ -8,7 +8,7 @@ import { playlistService } from '../services/playlistService';
 import { User, Video, Playlist } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { getInitials, formatSubscribers } from '../utils/videoUtils';
-import { Video as VideoIcon, Film, Zap, Info, UserX, Camera, Settings as SettingsIcon, Bookmark, MessageSquare } from 'lucide-react';
+import { Video as VideoIcon, Film, Zap, Info, UserX, Camera, Settings as SettingsIcon, Bookmark, MessageSquare, ArrowLeft } from 'lucide-react';
 
 export const CreatorProfile: React.FC = () => {
   const { route, navigate } = useRouter();
@@ -101,6 +101,13 @@ export const CreatorProfile: React.FC = () => {
       return;
     }
 
+    const previousSub = subscribed;
+    const nextSub = !previousSub;
+
+    // Instant optimistic update (0ms, YouTube style)
+    setSubscribed(nextSub);
+    setCreator(prev => prev ? { ...prev, followersCount: Math.max(0, (prev.followersCount || 0) + (nextSub ? 1 : -1)) } : null);
+
     try {
       const isSub = await subscriptionService.toggleSubscription(currentUser.uid, creator.uid, {
         username: creator.username,
@@ -108,9 +115,10 @@ export const CreatorProfile: React.FC = () => {
         photoURL: creator.photoURL
       });
       setSubscribed(isSub);
-      setCreator(prev => prev ? { ...prev, followersCount: prev.followersCount + (isSub ? 1 : -1) } : null);
-      addToast(isSub ? `Subscribed to ${creator.displayName}!` : `Unsubscribed from ${creator.displayName}.`, 'success');
     } catch (err) {
+      // Rollback
+      setSubscribed(previousSub);
+      setCreator(prev => prev ? { ...prev, followersCount: Math.max(0, (prev.followersCount || 0) + (previousSub ? 1 : -1)) } : null);
       addToast('Subscription change failed.', 'error');
     }
   };
@@ -123,6 +131,15 @@ export const CreatorProfile: React.FC = () => {
         
         {/* 1. CHANNEL BANNER */}
         <div className="relative w-full h-36 sm:h-48 md:h-56 bg-gradient-to-r from-blue-700 via-indigo-600 to-slate-900 overflow-hidden flex items-center justify-center">
+          {/* Mobile Back Button (YouTube Channel style) */}
+          <button
+            onClick={() => navigate('home')}
+            className="absolute top-3 left-3 md:hidden p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white rounded-xl flex items-center justify-center transition-all border border-white/20 cursor-pointer shadow-xs z-20"
+            title="Back to Home"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+
           {creator.bannerURL ? (
             <img 
               src={creator.bannerURL} 
