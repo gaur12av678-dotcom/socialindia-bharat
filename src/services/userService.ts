@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, limit, increment } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, PrivateUserInfo } from '../types';
+import { compressAvatar, compressBanner } from '../utils/imageUtils';
 
 export const userService = {
   // Check if a username is already taken
@@ -37,7 +38,8 @@ export const userService = {
 
   // Get user profile by username
   async getUserByUsername(username: string): Promise<User | null> {
-    const cleanUsername = username.trim().toLowerCase();
+    if (!username) return null;
+    const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
     const q = query(
       collection(db, 'users'),
       where('username', '==', cleanUsername),
@@ -114,8 +116,28 @@ export const userService = {
   async updateProfile(uid: string, updates: Partial<User>): Promise<void> {
     const docRef = doc(db, 'users', uid);
     try {
+      const sanitizedUpdates = { ...updates };
+
+      // Ensure avatar is compressed if raw base64 data URL
+      if (sanitizedUpdates.photoURL && sanitizedUpdates.photoURL.startsWith('data:image')) {
+        try {
+          sanitizedUpdates.photoURL = await compressAvatar(sanitizedUpdates.photoURL);
+        } catch (e) {
+          console.warn('Avatar compression fallback:', e);
+        }
+      }
+
+      // Ensure banner is compressed if raw base64 data URL
+      if (sanitizedUpdates.bannerURL && sanitizedUpdates.bannerURL.startsWith('data:image')) {
+        try {
+          sanitizedUpdates.bannerURL = await compressBanner(sanitizedUpdates.bannerURL);
+        } catch (e) {
+          console.warn('Banner compression fallback:', e);
+        }
+      }
+
       await setDoc(docRef, {
-        ...updates,
+        ...sanitizedUpdates,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
     } catch (err) {
@@ -268,5 +290,41 @@ export const userService = {
       console.error('Failed to fetch all users:', err);
       return [];
     }
+  },
+
+  // Recover or create a profile for an authenticated Firebase user
+  async recoverOrCreateProfile(fbUser: any): Promise<User> {
+    const existing = await this.getUserProfile(fbUser.uid);
+    if (existing) return existing;
+
+    let baseUsername = (fbUser.email?.split('@')[0] || fbUser.displayName || 'user')
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '_')
+      .slice(0, 15);
+    if (baseUsername.length < 3) baseUsername = `user_${baseUsername}`;
+
+    let finalUsername = baseUsername;
+    let counter = 1;
+    while (await this.isUsernameTaken(finalUsername)) {
+      finalUsername = `${baseUsername.slice(0, 13)}_${counter}`;
+      counter++;
+    }
+
+    const email = fbUser.email || `${finalUsername}@socialindia.com`;
+    const displayName = fbUser.displayName || finalUsername;
+    const photoURL = fbUser.photoURL || '';
+
+    const newProfile: Partial<User> = {
+      username: finalUsername,
+      displayName,
+      email,
+      photoURL,
+      emailVerified: fbUser.emailVerified || false,
+      role: 'user',
+    };
+
+    await this.createUserProfile(fbUser.uid, newProfile);
+    const created = await this.getUserProfile(fbUser.uid);
+    return created || (newProfile as User);
   }
 };

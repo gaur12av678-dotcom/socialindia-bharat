@@ -28,7 +28,8 @@ import {
   X as XIcon,
   Copy,
   Sliders,
-  Sparkles
+  Sparkles,
+  Flag
 } from 'lucide-react';
 
 interface CustomVideoPlayerProps {
@@ -39,6 +40,7 @@ interface CustomVideoPlayerProps {
   seekToTime?: number;
   onNextVideo?: () => void;
   hasNextVideo?: boolean;
+  onReport?: () => void;
 }
 
 declare global {
@@ -55,7 +57,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   onToggleTheaterMode,
   seekToTime,
   onNextVideo,
-  hasNextVideo = false
+  hasNextVideo = false,
+  onReport
 }) => {
   const { navigate } = useRouter();
   const parsedMedia = parseVideoUrl(video.videoUrl);
@@ -102,6 +105,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [isCaptionsOn, setIsCaptionsOn] = useState(false);
   const [isSavedWatchLater, setIsSavedWatchLater] = useState(false);
   const [showPlayerMenu, setShowPlayerMenu] = useState(false);
+  const [playerMenuAnchor, setPlayerMenuAnchor] = useState<'top' | 'bottom'>('top');
   const [playerSubMenu, setPlayerSubMenu] = useState<'main' | 'speed' | 'quality'>('main');
   const [isLooping, setIsLooping] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState('1080p HD');
@@ -162,7 +166,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     } else if (videoRef.current) {
       videoRef.current.playbackRate = speed;
     }
-    setShowSettingsMenu(false);
+    setShowPlayerMenu(false);
   };
 
   const hideControlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -815,7 +819,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowPlayerMenu(true);
+                  setPlayerMenuAnchor('top');
+                  setShowPlayerMenu(!showPlayerMenu);
                   setPlayerSubMenu('main');
                 }}
                 className="p-2 text-white hover:bg-white/20 rounded-full transition-colors cursor-pointer"
@@ -975,7 +980,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 {/* Settings with HD Badge (YouTube Style) */}
                 <button
                   onClick={() => {
-                    setShowPlayerMenu(true);
+                    setPlayerMenuAnchor('bottom');
+                    setShowPlayerMenu(!showPlayerMenu);
                     setPlayerSubMenu('main');
                   }}
                   className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-white"
@@ -1014,140 +1020,165 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         )}
       </AnimatePresence>
 
-      {/* YOUTUBE-STYLE BOTTOM SHEET / CENTERED POPUP SETTINGS MENU */}
+      {/* COMPACT DROPDOWN POPUP MENU (BOTH MOBILE & DESKTOP - NO SWIPE DRAWER) */}
       <AnimatePresence>
         {showPlayerMenu && (
-          <div 
-            onClick={() => setShowPlayerMenu(false)}
-            className="absolute inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-150"
-          >
+          <>
+            {/* Click-away backdrop */}
+            <div 
+              onClick={() => setShowPlayerMenu(false)}
+              className="absolute inset-0 z-45 cursor-default bg-black/20 backdrop-blur-[0.5px]"
+            />
+
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 50, opacity: 0 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="w-full sm:max-w-sm bg-[#16171d]/95 backdrop-blur-md border-t sm:border border-white/15 sm:rounded-3xl rounded-t-3xl p-4 shadow-2xl text-white select-none max-h-[85vh] overflow-y-auto"
+              initial={{ opacity: 0, scale: 0.95, y: playerMenuAnchor === 'top' ? -6 : 6 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: playerMenuAnchor === 'top' ? -6 : 6 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className={`absolute ${
+                playerMenuAnchor === 'top' ? 'top-12 right-3' : 'bottom-12 right-3'
+              } w-52 sm:w-60 max-w-[calc(100%-1.5rem)] bg-[#18181c]/95 backdrop-blur-md border border-white/20 rounded-2xl p-2 shadow-2xl text-white select-none z-50 text-xs overflow-hidden`}
             >
               {playerSubMenu === 'main' && (
-                <div className="space-y-1">
-                  {/* Header */}
-                  <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-slate-300">
-                      Playback Settings
+                <div className="space-y-0.5">
+                  {/* Compact Header */}
+                  <div className="flex items-center justify-between pb-1.5 px-1 border-b border-white/10 mb-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">
+                      Video Options
                     </span>
                     <button
                       onClick={() => setShowPlayerMenu(false)}
                       className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      title="Close"
                     >
-                      <XIcon className="w-4 h-4" />
+                      <XIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
                   {/* 1. Quality */}
                   <button
                     onClick={() => setPlayerSubMenu('quality')}
-                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                    className="w-full py-2 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <Sliders className="w-4 h-4 text-blue-400" />
-                      <span className="text-xs font-bold">Quality</span>
+                      <span className="text-xs font-semibold">Quality</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                      <span className="font-semibold">{selectedQuality}</span>
-                      <ChevronRight className="w-4 h-4 text-slate-500" />
+                    <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                      <span>{selectedQuality.split(' ')[0]}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                     </div>
                   </button>
 
                   {/* 2. Playback Speed */}
                   <button
                     onClick={() => setPlayerSubMenu('speed')}
-                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                    className="w-full py-2 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <Play className="w-4 h-4 text-blue-400 fill-current" />
-                      <span className="text-xs font-bold">Playback Speed</span>
+                      <span className="text-xs font-semibold">Playback speed</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                      <span className="font-semibold">{playbackSpeed === 1 ? 'Normal' : `${playbackSpeed}x`}</span>
-                      <ChevronRight className="w-4 h-4 text-slate-500" />
+                    <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                      <span>{playbackSpeed === 1 ? 'Normal' : `${playbackSpeed}x`}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                     </div>
                   </button>
 
-                  {/* 3. Loop Video */}
+                  {/* 3. Subtitles / CC */}
                   <button
-                    onClick={toggleLoop}
-                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                    onClick={() => setIsCaptionsOn(!isCaptionsOn)}
+                    className="w-full py-2 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                   >
-                    <div className="flex items-center gap-3">
-                      <Repeat className={`w-4 h-4 ${isLooping ? 'text-blue-400' : 'text-slate-400'}`} />
-                      <span className="text-xs font-bold">Loop Video</span>
+                    <div className="flex items-center gap-2.5">
+                      <Subtitles className={`w-4 h-4 ${isCaptionsOn ? 'text-blue-400' : 'text-slate-400'}`} />
+                      <span className="text-xs font-semibold">Captions</span>
                     </div>
-                    <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${isLooping ? 'bg-blue-600 text-white' : 'bg-white/10 text-slate-400'}`}>
-                      {isLooping ? 'On' : 'Off'}
+                    <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${isCaptionsOn ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>
+                      {isCaptionsOn ? 'English' : 'Off'}
                     </span>
                   </button>
 
-                  {/* 4. Subtitles / CC */}
+                  {/* 4. Loop Video */}
                   <button
-                    onClick={() => setIsCaptionsOn(!isCaptionsOn)}
-                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                    onClick={toggleLoop}
+                    className="w-full py-2 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                   >
-                    <div className="flex items-center gap-3">
-                      <Subtitles className={`w-4 h-4 ${isCaptionsOn ? 'text-blue-400' : 'text-slate-400'}`} />
-                      <span className="text-xs font-bold">Captions</span>
+                    <div className="flex items-center gap-2.5">
+                      <Repeat className={`w-4 h-4 ${isLooping ? 'text-blue-400' : 'text-slate-400'}`} />
+                      <span className="text-xs font-semibold">Loop video</span>
                     </div>
-                    <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${isCaptionsOn ? 'bg-blue-600 text-white' : 'bg-white/10 text-slate-400'}`}>
-                      {isCaptionsOn ? 'English' : 'Off'}
+                    <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${isLooping ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>
+                      {isLooping ? 'On' : 'Off'}
                     </span>
                   </button>
 
                   {/* 5. Watch Later */}
                   <button
                     onClick={() => setIsSavedWatchLater(!isSavedWatchLater)}
-                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                    className="w-full py-2 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <Clock className={`w-4 h-4 ${isSavedWatchLater ? 'text-blue-400 fill-blue-400/40' : 'text-slate-400'}`} />
-                      <span className="text-xs font-bold">
-                        {isSavedWatchLater ? 'Remove from Watch Later' : 'Save to Watch Later'}
+                      <span className="text-xs font-semibold">
+                        {isSavedWatchLater ? 'Remove Watch Later' : 'Watch Later'}
                       </span>
                     </div>
                     {isSavedWatchLater && (
-                      <Check className="w-4 h-4 text-emerald-400" />
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
                     )}
                   </button>
 
                   {/* 6. Copy Video Link */}
                   <button
                     onClick={handleCopyLink}
-                    className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer"
+                    className="w-full py-2 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2.5">
                       <Copy className="w-4 h-4 text-blue-400" />
-                      <span className="text-xs font-bold">Copy Video Link</span>
+                      <span className="text-xs font-semibold">Copy video link</span>
                     </div>
                     {linkCopied && (
-                      <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5" /> Copied!
+                      <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Copied
                       </span>
                     )}
                   </button>
+
+                  {/* 7. Report Video (YouTube Style) */}
+                  <div className="pt-1 mt-1 border-t border-white/10">
+                    <button
+                      onClick={() => {
+                        setShowPlayerMenu(false);
+                        if (onReport) {
+                          onReport();
+                        } else {
+                          const event = new CustomEvent('socialindia_report_video', { detail: { videoId: video.videoId } });
+                          window.dispatchEvent(event);
+                        }
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 flex items-center gap-2.5 transition-colors cursor-pointer text-left"
+                    >
+                      <Flag className="w-4 h-4 text-rose-400" />
+                      <span className="text-xs font-bold">Report Video</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
               {/* Sub-menu: Quality */}
               {playerSubMenu === 'quality' && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 pb-3 border-b border-white/10 mb-2">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-white/10 mb-1 px-1">
                     <button
                       onClick={() => setPlayerSubMenu('main')}
                       className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
                     >
-                      <ArrowLeftIcon className="w-4 h-4" />
+                      <ArrowLeftIcon className="w-3.5 h-3.5" />
                     </button>
                     <span className="text-xs font-black uppercase tracking-wider text-slate-300">
-                      Quality for Current Video
+                      Quality
                     </span>
                   </div>
 
@@ -1158,12 +1189,12 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                         setSelectedQuality(q);
                         setPlayerSubMenu('main');
                       }}
-                      className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
+                      className="w-full py-1.5 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                     >
-                      <span className={`text-xs ${selectedQuality === q ? 'font-black text-blue-400' : 'font-semibold text-slate-300'}`}>
+                      <span className={`text-xs ${selectedQuality === q ? 'font-black text-blue-400' : 'font-medium text-slate-300'}`}>
                         {q}
                       </span>
-                      {selectedQuality === q && <Check className="w-4 h-4 text-blue-400" />}
+                      {selectedQuality === q && <Check className="w-3.5 h-3.5 text-blue-400" />}
                     </button>
                   ))}
                 </div>
@@ -1171,16 +1202,16 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
               {/* Sub-menu: Speed */}
               {playerSubMenu === 'speed' && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 pb-3 border-b border-white/10 mb-2">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-white/10 mb-1 px-1">
                     <button
                       onClick={() => setPlayerSubMenu('main')}
                       className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
                     >
-                      <ArrowLeftIcon className="w-4 h-4" />
+                      <ArrowLeftIcon className="w-3.5 h-3.5" />
                     </button>
                     <span className="text-xs font-black uppercase tracking-wider text-slate-300">
-                      Playback Speed
+                      Playback speed
                     </span>
                   </div>
 
@@ -1191,18 +1222,18 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                         handleSpeedChange(s);
                         setPlayerSubMenu('main');
                       }}
-                      className="w-full py-2.5 px-3 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
+                      className="w-full py-1.5 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                     >
-                      <span className={`text-xs ${playbackSpeed === s ? 'font-black text-blue-400' : 'font-semibold text-slate-300'}`}>
+                      <span className={`text-xs ${playbackSpeed === s ? 'font-black text-blue-400' : 'font-medium text-slate-300'}`}>
                         {s === 1 ? 'Normal' : `${s}x`}
                       </span>
-                      {playbackSpeed === s && <Check className="w-4 h-4 text-blue-400" />}
+                      {playbackSpeed === s && <Check className="w-3.5 h-3.5 text-blue-400" />}
                     </button>
                   ))}
                 </div>
               )}
             </motion.div>
-          </div>
+          </>
         )}
       </AnimatePresence>
 

@@ -324,7 +324,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             isWatchPage
               ? 'hidden md:flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
               : isShortsPage 
-                ? 'flex absolute top-0 left-0 right-0 bg-gradient-to-b from-black/80 to-transparent border-transparent text-white md:sticky md:bg-white dark:md:bg-[#0f0f0f] md:border-b md:border-slate-100 dark:md:border-slate-800 shadow-none' 
+                ? 'hidden md:flex md:sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800 shadow-none' 
                 : 'flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
           }`}>
             
@@ -1040,7 +1040,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </aside>
 
         {/* CONTENT VIEWPORT */}
-        <main className={`flex-1 min-w-0 ${shouldHideBottomNav ? 'pb-0 md:pb-8' : 'pb-20 md:pb-8'} overflow-y-auto`}>
+        <main className={`flex-1 min-w-0 ${isShortsPage ? 'pb-0 md:pb-8 overflow-hidden md:overflow-y-auto' : shouldHideBottomNav ? 'pb-0 md:pb-8 overflow-y-auto' : 'pb-20 md:pb-8 overflow-y-auto'}`}>
           {children}
         </main>
       </div>

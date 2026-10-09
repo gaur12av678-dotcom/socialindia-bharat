@@ -38,7 +38,8 @@ import {
   Bookmark,
   Lock,
   Wallet,
-  Sparkles
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { paidVideoService } from '../services/paidVideoService';
@@ -816,9 +817,9 @@ export const Shorts: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center p-0 md:p-6 min-h-[calc(100vh-3.5rem)] md:min-h-[calc(100vh-4rem)] relative select-none max-w-6xl mx-auto">
+    <div className="flex flex-col items-center justify-start md:justify-center p-0 md:p-6 h-[calc(100dvh-3.5rem)] md:h-auto md:min-h-[calc(100vh-4rem)] relative select-none max-w-6xl mx-auto overflow-hidden">
       
-      <div className="flex flex-col md:flex-row items-center md:items-stretch justify-center gap-6 w-full h-[calc(100vh-3.5rem)] md:h-[750px]">
+      <div className="flex flex-col md:flex-row items-center md:items-stretch justify-center gap-6 w-full h-[calc(100dvh-3.5rem)] md:h-[750px]">
         
         {/* Navigation Arrows for desktop (Left side) */}
         <div className="hidden md:flex flex-col justify-center gap-4">
@@ -840,14 +841,27 @@ export const Shorts: React.FC = () => {
           </button>
         </div>
 
-        {/* Vertical Shorts Player Container */}
+        {/* Vertical Shorts Player Container (Full Screen Edge-to-Edge on Mobile) */}
         <div 
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          className="relative w-full max-w-full md:max-w-[420px] h-[calc(100vh-3.5rem)] md:h-auto md:aspect-[9/16] bg-black rounded-none md:rounded-[2.5rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-pan-y"
+          className="relative w-full max-w-full md:max-w-[420px] h-[calc(100dvh-3.5rem)] md:h-auto md:aspect-[9/16] bg-black rounded-none md:rounded-[2.5rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-pan-y"
         >
+          {/* Top Mobile Overlay: Back to Home Button (YouTube Shorts Style) */}
+          <div className="absolute top-3 left-3 md:hidden z-35 flex items-center gap-2">
+            <button
+              onClick={() => navigate('home')}
+              className="w-9 h-9 rounded-full bg-black/45 backdrop-blur-md flex items-center justify-center text-white border border-white/15 hover:bg-black/65 transition-all cursor-pointer shadow-lg active:scale-95"
+              title="Back to Home"
+            >
+              <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+            </button>
+            <span className="text-xs font-black uppercase tracking-wider text-white drop-shadow-md">
+              Shorts
+            </span>
+          </div>
           
           {/* Media Player Component Wrapper with Smooth Sliding Transitions */}
           <div className={`w-full h-full transition-all duration-200 ease-out transform ${

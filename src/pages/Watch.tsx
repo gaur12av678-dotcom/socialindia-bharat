@@ -166,7 +166,7 @@ export const Watch: React.FC = () => {
 
   const handlePlayNextInPlaylist = () => {
     if (nextPlaylistVideo) {
-      navigate('watch', nextPlaylistVideo.videoId, { list: playlistId });
+      navigate('watch', nextPlaylistVideo.videoId, playlistId ? { list: playlistId } : undefined);
     }
   };
 
@@ -856,6 +856,11 @@ export const Watch: React.FC = () => {
             }}
             onNextVideo={nextPlaylistVideo ? handlePlayNextInPlaylist : undefined}
             hasNextVideo={!!nextPlaylistVideo}
+            onReport={() => {
+              setReportType('video');
+              setReportTargetId(video.videoId);
+              setReportModalOpen(true);
+            }}
           />
         )}
 

@@ -20,6 +20,7 @@ interface AppContextType {
   notifications: Notification[];
   unreadCount: number;
   refreshProfile: () => Promise<void>;
+  updateUserProfileState: (updates: Partial<User>) => void;
   refreshNotifications: () => Promise<void>;
   toasts: Toast[];
   addToast: (message: string, type?: 'success' | 'error' | 'info') => void;
@@ -31,7 +32,14 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem('socialindia_cached_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [theme, setThemeState] = useState<'light' | 'dark' | 'system'>('system');
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -126,11 +134,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshProfile = useCallback(async () => {
     const uid = authService.getCurrentUserUid();
     if (uid) {
-      const profile = await userService.getUserProfile(uid);
-      setCurrentUserProfile(profile);
+      let profile = await userService.getUserProfile(uid);
+      if (profile) {
+        setCurrentUserProfile(profile);
+        try {
+          localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
+        } catch {}
+      }
     } else {
       setCurrentUserProfile(null);
+      localStorage.removeItem('socialindia_cached_profile');
     }
+  }, []);
+
+  const updateUserProfileState = useCallback((updates: Partial<User>) => {
+    setCurrentUserProfile((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      try {
+        localStorage.setItem('socialindia_cached_profile', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
   }, []);
 
   const refreshNotifications = useCallback(async () => {
@@ -168,23 +193,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setLoading(true);
       setCurrentUser(user);
       if (user) {
-        // Fetch public profile
-        const profile = await userService.getUserProfile(user.uid);
-        setCurrentUserProfile(profile);
+        // Fetch or recover public profile
+        try {
+          let profile = await userService.getUserProfile(user.uid);
+          if (!profile) {
+            profile = await userService.recoverOrCreateProfile(user);
+          }
+          if (profile) {
+            setCurrentUserProfile(profile);
+            localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
+          }
+        } catch (err) {
+          console.warn('Profile fetch warning on auth change:', err);
+        }
 
         // Fetch private info for theme persistence
-        const pInfo = await userService.getPrivateInfo(user.uid);
-        if (pInfo?.theme) {
-          setThemeState(pInfo.theme);
-          applyTheme(pInfo.theme);
+        try {
+          const pInfo = await userService.getPrivateInfo(user.uid);
+          if (pInfo?.theme) {
+            setThemeState(pInfo.theme);
+            applyTheme(pInfo.theme);
+          }
+        } catch (err) {
+          console.warn('Private info fetch warning:', err);
         }
 
         // Fetch notifications
-        const list = await notificationService.getNotifications(user.uid);
-        setNotifications(list);
-        setUnreadCount(list.filter((n) => !n.read).length);
+        try {
+          const list = await notificationService.getNotifications(user.uid);
+          setNotifications(list);
+          setUnreadCount(list.filter((n) => !n.read).length);
+        } catch (err) {
+          console.warn('Notification fetch warning:', err);
+        }
       } else {
         setCurrentUserProfile(null);
+        localStorage.removeItem('socialindia_cached_profile');
         setNotifications([]);
         setUnreadCount(0);
       }
@@ -217,6 +261,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         notifications,
         unreadCount,
         refreshProfile,
+        updateUserProfileState,
         refreshNotifications,
         toasts,
         addToast,

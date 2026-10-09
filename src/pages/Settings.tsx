@@ -45,9 +45,11 @@ import {
 } from 'lucide-react';
 import { payoutService } from '../services/payoutService';
 import { WithdrawalRequest, Video } from '../types';
+import { compressAvatar, compressBanner } from '../utils/imageUtils';
+import { updateUserAvatarCache } from '../components/UserAvatar';
 
 export const Settings: React.FC = () => {
-  const { currentUser, currentUserProfile, refreshProfile, addToast } = useApp();
+  const { currentUser, currentUserProfile, refreshProfile, updateUserProfileState, addToast } = useApp();
   const { navigate } = useRouter();
 
   // Active Tab State
@@ -234,7 +236,7 @@ export const Settings: React.FC = () => {
     setSavingStatus('saving');
     setSaveMsg('');
     try {
-      await userService.updateProfile(currentUser.uid, {
+      const updates = {
         displayName: displayName.trim(),
         bio: bio.trim(),
         photoURL,
@@ -246,7 +248,12 @@ export const Settings: React.FC = () => {
           website,
           telegram
         }
-      });
+      };
+      updateUserProfileState(updates);
+      if (photoURL) {
+        updateUserAvatarCache(currentUser.uid, photoURL, displayName.trim());
+      }
+      await userService.updateProfile(currentUser.uid, updates);
       await refreshProfile();
       setSavingStatus('saved');
       setSaveMsg('Profile updated successfully.');
@@ -510,40 +517,45 @@ export const Settings: React.FC = () => {
     setVerificationMsg('Verification request submitted.');
   };
 
-  // Avatar file upload
-  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Avatar file upload with instant compression & permanent Firestore sync
+  const handleAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const res = event.target?.result as string;
-      if (res) {
-        setPhotoURL(res);
-        if (currentUser) {
-          userService.updateProfile(currentUser.uid, { photoURL: res });
-          refreshProfile();
-        }
+    try {
+      addToast('Compressing and updating avatar...', 'info');
+      const compressed = await compressAvatar(file);
+      setPhotoURL(compressed);
+      if (currentUser) {
+        updateUserProfileState({ photoURL: compressed });
+        updateUserAvatarCache(currentUser.uid, compressed, displayName || username);
+        await userService.updateProfile(currentUser.uid, { photoURL: compressed });
+        await refreshProfile();
+        addToast('Avatar updated permanently!', 'success');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Failed to upload avatar:', err);
+      addToast('Failed to save avatar image.', 'error');
+    }
   };
 
-  // Banner file upload
-  const handleBannerFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Banner file upload with instant compression & permanent Firestore sync
+  const handleBannerFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const res = event.target?.result as string;
-      if (res) {
-        setBannerURL(res);
-        if (currentUser) {
-          userService.updateProfile(currentUser.uid, { bannerURL: res });
-          refreshProfile();
-        }
+    try {
+      addToast('Compressing and updating banner...', 'info');
+      const compressed = await compressBanner(file);
+      setBannerURL(compressed);
+      if (currentUser) {
+        updateUserProfileState({ bannerURL: compressed });
+        await userService.updateProfile(currentUser.uid, { bannerURL: compressed });
+        await refreshProfile();
+        addToast('Banner updated permanently!', 'success');
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Failed to upload banner:', err);
+      addToast('Failed to save banner image.', 'error');
+    }
   };
 
   interface SettingsItem {

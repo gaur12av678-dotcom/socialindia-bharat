@@ -37,6 +37,11 @@ function getColorForName(str: string): string {
 // Global in-memory cache to sync profile avatars across all components
 const profileCache: Record<string, { photoURL: string; displayName: string }> = {};
 
+export function updateUserAvatarCache(uid: string, photoURL: string, displayName: string = '') {
+  if (!uid) return;
+  profileCache[uid] = { photoURL, displayName };
+}
+
 export const UserAvatar: React.FC<UserAvatarProps> = ({ 
   uid, 
   fallbackPhotoURL = '', 

@@ -233,15 +233,81 @@ export interface SavedVideo {
   savedAt: any;
 }
 
+export type ReportCategory = 
+  | 'copyright' 
+  | 'harassment' 
+  | 'impersonation' 
+  | 'illegal' 
+  | 'privacy' 
+  | 'spam' 
+  | 'child_safety' 
+  | 'misleading'
+  | 'inappropriate'
+  | 'sensitive_24h' 
+  | 'other';
+
+export type ModerationAction = 
+  | 'no_violation' 
+  | 'warning' 
+  | 'content_removed' 
+  | 'account_restricted' 
+  | 'account_suspended';
+
 export interface Report {
   reportId: string;
   reporterId: string;
+  reporterUsername?: string;
   targetType: 'video' | 'comment' | 'creator';
   targetId: string;
-  reason: 'spam' | 'misleading' | 'harassment' | 'copyright' | 'inappropriate' | 'other';
+  targetTitle?: string;
+  targetCreatorId?: string;
+  targetCreatorUsername?: string;
+  reason: ReportCategory;
   details?: string;
+  isUrgent24h?: boolean; // IT Rules emergency 24-hr takedown request (intimate/impersonation/child safety)
   createdAt: any;
-  status: 'pending' | 'reviewed' | 'resolved';
+  status: 'pending' | 'reviewed' | 'resolved' | 'appealed';
+  actionTaken?: ModerationAction;
+  actionReason?: string;
+  actionTakenAt?: any;
+  actionTakenBy?: string;
+  appealStatus?: 'pending' | 'approved' | 'rejected';
+  appealReason?: string;
+}
+
+export interface GrievanceTicket {
+  ticketId: string;
+  userId?: string;
+  complainantName: string;
+  complainantEmail: string;
+  category: 'copyright_takedown' | 'privacy_violation' | 'child_safety' | 'impersonation' | 'harassment' | 'illegal_content' | 'general';
+  targetUrl?: string;
+  description: string;
+  isUrgent24h: boolean;
+  acknowledgedAt?: any;
+  acknowledgementDeadline: any; // within 24 hours
+  disposalDeadline: any; // within 15 days
+  status: 'acknowledged' | 'under_review' | 'resolved' | 'disposed';
+  resolutionNotes?: string;
+  resolvedAt?: any;
+  createdAt: any;
+}
+
+export interface ContentAppeal {
+  appealId: string;
+  reportId: string;
+  userId: string;
+  username: string;
+  targetType: 'video' | 'comment' | 'creator';
+  targetId: string;
+  actionReceived: ModerationAction;
+  appealReason: string;
+  evidenceText?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  adminDecisionNotes?: string;
+  decidedAt?: any;
+  decidedBy?: string;
+  createdAt: any;
 }
 
 export interface TrashItem {

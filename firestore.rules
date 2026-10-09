@@ -122,7 +122,21 @@ match /adminSettings/{docId} {
     // --- REPORTS COLLECTION ---
     match /reports/{reportId} {
       allow create: if isSignedIn();
-      allow read, update, delete: if isAdmin();
+      allow read, update, delete: if isAdmin() || (isSignedIn() && resource.data.reporterId == request.auth.uid);
+    }
+
+    // --- GRIEVANCES & IT RULES COMPLAINTS COLLECTION ---
+    match /grievances/{grievanceId} {
+      allow create: if true;
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // --- CONTENT & ACCOUNT APPEALS COLLECTION ---
+    match /appeals/{appealId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
     }
 
     // --- FEEDBACK COLLECTION ---
