@@ -11,6 +11,7 @@ import { DEFAULT_SOUNDS } from '../services/soundService';
 import { Video, Comment, User } from '../types';
 import { parseVideoUrl, getInitials, formatTimeAgo } from '../utils/videoUtils';
 import { UserAvatar } from '../components/UserAvatar';
+import { useTranslation } from '../i18n';
 import { 
   Heart, 
   MessageSquare, 
@@ -318,6 +319,7 @@ const ShortVideoMedia: React.FC<{
 export const Shorts: React.FC = () => {
   const { route, navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
+  const { t, isHindi, formatTime } = useTranslation();
   
   const [shorts, setShorts] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1121,7 +1123,7 @@ export const Shorts: React.FC = () => {
               <div className="w-12 h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
                 <Share2 className="w-6 h-6 text-white" />
               </div>
-              <span className="text-[11px] font-bold drop-shadow-md">Share</span>
+              <span className="text-[11px] font-bold drop-shadow-md">{t('action_share', 'Share')}</span>
             </button>
 
             {/* DOWNLOAD BUTTON */}
@@ -1143,7 +1145,7 @@ export const Shorts: React.FC = () => {
                 )}
               </div>
               <span className="text-[11px] font-bold drop-shadow-md">
-                {downloadProgress !== null ? `${downloadProgress}%` : isDownloaded ? 'Saved' : 'Download'}
+                {downloadProgress !== null ? `${downloadProgress}%` : isDownloaded ? (isHindi ? 'सहेजा गया' : 'Saved') : (isHindi ? 'डाउनलोड' : 'Download')}
               </span>
             </button>
 
@@ -1151,12 +1153,12 @@ export const Shorts: React.FC = () => {
             <button 
               onClick={() => setPlaylistModalOpen(true)}
               className="group/btn flex flex-col items-center gap-1 cursor-pointer"
-              title="Save to Playlist"
+              title={isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}
             >
               <div className="w-12 h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
                 <Bookmark className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[11px] font-bold drop-shadow-md">Save</span>
+              <span className="text-[11px] font-bold drop-shadow-md">{isHindi ? 'सहेजें' : 'Save'}</span>
             </button>
           </div>
 
@@ -1195,7 +1197,7 @@ export const Shorts: React.FC = () => {
                       : 'bg-white text-[#0F172A] hover:bg-slate-100 hover:scale-105'
                   }`}
                 >
-                  {isSubscribed ? 'Subscribed' : 'Subscribe'}
+                  {isSubscribed ? t('action_subscribed', 'Subscribed') : t('action_subscribe', 'Subscribe')}
                 </button>
               )}
             </div>

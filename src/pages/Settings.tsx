@@ -236,11 +236,13 @@ export const Settings: React.FC = () => {
     setSavingStatus('saving');
     setSaveMsg('');
     try {
+      const currentAv = photoURL || currentUserProfile?.photoURL || '';
+      const currentBn = bannerURL || currentUserProfile?.bannerURL || '';
       const updates = {
         displayName: displayName.trim(),
         bio: bio.trim(),
-        photoURL,
-        bannerURL,
+        photoURL: currentAv,
+        bannerURL: currentBn,
         socialLinks: {
           instagram,
           twitter,
@@ -250,10 +252,14 @@ export const Settings: React.FC = () => {
         }
       };
       updateUserProfileState(updates);
-      if (photoURL) {
-        updateUserAvatarCache(currentUser.uid, photoURL, displayName.trim());
+      if (currentAv) {
+        updateUserAvatarCache(currentUser.uid, currentAv, displayName.trim());
       }
       await userService.updateProfile(currentUser.uid, updates);
+      videoService.syncCreatorProfileToVideos(currentUser.uid, { 
+        photoURL: currentAv, 
+        displayName: displayName.trim() 
+      }).catch(console.warn);
       await refreshProfile();
       setSavingStatus('saved');
       setSaveMsg('Profile updated successfully.');
@@ -529,6 +535,7 @@ export const Settings: React.FC = () => {
         updateUserProfileState({ photoURL: compressed });
         updateUserAvatarCache(currentUser.uid, compressed, displayName || username);
         await userService.updateProfile(currentUser.uid, { photoURL: compressed });
+        videoService.syncCreatorProfileToVideos(currentUser.uid, { photoURL: compressed }).catch(console.warn);
         await refreshProfile();
         addToast('Avatar updated permanently!', 'success');
       }

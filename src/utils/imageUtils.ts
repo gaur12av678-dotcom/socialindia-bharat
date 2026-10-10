@@ -28,7 +28,10 @@ export async function compressImage(
     }
 
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // Only set crossOrigin for remote HTTP URLs to prevent canvas tainting on blob or data URLs
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      img.crossOrigin = 'anonymous';
+    }
 
     img.onload = () => {
       if (shouldRevoke) {
@@ -63,7 +66,11 @@ export async function compressImage(
       ctx.drawImage(img, 0, 0, width, height);
 
       try {
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        // If file is still too large (> 120KB for Firestore doc safety), lower quality
+        if (compressedDataUrl.length > 160000 && quality > 0.5) {
+          compressedDataUrl = canvas.toDataURL('image/jpeg', 0.65);
+        }
         resolve(compressedDataUrl);
       } catch (err) {
         console.warn('Canvas export failed, using fallback:', err);

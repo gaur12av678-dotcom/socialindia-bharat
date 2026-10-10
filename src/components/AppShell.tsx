@@ -52,7 +52,8 @@ import {
   MoreHorizontal,
   Tv,
   ListVideo,
-  MessageCircle
+  MessageCircle,
+  Globe
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
@@ -67,11 +68,15 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     currentUserProfile, 
     theme, 
     setTheme, 
+    language,
+    setLanguage,
+    t,
     notifications, 
     unreadCount, 
     markNotificationsAsRead,
     addToast
   } = useApp();
+  const isHindi = language === 'hi';
   
   const { route, navigate } = useRouter();
   const isShortsPage = route.path === 'shorts';
@@ -241,20 +246,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   };
 
   const menuItems = [
-    { label: 'Home', path: 'home', icon: Home },
-    { label: 'Shorts', path: 'shorts', icon: Zap },
-    { label: 'Trending', path: 'trending', icon: TrendingUp },
-    { label: 'Direct Messages', path: 'chat', icon: MessageSquare, protected: true },
-    { label: 'Downloads', path: 'downloads', icon: ArrowDownToLine },
-    { label: 'Subscriptions', path: 'subscriptions', icon: Users, protected: true },
-    { label: 'Saved Videos', path: 'saved', icon: Bookmark, protected: true },
-    { label: 'Watch History', path: 'history', icon: History, protected: true },
+    { label: t('nav_home', 'Home'), path: 'home', icon: Home },
+    { label: t('nav_shorts', 'Shorts'), path: 'shorts', icon: Zap },
+    { label: t('nav_trending', 'Trending'), path: 'trending', icon: TrendingUp },
+    { label: t('nav_chat', 'Direct Messages'), path: 'chat', icon: MessageSquare, protected: true },
+    { label: t('nav_downloads', 'Downloads'), path: 'downloads', icon: ArrowDownToLine },
+    { label: t('nav_subscriptions', 'Subscriptions'), path: 'subscriptions', icon: Users, protected: true },
+    { label: t('nav_saved', 'Saved Videos'), path: 'saved', icon: Bookmark, protected: true },
+    { label: t('nav_history', 'Watch History'), path: 'history', icon: History, protected: true },
   ];
 
   const studioItems = [
-    { label: 'Upload Video', path: 'upload', icon: Upload, protected: true },
-    { label: 'Creator Studio', path: 'studio', icon: PlusSquare, protected: true },
-    { label: 'Settings', path: 'settings', icon: Settings, protected: true },
+    { label: t('upload_video_btn', 'Upload Video'), path: 'upload', icon: Upload, protected: true },
+    { label: t('nav_studio', 'Creator Studio'), path: 'studio', icon: PlusSquare, protected: true },
+    { label: t('nav_settings', 'Settings'), path: 'settings', icon: Settings, protected: true },
+    { label: isHindi ? 'भाषा: हिन्दी' : 'Language: English', path: 'language', icon: Globe },
   ];
 
   return (
@@ -392,7 +398,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <div className="relative w-full flex items-center">
                     <input
                       type="text"
-                      placeholder="Search videos, creators, categories..."
+                      placeholder={t('search_placeholder', 'Search videos, creators, categories...')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full pl-4 pr-12 py-2 rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] text-slate-900 dark:text-[#f8fafc] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#2563eb] text-sm font-medium transition-all"
@@ -400,7 +406,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     <button 
                       type="submit"
                       className="absolute right-1 top-1 bottom-1 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center font-semibold text-xs shadow-xs"
-                      aria-label="Search"
+                      aria-label={t('search_button', 'Search')}
+                      title={t('search_button', 'Search')}
                     >
                       <Search className="w-4 h-4 text-white" />
                     </button>
@@ -417,9 +424,30 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                         ? 'hover:bg-white/10 text-white' 
                         : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
                     }`}
-                    aria-label="Search"
+                    aria-label={t('search_button', 'Search')}
                   >
                     <Search className="w-5 h-5" />
+                  </button>
+
+                  {/* Quick Language Toggle Button (Native Hindi / English) */}
+                  <button
+                    onClick={() => {
+                      const nextLang = language === 'hi' ? 'en' : 'hi';
+                      setLanguage(nextLang);
+                      addToast(nextLang === 'hi' ? 'वेबसाइट की भाषा बदलकर हिन्दी कर दी गई!' : 'Language switched to English!', 'success');
+                    }}
+                    className={`min-h-10 px-2 sm:px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border select-none ${
+                      isShortsPage
+                        ? 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+                        : isHindi
+                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20 shadow-xs'
+                          : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                    }`}
+                    aria-label={isHindi ? 'Switch to English' : 'हिन्दी में बदलें'}
+                    title={isHindi ? 'Switch to English' : 'हिन्दी भाषा चुनें (100% Native)'}
+                  >
+                    <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                    <span className="font-black text-[11px]">{isHindi ? 'हिन्दी' : 'EN'}</span>
                   </button>
 
                   {/* Theme Toggle */}
@@ -449,7 +477,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 className="hidden sm:flex items-center gap-1.5 px-5 py-2.5 text-base font-bold text-white bg-[#065fd4] hover:bg-[#054fb1] rounded-full transition-all shadow-md cursor-pointer active:scale-98"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span>Publish Video</span>
+                <span>{t('upload_video_btn', 'Publish Video')}</span>
               </button>
 
               {/* Notifications Dropdown */}
@@ -578,7 +606,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                         <UserIcon className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        My Channel
+                        {t('menu_your_channel', 'My Channel')}
                       </span>
                     </button>
 
@@ -593,7 +621,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                         <LayoutDashboard className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        Creator Studio
+                        {t('menu_creator_studio', 'Creator Studio')}
                       </span>
                     </button>
 
@@ -608,16 +636,31 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                         <Crown className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors text-left">
-                        Go Pro Package
+                        {isHindi ? 'गो प्रो पैकेज' : 'Go Pro Package'}
                       </span>
                       <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] dark:text-[#60a5fa] border border-blue-200/60 dark:border-blue-800/60 shrink-0">
-                        $10/month
+                        ₹99/माह
                       </span>
                     </button>
                   </div>
 
                   {/* 3. Platform Group */}
                   <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
+                    <button
+                      onClick={() => {
+                        setProfileDropdownOpen(false);
+                        navigate('language');
+                      }}
+                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                    >
+                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-amber-500 dark:text-amber-400">
+                        <Globe className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                        {isHindi ? 'भाषा: हिन्दी (सक्रिय)' : 'Language: English'}
+                      </span>
+                    </button>
+
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
@@ -629,7 +672,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                         <Megaphone className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        Advertising (Promote)
+                        {isHindi ? 'विज्ञापन (प्रचार करें)' : 'Advertising (Promote)'}
                       </span>
                     </button>
 
@@ -644,7 +687,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                         <Settings className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        Settings
+                        {t('menu_settings', 'Settings')}
                       </span>
                     </button>
 
@@ -1062,7 +1105,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             }`}
           >
             <Home className="w-5 h-5" />
-            <span className="text-[10px]">Home</span>
+            <span className="text-[10px]">{t('nav_home', 'Home')}</span>
           </button>
 
           <button 
@@ -1074,7 +1117,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             }`}
           >
             <Zap className={`w-5 h-5 ${isShortsPage ? 'fill-current text-white' : ''}`} />
-            <span className="text-[10px]">Shorts</span>
+            <span className="text-[10px]">{t('nav_shorts', 'Shorts')}</span>
           </button>
 
           <button 
@@ -1088,7 +1131,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             }`}>
               <Plus className="w-4 h-4 stroke-[3]" />
             </div>
-            <span className="text-[10px]">Create</span>
+            <span className="text-[10px]">{t('create_video', 'Create')}</span>
           </button>
 
           <button 
@@ -1100,7 +1143,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             }`}
           >
             <Users className="w-5 h-5" />
-            <span className="text-[10px]">Subscribed</span>
+            <span className="text-[10px]">{t('nav_subscriptions', 'Subscriptions')}</span>
           </button>
 
           <button 
@@ -1112,7 +1155,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             }`}
           >
             <UserIcon className="w-5 h-5" />
-            <span className="text-[10px]">Profile</span>
+            <span className="text-[10px]">{isHindi ? 'प्रोफ़ाइल' : 'Profile'}</span>
           </button>
 
         </div>

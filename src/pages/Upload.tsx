@@ -8,6 +8,7 @@ import { formatDuration, captureFrameFromVideoFile } from '../utils/videoUtils';
 import { categoriesList } from './Home';
 import { soundService } from '../services/soundService';
 import { SoundLibraryModal } from '../components/SoundLibraryModal';
+import { useTranslation } from '../i18n';
 import { 
   Upload, 
   FileText, 
@@ -43,6 +44,7 @@ import {
 export const UploadPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
   const { route, navigate } = useRouter();
+  const { t, isHindi } = useTranslation();
 
   // Multi-step Wizard Step (1: Upload, 2: Details, 3: Video Elements, 4: Visibility)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
@@ -364,13 +366,13 @@ export const UploadPage: React.FC = () => {
 
           <div className="space-y-1">
             <h1 className="text-2xl sm:text-3xl font-black text-[#0f172a] dark:text-white tracking-tight">
-              Upload Video
+              {isHindi ? 'वीडियो अपलोड करें' : 'Upload Video'}
             </h1>
             <p className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 leading-snug">
-              Share your thoughts, ideas and creativity with the world.
+              {isHindi ? 'अपने विचार, रचनात्मकता और वीडियो पूरी दुनिया के साथ साझा करें।' : 'Share your thoughts, ideas and creativity with the world.'}
             </p>
             <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
-              Be part of India's growing digital community.
+              {isHindi ? 'भारत के तेजी से बढ़ते डिजिटल समुदाय का हिस्सा बनें।' : "Be part of India's growing digital community."}
             </p>
           </div>
         </div>
@@ -438,10 +440,10 @@ export const UploadPage: React.FC = () => {
         <div className="flex items-center justify-between gap-2 overflow-x-auto select-none scrollbar-none py-1">
           
           {[
-            { step: 1, title: 'Upload', sub: 'Add your video file', icon: CloudUpload },
-            { step: 2, title: 'Details', sub: 'Title, description, tags', icon: FileText },
-            { step: 3, title: 'Video Elements', sub: 'Thumbnail, end screen, cards', icon: PlayCircle },
-            { step: 4, title: 'Visibility', sub: 'Public / Unlisted / Private', icon: Eye }
+            { step: 1, title: isHindi ? 'फ़ाइल अपलोड' : 'Upload', sub: isHindi ? 'वीडियो फ़ाइल जोड़ें' : 'Add your video file', icon: CloudUpload },
+            { step: 2, title: isHindi ? 'विवरण' : 'Details', sub: isHindi ? 'शीर्षक, विवरण, टैग' : 'Title, description, tags', icon: FileText },
+            { step: 3, title: isHindi ? 'एलिमेंट्स' : 'Video Elements', sub: isHindi ? 'थंबनेल और साउंड' : 'Thumbnail, end screen, cards', icon: PlayCircle },
+            { step: 4, title: isHindi ? 'दृश्यता' : 'Visibility', sub: isHindi ? 'सार्वजनिक / निजी' : 'Public / Unlisted / Private', icon: Eye }
           ].map((s, index) => {
             const isActive = currentStep === s.step;
             const isDone = currentStep > s.step;

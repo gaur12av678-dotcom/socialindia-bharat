@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Video } from '../types';
 import { parseVideoUrl, formatDuration, getInitials } from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
+import { useTranslation } from '../i18n';
 import { 
   Play, 
   Pause, 
@@ -61,6 +62,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   onReport
 }) => {
   const { navigate } = useRouter();
+  const { t, isHindi } = useTranslation();
   const parsedMedia = parseVideoUrl(video.videoUrl);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1045,12 +1047,12 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   {/* Compact Header */}
                   <div className="flex items-center justify-between pb-1.5 px-1 border-b border-white/10 mb-1">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">
-                      Video Options
+                      {isHindi ? 'वीडियो विकल्प' : 'Video Options'}
                     </span>
                     <button
                       onClick={() => setShowPlayerMenu(false)}
                       className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
-                      title="Close"
+                      title={t('close', 'Close')}
                     >
                       <XIcon className="w-3.5 h-3.5" />
                     </button>
@@ -1063,7 +1065,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <Sliders className="w-4 h-4 text-blue-400" />
-                      <span className="text-xs font-semibold">Quality</span>
+                      <span className="text-xs font-semibold">{t('player_quality', 'Quality')}</span>
                     </div>
                     <div className="flex items-center gap-1 text-[11px] text-slate-400">
                       <span>{selectedQuality.split(' ')[0]}</span>
@@ -1078,10 +1080,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <Play className="w-4 h-4 text-blue-400 fill-current" />
-                      <span className="text-xs font-semibold">Playback speed</span>
+                      <span className="text-xs font-semibold">{t('player_speed', 'Playback speed')}</span>
                     </div>
                     <div className="flex items-center gap-1 text-[11px] text-slate-400">
-                      <span>{playbackSpeed === 1 ? 'Normal' : `${playbackSpeed}x`}</span>
+                      <span>{playbackSpeed === 1 ? (isHindi ? 'सामान्य' : 'Normal') : `${playbackSpeed}x`}</span>
                       <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                     </div>
                   </button>
@@ -1093,10 +1095,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <Subtitles className={`w-4 h-4 ${isCaptionsOn ? 'text-blue-400' : 'text-slate-400'}`} />
-                      <span className="text-xs font-semibold">Captions</span>
+                      <span className="text-xs font-semibold">{t('player_captions', 'Captions')}</span>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${isCaptionsOn ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>
-                      {isCaptionsOn ? 'English' : 'Off'}
+                      {isCaptionsOn ? (isHindi ? 'चालू' : 'English') : (isHindi ? 'बंद' : 'Off')}
                     </span>
                   </button>
 
@@ -1107,10 +1109,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <Repeat className={`w-4 h-4 ${isLooping ? 'text-blue-400' : 'text-slate-400'}`} />
-                      <span className="text-xs font-semibold">Loop video</span>
+                      <span className="text-xs font-semibold">{t('player_loop', 'Loop video')}</span>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full ${isLooping ? 'bg-blue-600 text-white' : 'text-slate-400'}`}>
-                      {isLooping ? 'On' : 'Off'}
+                      {isLooping ? (isHindi ? 'चालू' : 'On') : (isHindi ? 'बंद' : 'Off')}
                     </span>
                   </button>
 
@@ -1122,7 +1124,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     <div className="flex items-center gap-2.5">
                       <Clock className={`w-4 h-4 ${isSavedWatchLater ? 'text-blue-400 fill-blue-400/40' : 'text-slate-400'}`} />
                       <span className="text-xs font-semibold">
-                        {isSavedWatchLater ? 'Remove Watch Later' : 'Watch Later'}
+                        {isSavedWatchLater ? (isHindi ? 'वॉच लेटर से हटाएं' : 'Remove Watch Later') : (isHindi ? 'बाद में देखें' : 'Watch Later')}
                       </span>
                     </div>
                     {isSavedWatchLater && (
@@ -1137,11 +1139,11 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <Copy className="w-4 h-4 text-blue-400" />
-                      <span className="text-xs font-semibold">Copy video link</span>
+                      <span className="text-xs font-semibold">{isHindi ? 'वीडियो लिंक कॉपी करें' : 'Copy video link'}</span>
                     </div>
                     {linkCopied && (
                       <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Copied
+                        <Check className="w-3 h-3" /> {isHindi ? 'कॉपी हो गया' : 'Copied'}
                       </span>
                     )}
                   </button>
@@ -1161,7 +1163,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                       className="w-full py-2 px-2.5 rounded-xl hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 flex items-center gap-2.5 transition-colors cursor-pointer text-left"
                     >
                       <Flag className="w-4 h-4 text-rose-400" />
-                      <span className="text-xs font-bold">Report Video</span>
+                      <span className="text-xs font-bold">{t('action_report', 'Report Video')}</span>
                     </button>
                   </div>
                 </div>
@@ -1178,7 +1180,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                       <ArrowLeftIcon className="w-3.5 h-3.5" />
                     </button>
                     <span className="text-xs font-black uppercase tracking-wider text-slate-300">
-                      Quality
+                      {t('player_quality', 'Quality')}
                     </span>
                   </div>
 
@@ -1192,7 +1194,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                       className="w-full py-1.5 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                     >
                       <span className={`text-xs ${selectedQuality === q ? 'font-black text-blue-400' : 'font-medium text-slate-300'}`}>
-                        {q}
+                        {q === 'Auto' ? (isHindi ? 'ऑटो (Auto)' : 'Auto') : q}
                       </span>
                       {selectedQuality === q && <Check className="w-3.5 h-3.5 text-blue-400" />}
                     </button>
@@ -1211,7 +1213,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                       <ArrowLeftIcon className="w-3.5 h-3.5" />
                     </button>
                     <span className="text-xs font-black uppercase tracking-wider text-slate-300">
-                      Playback speed
+                      {t('player_speed', 'Playback speed')}
                     </span>
                   </div>
 
@@ -1225,7 +1227,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                       className="w-full py-1.5 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                     >
                       <span className={`text-xs ${playbackSpeed === s ? 'font-black text-blue-400' : 'font-medium text-slate-300'}`}>
-                        {s === 1 ? 'Normal' : `${s}x`}
+                        {s === 1 ? (isHindi ? 'सामान्य (Normal)' : 'Normal') : `${s}x`}
                       </span>
                       {playbackSpeed === s && <Check className="w-3.5 h-3.5 text-blue-400" />}
                     </button>

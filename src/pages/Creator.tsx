@@ -11,6 +11,7 @@ import { VideoGrid } from '../components/VideoGrid';
 import { getInitials, formatSubscribers } from '../utils/videoUtils';
 import { compressBanner, compressAvatar } from '../utils/imageUtils';
 import { updateUserAvatarCache } from '../components/UserAvatar';
+import { useTranslation } from '../i18n';
 import { 
   Video as VideoIcon, 
   Film, 
@@ -43,6 +44,7 @@ const BANNER_PRESETS = [
 export const CreatorProfile: React.FC = () => {
   const { route, navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast, loading: appLoading, refreshProfile, updateUserProfileState } = useApp();
+  const { t, isHindi } = useTranslation();
   
   // Resolve target username safely (remove leading @ and fallback to current logged-in profile if empty)
   const rawParam = route.param;
@@ -221,23 +223,32 @@ export const CreatorProfile: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file || !creator) return;
 
+    const targetUid = currentUser?.uid || creator.uid;
+
     try {
-      addToast('Compressing avatar image...', 'info');
+      addToast(isHindi ? 'अवतार इमेज प्रोसेस हो रही है...' : 'Compressing avatar image...', 'info');
       const compressed = await compressAvatar(file);
       updateUserProfileState({ photoURL: compressed });
       setCreator(prev => prev ? { ...prev, photoURL: compressed } : null);
-      updateUserAvatarCache(creator.uid, compressed, creator.displayName || creator.username);
-      await userService.updateProfile(creator.uid, { photoURL: compressed });
+      updateUserAvatarCache(targetUid, compressed, creator.displayName || creator.username);
+      
+      // Update Firestore profile
+      await userService.updateProfile(targetUid, { photoURL: compressed });
+      
+      // Sync to all uploaded videos by this creator so they don't show old avatar
+      videoService.syncCreatorProfileToVideos(targetUid, { photoURL: compressed }).catch(console.warn);
+      
       await refreshProfile();
-      addToast('🎉 Channel avatar updated permanently!', 'success');
+      addToast(isHindi ? '🎉 चैनल अवतार स्थायी रूप से अपडेट हो गया!' : '🎉 Channel avatar updated permanently!', 'success');
     } catch (err) {
       console.error(err);
-      addToast('Failed to update avatar image.', 'error');
+      addToast(isHindi ? 'अवतार अपडेट करने में विफल।' : 'Failed to update avatar image.', 'error');
     }
   };
 
   const handleSaveBanner = async () => {
     if (!creator) return;
+    const targetUid = currentUser?.uid || creator.uid;
     setIsSavingBanner(true);
     try {
       let finalBanner = bannerPreview;
@@ -246,15 +257,15 @@ export const CreatorProfile: React.FC = () => {
       }
       updateUserProfileState({ bannerURL: finalBanner });
       setCreator(prev => prev ? { ...prev, bannerURL: finalBanner } : null);
-      await userService.updateProfile(creator.uid, {
+      await userService.updateProfile(targetUid, {
         bannerURL: finalBanner,
       });
       await refreshProfile();
       setBannerModalOpen(false);
-      addToast('🎉 Channel banner updated permanently!', 'success');
+      addToast(isHindi ? '🎉 चैनल बैनर स्थायी रूप से अपडेट हो गया!' : '🎉 Channel banner updated permanently!', 'success');
     } catch (err) {
       console.error(err);
-      addToast('Failed to save channel banner.', 'error');
+      addToast(isHindi ? 'चैनल बैनर सेव करने में विफल।' : 'Failed to save channel banner.', 'error');
     } finally {
       setIsSavingBanner(false);
     }
@@ -262,19 +273,20 @@ export const CreatorProfile: React.FC = () => {
 
   const handleRemoveBanner = async () => {
     if (!creator) return;
+    const targetUid = currentUser?.uid || creator.uid;
     setIsSavingBanner(true);
     try {
       updateUserProfileState({ bannerURL: '' });
       setCreator(prev => prev ? { ...prev, bannerURL: '' } : null);
       setBannerPreview('');
-      await userService.updateProfile(creator.uid, {
+      await userService.updateProfile(targetUid, {
         bannerURL: '',
       });
       await refreshProfile();
       setBannerModalOpen(false);
-      addToast('Channel banner reset to default.', 'info');
+      addToast(isHindi ? 'चैनल बैनर डिफ़ॉल्ट पर रीसेट हो गया।' : 'Channel banner reset to default.', 'info');
     } catch (err) {
-      addToast('Failed to remove banner.', 'error');
+      addToast(isHindi ? 'बैनर हटाने में विफल।' : 'Failed to remove banner.', 'error');
     } finally {
       setIsSavingBanner(false);
     }
@@ -407,13 +419,13 @@ export const CreatorProfile: React.FC = () => {
             </p>
 
             <div className="flex items-center gap-3 justify-center sm:justify-start text-xs font-bold text-slate-600 dark:text-[#94A3B8]">
-              <span>{formatSubscribers(creator.followersCount)} subscribers</span>
+              <span>{formatSubscribers(creator.followersCount)} {isHindi ? 'सब्सक्राइबर्स' : 'subscribers'}</span>
               <span>•</span>
-              <span>{creator.videosCount} {creator.videosCount === 1 ? 'video' : 'videos'}</span>
+              <span>{creator.videosCount} {isHindi ? 'वीडियो' : (creator.videosCount === 1 ? 'video' : 'videos')}</span>
             </div>
 
             <p className="text-xs text-slate-700 dark:text-slate-300 max-w-2xl font-medium line-clamp-2 pt-1">
-              {creator.bio || "Welcome to my SocialIndia official channel! Stay tuned for awesome videos."}
+              {creator.bio || (isHindi ? "SocialIndia पर मेरे आधिकारिक चैनल में आपका स्वागत है! बेहतरीन वीडियो के लिए जुड़े रहें।" : "Welcome to my SocialIndia official channel! Stay tuned for awesome videos.")}
             </p>
           </div>
 
@@ -429,14 +441,14 @@ export const CreatorProfile: React.FC = () => {
                   className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md shadow-blue-500/20 transition-all active:scale-95"
                 >
                   <Camera className="w-4 h-4" />
-                  <span>Banner</span>
+                  <span>{isHindi ? 'बैनर बदलें' : 'Banner'}</span>
                 </button>
                 <button
                   onClick={() => navigate('studio')}
                   className="px-4 py-2.5 bg-slate-100 dark:bg-[#1E293B] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-[#F8FAFC] font-extrabold text-xs rounded-xl flex items-center gap-2 border border-slate-200 dark:border-[#334155] cursor-pointer shadow-xs transition-all"
                 >
                   <SettingsIcon className="w-4 h-4 text-blue-500" />
-                  <span>Creator Studio</span>
+                  <span>{t('nav_studio', 'Creator Studio')}</span>
                 </button>
               </>
             ) : (
@@ -447,7 +459,7 @@ export const CreatorProfile: React.FC = () => {
                   title={`Message ${creator.displayName}`}
                 >
                   <MessageSquare className="w-4 h-4 text-blue-500" />
-                  <span>Message</span>
+                  <span>{isHindi ? 'मैसेज' : 'Message'}</span>
                 </button>
                 <button
                   onClick={handleSubscribeToggle}
@@ -457,12 +469,12 @@ export const CreatorProfile: React.FC = () => {
                       : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
                   }`}
                 >
-                  {subscribed ? 'Subscribed' : 'Subscribe'}
+                  {subscribed ? t('action_subscribed', 'Subscribed') : t('action_subscribe', 'Subscribe')}
                 </button>
                 <button
                   onClick={() => setReportModalOpen(true)}
                   className="p-2.5 bg-slate-100 dark:bg-[#1E293B] hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-500 rounded-xl transition-colors cursor-pointer border border-slate-200 dark:border-[#334155]"
-                  title="Report Channel"
+                  title={isHindi ? 'चैनल रिपोर्ट करें' : 'Report Channel'}
                 >
                   <Flag className="w-4 h-4" />
                 </button>
@@ -479,7 +491,7 @@ export const CreatorProfile: React.FC = () => {
           className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'videos' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
         >
           <VideoIcon className="w-4 h-4" />
-          <span>Videos ({videos.length})</span>
+          <span>{t('tab_videos', 'Videos')} ({videos.length})</span>
           {activeTab === 'videos' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
         </button>
         <button
@@ -487,7 +499,7 @@ export const CreatorProfile: React.FC = () => {
           className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'shorts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
         >
           <Zap className="w-4 h-4" />
-          <span>Shorts ({shorts.length})</span>
+          <span>{t('tab_shorts', 'Shorts')} ({shorts.length})</span>
           {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
         </button>
         <button
@@ -495,7 +507,7 @@ export const CreatorProfile: React.FC = () => {
           className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'playlists' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
         >
           <Bookmark className="w-4 h-4" />
-          <span>Playlists ({playlists.length})</span>
+          <span>{t('tab_playlists', 'Playlists')} ({playlists.length})</span>
           {activeTab === 'playlists' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
         </button>
         <button
@@ -503,7 +515,7 @@ export const CreatorProfile: React.FC = () => {
           className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'about' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
         >
           <Info className="w-4 h-4" />
-          <span>About</span>
+          <span>{t('tab_about', 'About')}</span>
           {activeTab === 'about' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
         </button>
       </div>

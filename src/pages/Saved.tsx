@@ -4,11 +4,12 @@ import { useRouter } from '../hooks/useRouter';
 import { savedVideoService } from '../services/savedVideoService';
 import { SavedVideo } from '../types';
 import { Bookmark, X } from 'lucide-react';
-import { formatTimeAgo } from '../utils/videoUtils';
+import { useTranslation } from '../i18n';
 
 export const SavedVideos: React.FC = () => {
   const { currentUser, addToast } = useApp();
   const { navigate } = useRouter();
+  const { t, isHindi, formatTime } = useTranslation();
 
   const [savedVideos, setSavedVideos] = useState<SavedVideo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,9 +37,9 @@ export const SavedVideos: React.FC = () => {
     try {
       await savedVideoService.unsaveVideo(currentUser.uid, videoId);
       setSavedVideos(prev => prev.filter(item => item.videoId !== videoId));
-      addToast('Removed from saved videos.', 'info');
+      addToast(isHindi ? 'सहेजे गए वीडियो से हटा दिया गया।' : 'Removed from saved videos.', 'info');
     } catch (err) {
-      addToast('Failed to unsave video.', 'error');
+      addToast(isHindi ? 'हटाने में विफल।' : 'Failed to unsave video.', 'error');
     }
   };
 
@@ -46,8 +47,12 @@ export const SavedVideos: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Bookmark className="w-12 h-12 text-slate-400 mb-4" />
-        <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">Sign in to view saved videos</h3>
-        <p className="text-xs text-slate-500 mt-1">Keep track of videos you've saved for later watch.</p>
+        <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
+          {isHindi ? 'सहेजे गए वीडियो देखने के लिए साइन इन करें' : 'Sign in to view saved videos'}
+        </h3>
+        <p className="text-xs text-slate-500 mt-1">
+          {isHindi ? 'बाद में देखने के लिए सहेजे गए वीडियो की सूची रखें।' : "Keep track of videos you've saved for later watch."}
+        </p>
       </div>
     );
   }
@@ -61,8 +66,12 @@ export const SavedVideos: React.FC = () => {
           <Bookmark className="w-5 h-5 text-blue-500" />
         </div>
         <div>
-          <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">Saved Videos</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">Your personal watch later collection of videos on SocialIndia</p>
+          <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+            {t('saved_title', 'Saved Videos')}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">
+            {isHindi ? 'SocialIndia पर बाद में देखने के लिए आपका निजी संग्रह' : 'Your personal watch later collection of videos on SocialIndia'}
+          </p>
         </div>
       </div>
 
@@ -83,15 +92,17 @@ export const SavedVideos: React.FC = () => {
           <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/10 text-blue-500 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 dark:border-blue-900/20 shadow-sm">
             <Bookmark className="w-7 h-7" />
           </div>
-          <h4 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">You haven't saved any videos</h4>
+          <h4 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+            {t('saved_empty', "You haven't saved any videos")}
+          </h4>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm">
-            Tap the "Save" bookmark button on any video watch page to save it for later review!
+            {isHindi ? 'किसी भी वीडियो के पेज पर "सेव" बटन दबाकर उसे यहाँ जोड़ें!' : 'Tap the "Save" bookmark button on any video watch page to save it for later review!'}
           </p>
           <button
             onClick={() => navigate('home')}
             className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md cursor-pointer"
           >
-            Find Videos to Save
+            {isHindi ? 'वीडियो खोजें' : 'Find Videos to Save'}
           </button>
         </div>
       ) : (
@@ -115,7 +126,7 @@ export const SavedVideos: React.FC = () => {
                   </p>
                 </div>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                  Saved {formatTimeAgo(item.savedAt)}
+                  {isHindi ? `${formatTime(item.savedAt)} सहेजा गया` : `Saved ${formatTime(item.savedAt)}`}
                 </p>
               </div>
 
@@ -123,7 +134,7 @@ export const SavedVideos: React.FC = () => {
               <button
                 onClick={(e) => handleUnsave(e, item.videoId)}
                 className="absolute top-3 right-3 p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 dark:bg-slate-950 dark:hover:bg-rose-950/20 rounded-lg cursor-pointer transition-colors"
-                title="Remove from Saved"
+                title={isHindi ? 'सहेजे गए वीडियो से हटाएं' : 'Remove from Saved'}
               >
                 <X className="w-4 h-4" />
               </button>

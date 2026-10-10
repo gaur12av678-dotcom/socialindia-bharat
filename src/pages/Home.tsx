@@ -8,10 +8,27 @@ import { useRouter } from '../hooks/useRouter';
 import { adService } from '../services/adService';
 import { AdCampaign } from '../types';
 import { Flame, Zap, ArrowRight, Play } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export const categoriesList = [
   'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy'
 ];
+
+export const categoryHindiMap: Record<string, string> = {
+  'All': 'सभी',
+  'Music': 'संगीत',
+  'Gaming': 'गेमिंग',
+  'Technology': 'तकनीक',
+  'Education': 'शिक्षा',
+  'News': 'समाचार',
+  'Sports': 'खेल',
+  'Entertainment': 'मनोरंजन',
+  'Coding': 'कोडिंग',
+  'Lifestyle': 'लाइफस्टाइल',
+  'Science': 'विज्ञान',
+  'Vlogs': 'व्लॉग्स',
+  'Comedy': 'कॉमेडी'
+};
 
 // Fallback curated Shorts to ensure all 5 vertical slots are always populated beautifully like Capture.PNG
 const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
@@ -75,6 +92,7 @@ const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
 export const Home: React.FC = () => {
   const { currentUser, addToast } = useApp();
   const { route, navigate } = useRouter();
+  const { t, isHindi } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || 'All');
   const [videos, setVideos] = useState<Video[]>([]);
   const [shorts, setShorts] = useState<Video[]>([]);
@@ -175,7 +193,7 @@ export const Home: React.FC = () => {
                   : 'bg-[#f1f3f9] hover:bg-slate-200 text-slate-800 dark:bg-[#202124] dark:hover:bg-[#2e3034] dark:text-slate-200'
               }`}
             >
-              {category}
+              {isHindi ? (categoryHindiMap[category] || category) : category}
             </button>
           );
         })}
@@ -189,10 +207,10 @@ export const Home: React.FC = () => {
         >
           <div className="relative z-10 max-w-xl space-y-2.5">
             <h2 className="text-2xl md:text-3xl font-black tracking-tight leading-tight text-white drop-shadow-xs">
-              Discover the best creators in India
+              {isHindi ? 'भारत के सर्वश्रेष्ठ क्रिएटर्स को खोजें' : 'Discover the best creators in India'}
             </h2>
             <p className="text-xs md:text-sm text-blue-100 leading-relaxed font-medium">
-              Join millions watching the latest in tech, music, vlogs, education, gaming and more.
+              {isHindi ? 'लाखों दर्शकों के साथ तकनीक, संगीत, व्लॉग, शिक्षा, गेमिंग और अन्य वीडियो देखें।' : 'Join millions watching the latest in tech, music, vlogs, education, gaming and more.'}
             </p>
             
             <div className="pt-2">
@@ -201,7 +219,7 @@ export const Home: React.FC = () => {
                 className="px-5 py-2.5 bg-white hover:bg-blue-50 text-[#1e40af] font-black text-xs md:text-sm rounded-full shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
               >
                 <Play className="w-3.5 h-3.5 fill-[#1e40af] text-[#1e40af]" />
-                <span>Explore Now</span>
+                <span>{isHindi ? 'अभी देखें' : 'Explore Now'}</span>
               </button>
             </div>
           </div>
@@ -223,7 +241,9 @@ export const Home: React.FC = () => {
           <div className="flex items-center gap-2">
             <Flame className="w-5 h-5 text-red-500 fill-red-500 shrink-0" />
             <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
-              {selectedCategory === 'All' ? 'Recommended Videos' : `${selectedCategory} Videos`}
+              {isHindi 
+                ? (selectedCategory === 'All' ? 'अनुशंसित वीडियो' : `${categoryHindiMap[selectedCategory] || selectedCategory} वीडियो`) 
+                : (selectedCategory === 'All' ? 'Recommended Videos' : `${selectedCategory} Videos`)}
             </h2>
           </div>
           
@@ -231,7 +251,7 @@ export const Home: React.FC = () => {
             onClick={() => navigate('trending')}
             className="text-xs font-bold text-[#065fd4] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer"
           >
-            <span>See All</span>
+            <span>{isHindi ? 'सभी देखें' : 'See All'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -241,8 +261,8 @@ export const Home: React.FC = () => {
           loading={loading} 
           activeAds={adDismissed ? [] : activeAds}
           onDismissAd={() => setAdDismissed(true)}
-          emptyHeading="No videos available yet"
-          emptyMessage="Videos published on SocialIndia will appear here."
+          emptyHeading={isHindi ? 'अभी कोई वीडियो उपलब्ध नहीं है' : 'No videos available yet'}
+          emptyMessage={isHindi ? 'सोशलइंडिया पर प्रकाशित वीडियो यहां दिखाई देंगे।' : 'Videos published on SocialIndia will appear here.'}
         />
       </div>
 
@@ -255,7 +275,7 @@ export const Home: React.FC = () => {
                 <Zap className="w-3.5 h-3.5 fill-current" />
               </div>
               <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                Shorts
+                {t('nav_shorts', 'Shorts')}
               </h2>
             </div>
 
@@ -263,7 +283,7 @@ export const Home: React.FC = () => {
               onClick={() => navigate('shorts')}
               className="text-xs font-bold text-[#065fd4] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer"
             >
-              <span>See All</span>
+              <span>{isHindi ? 'सभी देखें' : 'See All'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -318,7 +338,7 @@ export const Home: React.FC = () => {
                       {short.title}
                     </p>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
-                      {short.viewsCount ? `${short.viewsCount.toLocaleString()} views` : '1.2k views'}
+                      {short.viewsCount ? (isHindi ? `${(short.viewsCount / 1000).toFixed(1)}k व्यूज़` : `${short.viewsCount.toLocaleString()} views`) : (isHindi ? '1.2k व्यूज़' : '1.2k views')}
                     </span>
                   </div>
                 </div>
@@ -333,7 +353,7 @@ export const Home: React.FC = () => {
         <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
-              More Videos For You
+              {isHindi ? 'आपके लिए और वीडियो' : 'More Videos For You'}
             </h2>
           </div>
 
@@ -341,8 +361,8 @@ export const Home: React.FC = () => {
             videos={remainingVideos} 
             loading={false} 
             activeAds={[]}
-            emptyHeading="No more videos"
-            emptyMessage="More videos will appear here."
+            emptyHeading={isHindi ? 'कोई और वीडियो नहीं' : 'No more videos'}
+            emptyMessage={isHindi ? 'अधिक वीडियो प्रकाशित होने पर यहां दिखाई देंगे।' : 'More videos will appear here.'}
           />
         </div>
       )}

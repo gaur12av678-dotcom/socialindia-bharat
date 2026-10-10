@@ -3,15 +3,17 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { historyService } from '../services/historyService';
 import { HistoryItem } from '../types';
-import { History, Trash2, X, AlertCircle } from 'lucide-react';
-import { formatTimeAgo } from '../utils/videoUtils';
+import { History, Trash2, X } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export const WatchHistory: React.FC = () => {
   const { currentUser, addToast } = useApp();
   const { navigate } = useRouter();
+  const { t, isHindi, formatTime } = useTranslation();
 
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const fetchHistory = async () => {
     if (!currentUser) return;
@@ -36,22 +38,21 @@ export const WatchHistory: React.FC = () => {
     try {
       await historyService.removeFromHistory(currentUser.uid, videoId);
       setHistory(prev => prev.filter(item => item.videoId !== videoId));
-      addToast('Removed from watch history.', 'info');
+      addToast(isHindi ? 'वॉच हिस्ट्री से हटा दिया गया।' : 'Removed from watch history.', 'info');
     } catch (err) {
-      addToast('Failed to remove item.', 'error');
+      addToast(isHindi ? 'हटाने में विफल।' : 'Failed to remove item.', 'error');
     }
   };
 
   const handleClearAll = async () => {
     if (!currentUser) return;
-    if (window.confirm('Clear your entire watch history?')) {
-      try {
-        await historyService.clearHistory(currentUser.uid);
-        setHistory([]);
-        addToast('Watch history cleared.', 'success');
-      } catch (err) {
-        addToast('Failed to clear watch history.', 'error');
-      }
+    try {
+      await historyService.clearHistory(currentUser.uid);
+      setHistory([]);
+      setShowClearConfirm(false);
+      addToast(isHindi ? 'वॉच हिस्ट्री साफ़ कर दी गई।' : 'Watch history cleared.', 'success');
+    } catch (err) {
+      addToast(isHindi ? 'हिस्ट्री साफ़ करने में विफल।' : 'Failed to clear watch history.', 'error');
     }
   };
 
@@ -59,8 +60,12 @@ export const WatchHistory: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <History className="w-12 h-12 text-slate-400 mb-4" />
-        <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">Sign in to view watch history</h3>
-        <p className="text-xs text-slate-500 mt-1">Track what you've watched on SocialIndia.</p>
+        <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
+          {isHindi ? 'वॉच हिस्ट्री देखने के लिए साइन इन करें' : 'Sign in to view watch history'}
+        </h3>
+        <p className="text-xs text-slate-500 mt-1">
+          {isHindi ? 'SocialIndia पर देखे गए वीडियो का रिकॉर्ड रखें।' : "Track what you've watched on SocialIndia."}
+        </p>
       </div>
     );
   }
@@ -75,19 +80,45 @@ export const WatchHistory: React.FC = () => {
             <History className="w-5 h-5 text-indigo-500" />
           </div>
           <div>
-            <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">Watch History</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">Keep track of the creative videos you have watched</p>
+            <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+              {t('history_title', 'Watch History')}
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">
+              {isHindi ? 'आपके द्वारा देखे गए सभी वीडियो की सूची' : 'Keep track of the creative videos you have watched'}
+            </p>
           </div>
         </div>
 
         {history.length > 0 && (
-          <button
-            onClick={handleClearAll}
-            className="px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-900/35 border border-rose-100 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Clear History</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {showClearConfirm ? (
+              <div className="flex items-center gap-2 bg-rose-50 dark:bg-rose-950/30 p-1.5 rounded-xl border border-rose-200 dark:border-rose-900/40">
+                <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 px-1">
+                  {isHindi ? 'पूरी हिस्ट्री साफ़ करें?' : 'Clear all?'}
+                </span>
+                <button
+                  onClick={handleClearAll}
+                  className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+                >
+                  {isHindi ? 'हाँ' : 'Yes'}
+                </button>
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold cursor-pointer"
+                >
+                  {isHindi ? 'नहीं' : 'No'}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowClearConfirm(true)}
+                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-900/35 border border-rose-100 dark:border-rose-900/40 text-rose-600 dark:text-rose-400 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{t('history_clear', 'Clear History')}</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -108,15 +139,17 @@ export const WatchHistory: React.FC = () => {
           <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/10 text-indigo-500 rounded-2xl flex items-center justify-center mb-4 border border-indigo-100 dark:border-indigo-900/20 shadow-sm">
             <History className="w-7 h-7" />
           </div>
-          <h4 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">Your history is empty</h4>
+          <h4 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+            {t('history_empty', 'Your history is empty')}
+          </h4>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm">
-            You haven't watched any videos yet! Go ahead and browse the home feed to discover amazing content.
+            {isHindi ? 'आपने अभी तक कोई वीडियो नहीं देखा है! होम फ़ीड पर शानदार वीडियो देखें।' : "You haven't watched any videos yet! Go ahead and browse the home feed to discover amazing content."}
           </p>
           <button
             onClick={() => navigate('home')}
             className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md cursor-pointer"
           >
-            Start Browsing
+            {isHindi ? 'वीडियो देखना शुरू करें' : 'Start Browsing'}
           </button>
         </div>
       ) : (
@@ -140,7 +173,7 @@ export const WatchHistory: React.FC = () => {
                   </p>
                 </div>
                 <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                  Watched {formatTimeAgo(item.watchedAt)}
+                  {isHindi ? `${formatTime(item.watchedAt)} देखा गया` : `Watched ${formatTime(item.watchedAt)}`}
                 </p>
               </div>
 
@@ -148,7 +181,7 @@ export const WatchHistory: React.FC = () => {
               <button
                 onClick={(e) => handleRemoveItem(e, item.videoId)}
                 className="absolute top-3 right-3 p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 dark:bg-slate-950 dark:hover:bg-rose-950/20 rounded-lg cursor-pointer transition-colors"
-                title="Remove from history"
+                title={isHindi ? 'हिस्ट्री से हटाएं' : 'Remove from history'}
               >
                 <X className="w-4 h-4" />
               </button>

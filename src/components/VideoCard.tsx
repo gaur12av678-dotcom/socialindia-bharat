@@ -7,6 +7,7 @@ import { downloadService } from '../services/downloadService';
 import { savedVideoService } from '../services/savedVideoService';
 import { UserAvatar } from './UserAvatar';
 import { userService } from '../services/userService';
+import { useTranslation } from '../i18n';
 import { 
   MoreVertical, 
   Share2, 
@@ -31,6 +32,7 @@ interface VideoCardProps {
 export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   const { navigate } = useRouter();
   const { currentUser, addToast } = useApp();
+  const { t, isHindi, formatTime } = useTranslation();
   const [isVerified, setIsVerified] = useState<boolean>(false);
   const [showMenu, setShowMenu] = useState(false);
 
@@ -135,9 +137,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
               )}
             </p>
             <div className="flex items-center gap-1 mt-0.5 text-slate-500 dark:text-slate-400">
-              <span>{formatViews(video.viewsCount)}</span>
+              <span>{formatViews(video.viewsCount)} {isHindi ? 'व्यूज़' : ''}</span>
               <span className="text-[8px] opacity-40">•</span>
-              <span>{formatTimeAgo(video.createdAt)}</span>
+              <span>{formatTime(video.createdAt)}</span>
             </div>
           </div>
         </div>
@@ -150,7 +152,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
               setShowMenu(!showMenu);
             }}
             className="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
-            title="Video options"
+            title={isHindi ? 'वीडियो विकल्प' : 'Video options'}
           >
             <MoreVertical className="w-4 h-4" />
           </button>
@@ -159,7 +161,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
           {showMenu && (
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="absolute right-0 top-7 w-44 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in"
+              className="absolute right-0 top-7 w-48 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in"
             >
               <button
                 onClick={() => {
@@ -168,76 +170,76 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
                     navigator.share({ title: video.title, url: shareUrl }).catch(() => {});
                   } else {
                     navigator.clipboard.writeText(shareUrl);
-                    addToast('Link copied to clipboard!', 'success');
+                    addToast(t('link_copied', 'Link copied to clipboard!'), 'success');
                   }
                   setShowMenu(false);
                 }}
                 className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
               >
                 <Share2 className="w-3.5 h-3.5 text-blue-500" />
-                <span>Share</span>
+                <span>{t('action_share', 'Share')}</span>
               </button>
 
               <button
                 onClick={async () => {
-                  addToast('Downloading video...', 'info');
+                  addToast(isHindi ? 'वीडियो डाउनलोड हो रहा है...' : 'Downloading video...', 'info');
                   try {
                     await downloadService.downloadVideo(video, () => {});
-                    addToast('Video saved to Downloads!', 'success');
+                    addToast(isHindi ? 'वीडियो डाउनलोड्स में सहेज लिया गया!' : 'Video saved to Downloads!', 'success');
                   } catch (err) {
-                    addToast('Download initiated!', 'info');
+                    addToast(isHindi ? 'डाउनलोड प्रारंभ!' : 'Download initiated!', 'info');
                   }
                   setShowMenu(false);
                 }}
                 className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
               >
                 <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Download</span>
+                <span>{t('action_download', 'Download')}</span>
               </button>
 
               <button
                 onClick={() => {
                   if (!currentUser) {
-                    addToast('Please sign in to save videos', 'info');
+                    addToast(isHindi ? 'वीडियो सहेजने के लिए कृपया साइन इन करें' : 'Please sign in to save videos', 'info');
                   } else {
                     savedVideoService.saveVideo(currentUser.uid, video);
-                    addToast('Saved to playlist!', 'success');
+                    addToast(isHindi ? 'प्लेलिस्ट में सहेजा गया!' : 'Saved to playlist!', 'success');
                   }
                   setShowMenu(false);
                 }}
                 className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
               >
                 <Bookmark className="w-3.5 h-3.5 text-purple-500" />
-                <span>Save to Playlist</span>
+                <span>{isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}</span>
               </button>
 
               <button
                 onClick={() => {
                   if (!currentUser) {
-                    addToast('Please sign in to save videos', 'info');
+                    addToast(isHindi ? 'वीडियो सहेजने के लिए कृपया साइन इन करें' : 'Please sign in to save videos', 'info');
                   } else {
                     savedVideoService.saveVideo(currentUser.uid, video);
-                    addToast('Saved to Watch Later!', 'success');
+                    addToast(isHindi ? 'बाद में देखने के लिए सहेजा गया!' : 'Saved to Watch Later!', 'success');
                   }
                   setShowMenu(false);
                 }}
                 className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
               >
                 <Clock className="w-3.5 h-3.5 text-amber-500" />
-                <span>Save to Watch Later</span>
+                <span>{isHindi ? 'बाद में देखें (Watch Later)' : 'Save to Watch Later'}</span>
               </button>
 
               <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
 
               <button
                 onClick={() => {
-                  addToast('Feedback noted. We will recommend fewer videos like this.', 'info');
+                  addToast(isHindi ? 'आपकी प्रतिक्रिया नोट की गई। ऐसे वीडियो कम दिखाए जाएंगे।' : 'Feedback noted. We will recommend fewer videos like this.', 'info');
                   setShowMenu(false);
                 }}
                 className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-500 font-medium cursor-pointer"
               >
                 <Ban className="w-3.5 h-3.5 text-slate-400" />
-                <span>Not interested</span>
+                <span>{isHindi ? 'रुचि नहीं है' : 'Not interested'}</span>
               </button>
             </div>
           )}

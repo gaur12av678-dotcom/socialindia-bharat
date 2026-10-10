@@ -21,6 +21,7 @@ import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 import { UserAvatar } from '../components/UserAvatar';
 import { parseVideoUrl, formatViews, formatTimeAgo, formatDuration, formatSubscribers, getInitials } from '../utils/videoUtils';
 import { RichText } from '../components/RichText';
+import { useTranslation } from '../i18n';
 import { 
   Heart, 
   Share2, 
@@ -57,6 +58,7 @@ import {
 export const Watch: React.FC = () => {
   const { route, navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
+  const { t, isHindi, formatTime } = useTranslation();
   const videoId = route.param;
 
   const [video, setVideo] = useState<Video | null>(null);
@@ -961,7 +963,7 @@ export const Watch: React.FC = () => {
                   <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium leading-none mt-1">
-                  {creator ? formatSubscribers(creator.followersCount) : '0 subscribers'}
+                  {creator ? (isHindi ? `${formatSubscribers(creator.followersCount).replace(/subscribers/i, '').trim()} सब्सक्राइबर्स` : formatSubscribers(creator.followersCount)) : (isHindi ? '0 सब्सक्राइबर्स' : '0 subscribers')}
                 </p>
               </div>
 
@@ -974,7 +976,7 @@ export const Watch: React.FC = () => {
                       : 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/85 dark:hover:bg-slate-200'
                   }`}
                 >
-                  {subscribed ? 'Subscribed' : 'Subscribe'}
+                  {subscribed ? t('action_subscribed', 'Subscribed') : t('action_subscribe', 'Subscribe')}
                 </button>
               )}
             </div>
@@ -986,7 +988,7 @@ export const Watch: React.FC = () => {
                 <button
                   onClick={handleLikeToggle}
                   className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-l-full cursor-pointer transition-colors"
-                  title="Like"
+                  title={t('action_like', 'Like')}
                 >
                   <ThumbsUp className={`w-4 h-4 ${liked ? 'fill-[#2563eb] text-[#2563eb]' : ''}`} />
                   <span>{formatViews(video.likesCount || 0)}</span>
@@ -1003,7 +1005,7 @@ export const Watch: React.FC = () => {
                     }
                   }}
                   className="px-3 sm:px-3.5 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-r-full cursor-pointer transition-colors"
-                  title="Dislike"
+                  title={t('action_dislike', 'Dislike')}
                 >
                   <ThumbsDown className={`w-4 h-4 ${disliked ? 'fill-slate-700 text-slate-700 dark:fill-white dark:text-white' : ''}`} />
                 </button>
@@ -1013,10 +1015,10 @@ export const Watch: React.FC = () => {
               <button
                 onClick={handleShare}
                 className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors cursor-pointer shadow-xs shrink-0"
-                title="Share"
+                title={t('action_share', 'Share')}
               >
                 <Share2 className="w-4 h-4" />
-                <span>Share</span>
+                <span>{t('action_share', 'Share')}</span>
               </button>
 
               {/* Download Pill */}
@@ -1028,7 +1030,7 @@ export const Watch: React.FC = () => {
                     ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
                     : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
                 }`}
-                title={isDownloaded ? 'Downloaded offline' : 'Download video'}
+                title={isDownloaded ? t('action_downloaded', 'Downloaded') : t('action_download', 'Download')}
               >
                 {downloadProgress !== null ? (
                   <>
@@ -1038,12 +1040,12 @@ export const Watch: React.FC = () => {
                 ) : isDownloaded ? (
                   <>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>Downloaded</span>
+                    <span>{t('action_downloaded', 'Downloaded')}</span>
                   </>
                 ) : (
                   <>
                     <ArrowDownToLine className="w-4 h-4" />
-                    <span>Download</span>
+                    <span>{t('action_download', 'Download')}</span>
                   </>
                 )}
               </button>
@@ -1056,10 +1058,10 @@ export const Watch: React.FC = () => {
                     ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
                     : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
                 }`}
-                title="Save to Playlist"
+                title={isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}
               >
                 <Bookmark className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
-                <span>Save</span>
+                <span>{saved ? t('action_saved', 'Saved') : t('action_save', 'Save')}</span>
               </button>
 
               {/* 3-Dots More Button */}
@@ -1070,7 +1072,7 @@ export const Watch: React.FC = () => {
                     setShowMoreActions(!showMoreActions);
                   }}
                   className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full w-9 h-9 flex items-center justify-center text-slate-800 dark:text-slate-100 transition-colors cursor-pointer shadow-xs"
-                  title="More actions"
+                  title={isHindi ? 'अधिक विकल्प' : 'More actions'}
                 >
                   <MoreHorizontal className="w-4 h-4" />
                 </button>
@@ -1089,7 +1091,7 @@ export const Watch: React.FC = () => {
                       className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
                     >
                       <Share2 className="w-3.5 h-3.5 text-blue-500" />
-                      <span>Share Video</span>
+                      <span>{t('action_share', 'Share Video')}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -1099,7 +1101,7 @@ export const Watch: React.FC = () => {
                       className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
                     >
                       <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>Download Video</span>
+                      <span>{t('action_download', 'Download Video')}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -1109,7 +1111,7 @@ export const Watch: React.FC = () => {
                       className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
                     >
                       <Bookmark className="w-3.5 h-3.5 text-purple-500" />
-                      <span>Save to Playlist</span>
+                      <span>{isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}</span>
                     </button>
                     <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
                     <button
@@ -1122,7 +1124,7 @@ export const Watch: React.FC = () => {
                       className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2.5 text-left text-rose-600 font-bold cursor-pointer"
                     >
                       <Flag className="w-3.5 h-3.5" />
-                      <span>Report Video</span>
+                      <span>{t('action_report', 'Report Video')}</span>
                     </button>
                   </div>
                 )}
@@ -1134,9 +1136,9 @@ export const Watch: React.FC = () => {
         {/* Video Description Box (Shows real views, createdAt date, database tags, and real description) */}
         <div className="p-4 bg-slate-100/90 dark:bg-[#1E293B]/70 rounded-2xl border border-slate-200/70 dark:border-slate-800 shadow-xs space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-            <span>{formatViews(video.viewsCount || 0)} views</span>
+            <span>{formatViews(video.viewsCount || 0)} {isHindi ? 'दृश्य (व्यूज़)' : 'views'}</span>
             <span>•</span>
-            <span>{video.createdAt ? new Date(video.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Just now'}</span>
+            <span>{video.createdAt ? (isHindi ? new Date(video.createdAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(video.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })) : (isHindi ? 'अभी-अभी' : 'Just now')}</span>
             {video.category && (
               <>
                 <span>•</span>
@@ -1178,7 +1180,7 @@ export const Watch: React.FC = () => {
                     onClick={() => setIsDescriptionExpanded(false)}
                     className="mt-2 font-black text-[#0070f3] dark:text-[#00d2ff] hover:underline cursor-pointer block text-xs"
                   >
-                    Show less
+                    {isHindi ? 'कम दिखाएं' : 'Show less'}
                   </button>
                 </div>
               ) : (
@@ -1189,12 +1191,12 @@ export const Watch: React.FC = () => {
                     onClick={() => setIsDescriptionExpanded(true)}
                     className="ml-1 font-black text-[#0070f3] dark:text-[#00d2ff] hover:underline cursor-pointer inline-block text-xs"
                   >
-                    ...more
+                    {isHindi ? '...और दिखाएं' : '...more'}
                   </button>
                 </div>
               )
             ) : (
-              <p className="text-slate-400 dark:text-slate-500 italic">No description provided for this video.</p>
+              <p className="text-slate-400 dark:text-slate-500 italic">{isHindi ? 'इस वीडियो के लिए कोई विवरण नहीं दिया गया है।' : 'No description provided for this video.'}</p>
             )}
           </div>
         </div>
@@ -1207,10 +1209,10 @@ export const Watch: React.FC = () => {
           >
             <div className="flex items-center gap-2">
               <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
-                Comments ({video.commentsCount})
+                {t('comments', 'Comments')} ({video.commentsCount})
               </h3>
               <span className="text-[10px] text-slate-500 font-bold">
-                • Tap to {commentsCollapsed ? 'open' : 'close'}
+                • {commentsCollapsed ? (isHindi ? 'खोलने के लिए टैप करें' : 'Tap to open') : (isHindi ? 'बंद करने के लिए टैप करें' : 'Tap to close')}
               </span>
             </div>
 
@@ -1232,7 +1234,7 @@ export const Watch: React.FC = () => {
             <div className="flex-1 flex gap-2">
               <input
                 type="text"
-                placeholder="Add a public comment..."
+                placeholder={t('add_comment_placeholder', 'Add a public comment...')}
                 value={newCommentText}
                 onChange={(e) => setNewCommentText(e.target.value)}
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 text-xs font-medium"
@@ -1240,6 +1242,7 @@ export const Watch: React.FC = () => {
               <button 
                 type="submit"
                 className="px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center justify-center cursor-pointer shadow-xs transition-colors"
+                title={t('comment_btn', 'Comment')}
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
@@ -1249,7 +1252,9 @@ export const Watch: React.FC = () => {
           {/* Comments List */}
           <div className="space-y-4">
             {comments.length === 0 ? (
-              <p className="text-xs text-slate-400 dark:text-[#94A3B8] py-6 text-center font-medium">No comments yet. Be the first to share your thoughts!</p>
+              <p className="text-xs text-slate-400 dark:text-[#94A3B8] py-6 text-center font-medium">
+                {t('be_first_comment', 'No comments yet. Be the first to share your thoughts!')}
+              </p>
             ) : (
               comments.filter(c => !c.parentCommentId).map((comm) => (
                 <div key={comm.commentId} className="space-y-3">

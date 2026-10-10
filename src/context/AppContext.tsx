@@ -4,6 +4,7 @@ import { authService } from '../services/authService';
 import { userService } from '../services/userService';
 import { notificationService } from '../services/notificationService';
 import { User, Notification } from '../types';
+import { translations, LanguageCode, Translations } from '../i18n/translations';
 
 export interface Toast {
   id: string;
@@ -17,6 +18,9 @@ interface AppContextType {
   loading: boolean;
   theme: 'light' | 'dark' | 'system';
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  language: LanguageCode;
+  setLanguage: (lang: LanguageCode) => void;
+  t: (key: keyof Translations | string, fallback?: string) => string;
   notifications: Notification[];
   unreadCount: number;
   refreshProfile: () => Promise<void>;
@@ -42,6 +46,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
   const [loading, setLoading] = useState(true);
   const [theme, setThemeState] = useState<'light' | 'dark' | 'system'>('system');
+  const [language, setLanguageState] = useState<LanguageCode>(() => {
+    try {
+      const saved = localStorage.getItem('socialindia_language');
+      if (saved === 'hi' || saved === 'en') return saved;
+      if (typeof navigator !== 'undefined' && navigator.language && navigator.language.startsWith('hi')) {
+        return 'hi';
+      }
+      return 'en';
+    } catch {
+      return 'en';
+    }
+  });
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -131,6 +147,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [applyTheme]);
 
+  const setLanguage = useCallback((newLang: LanguageCode) => {
+    setLanguageState(newLang);
+    try {
+      localStorage.setItem('socialindia_language', newLang);
+      document.documentElement.lang = newLang;
+      window.dispatchEvent(new CustomEvent('socialindia_language_changed', { detail: { language: newLang } }));
+    } catch {}
+
+    // Persist language preference in firestore if user is logged in
+    if (authService.getCurrentUserUid()) {
+      const uid = authService.getCurrentUserUid();
+      if (uid) {
+        userService.getPrivateInfo(uid).then((info) => {
+          if (info) {
+            userService.setPrivateInfo(uid, {
+              ...info,
+              language: newLang,
+            });
+          }
+        });
+      }
+    }
+  }, []);
+
+  // Sync html lang tag on mount or state change
+  useEffect(() => {
+    try {
+      document.documentElement.lang = language;
+    } catch {}
+  }, [language]);
+
+  // Fast translation function
+  const t = useCallback((key: keyof Translations | string, fallback?: string): string => {
+    const currentDict = translations[language] || translations.en;
+    if (key in currentDict) {
+      return (currentDict as any)[key];
+    }
+    const enDict = translations.en;
+    if (key in enDict) {
+      return (enDict as any)[key];
+    }
+    return fallback || (typeof key === 'string' ? key : '');
+  }, [language]);
+
   const refreshProfile = useCallback(async () => {
     const uid = authService.getCurrentUserUid();
     if (uid) {
@@ -207,12 +267,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           console.warn('Profile fetch warning on auth change:', err);
         }
 
-        // Fetch private info for theme persistence
+        // Fetch private info for theme & language persistence
         try {
           const pInfo = await userService.getPrivateInfo(user.uid);
           if (pInfo?.theme) {
             setThemeState(pInfo.theme);
             applyTheme(pInfo.theme);
+          }
+          if (pInfo?.language === 'hi' || pInfo?.language === 'en') {
+            setLanguageState(pInfo.language);
+            localStorage.setItem('socialindia_language', pInfo.language);
+            document.documentElement.lang = pInfo.language;
           }
         } catch (err) {
           console.warn('Private info fetch warning:', err);
@@ -258,6 +323,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         loading,
         theme,
         setTheme,
+        language,
+        setLanguage,
+        t,
         notifications,
         unreadCount,
         refreshProfile,
