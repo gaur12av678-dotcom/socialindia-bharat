@@ -203,6 +203,7 @@ export const authService = {
 
   // Instant password reset without email delay (for development & preview fallback)
   async instantResetPassword(identifier: string, newPass: string): Promise<{ userProfile: User }> {
+        throw new Error('Instant reset disabled for security. Please use the email reset link.');
     const clean = identifier.trim().toLowerCase();
     if (!newPass || newPass.length < 8) {
       throw new Error('New password must be at least 8 characters long.');
@@ -307,6 +308,7 @@ export const authService = {
 
   // Instant Google Sign-In helper when popups are blocked by browser iframe
   async signInWithGoogleDirect(
+        throw new Error('This login method has been disabled for security. Please use Google Sign-In.');
     email: string = 'maryxbgamer@gmail.com',
     displayName: string = 'Mary Gamer'
   ): Promise<{ userProfile: User; emailVerified: boolean }> {
