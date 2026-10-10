@@ -223,6 +223,7 @@ export interface HistoryItem {
   creatorUsername: string;
   creatorDisplayName: string;
   watchedAt: any;
+  progressSeconds?: number;
 }
 
 export interface SavedVideo {

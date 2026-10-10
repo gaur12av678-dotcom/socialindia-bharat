@@ -7,6 +7,7 @@ import { Search as SearchIcon, ArrowLeft, Trash2, Users } from 'lucide-react';
 import { userService } from '../services/userService';
 import { getInitials, formatSubscribers } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
+import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 
 export const Search: React.FC = () => {
   const { route, navigate } = useRouter();
@@ -128,6 +129,11 @@ export const Search: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Search Page Sponsored Ad Banner */}
+      <div className="my-4 max-w-xl">
+        <ExternalAdBanner type="search-box" locationTag="search-page" />
+      </div>
 
       {/* Results view */}
       <div className="space-y-6">

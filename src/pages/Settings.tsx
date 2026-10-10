@@ -48,6 +48,7 @@ import { WithdrawalRequest, Video } from '../types';
 import { compressAvatar, compressBanner } from '../utils/imageUtils';
 import { updateUserAvatarCache } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
+import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 
 export const Settings: React.FC = () => {
   const { currentUser, currentUserProfile, refreshProfile, updateUserProfileState, addToast } = useApp();
@@ -1705,6 +1706,11 @@ export const Settings: React.FC = () => {
               </p>
             </div>
           )}
+
+          {/* Settings Panel Sponsored Ad Banner */}
+          <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
+            <ExternalAdBanner type="search-box" locationTag="settings-panel" />
+          </div>
 
         </div>
 

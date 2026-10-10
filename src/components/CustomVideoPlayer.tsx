@@ -42,6 +42,7 @@ interface CustomVideoPlayerProps {
   onNextVideo?: () => void;
   hasNextVideo?: boolean;
   onReport?: () => void;
+  onProgress?: (seconds: number) => void;
 }
 
 declare global {
@@ -59,7 +60,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   seekToTime,
   onNextVideo,
   hasNextVideo = false,
-  onReport
+  onReport,
+  onProgress
 }) => {
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
@@ -311,7 +313,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         try {
           const cur = ytPlayerRef.current.getCurrentTime();
           const dur = ytPlayerRef.current.getDuration();
-          if (cur !== undefined) setCurrentTime(cur);
+          if (cur !== undefined) {
+            setCurrentTime(cur);
+            if (onProgress) onProgress(cur);
+          }
           if (dur) setDuration(dur);
         } catch (e) {
           // ignore
@@ -325,8 +330,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   // Direct HTML5 Video Handlers
   const handleDirectTimeUpdate = () => {
     if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+      const cur = videoRef.current.currentTime;
+      setCurrentTime(cur);
       setDuration(videoRef.current.duration || video.duration || 0);
+      if (onProgress) onProgress(cur);
     }
   };
 

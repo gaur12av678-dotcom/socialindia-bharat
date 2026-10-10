@@ -9,6 +9,7 @@ import { adService } from '../services/adService';
 import { AdCampaign } from '../types';
 import { Flame, Zap, ArrowRight, Play } from 'lucide-react';
 import { useTranslation } from '../i18n';
+import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 
 export const categoriesList = [
   'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy'
@@ -347,6 +348,11 @@ export const Home: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* External Native / Iframe Ad Banner (YouTube Style, rotating location) */}
+      <div className="my-6">
+        <ExternalAdBanner type="random" locationTag="home-feed-middle" />
+      </div>
 
       {/* 3. More Videos Section (If more than 3 videos exist) */}
       {selectedCategory === 'All' && remainingVideos.length > 0 && (

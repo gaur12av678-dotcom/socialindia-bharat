@@ -11,7 +11,7 @@ import { HistoryItem, Video } from '../types';
 
 export const historyService = {
   // Add a video to watch history
-  async addToHistory(uid: string, video: Video): Promise<void> {
+  async addToHistory(uid: string, video: Video, progressSeconds: number = 0): Promise<void> {
     const docRef = doc(db, 'users', uid, 'history', video.videoId);
     const historyItem: HistoryItem = {
       videoId: video.videoId,
@@ -19,12 +19,23 @@ export const historyService = {
       thumbnailUrl: video.thumbnailUrl,
       creatorUsername: video.creatorUsername,
       creatorDisplayName: video.creatorDisplayName,
-      watchedAt: new Date().toISOString()
+      watchedAt: new Date().toISOString(),
+      progressSeconds
     };
     try {
-      await setDoc(docRef, historyItem);
+      await setDoc(docRef, historyItem, { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `users/${uid}/history/${video.videoId}`);
+    }
+  },
+
+  // Update playback progress
+  async updatePlaybackProgress(uid: string, videoId: string, progressSeconds: number): Promise<void> {
+    const docRef = doc(db, 'users', uid, 'history', videoId);
+    try {
+      await setDoc(docRef, { progressSeconds, watchedAt: new Date().toISOString() }, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${uid}/history/${videoId}`);
     }
   },
 

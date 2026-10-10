@@ -16,6 +16,7 @@ import { adService } from '../services/adService';
 import { playlistService } from '../services/playlistService';
 import { Video, Comment, User, AdCampaign, Playlist } from '../types';
 import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
+import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 import { UserAvatar } from '../components/UserAvatar';
@@ -186,6 +187,7 @@ export const Watch: React.FC = () => {
   );
 
   const commentDropdownRef = useRef<Record<string, boolean>>({});
+  const lastSavedProgressRef = useRef<number>(0);
   const [, forceUpdate] = useState({});
 
   useEffect(() => {
@@ -240,6 +242,16 @@ export const Watch: React.FC = () => {
 
         // Secondary background fetches (Non-blocking)
         videoService.incrementViewCount(videoId).catch(console.error);
+        
+        // Fetch last watched time
+        if (currentUser) {
+            historyService.getHistory(currentUser.uid).then(history => {
+                const item = history.find(h => h.videoId === videoId);
+                if (item && item.progressSeconds && item.progressSeconds > 5) {
+                    setSeekToTime(item.progressSeconds);
+                }
+            }).catch(console.error);
+        }
 
         userService.getUserProfile(vid.creatorId).then(crProfile => {
           if (isMounted && crProfile) {
@@ -872,6 +884,15 @@ export const Watch: React.FC = () => {
               setReportType('video');
               setReportTargetId(video.videoId);
               setReportModalOpen(true);
+            }}
+            onProgress={(seconds) => {
+              if (currentUser && video) {
+                // Throttle: only save progress if at least 15 seconds have passed since last save
+                if (Math.abs(seconds - lastSavedProgressRef.current) >= 15) {
+                  lastSavedProgressRef.current = seconds;
+                  historyService.updatePlaybackProgress(currentUser.uid, video.videoId, seconds).catch(console.warn);
+                }
+              }
             }}
           />
         )}
@@ -1638,6 +1659,9 @@ export const Watch: React.FC = () => {
             </button>
           ))}
         </div>
+
+        {/* External Native / Iframe Ad Banner (YouTube Style, rotating sidebar position) */}
+        <ExternalAdBanner type="random" locationTag="watch-sidebar" />
         
         {/* Related Videos List */}
         <div className="space-y-3">
