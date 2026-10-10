@@ -173,7 +173,7 @@ export const Search: React.FC = () => {
                     <p className="text-[11px] text-slate-500 font-bold mt-0.5">@{user.username}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[9px] font-black uppercase rounded-lg tracking-wider border border-blue-100 dark:border-blue-900/30">
-                        {formatSubscribers(user.followersCount)} {isHindi ? 'प्रशंसक' : 'Fans'}
+                        {isHindi ? `${(user.followersCount || 0).toLocaleString()} प्रशंसक` : formatSubscribers(user.followersCount)}
                       </span>
                       <span className="px-2.5 py-1 bg-slate-50 dark:bg-slate-800 text-slate-400 text-[9px] font-black uppercase rounded-lg tracking-wider border border-slate-100 dark:border-slate-700">
                         {user.videosCount} {isHindi ? 'वीडियो' : 'Videos'}

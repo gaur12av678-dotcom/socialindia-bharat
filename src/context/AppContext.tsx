@@ -262,6 +262,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (profile) {
             setCurrentUserProfile(profile);
             localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
+            await userService.ensureDefaultSubscription(user.uid);
           }
         } catch (err) {
           console.warn('Profile fetch warning on auth change:', err);

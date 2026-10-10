@@ -145,14 +145,45 @@ export const CreatorProfile: React.FC = () => {
   // Loading skeleton
   if (loading && !creator) {
     return (
-      <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6 animate-pulse">
-        <div className="h-44 md:h-64 bg-slate-200 dark:bg-[#1E293B] rounded-3xl w-full" />
-        <div className="flex flex-col sm:flex-row items-center gap-6 px-4">
-          <div className="w-24 h-24 md:w-28 md:h-28 bg-slate-300 dark:bg-[#334155] rounded-full shrink-0 -mt-12" />
-          <div className="flex-1 space-y-2 text-center sm:text-left">
-            <div className="h-6 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-1/3" />
-            <div className="h-4 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-1/4" />
+      <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-8 animate-pulse">
+        {/* Banner Skeleton */}
+        <div className="h-48 md:h-72 bg-slate-200 dark:bg-[#1E293B] rounded-3xl w-full" />
+        
+        {/* Channel Details Skeleton */}
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 px-4">
+          <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 bg-slate-300 dark:bg-[#334155] rounded-full shrink-0 -mt-12 sm:-mt-16 border-4 border-white dark:border-[#0f172a]" />
+          <div className="flex-1 space-y-3 text-center sm:text-left pt-2">
+            <div className="h-7 bg-slate-200 dark:bg-[#1E293B] rounded-xl w-48 mx-auto sm:mx-0" />
+            <div className="h-4 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-36 mx-auto sm:mx-0" />
+            <div className="h-4 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-64 mx-auto sm:mx-0" />
+            <div className="flex gap-3 pt-2 justify-center sm:justify-start">
+              <div className="h-10 w-32 bg-slate-200 dark:bg-[#1E293B] rounded-2xl" />
+              <div className="h-10 w-28 bg-slate-200 dark:bg-[#1E293B] rounded-2xl" />
+            </div>
           </div>
+        </div>
+
+        {/* Tabs Skeleton */}
+        <div className="flex gap-6 border-b border-slate-200 dark:border-slate-800 pb-3 px-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-8 w-20 bg-slate-200 dark:bg-[#1E293B] rounded-lg" />
+          ))}
+        </div>
+
+        {/* Video Grid Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="space-y-3">
+              <div className="aspect-video bg-slate-200 dark:bg-[#1E293B] rounded-2xl w-full" />
+              <div className="flex gap-3">
+                <div className="w-10 h-10 bg-slate-200 dark:bg-[#1E293B] rounded-full shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-[90%]" />
+                  <div className="h-3 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-[60%]" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -177,6 +208,21 @@ export const CreatorProfile: React.FC = () => {
   }
 
   const isOwner = currentUser?.uid === creator.uid;
+
+  const handleShareChannel = () => {
+    if (!creator) return;
+    const shareData = {
+      title: creator.displayName,
+      text: isHindi ? `SocialIndia पर @${creator.username} का चैनल देखें!` : `Check out @${creator.username}'s channel on SocialIndia!`,
+      url: window.location.href,
+    };
+    if (navigator.share) {
+      navigator.share(shareData).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      addToast(isHindi ? 'चैनल लिंक क्लिपबोर्ड पर कॉपी हो गया!' : 'Channel link copied to clipboard!', 'success');
+    }
+  };
 
   const handleSubscribeToggle = async () => {
     if (!currentUser || !currentUserProfile) {
@@ -424,7 +470,7 @@ export const CreatorProfile: React.FC = () => {
             </p>
 
             <div className="flex items-center gap-3 justify-center sm:justify-start text-xs font-bold text-slate-600 dark:text-[#94A3B8]">
-              <span>{formatSubscribers(creator.followersCount)} {isHindi ? 'सब्सक्राइबर्स' : 'subscribers'}</span>
+              <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/subscribers/i, '').trim()} सब्सक्राइबर्स` : formatSubscribers(creator.followersCount)}</span>
               <span>•</span>
               <span>{creator.videosCount} {isHindi ? 'वीडियो' : (creator.videosCount === 1 ? 'video' : 'videos')}</span>
             </div>
@@ -467,15 +513,30 @@ export const CreatorProfile: React.FC = () => {
                   <span>{isHindi ? 'मैसेज' : 'Message'}</span>
                 </button>
                 <button
+                  onClick={handleShareChannel}
+                  className="px-4 py-2.5 bg-slate-100 dark:bg-[#1E293B] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-[#F8FAFC] font-extrabold text-xs rounded-xl flex items-center gap-1.5 border border-slate-200 dark:border-[#334155] cursor-pointer shadow-xs transition-all"
+                  title={isHindi ? 'चैनल शेयर करें' : 'Share Channel'}
+                >
+                  <Share2 className="w-4 h-4 text-blue-500" />
+                  <span>{isHindi ? 'शेयर' : 'Share'}</span>
+                </button>
+                <button
                   onClick={handleSubscribeToggle}
                   disabled={subscribing}
-                  className={`px-6 py-2.5 rounded-xl font-extrabold text-xs tracking-wide transition-all cursor-pointer shadow-xs disabled:opacity-60 ${
+                  className={`px-6 py-2.5 rounded-xl font-extrabold text-xs tracking-wide transition-all cursor-pointer shadow-xs disabled:opacity-60 flex items-center gap-2 ${
                     subscribed 
-                      ? 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-[#F8FAFC] border border-slate-200 dark:border-[#334155]' 
+                      ? 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-[#F8FAFC] border border-slate-200 dark:border-[#334155] hover:bg-slate-200' 
                       : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
                   }`}
                 >
-                  {subscribed ? t('action_subscribed', 'Subscribed') : t('action_subscribe', 'Subscribe')}
+                  {subscribed ? (
+                    <>
+                      <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span>{t('action_subscribed', 'Subscribed')}</span>
+                    </>
+                  ) : (
+                    <span>{t('action_subscribe', 'Subscribe')}</span>
+                  )}
                 </button>
                 <button
                   onClick={() => setReportModalOpen(true)}
@@ -600,6 +661,10 @@ export const CreatorProfile: React.FC = () => {
             </p>
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-[#94A3B8]">
               <div className="flex justify-between">
+                <span>{isHindi ? "देश" : "Country"}</span>
+                <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{creator.country || 'India 🇮🇳'}</span>
+              </div>
+              <div className="flex justify-between">
                 <span>{isHindi ? "SocialIndia से जुड़े" : "Joined SocialIndia"}</span>
                 <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{new Date(creator.createdAt).toLocaleDateString(isHindi ? 'hi-IN' : 'en-US')}</span>
               </div>
@@ -611,6 +676,16 @@ export const CreatorProfile: React.FC = () => {
                 <span>{isHindi ? "कुल अपलोड किए गए वीडियो" : "Total Videos Uploaded"}</span>
                 <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{creator.videosCount}</span>
               </div>
+            </div>
+
+            <div className="pt-3">
+              <button
+                onClick={handleShareChannel}
+                className="w-full py-2.5 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-900 cursor-pointer transition-all active:scale-95"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>{isHindi ? 'चैनल शेयर करें' : 'Share Channel'}</span>
+              </button>
             </div>
           </div>
         )}

@@ -325,6 +325,91 @@ export const userService = {
 
     await this.createUserProfile(fbUser.uid, newProfile);
     const created = await this.getUserProfile(fbUser.uid);
+    if (created) {
+      await this.ensureDefaultSubscription(created.uid);
+    }
     return created || (newProfile as User);
+  },
+
+  // Ensure the main official Social India channel account exists
+  async ensureSocialIndiaAccount(): Promise<string> {
+    const docRef = doc(db, 'users', 'socialindia');
+    try {
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) {
+        const now = new Date().toISOString();
+        const socialIndiaUser: User = {
+          uid: 'socialindia',
+          username: 'socialindia',
+          email: 'official@socialindia.us.ci',
+          emailVerified: true,
+          displayName: 'Social India',
+          bio: 'Official SocialIndia Channel - Connect, Share, and Discover with India\'s Own Video Platform.',
+          photoURL: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
+          bannerURL: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&auto=format&fit=crop&q=80',
+          followersCount: 0,
+          followingCount: 0,
+          videosCount: 0,
+          role: 'admin',
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        };
+        await setDoc(docRef, socialIndiaUser);
+      }
+      return 'socialindia';
+    } catch (err) {
+      console.error('Ensure SocialIndia account error:', err);
+      return 'socialindia';
+    }
+  },
+
+  // Ensure every user account has SocialIndia subscribed by default unless explicitly unsubscribed
+  async ensureDefaultSubscription(userId: string): Promise<void> {
+    if (!userId || userId === 'socialindia') return;
+    try {
+      const privateInfo = await this.getPrivateInfo(userId);
+      if (privateInfo && privateInfo.socialIndiaDefaultSubbed) {
+        return;
+      }
+
+      const socialIndiaId = await this.ensureSocialIndiaAccount();
+      if (userId === socialIndiaId) return;
+
+      const subRef = doc(db, 'users', userId, 'subscriptions', socialIndiaId);
+      const subSnap = await getDoc(subRef);
+
+      if (!subSnap.exists()) {
+        const socialIndiaUser = await this.getUserProfile(socialIndiaId);
+        const subData = {
+          subscriberId: userId,
+          creatorId: socialIndiaId,
+          creatorUsername: socialIndiaUser?.username || 'socialindia',
+          creatorDisplayName: socialIndiaUser?.displayName || 'Social India',
+          creatorPhotoURL: socialIndiaUser?.photoURL || '',
+          createdAt: new Date().toISOString(),
+        };
+        await setDoc(subRef, subData);
+
+        try {
+          await updateDoc(doc(db, 'users', userId), {
+            followingCount: increment(1)
+          });
+        } catch {}
+        try {
+          await updateDoc(doc(db, 'users', socialIndiaId), {
+            followersCount: increment(1)
+          });
+        } catch {}
+      }
+
+      const updatedPrivate = {
+        ...(privateInfo || { email: '', theme: 'system' }),
+        socialIndiaDefaultSubbed: true
+      };
+      await this.setPrivateInfo(userId, updatedPrivate);
+    } catch (err) {
+      console.warn('Ensure default subscription error:', err);
+    }
   }
 };

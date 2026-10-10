@@ -97,6 +97,7 @@ export const authService = {
       throw new Error("Failed to create user profile.");
     }
 
+    await userService.ensureDefaultSubscription(uid);
     return { userProfile, emailVerified: credential.user.emailVerified };
   },
 
@@ -155,6 +156,7 @@ export const authService = {
       userProfile.emailVerified = true;
     }
 
+    await userService.ensureDefaultSubscription(uid);
     return { userProfile, emailVerified: credential.user.emailVerified };
   },
 
@@ -303,6 +305,7 @@ export const authService = {
       throw new Error("Could not load user profile for Google user.");
     }
 
+    await userService.ensureDefaultSubscription(uid);
     return { userProfile, emailVerified: !!fbUser.emailVerified };
   },
 

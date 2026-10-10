@@ -48,6 +48,7 @@ export interface PrivateUserInfo {
   allowNotificationFollowers?: boolean;
   allowNotificationUploads?: boolean;
   twoFactorEnabled?: boolean;
+  socialIndiaDefaultSubbed?: boolean;
 }
 
 export interface Video {
