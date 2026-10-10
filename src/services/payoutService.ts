@@ -191,13 +191,13 @@ export const payoutService = {
         );
       }
       const snap = await getDocs(q);
-      return snap.docs.map(d => ({ ...d.data(), id: d.id } as WithdrawalRequest));
+      return snap.docs.map(d => ({ ...(d.data() as Record<string, any>), id: d.id } as WithdrawalRequest));
     } catch (err) {
       console.warn('Error fetching withdrawal requests:', err);
       // Fallback without composite index if needed
       try {
         const snap = await getDocs(collection(db, 'withdrawal_requests'));
-        let list = snap.docs.map(d => ({ ...d.data(), id: d.id } as WithdrawalRequest));
+        let list = snap.docs.map(d => ({ ...(d.data() as Record<string, any>), id: d.id } as WithdrawalRequest));
         if (userId) {
           list = list.filter(r => r.userId === userId);
         }

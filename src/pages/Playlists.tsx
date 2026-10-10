@@ -22,10 +22,12 @@ import {
   Share2,
   Bookmark
 } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export const PlaylistsPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { navigate, route } = useRouter();
+  const { t, isHindi } = useTranslation();
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,8 +128,6 @@ export const PlaylistsPage: React.FC = () => {
 
   // Delete playlist handler
   const handleDeletePlaylist = async (playlistId: string, title: string) => {
-    if (!window.confirm(`Delete playlist "${title}"? This cannot be undone.`)) return;
-
     try {
       await playlistService.deletePlaylist(playlistId);
       setPlaylists(prev => prev.filter(p => p.playlistId !== playlistId));
@@ -135,10 +135,10 @@ export const PlaylistsPage: React.FC = () => {
         setSelectedPlaylist(null);
         setPlaylistVideos([]);
       }
-      addToast('Playlist deleted.', 'info');
+      addToast(isHindi ? `प्लेलिस्ट "${title}" हटा दी गई।` : 'Playlist deleted.', 'info');
     } catch (err) {
       console.error(err);
-      addToast('Failed to delete playlist.', 'error');
+      addToast(isHindi ? 'प्लेलिस्ट हटाने में विफल।' : 'Failed to delete playlist.', 'error');
     }
   };
 

@@ -9,17 +9,64 @@ import {
   increment 
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Comment } from '../types';
+import { Comment, User } from '../types';
+import { userService } from './userService';
+import { updateUserAvatarCache } from '../components/UserAvatar';
+
+// Local user cache to prevent redundant fetches
+const commentUserCache = new Map<string, { photoURL?: string; displayName?: string; username?: string; fetchedAt: number }>();
 
 export const commentService = {
-  // Get comments on a video
+  // Get comments on a video with synchronized, latest user avatars
   async getComments(videoId: string): Promise<Comment[]> {
     const colRef = collection(db, 'videos', videoId, 'comments');
     try {
       const snap = await getDocs(colRef);
       const comments = snap.docs.map((d: any) => d.data() as Comment);
+
+      // Hydrate with latest avatars for all authors so changed avatars update across all old comments!
+      const uniqueUids = Array.from(new Set(comments.map(c => c.uid).filter(Boolean)));
+      const now = Date.now();
+
+      await Promise.all(
+        uniqueUids.map(async (uid) => {
+          const cached = commentUserCache.get(uid);
+          if (cached && now - cached.fetchedAt < 60000) {
+            return;
+          }
+          try {
+            const userProfile = await userService.getUserProfile(uid);
+            if (userProfile) {
+              commentUserCache.set(uid, {
+                photoURL: userProfile.photoURL,
+                displayName: userProfile.displayName,
+                username: userProfile.username,
+                fetchedAt: now
+              });
+              if (userProfile.photoURL) {
+                updateUserAvatarCache(uid, userProfile.photoURL, userProfile.displayName || userProfile.username);
+              }
+            }
+          } catch (_) {}
+        })
+      );
+
+      // Apply latest author details to comments
+      const hydratedComments = comments.map(c => {
+        const freshUser = commentUserCache.get(c.uid);
+        if (freshUser) {
+          return {
+            ...c,
+            photoURL: freshUser.photoURL || c.photoURL,
+            displayName: freshUser.displayName || c.displayName,
+            username: freshUser.username || c.username
+          };
+        }
+        return c;
+      });
+
       // Sort comments: Pinned comment first, then newest first
-      return comments.sort((a: Comment, b: Comment) => {
+      return hydratedComments.sort((a: Comment, b: Comment) => {
         if (a.isPinned && !b.isPinned) return -1;
         if (!a.isPinned && b.isPinned) return 1;
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();

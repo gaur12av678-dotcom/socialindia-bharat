@@ -18,10 +18,12 @@ import {
   Paperclip
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
+import { useTranslation } from '../i18n';
 
 export const ChatPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { route, navigate } = useRouter();
+  const { t, isHindi } = useTranslation();
 
   // Selected chat partner ID
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);

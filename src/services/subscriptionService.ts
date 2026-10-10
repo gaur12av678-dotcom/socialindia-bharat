@@ -30,25 +30,33 @@ export const subscriptionService = {
   async toggleSubscription(
     subscriberId: string, 
     creatorId: string, 
-    creatorData: Partial<User>
+    creatorData: Partial<User>,
+    targetState?: boolean
   ): Promise<boolean> {
     if (subscriberId === creatorId) return false;
 
     const docRef = doc(db, 'users', subscriberId, 'subscriptions', creatorId);
     try {
       const alreadySubbed = await this.isSubscribed(subscriberId, creatorId);
+      const shouldSubscribe = targetState !== undefined ? targetState : !alreadySubbed;
 
-      if (alreadySubbed) {
+      if (!shouldSubscribe) {
         // Unsubscribe
-        await deleteDoc(docRef);
-        // Decrement following count of subscriber
-        await updateDoc(doc(db, 'users', subscriberId), {
-          followingCount: increment(-1)
-        });
-        // Decrement followers count of creator
-        await updateDoc(doc(db, 'users', creatorId), {
-          followersCount: increment(-1)
-        });
+        if (alreadySubbed) {
+          await deleteDoc(docRef);
+          // Decrement following count of subscriber
+          try {
+            await updateDoc(doc(db, 'users', subscriberId), {
+              followingCount: increment(-1)
+            });
+          } catch {}
+          // Decrement followers count of creator
+          try {
+            await updateDoc(doc(db, 'users', creatorId), {
+              followersCount: increment(-1)
+            });
+          } catch {}
+        }
         return false;
       } else {
         // Subscribe
@@ -61,19 +69,26 @@ export const subscriptionService = {
           createdAt: new Date().toISOString(),
         };
         await setDoc(docRef, subData);
-        // Increment following count of subscriber
-        await updateDoc(doc(db, 'users', subscriberId), {
-          followingCount: increment(1)
-        });
-        // Increment followers count of creator
-        await updateDoc(doc(db, 'users', creatorId), {
-          followersCount: increment(1)
-        });
+        if (!alreadySubbed) {
+          // Increment following count of subscriber
+          try {
+            await updateDoc(doc(db, 'users', subscriberId), {
+              followingCount: increment(1)
+            });
+          } catch {}
+          // Increment followers count of creator
+          try {
+            await updateDoc(doc(db, 'users', creatorId), {
+              followersCount: increment(1)
+            });
+          } catch {}
+        }
         return true;
       }
     } catch (err) {
+      console.error('Subscription error:', err);
       handleFirestoreError(err, OperationType.WRITE, `users/${subscriberId}/subscriptions/${creatorId}`);
-      return false;
+      throw err;
     }
   },
 

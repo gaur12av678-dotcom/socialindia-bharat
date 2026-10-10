@@ -161,7 +161,7 @@ export const videoService = {
             reject(jsonErr);
           }
         } else {
-          let errMsg = `Cloudinary HTTP Error ${xhr.status}`;
+          let errMsg = `Upload error (${xhr.status})`;
           try {
             const err = JSON.parse(xhr.responseText);
             if (err.error?.message) errMsg = err.error.message;
@@ -171,7 +171,7 @@ export const videoService = {
       });
 
       xhr.addEventListener('error', () => {
-        reject(new Error(`Network error connecting to Cloudinary (${cloudName}). Please ensure Cloud Name and Unsigned Preset are correct.`));
+        reject(new Error('Network error connecting to media storage server. Please try again.'));
       });
 
       xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`);
@@ -285,7 +285,7 @@ export const videoService = {
             const err = JSON.parse(xhr.responseText);
             if (err.error?.message) {
               if (err.error.message.includes('File size too large') || err.error.message.includes('104857600') || err.error.message.includes('account limit')) {
-                errMsg = 'Video file size exceeds Cloudinary Free 100MB limit (104,857,600 bytes). For larger videos, please use the "Paste Video Link" tab (supports Google Drive & YouTube with unlimited size).';
+                errMsg = 'Video file size exceeds direct upload limit (100MB). For larger videos, please use the "Paste Video Link" tab (supports Google Drive & YouTube with unlimited size).';
               } else {
                 errMsg = err.error.message;
               }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { userService } from '../services/userService';
+import { useTranslation } from '../i18n';
 import { 
   Crown, 
   Wallet, 
@@ -25,6 +26,7 @@ import freeMapImg from '../assets/images/free_map_artwork_1791372164824.jpg';
 export const GoProPage: React.FC = () => {
   const { currentUser, currentUserProfile, refreshProfile, addToast } = useApp();
   const { navigate } = useRouter();
+  const { t, isHindi } = useTranslation();
 
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');

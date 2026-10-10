@@ -10,6 +10,7 @@ import { categoriesList } from './Home';
 import { soundService } from '../services/soundService';
 import { paidVideoService } from '../services/paidVideoService';
 import { SoundLibraryModal } from '../components/SoundLibraryModal';
+import { useTranslation } from '../i18n';
 import { 
   LayoutDashboard, 
   ArrowLeft,
@@ -115,6 +116,7 @@ export const LionAnalyticsLogo = AshokaChakraLogo;
 export const CreatorStudio: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { route, navigate } = useRouter();
+  const { t, isHindi } = useTranslation();
 
   // Navigation tab inside Studio (Active DASHBOARD tab matching reference mockup)
   const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'analytics' | 'comments' | 'earn'>('dashboard');
@@ -764,7 +766,7 @@ export const CreatorStudio: React.FC = () => {
           }`}
         >
           <LayoutDashboard className={`w-3.5 h-3.5 ${activeTab === 'dashboard' ? 'text-white' : 'text-slate-500'}`} />
-          <span>DASHBOARD</span>
+          <span>{isHindi ? 'डैशबोर्ड' : 'DASHBOARD'}</span>
         </button>
 
         {/* CONTENT (1) */}
@@ -777,7 +779,7 @@ export const CreatorStudio: React.FC = () => {
           }`}
         >
           <Play className={`w-3.5 h-3.5 ${activeTab === 'content' ? 'fill-white text-white' : 'text-slate-500'}`} />
-          <span>CONTENT ({videos.length || 1})</span>
+          <span>{isHindi ? `कंटेंट (${videos.length || 1})` : `CONTENT (${videos.length || 1})`}</span>
         </button>
 
         {/* ANALYTICS TAB */}
@@ -790,7 +792,7 @@ export const CreatorStudio: React.FC = () => {
           }`}
         >
           <BarChart3 className={`w-4 h-4 ${activeTab === 'analytics' ? 'text-white' : 'text-slate-500'}`} />
-          <span>ANALYTICS</span>
+          <span>{isHindi ? 'एनालिटिक्स' : 'ANALYTICS'}</span>
         </button>
 
         {/* COMMENTS (0) TAB */}
@@ -803,7 +805,7 @@ export const CreatorStudio: React.FC = () => {
           }`}
         >
           <MessageSquare className={`w-4 h-4 ${activeTab === 'comments' ? 'text-white' : 'text-slate-500'}`} />
-          <span>COMMENTS ({studioComments.length || 0})</span>
+          <span>{isHindi ? `टिप्पणियाँ (${studioComments.length || 0})` : `COMMENTS (${studioComments.length || 0})`}</span>
         </button>
 
         {/* EARN & MONETIZATION TAB */}
@@ -816,7 +818,7 @@ export const CreatorStudio: React.FC = () => {
           }`}
         >
           <DollarSign className={`w-4 h-4 ${activeTab === 'earn' ? 'text-white' : 'text-slate-500'}`} />
-          <span>EARN & MONETIZATION</span>
+          <span>{isHindi ? 'कमाई व मोनेटाइजेशन' : 'EARN & MONETIZATION'}</span>
         </button>
       </div>
 

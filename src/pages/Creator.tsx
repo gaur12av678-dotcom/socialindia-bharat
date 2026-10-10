@@ -65,6 +65,7 @@ export const CreatorProfile: React.FC = () => {
   const [loading, setLoading] = useState(!creator);
   const [activeTab, setActiveTab] = useState<'videos' | 'shorts' | 'playlists' | 'about'>('videos');
   const [subscribed, setSubscribed] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
 
   // Banner Customization Modal State
   const [bannerModalOpen, setBannerModalOpen] = useState(false);
@@ -183,6 +184,8 @@ export const CreatorProfile: React.FC = () => {
       navigate('signin');
       return;
     }
+    if (subscribing) return;
+    setSubscribing(true);
 
     const previousSub = subscribed;
     const nextSub = !previousSub;
@@ -196,12 +199,14 @@ export const CreatorProfile: React.FC = () => {
         username: creator.username,
         displayName: creator.displayName,
         photoURL: creator.photoURL
-      });
+      }, nextSub);
       setSubscribed(isSub);
     } catch (err) {
       setSubscribed(previousSub);
       setCreator(prev => prev ? { ...prev, followersCount: Math.max(0, (prev.followersCount || 0) + (previousSub ? 1 : -1)) } : null);
       addToast('Subscription change failed.', 'error');
+    } finally {
+      setSubscribing(false);
     }
   };
 
@@ -463,7 +468,8 @@ export const CreatorProfile: React.FC = () => {
                 </button>
                 <button
                   onClick={handleSubscribeToggle}
-                  className={`px-6 py-2.5 rounded-xl font-extrabold text-xs tracking-wide transition-all cursor-pointer shadow-xs ${
+                  disabled={subscribing}
+                  className={`px-6 py-2.5 rounded-xl font-extrabold text-xs tracking-wide transition-all cursor-pointer shadow-xs disabled:opacity-60 ${
                     subscribed 
                       ? 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-[#F8FAFC] border border-slate-200 dark:border-[#334155]' 
                       : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
@@ -526,8 +532,8 @@ export const CreatorProfile: React.FC = () => {
           <VideoGrid 
             videos={videos} 
             loading={false} 
-            emptyHeading="No standard videos"
-            emptyMessage="This creator has not published any standard videos yet."
+            emptyHeading={isHindi ? "कोई सामान्य वीडियो नहीं" : "No standard videos"}
+            emptyMessage={isHindi ? "इस क्रिएटर ने अभी तक कोई सामान्य वीडियो प्रकाशित नहीं किया है।" : "This creator has not published any standard videos yet."}
           />
         )}
 
@@ -535,8 +541,8 @@ export const CreatorProfile: React.FC = () => {
           <VideoGrid 
             videos={shorts} 
             loading={false} 
-            emptyHeading="No short videos"
-            emptyMessage="This creator has not published any short videos yet."
+            emptyHeading={isHindi ? "कोई शॉर्ट वीडियो नहीं" : "No short videos"}
+            emptyMessage={isHindi ? "इस क्रिएटर ने अभी तक कोई शॉर्ट वीडियो प्रकाशित नहीं किया है।" : "This creator has not published any short videos yet."}
           />
         )}
 
@@ -544,7 +550,7 @@ export const CreatorProfile: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {playlists.length === 0 ? (
               <div className="col-span-full py-16 text-center text-slate-400 font-bold">
-                No public playlists created by this channel yet.
+                {isHindi ? "इस चैनल द्वारा अभी तक कोई प्लेलिस्ट नहीं बनाई गई है।" : "No public playlists created by this channel yet."}
               </div>
             ) : (
               playlists.map(pl => (
@@ -554,7 +560,7 @@ export const CreatorProfile: React.FC = () => {
                     if (pl.videoIds && pl.videoIds.length > 0) {
                       navigate('watch', pl.videoIds[0]);
                     } else {
-                      addToast('This playlist is currently empty.', 'info');
+                      addToast(isHindi ? 'यह प्लेलिस्ट अभी खाली है।' : 'This playlist is currently empty.', 'info');
                     }
                   }}
                   className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs hover:shadow-md transition-all cursor-pointer group"
@@ -567,7 +573,7 @@ export const CreatorProfile: React.FC = () => {
                     )}
                     <div className="absolute inset-y-0 right-0 w-1/3 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center text-white p-2">
                       <span className="font-mono font-black text-sm">{pl.videoIds?.length || 0}</span>
-                      <span className="text-[10px] uppercase font-bold text-slate-300">Videos</span>
+                      <span className="text-[10px] uppercase font-bold text-slate-300">{isHindi ? 'वीडियो' : 'Videos'}</span>
                     </div>
                   </div>
                   <div className="p-4 space-y-1">
@@ -575,7 +581,7 @@ export const CreatorProfile: React.FC = () => {
                       {pl.title}
                     </h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 font-medium">
-                      {pl.description || "Created on SocialIndia"}
+                      {pl.description || (isHindi ? "SocialIndia पर निर्मित" : "Created on SocialIndia")}
                     </p>
                   </div>
                 </div>
@@ -586,21 +592,23 @@ export const CreatorProfile: React.FC = () => {
 
         {activeTab === 'about' && (
           <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 max-w-xl shadow-xs">
-            <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">About this Channel</h3>
+            <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
+              {isHindi ? "चैनल के बारे में" : "About this Channel"}
+            </h3>
             <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-              {creator.bio || "This creator has not provided any additional channel biography."}
+              {creator.bio || (isHindi ? "इस क्रिएटर ने अभी तक चैनल का कोई अतिरिक्त विवरण नहीं दिया है।" : "This creator has not provided any additional channel biography.")}
             </p>
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-[#94A3B8]">
               <div className="flex justify-between">
-                <span>Joined SocialIndia</span>
-                <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{new Date(creator.createdAt).toLocaleDateString()}</span>
+                <span>{isHindi ? "SocialIndia से जुड़े" : "Joined SocialIndia"}</span>
+                <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{new Date(creator.createdAt).toLocaleDateString(isHindi ? 'hi-IN' : 'en-US')}</span>
               </div>
               <div className="flex justify-between">
-                <span>Total Channel Subscribers</span>
+                <span>{isHindi ? "कुल चैनल सब्सक्राइबर्स" : "Total Channel Subscribers"}</span>
                 <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{creator.followersCount}</span>
               </div>
               <div className="flex justify-between">
-                <span>Total Videos Uploaded</span>
+                <span>{isHindi ? "कुल अपलोड किए गए वीडियो" : "Total Videos Uploaded"}</span>
                 <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{creator.videosCount}</span>
               </div>
             </div>

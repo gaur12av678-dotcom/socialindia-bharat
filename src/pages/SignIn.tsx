@@ -3,6 +3,7 @@ import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
 import { authService } from '../services/authService';
 import { SocialIndiaLogo } from '../components/SocialIndiaLogo';
+import { useTranslation } from '../i18n';
 import { 
   Loader2, 
   CheckCircle2, 
@@ -31,6 +32,7 @@ interface SignInPageProps {
 export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' }) => {
   const { navigate, route } = useRouter();
   const { addToast, refreshProfile, currentUser } = useApp();
+  const { t, isHindi } = useTranslation();
 
   // Determine initial mode from prop or URL route
   const getInitialMode = (): 'login' | 'register' | 'forgot-password' => {
@@ -645,7 +647,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           <span>Gmail users: Why email is in Spam folder</span>
                         </div>
                         <p className="text-[12px] leading-relaxed text-amber-900/90 font-medium">
-                          Firebase automated emails (sender: <strong>noreply@socialindia-96fa1.firebaseapp.com</strong>) are automatically filtered by Gmail into your <strong>Spam / Junk</strong> folder or <strong>Promotions</strong> tab.
+                          Security confirmation emails (sender: <strong>noreply@socialindia.us.ci</strong>) may sometimes be filtered by Gmail into your <strong>Spam / Junk</strong> folder or <strong>Promotions</strong> tab.
                         </p>
                         <p className="text-[11px] leading-relaxed text-amber-800">
                           Please open your <strong>Spam</strong> folder, click the email, and click <em>"Report not spam"</em> or click the reset link.
@@ -713,7 +715,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
 
                       {/* Information note */}
                       <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[14px] text-xs text-[#475569] leading-relaxed">
-                        <span className="font-bold text-[#2563EB]">Note:</span> Reset emails are delivered by Firebase. Make sure to check your <strong>Gmail Spam folder</strong> if it does not show in Primary inbox.
+                        <span className="font-bold text-[#2563EB]">Note:</span> Reset emails are delivered instantly. Make sure to check your <strong>Gmail Spam folder</strong> if it does not show in Primary inbox.
                       </div>
 
                       <button
@@ -892,7 +894,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                   <span>Gmail Users: Check Spam / Junk Folder</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-amber-800/90">
-                  Automated emails from Firebase sender <strong>noreply@socialindia-96fa1.firebaseapp.com</strong> are often sorted into Gmail's <strong>Spam / Junk</strong> folder or <strong>Promotions</strong> tab.
+                  Automated emails from SocialIndia Security (sender: <strong>noreply@socialindia.us.ci</strong>) may sometimes be sorted into Gmail's <strong>Spam / Junk</strong> folder or <strong>Promotions</strong> tab.
                 </p>
               </div>
 

@@ -24,9 +24,11 @@ import {
   MessageSquare,
   Play
 } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export const AboutPage: React.FC = () => {
   const { navigate } = useRouter();
+  const { isHindi } = useTranslation();
 
   return (
     <div className="bg-white dark:bg-[#0f0f0f] text-slate-900 dark:text-slate-100 min-h-screen">
@@ -38,7 +40,7 @@ export const AboutPage: React.FC = () => {
           className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-[#065fd4] dark:hover:text-blue-500 cursor-pointer transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Home</span>
+          <span>{isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}</span>
         </button>
 
         {/* HERO WELCOME SECTION */}
@@ -54,14 +56,14 @@ export const AboutPage: React.FC = () => {
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-950/40 border border-blue-100/80 dark:border-blue-900/40 rounded-full">
               <span className="w-2 h-2 rounded-full bg-[#065fd4] dark:bg-blue-400 animate-pulse" />
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#065fd4] dark:text-blue-400">
-                India's #1 Creator Platform
+                {isHindi ? 'भारत का नंबर 1 क्रिएटर प्लेटफॉर्म' : "India's #1 Creator Platform"}
               </span>
             </div>
 
             {/* Title: Welcome to SocialIndia (with solid blue color & underline) */}
             <div className="space-y-2">
               <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-none text-slate-900 dark:text-white">
-                Welcome to
+                {isHindi ? 'स्वागत है' : 'Welcome to'}
               </h1>
               <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-none">
                 <span className="relative inline-block text-[#065fd4] dark:text-blue-400 pb-2">
@@ -73,7 +75,9 @@ export const AboutPage: React.FC = () => {
 
             {/* Description */}
             <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-medium leading-relaxed max-w-2xl">
-              India's home-grown video platform — where creators share their passion, viewers discover incredible content, and communities thrive together in 22+ languages.
+              {isHindi
+                ? 'भारत का स्वदेशी वीडियो प्लेटफॉर्म — जहां क्रिएटर अपना जुनून साझा करते हैं, दर्शक अद्भुत वीडियो खोजते हैं और करोड़ों भारतीय आपस में जुड़ते हैं।'
+                : "India's home-grown video platform — where creators share their passion, viewers discover incredible content, and communities thrive together in 22+ languages."}
             </p>
 
             {/* Action Buttons */}
@@ -83,13 +87,13 @@ export const AboutPage: React.FC = () => {
                 className="inline-flex items-center gap-2 px-6 py-3 bg-[#065fd4] hover:bg-[#0556bf] text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-blue-600/20 transition-all cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
               >
                 <Play className="w-4 h-4 fill-current text-white" />
-                <span>Explore Platform</span>
+                <span>{isHindi ? 'प्लेटफॉर्म एक्सप्लोर करें' : 'Explore Platform'}</span>
               </button>
               <button
                 onClick={() => navigate('studio')}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-white dark:bg-[#1e1e1e] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black uppercase tracking-wider shadow-xs transition-all cursor-pointer hover:-translate-y-0.5 active:translate-y-0"
               >
-                <span>Start Creating</span>
+                <span>{isHindi ? 'वीडियो बनाना शुरू करें' : 'Start Creating'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

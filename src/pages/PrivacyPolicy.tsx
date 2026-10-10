@@ -52,7 +52,7 @@ export const PrivacyPolicyPage: React.FC = () => {
             </div>
             <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white">Double Encryption</h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-              Authentication and security parameters are processed securely via secure, double-encrypted Firebase Authentication SDK endpoints.
+              Authentication and security parameters are processed securely via industry-grade, double-encrypted security and authentication endpoints.
             </p>
           </div>
 

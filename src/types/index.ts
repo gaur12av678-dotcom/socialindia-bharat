@@ -42,6 +42,7 @@ export interface User {
 export interface PrivateUserInfo {
   email: string;
   theme: 'light' | 'dark' | 'system';
+  language?: 'en' | 'hi';
   allowNotificationLikes?: boolean;
   allowNotificationComments?: boolean;
   allowNotificationFollowers?: boolean;

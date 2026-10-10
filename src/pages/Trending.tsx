@@ -3,8 +3,10 @@ import { videoService } from '../services/videoService';
 import { Video } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { Flame } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export const Trending: React.FC = () => {
+  const { t, isHindi } = useTranslation();
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,8 +40,14 @@ export const Trending: React.FC = () => {
           <Flame className="w-5 h-5 fill-amber-500 text-amber-500" />
         </div>
         <div>
-          <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">Trending Now</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">Most watched, commented and liked video creators across India today</p>
+          <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+            {t('trending_title', 'Trending Now')}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">
+            {isHindi 
+              ? 'आज भारत भर में सबसे ज़्यादा देखे जाने वाले और लोकप्रिय वीडियो' 
+              : 'Most watched, commented and liked video creators across India today'}
+          </p>
         </div>
       </div>
 
@@ -47,7 +55,7 @@ export const Trending: React.FC = () => {
       <VideoGrid 
         videos={videos} 
         loading={loading} 
-        emptyMessage="No trending video entries calculated yet."
+        emptyMessage={isHindi ? 'अभी कोई ट्रेंडिंग वीडियो उपलब्ध नहीं है।' : 'No trending video entries calculated yet.'}
       />
     </div>
   );

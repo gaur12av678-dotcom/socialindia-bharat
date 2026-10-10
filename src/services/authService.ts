@@ -308,10 +308,10 @@ export const authService = {
 
   // Instant Google Sign-In helper when popups are blocked by browser iframe
   async signInWithGoogleDirect(
-        throw new Error('This login method has been disabled for security. Please use Google Sign-In.');
     email: string = 'maryxbgamer@gmail.com',
     displayName: string = 'Mary Gamer'
   ): Promise<{ userProfile: User; emailVerified: boolean }> {
+    throw new Error('This login method has been disabled for security. Please use Google Sign-In.');
     const cleanEmail = email.trim().toLowerCase();
     const fallbackPassword = `Google_Auth_${cleanEmail.replace(/[^a-z0-9]/g, '')}_2026!`;
 

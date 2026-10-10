@@ -74,6 +74,8 @@ export const Watch: React.FC = () => {
   const [disliked, setDisliked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [isPostingComment, setIsPostingComment] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
   const [activeRelatedMenuId, setActiveRelatedMenuId] = useState<string | null>(null);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
@@ -428,6 +430,8 @@ export const Watch: React.FC = () => {
       addToast('Please sign in to subscribe.', 'info');
       return;
     }
+    if (isSubscribing) return;
+    setIsSubscribing(true);
 
     const previousSubState = subscribed;
     const nextSubState = !previousSubState;
@@ -444,7 +448,7 @@ export const Watch: React.FC = () => {
         username: video.creatorUsername,
         displayName: video.creatorDisplayName,
         photoURL: video.creatorPhotoURL
-      });
+      }, nextSubState);
       setSubscribed(isSub);
 
       if (isSub) {
@@ -458,6 +462,8 @@ export const Watch: React.FC = () => {
         followersCount: Math.max(0, (prev.followersCount || 0) + (previousSubState ? 1 : -1)) 
       } : null);
       addToast('Subscription change failed.', 'error');
+    } finally {
+      setIsSubscribing(false);
     }
   };
 
@@ -527,8 +533,11 @@ export const Watch: React.FC = () => {
       addToast('Please sign in to leave comments.', 'info');
       return;
     }
+    if (isPostingComment) return;
     const textToPost = newCommentText.trim();
     if (!textToPost) return;
+
+    setIsPostingComment(true);
 
     // Generate a temporary unique ID for optimistic rendering
     const tempCommentId = `temp-${Date.now()}`;
@@ -564,8 +573,7 @@ export const Watch: React.FC = () => {
       setComments(prev => prev.map(c => c.commentId === tempCommentId ? realComment : c));
 
       // Award 10 points for commenting & refresh profile
-      await userService.awardPoints(currentUser.uid, 10);
-      await refreshProfile();
+      userService.awardPoints(currentUser.uid, 10).catch(console.warn);
 
       notificationService.createNotification(video.creatorId, currentUserProfile, 'comment', {
         videoId: video.videoId,
@@ -580,6 +588,8 @@ export const Watch: React.FC = () => {
       // Restore input text so they don't lose what they typed
       setNewCommentText(textToPost);
       addToast('Failed to post comment. Please try again.', 'error');
+    } finally {
+      setIsPostingComment(false);
     }
   };
 
@@ -970,7 +980,8 @@ export const Watch: React.FC = () => {
               {currentUser?.uid !== video.creatorId && (
                 <button
                   onClick={handleSubscribeToggle}
-                  className={`ml-3 px-5 py-2 text-xs font-extrabold rounded-full transition-all cursor-pointer shadow-xs active:scale-95 ${
+                  disabled={isSubscribing}
+                  className={`ml-3 px-5 py-2 text-xs font-extrabold rounded-full transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-60 ${
                     subscribed 
                       ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-300' 
                       : 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/85 dark:hover:bg-slate-200'
@@ -1241,7 +1252,8 @@ export const Watch: React.FC = () => {
               />
               <button 
                 type="submit"
-                className="px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center justify-center cursor-pointer shadow-xs transition-colors"
+                disabled={isPostingComment || !newCommentText.trim()}
+                className="px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl flex items-center justify-center cursor-pointer shadow-xs transition-colors"
                 title={t('comment_btn', 'Comment')}
               >
                 <Send className="w-3.5 h-3.5" />
@@ -1259,14 +1271,14 @@ export const Watch: React.FC = () => {
               comments.filter(c => !c.parentCommentId).map((comm) => (
                 <div key={comm.commentId} className="space-y-3">
                   <div className="flex gap-3 items-start group">
-                    {/* User Initial Circle */}
-                    <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-[#1E293B] shrink-0 flex items-center justify-center text-slate-700 dark:text-slate-300 font-black text-xs select-none border border-slate-200 dark:border-slate-800">
-                      {comm.photoURL ? (
-                        <img src={comm.photoURL} alt={comm.displayName} className="w-full h-full object-cover rounded-xl" />
-                      ) : (
-                        getInitials(comm.displayName)
-                      )}
-                    </div>
+                    {/* User Avatar with real-time profile sync */}
+                    <UserAvatar 
+                      uid={comm.uid}
+                      fallbackPhotoURL={comm.photoURL}
+                      fallbackDisplayName={comm.displayName}
+                      size="sm"
+                      className="rounded-xl shrink-0 border border-slate-200 dark:border-slate-800"
+                    />
 
                     {/* Body content */}
                     <div className="flex-1 min-w-0 bg-white dark:bg-[#111827] p-4 rounded-2xl border border-slate-200/80 dark:border-[#334155] relative shadow-xs hover:border-blue-300 dark:hover:border-blue-700 transition-colors">
@@ -1455,13 +1467,13 @@ export const Watch: React.FC = () => {
                           <div className="space-y-3 pt-2 animate-in slide-in-from-top-2 duration-200">
                             {commentReplies.map(reply => (
                               <div key={reply.commentId} className="flex gap-3 items-start group">
-                                <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-[#1E293B] shrink-0 flex items-center justify-center text-slate-700 dark:text-slate-300 font-black text-[10px] select-none border border-slate-200 dark:border-slate-800">
-                                  {reply.photoURL ? (
-                                    <img src={reply.photoURL} alt="" className="w-full h-full object-cover rounded-lg" />
-                                  ) : (
-                                    getInitials(reply.displayName)
-                                  )}
-                                </div>
+                                <UserAvatar 
+                                  uid={reply.uid}
+                                  fallbackPhotoURL={reply.photoURL}
+                                  fallbackDisplayName={reply.displayName}
+                                  size="xs"
+                                  className="rounded-lg shrink-0 border border-slate-200 dark:border-slate-800"
+                                />
                                 <div className="flex-1 min-w-0 bg-slate-50/50 dark:bg-[#0f0f0f]/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 relative">
                                   <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                                     <span className="text-[11px] font-black text-slate-900 dark:text-[#F8FAFC]">{reply.displayName}</span>
@@ -1607,17 +1619,22 @@ export const Watch: React.FC = () => {
 
         {/* Category Filter Pills (Matches Reference) */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {['All', `From ${video.creatorDisplayName?.split(' ')[0] || 'Creator'}`, 'Politics', 'Related'].map((pill) => (
+          {[
+            { id: 'All', label: isHindi ? 'सभी' : 'All' },
+            { id: 'FromCreator', label: isHindi ? `${video.creatorDisplayName?.split(' ')[0] || 'क्रिएटर'} से` : `From ${video.creatorDisplayName?.split(' ')[0] || 'Creator'}` },
+            { id: 'Politics', label: isHindi ? 'राजनीति' : 'Politics' },
+            { id: 'Related', label: isHindi ? 'संबंधित' : 'Related' }
+          ].map((pill) => (
             <button
-              key={pill}
-              onClick={() => setSelectedCategoryFilter(pill)}
+              key={pill.id}
+              onClick={() => setSelectedCategoryFilter(pill.id === 'FromCreator' ? `From ${video.creatorDisplayName}` : pill.id)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-colors cursor-pointer shadow-xs ${
-                selectedCategoryFilter === pill
+                (selectedCategoryFilter === pill.id || (pill.id === 'FromCreator' && selectedCategoryFilter.startsWith('From')))
                   ? 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black font-black'
                   : 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
               }`}
             >
-              {pill}
+              {pill.label}
             </button>
           ))}
         </div>
@@ -1633,7 +1650,7 @@ export const Watch: React.FC = () => {
             });
 
             if (displayList.length === 0) {
-              return <p className="text-xs text-slate-400 font-medium py-4 text-center">No related videos in this category.</p>;
+              return <p className="text-xs text-slate-400 font-medium py-4 text-center">{isHindi ? 'इस श्रेणी में कोई संबंधित वीडियो नहीं है।' : 'No related videos in this category.'}</p>;
             }
 
             return displayList.map((v) => (
@@ -1670,9 +1687,9 @@ export const Watch: React.FC = () => {
                       <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[7px] w-3 h-3 rounded-full font-black shrink-0">✓</span>
                     </p>
 
-                    {/* Views Count and Upload Date (e.g. 10.3M views • 1 day ago) */}
+                    {/* Views Count and Upload Date */}
                     <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium">
-                      {formatViews(v.viewsCount)} views • {formatTimeAgo(v.createdAt)}
+                      {formatViews(v.viewsCount)} {isHindi ? 'व्यूज' : 'views'} • {formatTimeAgo(v.createdAt)}
                     </p>
                   </div>
                 </div>
@@ -1703,47 +1720,47 @@ export const Watch: React.FC = () => {
                             navigator.share({ title: v.title, url: shareUrl }).catch(() => {});
                           } else {
                             navigator.clipboard.writeText(shareUrl);
-                            addToast('Link copied to clipboard!', 'success');
+                            addToast(isHindi ? 'लिंक क्लिपबोर्ड पर कॉपी हो गया!' : 'Link copied to clipboard!', 'success');
                           }
                           setActiveRelatedMenuId(null);
                         }}
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
                       >
                         <Share2 className="w-3.5 h-3.5 text-blue-500" />
-                        <span>Share</span>
+                        <span>{t('action_share', 'Share')}</span>
                       </button>
 
                       <button
                         onClick={async () => {
-                          addToast('Downloading video...', 'info');
+                          addToast(isHindi ? 'वीडियो डाउनलोड हो रहा है...' : 'Downloading video...', 'info');
                           try {
                             await downloadService.downloadVideo(v, () => {});
-                            addToast('Video saved to Downloads!', 'success');
+                            addToast(isHindi ? 'वीडियो डाउनलोड्स में सहेजा गया!' : 'Video saved to Downloads!', 'success');
                           } catch (err) {
-                            addToast('Download initiated!', 'info');
+                            addToast(isHindi ? 'डाउनलोड शुरू हुआ!' : 'Download initiated!', 'info');
                           }
                           setActiveRelatedMenuId(null);
                         }}
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
                       >
                         <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>Download</span>
+                        <span>{t('action_download', 'Download')}</span>
                       </button>
 
                       <button
                         onClick={() => {
                           if (!currentUser) {
-                            addToast('Please sign in to save videos', 'info');
+                            addToast(isHindi ? 'वीडियो सहेजने के लिए कृपया साइन इन करें' : 'Please sign in to save videos', 'info');
                           } else {
                             savedVideoService.saveVideo(currentUser.uid, v);
-                            addToast('Saved to playlist!', 'success');
+                            addToast(isHindi ? 'प्लेलिस्ट में सहेजा गया!' : 'Saved to playlist!', 'success');
                           }
                           setActiveRelatedMenuId(null);
                         }}
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
                       >
                         <Bookmark className="w-3.5 h-3.5 text-purple-500" />
-                        <span>Save to Playlist</span>
+                        <span>{isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}</span>
                       </button>
 
                       <button
@@ -1753,20 +1770,20 @@ export const Watch: React.FC = () => {
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
                       >
                         <Clock className="w-3.5 h-3.5 text-amber-500" />
-                        <span>{savedWatchLaterMap[v.videoId] ? 'Remove Watch Later' : 'Save to Watch Later'}</span>
+                        <span>{savedWatchLaterMap[v.videoId] ? (isHindi ? 'बाद में देखें से हटाएं' : 'Remove Watch Later') : (isHindi ? 'बाद में देखें में सहेजें' : 'Save to Watch Later')}</span>
                       </button>
 
                       <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
 
                       <button
                         onClick={() => {
-                          addToast('Feedback noted. We will recommend fewer videos like this.', 'info');
+                          addToast(isHindi ? 'प्रतिक्रिया नोट की गई। हम ऐसे वीडियो कम दिखाएंगे।' : 'Feedback noted. We will recommend fewer videos like this.', 'info');
                           setActiveRelatedMenuId(null);
                         }}
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-500 font-medium cursor-pointer"
                       >
                         <Ban className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Not interested</span>
+                        <span>{isHindi ? 'रुचि नहीं है' : 'Not interested'}</span>
                       </button>
                     </div>
                   )}

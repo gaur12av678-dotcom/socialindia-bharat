@@ -58,7 +58,7 @@ export const DevelopersPage: React.FC = () => {
               <p>{"}"}</p>
             </div>
 
-            <p>All core code blocks run under sleek React TSX Vite parameters. Media file transfers and responsive thumbnails are optimized globally via Cloudinary Content Delivery Networks.</p>
+            <p>All core code blocks run under sleek React TSX Vite parameters. Media file transfers and responsive thumbnails are optimized globally via high-performance edge Content Delivery Networks.</p>
           </div>
         </div>
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
 import { reportService } from '../services/reportService';
+import { useTranslation } from '../i18n';
 import { 
   ArrowLeft, 
   Mail, 
@@ -22,6 +23,7 @@ import {
 export const ContactUsPage: React.FC = () => {
   const { navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast } = useApp();
+  const { isHindi } = useTranslation();
 
   const [activeTab, setActiveTab] = useState<'support' | 'grievance'>('grievance');
 
@@ -95,7 +97,7 @@ export const ContactUsPage: React.FC = () => {
           className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-[#065fd4] dark:hover:text-blue-500 cursor-pointer transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Home</span>
+          <span>{isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}</span>
         </button>
 
         {/* Header Title Card */}
@@ -103,14 +105,16 @@ export const ContactUsPage: React.FC = () => {
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-950/40 border border-blue-100/80 dark:border-blue-900/40 rounded-full">
             <Scale className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-              MeitY IT Rules (2021) Compliance & Support
+              {isHindi ? 'भारत सरकार MeitY IT नियम (2021) अनुपालन व सहायता' : 'MeitY IT Rules (2021) Compliance & Support'}
             </span>
           </div>
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-none text-slate-900 dark:text-white">
-            Grievance Redressal & Contact
+            {isHindi ? 'शिकायत निवारण व संपर्क' : 'Grievance Redressal & Contact'}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-2xl font-medium leading-relaxed">
-            In compliance with Rule 3(2) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, SocialIndia provides a dedicated Grievance Officer, strict resolution timelines, and 24-hour emergency removal protocols.
+            {isHindi
+              ? 'सूचना प्रौद्योगिकी (मध्यवर्ती दिशानिर्देश और डिजिटल मीडिया आचार संहिता) नियम 2021 के नियम 3(2) के तहत सोशलइंडिया समर्पित शिकायत अधिकारी, निश्चित निवारण समयसीमा और 24-घंटे आपातकालीन कंटेंट निष्कासन सेवा प्रदान करता है।'
+              : 'In compliance with Rule 3(2) of the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, SocialIndia provides a dedicated Grievance Officer, strict resolution timelines, and 24-hour emergency removal protocols.'}
           </p>
         </div>
 
@@ -123,7 +127,7 @@ export const ContactUsPage: React.FC = () => {
             }`}
           >
             <ShieldCheck className="w-4 h-4" />
-            <span>Grievance Officer & Legal Takedown</span>
+            <span>{isHindi ? 'शिकायत अधिकारी व विधिक टेकडाउन' : 'Grievance Officer & Legal Takedown'}</span>
             {activeTab === 'grievance' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
           </button>
 
@@ -134,7 +138,7 @@ export const ContactUsPage: React.FC = () => {
             }`}
           >
             <Mail className="w-4 h-4" />
-            <span>Customer Support & Feedback</span>
+            <span>{isHindi ? 'ग्राहक सहायता व फीडबैक' : 'Customer Support & Feedback'}</span>
             {activeTab === 'support' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
           </button>
         </div>

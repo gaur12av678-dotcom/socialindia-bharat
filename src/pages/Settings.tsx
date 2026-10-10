@@ -47,10 +47,12 @@ import { payoutService } from '../services/payoutService';
 import { WithdrawalRequest, Video } from '../types';
 import { compressAvatar, compressBanner } from '../utils/imageUtils';
 import { updateUserAvatarCache } from '../components/UserAvatar';
+import { useTranslation } from '../i18n';
 
 export const Settings: React.FC = () => {
   const { currentUser, currentUserProfile, refreshProfile, updateUserProfileState, addToast } = useApp();
   const { navigate } = useRouter();
+  const { t, isHindi } = useTranslation();
 
   // Active Tab State
   const [activeTab, setActiveTab] = useState<
@@ -581,38 +583,38 @@ export const Settings: React.FC = () => {
 
   const menuGroups: SettingsGroup[] = [
     {
-      category: 'ACCOUNT',
+      category: isHindi ? 'खाता (Account)' : 'ACCOUNT',
       items: [
-        { id: 'general', label: 'General', icon: Sun },
-        { id: 'profile', label: 'Profile', icon: User },
-        { id: 'avatar_cover', label: 'Avatar & Cover', icon: ImageIcon },
-        { id: 'privacy', label: 'Privacy', icon: Shield },
+        { id: 'general', label: isHindi ? 'सामान्य सेटिंग्स' : 'General', icon: Sun },
+        { id: 'profile', label: isHindi ? 'प्रोफ़ाइल' : 'Profile', icon: User },
+        { id: 'avatar_cover', label: isHindi ? 'अवतार व बैनर' : 'Avatar & Cover', icon: ImageIcon },
+        { id: 'privacy', label: isHindi ? 'गोपनीयता' : 'Privacy', icon: Shield },
       ]
     },
     {
-      category: 'SECURITY',
+      category: isHindi ? 'सुरक्षा (Security)' : 'SECURITY',
       items: [
-        { id: 'password', label: 'Password', icon: Key },
-        { id: 'two_factor', label: 'Two-factor authentication', icon: Smartphone },
-        { id: 'sessions', label: 'Manage Sessions', icon: Monitor },
-        { id: 'blocked_users', label: 'Blocked Users', icon: Ban },
+        { id: 'password', label: isHindi ? 'पासवर्ड बदलें' : 'Password', icon: Key },
+        { id: 'two_factor', label: isHindi ? '2-चरणीय प्रमाणीकरण' : 'Two-factor authentication', icon: Smartphone },
+        { id: 'sessions', label: isHindi ? 'लॉगिन सेशन्स' : 'Manage Sessions', icon: Monitor },
+        { id: 'blocked_users', label: isHindi ? 'ब्लॉक किए गए यूज़र्स' : 'Blocked Users', icon: Ban },
       ]
     },
     {
-      category: 'EARNINGS',
+      category: isHindi ? 'कमाई (Earnings)' : 'EARNINGS',
       items: [
-        { id: 'monetization', label: 'Monetization', icon: DollarSign },
-        { id: 'balance', label: 'Balance', icon: CreditCard, badge: `$${mainBalance.toFixed(2)}`, badgeType: 'blue' },
-        { id: 'points', label: 'Points', icon: Award, badge: `${points} pts`, badgeType: 'blue' },
-        { id: 'verification', label: 'Verification', icon: ShieldCheck, badge: verificationSubmitted ? 'Submitted' : undefined, badgeType: 'amber' },
+        { id: 'monetization', label: isHindi ? 'मोनेटाइजेशन' : 'Monetization', icon: DollarSign },
+        { id: 'balance', label: isHindi ? 'वॉलेट बैलेंस' : 'Balance', icon: CreditCard, badge: `$${mainBalance.toFixed(2)}`, badgeType: 'blue' },
+        { id: 'points', label: isHindi ? 'रिवॉर्ड पॉइंट्स' : 'Points', icon: Award, badge: `${points} pts`, badgeType: 'blue' },
+        { id: 'verification', label: isHindi ? 'सत्यापन' : 'Verification', icon: ShieldCheck, badge: verificationSubmitted ? (isHindi ? 'जमा हुआ' : 'Submitted') : undefined, badgeType: 'amber' },
       ]
     },
     {
-      category: 'DATA',
+      category: isHindi ? 'डेटा (Data)' : 'DATA',
       items: [
-        { id: 'my_info', label: 'My Information', icon: Info },
-        { id: 'purchases', label: 'My Purchases', icon: ShoppingBag },
-        { id: 'delete_account', label: 'Delete account', icon: Trash2, isDanger: true },
+        { id: 'my_info', label: isHindi ? 'मेरी जानकारी' : 'My Information', icon: Info },
+        { id: 'purchases', label: isHindi ? 'मेरी खरीदारी' : 'My Purchases', icon: ShoppingBag },
+        { id: 'delete_account', label: isHindi ? 'खाता हटाएं' : 'Delete account', icon: Trash2, isDanger: true },
       ]
     }
   ];
@@ -646,12 +648,12 @@ export const Settings: React.FC = () => {
             <button
               onClick={() => navigate('home')}
               className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer shrink-0"
-              title="Back"
+              title={isHindi ? 'वापस' : 'Back'}
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-              Settings
+              {isHindi ? 'सेटिंग्स' : 'Settings'}
             </h1>
           </div>
 

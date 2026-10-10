@@ -125,13 +125,22 @@ const ShortVideoMedia: React.FC<{
     }
   }, [isPlaying, isMuted, resolvedSoundAudioUrl]);
 
-  // Sync for YouTube
+  // Sync for YouTube with explicit unMute
   useEffect(() => {
     if (playerRef.current && typeof playerRef.current.setVolume === 'function') {
       if (resolvedSoundAudioUrl) {
-        playerRef.current.mute();
+        try { playerRef.current.mute(); } catch (_) {}
       } else {
-        playerRef.current.setVolume(isMuted ? 0 : volume * 100);
+        if (!isMuted && volume > 0) {
+          try {
+            if (typeof playerRef.current.unMute === 'function') {
+              playerRef.current.unMute();
+            }
+            playerRef.current.setVolume(volume * 100);
+          } catch (_) {}
+        } else {
+          try { playerRef.current.mute(); } catch (_) {}
+        }
       }
     }
   }, [volume, isMuted, resolvedSoundAudioUrl]);
@@ -142,6 +151,39 @@ const ShortVideoMedia: React.FC<{
       else playerRef.current.pauseVideo();
     }
   }, [isPlaying]);
+
+  // Keep sound alive when user switches browser tabs or returns to tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Tab is active again — resume sound and playback seamlessly
+        if (soundAudioRef.current && isPlaying && !isMuted) {
+          soundAudioRef.current.play().catch(() => {});
+        }
+        if (videoRef.current && isPlaying) {
+          videoRef.current.play().catch(() => {});
+          if (!resolvedSoundAudioUrl) {
+            videoRef.current.muted = isMuted;
+            videoRef.current.volume = volume;
+          }
+        }
+        if (playerRef.current && typeof playerRef.current.playVideo === 'function' && isPlaying) {
+          try {
+            playerRef.current.playVideo();
+            if (!isMuted && !resolvedSoundAudioUrl) {
+              if (typeof playerRef.current.unMute === 'function') {
+                playerRef.current.unMute();
+              }
+              playerRef.current.setVolume(volume * 100);
+            }
+          } catch (_) {}
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isPlaying, isMuted, volume, resolvedSoundAudioUrl]);
 
   useEffect(() => {
     if (parsedMedia.type !== 'youtube' || !parsedMedia.youtubeId) return;
@@ -177,23 +219,35 @@ const ShortVideoMedia: React.FC<{
             if (!isMounted) return;
             onMediaReady();
             if (resolvedSoundAudioUrl) {
-              event.target.mute();
+              try { event.target.mute(); } catch (_) {}
               if (soundAudioRef.current && isPlaying && !isMuted) {
                 soundAudioRef.current.play().catch(() => {});
               }
             } else {
-              event.target.setVolume(isMuted ? 0 : volume * 100);
+              if (!isMuted) {
+                try {
+                  event.target.unMute();
+                  event.target.setVolume(volume * 100);
+                } catch (_) {}
+              } else {
+                try { event.target.mute(); } catch (_) {}
+              }
             }
             try {
               if (isPlaying) event.target.playVideo();
             } catch (e) {
-              event.target.mute();
               if (isPlaying) event.target.playVideo();
             }
           },
           onStateChange: (event: any) => {
             if (!isMounted) return;
             if (event.data === 1) { // Playing
+              if (!isMuted && !resolvedSoundAudioUrl) {
+                try {
+                  event.target.unMute();
+                  event.target.setVolume(volume * 100);
+                } catch (_) {}
+              }
               if (soundAudioRef.current && isPlaying && !isMuted) {
                 soundAudioRef.current.play().catch(() => {});
               }
@@ -482,9 +536,12 @@ export const Shorts: React.FC = () => {
       navigate('signin');
       return;
     }
+    if (subscribing) return;
     if (!activeShort?.creatorId || activeShort.creatorId === currentUser.uid) {
       return;
     }
+    const nextSub = !isSubscribed;
+    setIsSubscribed(nextSub);
     setSubscribing(true);
     try {
       const newStatus = await subscriptionService.toggleSubscription(
@@ -494,10 +551,12 @@ export const Shorts: React.FC = () => {
           username: activeShort.creatorUsername,
           displayName: activeShort.creatorDisplayName,
           photoURL: activeShort.creatorPhotoURL
-        }
+        },
+        nextSub
       );
       setIsSubscribed(newStatus);
     } catch (err) {
+      setIsSubscribed(!nextSub);
       addToast('Could not update subscription.', 'error');
     } finally {
       setSubscribing(false);
@@ -819,9 +878,9 @@ export const Shorts: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-start md:justify-center p-0 md:p-6 h-[calc(100dvh-3.5rem)] md:h-auto md:min-h-[calc(100vh-4rem)] relative select-none max-w-6xl mx-auto overflow-hidden">
+    <div className="flex flex-col items-center justify-start md:justify-center p-0 md:p-3 md:py-2 h-[calc(100dvh-3.5rem)] md:h-[calc(100vh-4.5rem)] relative select-none max-w-6xl mx-auto overflow-hidden">
       
-      <div className="flex flex-col md:flex-row items-center md:items-stretch justify-center gap-6 w-full h-[calc(100dvh-3.5rem)] md:h-[750px]">
+      <div className="flex flex-col md:flex-row items-center md:items-center justify-center gap-6 w-full h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)]">
         
         {/* Navigation Arrows for desktop (Left side) */}
         <div className="hidden md:flex flex-col justify-center gap-4">
@@ -849,7 +908,7 @@ export const Shorts: React.FC = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          className="relative w-full max-w-full md:max-w-[420px] h-[calc(100dvh-3.5rem)] md:h-auto md:aspect-[9/16] bg-black rounded-none md:rounded-[2.5rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-pan-y"
+          className="relative w-full max-w-full md:max-w-[390px] h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] md:aspect-[9/16] bg-black rounded-none md:rounded-[2rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-pan-y"
         >
           {/* Top Mobile Overlay: Back to Home Button (YouTube Shorts Style) */}
           <div className="absolute top-3 left-3 md:hidden z-35 flex items-center gap-2">
@@ -1092,14 +1151,14 @@ export const Shorts: React.FC = () => {
           </div>
 
           {/* Interaction Side Overlay */}
-          <div className="absolute right-3.5 sm:right-4 bottom-24 flex flex-col gap-4 text-white z-20">
+          <div className="absolute right-3 sm:right-3.5 bottom-20 md:bottom-22 flex flex-col gap-3.5 text-white z-20">
             {/* LIKE BUTTON */}
             <button 
               onClick={handleLikeToggle}
               className="group/btn flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className={`w-12 h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${isLiked ? 'bg-rose-600/30 border-rose-500/50' : 'hover:bg-black/65'}`}>
-                <Heart className={`w-6 h-6 transition-colors ${isLiked ? 'text-rose-500 fill-rose-500' : 'text-white'}`} />
+              <div className={`w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${isLiked ? 'bg-rose-600/30 border-rose-500/50' : 'hover:bg-black/65'}`}>
+                <Heart className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${isLiked ? 'text-rose-500 fill-rose-500' : 'text-white'}`} />
               </div>
               <span className="text-[11px] font-bold drop-shadow-md">{likesCount}</span>
             </button>
@@ -1109,8 +1168,8 @@ export const Shorts: React.FC = () => {
               onClick={handleToggleComments}
               className="group/btn flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className={`w-12 h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${showComments ? 'bg-blue-600/30 border-blue-500/50' : 'hover:bg-black/65'}`}>
-                <MessageSquare className="w-6 h-6 text-white" />
+              <div className={`w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${showComments ? 'bg-blue-600/30 border-blue-500/50' : 'hover:bg-black/65'}`}>
+                <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <span className="text-[11px] font-bold drop-shadow-md">{commentsCount}</span>
             </button>
@@ -1120,8 +1179,8 @@ export const Shorts: React.FC = () => {
               onClick={handleShare}
               className="group/btn flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className="w-12 h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
-                <Share2 className="w-6 h-6 text-white" />
+              <div className="w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
+                <Share2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <span className="text-[11px] font-bold drop-shadow-md">{t('action_share', 'Share')}</span>
             </button>
@@ -1133,7 +1192,7 @@ export const Shorts: React.FC = () => {
               className="group/btn flex flex-col items-center gap-1 cursor-pointer"
               title={isDownloaded ? "Downloaded offline" : "Download short"}
             >
-              <div className={`w-12 h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
+              <div className={`w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
                 isDownloaded ? 'bg-emerald-600/30 border-emerald-500/50' : 'hover:bg-black/65'
               }`}>
                 {downloadProgress !== null ? (
@@ -1155,7 +1214,7 @@ export const Shorts: React.FC = () => {
               className="group/btn flex flex-col items-center gap-1 cursor-pointer"
               title={isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}
             >
-              <div className="w-12 h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
                 <Bookmark className="w-5 h-5 text-white" />
               </div>
               <span className="text-[11px] font-bold drop-shadow-md">{isHindi ? 'सहेजें' : 'Save'}</span>
@@ -1163,7 +1222,7 @@ export const Shorts: React.FC = () => {
           </div>
 
           {/* Details Overlay bottom */}
-          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/80 to-transparent p-5 sm:p-6 text-white flex flex-col gap-2.5 z-10 pointer-events-none">
+          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/85 to-transparent p-4 sm:p-5 pb-4 sm:pb-5 md:pb-4 text-white flex flex-col gap-2 z-10 pointer-events-none">
             {/* Creator Row + Subscribe Button */}
             <div className="flex items-center justify-between gap-3 pointer-events-auto">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -1302,13 +1361,13 @@ export const Shorts: React.FC = () => {
                 comments.filter(c => !c.parentCommentId).map(c => (
                   <div key={c.commentId} className="space-y-4">
                     <div className="flex gap-4 items-start">
-                      <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-sm text-white shrink-0 shadow-lg border border-white/10">
-                        {c.photoURL ? (
-                          <img src={c.photoURL} alt="" className="w-full h-full object-cover rounded-2xl" />
-                        ) : (
-                          <span>{getInitials(c.displayName)}</span>
-                        )}
-                      </div>
+                      <UserAvatar 
+                        uid={c.uid}
+                        fallbackPhotoURL={c.photoURL}
+                        fallbackDisplayName={c.displayName}
+                        size="md"
+                        className="rounded-2xl shrink-0 shadow-lg border border-white/10"
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <span className="font-black text-[11px] text-slate-900 dark:text-white truncate">@{c.username}</span>
@@ -1366,9 +1425,13 @@ export const Shorts: React.FC = () => {
                     <div className="ml-14 space-y-4">
                       {comments.filter(r => r.parentCommentId === c.commentId).map(r => (
                         <div key={r.commentId} className="flex gap-3 items-start group">
-                          <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-900 flex items-center justify-center font-black text-[10px] text-slate-500 shrink-0 border border-slate-200 dark:border-slate-800">
-                            {r.photoURL ? <img src={r.photoURL} alt="" className="w-full h-full object-cover rounded-xl" /> : getInitials(r.displayName)}
-                          </div>
+                          <UserAvatar 
+                            uid={r.uid}
+                            fallbackPhotoURL={r.photoURL}
+                            fallbackDisplayName={r.displayName}
+                            size="xs"
+                            className="rounded-xl shrink-0 border border-slate-200 dark:border-slate-800"
+                          />
                           <div className="flex-1 min-w-0 bg-slate-50/50 dark:bg-slate-900/30 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-[10px] font-black text-slate-900 dark:text-white truncate">@{r.username}</span>

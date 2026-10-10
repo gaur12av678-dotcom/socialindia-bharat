@@ -23,10 +23,12 @@ import {
   ArrowDownToLine
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
+import { useTranslation } from '../i18n';
 
 export const MobileMenu: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { navigate } = useRouter();
+  const { t, isHindi } = useTranslation();
 
   if (!currentUser || !currentUserProfile) {
     return (
@@ -34,15 +36,19 @@ export const MobileMenu: React.FC = () => {
         <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-full text-blue-600 mb-4">
           <Lock className="w-8 h-8" />
         </div>
-        <h2 className="text-lg font-black text-slate-900 dark:text-white">Profile & Tools Workspace</h2>
+        <h2 className="text-lg font-black text-slate-900 dark:text-white">
+          {isHindi ? 'प्रोफ़ाइल एवं टूल्स कार्यक्षेत्र' : 'Profile & Tools Workspace'}
+        </h2>
         <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
-          Please sign in to access your direct profile hub, watch playlists, settings, and advanced creator tools.
+          {isHindi 
+            ? 'अपनी प्रोफ़ाइल, प्लेलिस्ट, सेटिंग्स और क्रिएटर टूल्स तक पहुँचने के लिए कृपया साइन इन करें।' 
+            : 'Please sign in to access your direct profile hub, watch playlists, settings, and advanced creator tools.'}
         </p>
         <button 
           onClick={() => navigate('login')} 
           className="mt-5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer"
         >
-          Sign In Now
+          {isHindi ? 'अभी साइन इन करें' : 'Sign In Now'}
         </button>
       </div>
     );
@@ -51,16 +57,16 @@ export const MobileMenu: React.FC = () => {
   const handleLogout = async () => {
     try {
       await authService.logout();
-      addToast('Signed out successfully.', 'success');
+      addToast(isHindi ? 'सफलतापूर्वक साइन आउट किया गया।' : 'Signed out successfully.', 'success');
       navigate('home');
     } catch {
-      addToast('Failed to sign out.', 'error');
+      addToast(isHindi ? 'साइन आउट करने में विफल।' : 'Failed to sign out.', 'error');
     }
   };
 
   const handleSwitchAccount = () => {
     navigate('login');
-    addToast('Account switcher loaded. You can now login to a different channel!', 'success');
+    addToast(isHindi ? 'खाता बदलने का विकल्प खुला। अब आप दूसरे चैनल में लॉगिन कर सकते हैं!' : 'Account switcher loaded. You can now login to a different channel!', 'success');
   };
 
   const isAdmin = currentUserProfile.role === 'admin';
@@ -87,10 +93,10 @@ export const MobileMenu: React.FC = () => {
               
               <div className="flex items-center gap-2 mt-1.5">
                 <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-100/30 dark:border-blue-900/40 rounded-full">
-                  ★ Points: {currentUserProfile.points || 0}
+                  ★ {isHindi ? 'पॉइंट्स' : 'Points'}: {currentUserProfile.points || 0}
                 </span>
                 <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100/30 dark:border-emerald-900/40 rounded-full">
-                  $ Wallet: ${Number(currentUserProfile.walletBalance || 0).toFixed(2)}
+                  $ {isHindi ? 'वॉलेट' : 'Wallet'}: ${Number(currentUserProfile.walletBalance || 0).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -101,14 +107,16 @@ export const MobileMenu: React.FC = () => {
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-blue-500/10 cursor-pointer active:scale-98 transition-all"
           >
             <UserIcon className="w-4 h-4" />
-            <span>View Your Profile / Channel</span>
+            <span>{isHindi ? 'अपनी प्रोफ़ाइल / चैनल देखें' : 'View Your Profile / Channel'}</span>
             <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
         </div>
 
         {/* 2. MY LIBRARY & PLAYLISTS */}
         <div className="space-y-2">
-          <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">My Library & Playlists</p>
+          <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+            {isHindi ? 'मेरी लाइब्रेरी एवं प्लेलिस्ट' : 'My Library & Playlists'}
+          </p>
           <div className="bg-slate-50/60 dark:bg-[#161616]/40 border border-slate-100 dark:border-slate-800 p-2 rounded-3xl space-y-1">
             <button
               onClick={() => navigate('playlists')}
@@ -119,8 +127,12 @@ export const MobileMenu: React.FC = () => {
                   <ListVideo className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">My Playlists</p>
-                  <p className="text-[10px] text-slate-500">Manage video playlists</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {t('nav_playlists', 'My Playlists')}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {isHindi ? 'वीडियो प्लेलिस्ट प्रबंधित करें' : 'Manage video playlists'}
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -135,8 +147,12 @@ export const MobileMenu: React.FC = () => {
                   <ArrowDownToLine className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Downloaded Videos</p>
-                  <p className="text-[10px] text-slate-500">Offline playback library</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {t('nav_downloads', 'Downloaded Videos')}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {isHindi ? 'ऑफ़लाइन प्लेबैक संग्रह' : 'Offline playback library'}
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -151,8 +167,12 @@ export const MobileMenu: React.FC = () => {
                   <Bookmark className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Saved Videos</p>
-                  <p className="text-[10px] text-slate-500">Watch later bookmarks</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {t('saved_title', 'Saved Videos')}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {isHindi ? 'बाद में देखने के लिए बुकमार्क' : 'Watch later bookmarks'}
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -167,8 +187,12 @@ export const MobileMenu: React.FC = () => {
                   <History className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Watch History</p>
-                  <p className="text-[10px] text-slate-500">Resume your playbacks</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {t('history_title', 'Watch History')}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {isHindi ? 'अपने देखे गए वीडियो देखें' : 'Resume your playbacks'}
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -178,7 +202,9 @@ export const MobileMenu: React.FC = () => {
 
         {/* 3. SETTINGS & UTILITIES */}
         <div className="space-y-2">
-          <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Settings & Preferences</p>
+          <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+            {isHindi ? 'सेटिंग्स एवं प्राथमिकताएं' : 'Settings & Preferences'}
+          </p>
           <div className="bg-slate-50/60 dark:bg-[#161616]/40 border border-slate-100 dark:border-slate-800 p-2 rounded-3xl space-y-1">
             <button
               onClick={() => navigate('settings')}
@@ -189,8 +215,12 @@ export const MobileMenu: React.FC = () => {
                   <Settings className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Channel Settings</p>
-                  <p className="text-[10px] text-slate-500">Edit info, passwords & payouts</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {isHindi ? 'चैनल सेटिंग्स' : 'Channel Settings'}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {isHindi ? 'प्रोफ़ाइल, पासवर्ड और भुगतान विवरण' : 'Edit info, passwords & payouts'}
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -205,8 +235,12 @@ export const MobileMenu: React.FC = () => {
                   <Globe className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Language Localization</p>
-                  <p className="text-[10px] text-slate-500">Indian regional languages selection</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {isHindi ? 'भाषा चयन (हिंदी / English)' : 'Language Localization'}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {isHindi ? 'भारतीय क्षेत्रीय भाषा चुनें' : 'Indian regional languages selection'}
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -216,7 +250,9 @@ export const MobileMenu: React.FC = () => {
 
         {/* 4. CREATOR TOOLS & PROMOTIONS */}
         <div className="space-y-2">
-          <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Creator Tools & Boosts</p>
+          <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+            {isHindi ? 'क्रिएटर टूल्स एवं बूस्ट' : 'Creator Tools & Boosts'}
+          </p>
           <div className="bg-slate-50/60 dark:bg-[#161616]/40 border border-slate-100 dark:border-slate-800 p-2 rounded-3xl space-y-1">
             <button
               onClick={() => navigate('advertising')}
@@ -227,8 +263,12 @@ export const MobileMenu: React.FC = () => {
                   <Megaphone className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Promote (Ad Campaigns)</p>
-                  <p className="text-[10px] text-slate-500">Boost video views & subscribers</p>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {isHindi ? 'प्रचार करें (विज्ञापन अभियान)' : 'Promote (Ad Campaigns)'}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {isHindi ? 'वीडियो व्यूज़ और सब्सक्राइबर्स बढ़ाएं' : 'Boost video views & subscribers'}
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -239,15 +279,17 @@ export const MobileMenu: React.FC = () => {
               className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 dark:bg-purple-950/30 text-purple-600 rounded-xl animate-pulse">
+                <div className="p-2 bg-purple-50 dark:purple-950/30 text-purple-600 rounded-xl animate-pulse">
                   <Zap className="w-4 h-4" />
                 </div>
                 <div>
                   <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                    <span>GoPro Premium</span>
+                    <span>{t('nav_gopro', 'GoPro Premium')}</span>
                     <Sparkles className="w-3 h-3 text-purple-500 shrink-0" />
                   </p>
-                  <p className="text-[10px] text-slate-500">Unlock maximum rewards speed</p>
+                  <p className="text-[10px] text-slate-500">
+                    {isHindi ? 'अधिकतम रिवॉर्ड्स और सुविधाएं पाएं' : 'Unlock maximum rewards speed'}
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -263,8 +305,12 @@ export const MobileMenu: React.FC = () => {
                     <ShieldCheck className="w-4 h-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">Platform Admin Hub</p>
-                    <p className="text-[10px] text-slate-500">Security audits & users wallet credit</p>
+                    <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                      {t('nav_admin', 'Platform Admin Hub')}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {isHindi ? 'सुरक्षा ऑडिट एवं वॉलेट क्रेडिट' : 'Security audits & users wallet credit'}
+                    </p>
                   </div>
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
@@ -275,14 +321,16 @@ export const MobileMenu: React.FC = () => {
 
         {/* 5. ACCOUNTS & LOGOUT */}
         <div className="space-y-2">
-          <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">Account Operations</p>
+          <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+            {isHindi ? 'खाता संचालन' : 'Account Operations'}
+          </p>
           <div className="bg-slate-50/60 dark:bg-[#161616]/40 border border-slate-100 dark:border-slate-800 p-2 rounded-3xl space-y-1">
             <button
               onClick={handleSwitchAccount}
               className="w-full flex items-center gap-3 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/40 rounded-2xl cursor-pointer text-xs font-black uppercase tracking-wider text-blue-600"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Switch Channel / Account</span>
+              <span>{isHindi ? 'चैनल / खाता बदलें' : 'Switch Channel / Account'}</span>
             </button>
 
             <button
@@ -290,7 +338,7 @@ export const MobileMenu: React.FC = () => {
               className="w-full flex items-center gap-3 p-3 text-left hover:bg-rose-50 dark:hover:bg-rose-950/10 rounded-2xl cursor-pointer text-xs font-black uppercase tracking-wider text-rose-600"
             >
               <LogOut className="w-4 h-4" />
-              <span>Sign Out Workspace</span>
+              <span>{t('sign_out', 'Sign Out Workspace')}</span>
             </button>
           </div>
         </div>
