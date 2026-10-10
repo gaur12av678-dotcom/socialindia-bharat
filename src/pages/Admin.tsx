@@ -561,7 +561,7 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  if (currentUserProfile?.role !== 'admin' && currentUserProfile?.displayName !== 'maryxbgamer@gmail.com') {
+  if (currentUserProfile?.role !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center py-40">
         <ShieldAlert className="w-16 h-16 text-rose-500 mb-4" />
