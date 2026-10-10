@@ -867,7 +867,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <Home className={`w-5 h-5 shrink-0 ${route.path === 'home' && !route.searchParams?.category ? 'text-[#065fd4] dark:text-[#60a5fa] fill-[#065fd4]/20' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">Home</span>
+                <span className="truncate">{t('nav_home', 'Home')}</span>
               </button>
 
               <button
@@ -879,7 +879,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <Zap className={`w-5 h-5 shrink-0 ${route.path === 'shorts' ? 'text-[#065fd4] dark:text-[#60a5fa] fill-current' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">Shorts</span>
+                <span className="truncate">{t('nav_shorts', 'Shorts')}</span>
               </button>
 
               <button
@@ -891,7 +891,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <Flame className={`w-5 h-5 shrink-0 ${route.path === 'trending' ? 'text-red-500 fill-red-500' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">Trending</span>
+                <span className="truncate">{t('nav_trending', 'Trending')}</span>
               </button>
 
               <button
@@ -903,7 +903,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <Tv className={`w-5 h-5 shrink-0 ${route.path === 'subscriptions' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">Subscriptions</span>
+                <span className="truncate">{t('nav_subscriptions', 'Subscriptions')}</span>
               </button>
 
               <button
@@ -915,7 +915,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <Clock className={`w-5 h-5 shrink-0 ${route.path === 'history' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">Library / History</span>
+                <span className="truncate">{t('nav_history', 'Library / History')}</span>
               </button>
 
               {/* Playlists / Playlist */}
@@ -928,7 +928,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <ListVideo className={`w-5 h-5 shrink-0 ${route.path === 'playlists' || route.path === 'playlist' || route.path === 'saved' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">Playlists</span>
+                <span className="truncate">{t('nav_playlists', 'Playlists')}</span>
               </button>
 
               {/* Downloaded / Downloads */}
@@ -941,7 +941,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <ArrowDownToLine className={`w-5 h-5 shrink-0 ${route.path === 'downloads' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">Downloaded</span>
+                <span className="truncate">{t('nav_downloads', 'Downloaded')}</span>
               </button>
 
               {/* Chat (Direct Messages & Conversations) */}
@@ -954,7 +954,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <MessageCircle className={`w-5 h-5 shrink-0 ${route.path === 'chat' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">Chat</span>
+                <span className="truncate">{t('nav_chat', 'Chat')}</span>
               </button>
             </div>
 
@@ -1019,7 +1019,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   }`}
                 >
                   <ShieldCheck className="w-4 h-4 shrink-0 text-[#065fd4] dark:text-[#60a5fa]" />
-                  <span className="truncate">Admin Hub</span>
+                  <span className="truncate">{t('nav_admin', 'Admin Hub')}</span>
                 </button>
                 <div className="h-px bg-slate-100 dark:bg-slate-800" />
               </div>
