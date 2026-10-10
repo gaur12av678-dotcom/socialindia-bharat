@@ -732,8 +732,20 @@ export const translations: Record<LanguageCode, Translations> = {
 };
 
 // Helper to format Hindi relative time strings
-export function formatRelativeTime(timestamp: number | Date, lang: LanguageCode = 'en'): string {
-  const date = typeof timestamp === 'number' ? new Date(timestamp) : timestamp;
+// Safe date converter — handles Firestore Timestamp, strings, numbers, Dates
+function toSafeDate(value: any): Date {
+  if (!value) return new Date();
+  // Firestore Timestamp: { seconds, nanoseconds }
+  if (typeof value === 'object' && typeof value.seconds === 'number') {
+    return new Date(value.seconds * 1000);
+  }
+  if (value instanceof Date) return value;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+export function formatRelativeTime(timestamp: any, lang: LanguageCode = 'en'): string {
+  const date = toSafeDate(timestamp);
   const now = new Date();
   const diffInSeconds = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
 
