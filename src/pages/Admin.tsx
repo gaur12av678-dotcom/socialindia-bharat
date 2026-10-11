@@ -991,7 +991,12 @@ export const AdminPanel: React.FC = () => {
             {['settings', 'payments_ads', 'languages', 'movies', 'articles', 'categories', 'design', 'pages', 'sitemap', 'mobile_api', 'backup', 'system_status', 'changelogs', 'faq_docs'].includes(activeSection) && (
               <AdminExtraTabs activeSection={activeSection} users={users} videos={videos} addToast={addToast} />
             )}
-
+        {(activeSection === 'dashboard' || activeSection === 'tools') && (
+          <div className="mt-6">
+            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">⚡ Quick Tools</h2>
+            <AdminQuickTools addToast={addToast} />
+          </div>
+        )}
             {/* Dashboard Section */}
             {activeSection === 'dashboard' && (
               <div className="space-y-8">
