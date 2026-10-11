@@ -210,6 +210,24 @@ export const ChatPage: React.FC = () => {
     }
   };
 
+    const formatMsgDay = (isoString: string, prevIso?: string): string | null => {
+    try {
+      const d = new Date(isoString);
+      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      if (prevIso) {
+        const p = new Date(prevIso);
+        const prevStart = new Date(p.getFullYear(), p.getMonth(), p.getDate()).getTime();
+        if (dayStart === prevStart) return null; // same day, no divider
+      }
+      const today = new Date();
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+      const diff = Math.round((todayStart - dayStart) / 86400000);
+      if (diff === 0) return 'Today';
+      if (diff === 1) return 'Yesterday';
+      return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    } catch { return null; }
+  };
+  
   const formatSessionTime = (isoString?: string) => {
     if (!isoString) return '';
     try {
@@ -394,27 +412,53 @@ export const ChatPage: React.FC = () => {
                 </div>
               ) : (
                 messages.map((m) => {
+                                messages.map((m, idx) => {
                   const isMine = m.senderId === currentUser.uid;
+                  const dayLabel = formatMsgDay(m.createdAt, messages[idx - 1]?.createdAt);
                   return (
-                    <div
-                      key={m.id}
-                     className={`flex gap-2.5 w-fit max-w-[85%] md:max-w-[70%] min-w-0 ${isMine ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
-                    >
-                      {/* Avatar */}
-                      <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 overflow-hidden">
-                        {isMine ? (
-                          currentUserProfile?.photoURL ? (
-                            <img src={currentUserProfile.photoURL} className="w-full h-full object-cover" alt="" />
+                    <React.Fragment key={m.id}>
+                      {dayLabel && (
+                        <div className="flex justify-center my-3">
+                          <span className="px-3 py-1 bg-slate-200/80 dark:bg-[#1e1e1e] text-slate-500 dark:text-slate-400 text-[9px] font-black uppercase tracking-widest rounded-full border border-slate-100 dark:border-[#2a2a2a]">
+                            {dayLabel}
+                          </span>
+                        </div>
+                      )}
+                      <div className={`flex gap-2.5 w-fit max-w-[85%] md:max-w-[70%] min-w-0 ${isMine ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}>
+                        <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 overflow-hidden">
+                          {isMine ? (
+                            currentUserProfile?.photoURL ? (
+                              <img src={currentUserProfile.photoURL} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              getInitials(currentUserProfile?.displayName || 'Me')
+                            )
                           ) : (
-                            getInitials(currentUserProfile?.displayName || 'Me')
-                          )
-                        ) : (
-                          selectedUser.photoURL ? (
-                            <img src={selectedUser.photoURL} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            getInitials(selectedUser.displayName)
-                          )
-                        )}
+                            selectedUser.photoURL ? (
+                              <img src={selectedUser.photoURL} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              getInitials(selectedUser.displayName)
+                            )
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <div
+                            className={`px-4 py-2.5 rounded-2xl text-xs font-semibold leading-relaxed shadow-xs ${
+                              isMine
+                                ? 'bg-blue-600 text-white rounded-tr-none'
+                                : 'bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-slate-100 border border-slate-100 dark:border-[#222] rounded-tl-none'
+                            }`}
+                          >
+                            <p className="break-words whitespace-pre-wrap">{m.text}</p>
+                          </div>
+                          <span className={`text-[9px] text-slate-400 font-bold block ${isMine ? 'text-right' : 'text-left'}`}>
+                            {formatMsgTime(m.createdAt)}
+                            {isMine && (m.read ? ' ✓✓' : ' ✓')}
+                          </span>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
                       </div>
 
                       {/* Message body */}
