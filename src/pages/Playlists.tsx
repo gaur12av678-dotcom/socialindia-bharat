@@ -42,6 +42,20 @@ export const PlaylistsPage: React.FC = () => {
   const [isPrivate, setIsPrivate] = useState(false);
   const [creating, setCreating] = useState(false);
 
+    // Search & sort toolbar
+  const [playlistSearch, setPlaylistSearch] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'az' | 'videos'>('newest');
+
+  const filteredPlaylists = [...playlists]
+    .filter(p => p.title.toLowerCase().includes(playlistSearch.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'az') return a.title.localeCompare(b.title);
+      if (sortBy === 'videos') return (b.videoIds?.length || 0) - (a.videoIds?.length || 0);
+      const ta = new Date(a.createdAt || 0).getTime();
+      const tb = new Date(b.createdAt || 0).getTime();
+      return sortBy === 'newest' ? tb - ta : ta - tb;
+    });
+
   // Load playlists for user
   const loadPlaylists = async () => {
     if (!currentUser) {
