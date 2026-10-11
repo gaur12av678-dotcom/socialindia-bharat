@@ -704,7 +704,25 @@ export const videoService = {
       });
 
       memorySearchCache.set(cleanTerm, { data: results, timestamp: Date.now() });
-      return results;
+           // Rank results: best match first, then engagement
+      const scoreMatch = (v: Video): number => {
+        const title = v.title.toLowerCase();
+        let s = 0;
+        if (title === cleanTerm) s += 120;
+        else if (title.startsWith(cleanTerm)) s += 80;
+        else if (title.includes(cleanTerm)) s += 60;
+        if (v.tags.some(t => t.toLowerCase() === cleanTagTerm)) s += 45;
+        else if (v.tags.some(t => t.toLowerCase().includes(cleanTagTerm))) s += 35;
+        if (v.creatorUsername.toLowerCase().includes(cleanTerm) || v.creatorDisplayName.toLowerCase().includes(cleanTerm)) s += 30;
+        if (v.category.toLowerCase().includes(cleanTerm)) s += 20;
+        if (v.description.toLowerCase().includes(cleanTerm)) s += 10;
+        s += Math.min((v.likesCount || 0) * 2 + (v.viewsCount || 0) * 0.05, 40); // capped popularity
+        return s;
+      };
+      const ranked = results.sort((a, b) => scoreMatch(b) - scoreMatch(a));
+
+      memorySearchCache.set(cleanTerm, { data: ranked, timestamp: Date.now() });
+      return ranked;
     } catch (err) {
       console.error('Search error:', err);
       return [];
