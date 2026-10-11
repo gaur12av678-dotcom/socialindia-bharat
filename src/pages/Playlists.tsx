@@ -266,6 +266,35 @@ export const PlaylistsPage: React.FC = () => {
         </div>
       </div>
 
+            {/* Search & Sort Toolbar */}
+      {!selectedPlaylist && playlists.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input
+              type="text"
+              placeholder={isHindi ? 'प्लेलिस्ट खोजें...' : 'Search playlists...'}
+              value={playlistSearch}
+              onChange={(e) => setPlaylistSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer"
+          >
+            <option value="newest">{isHindi ? 'नई पहले' : 'Newest first'}</option>
+            <option value="oldest">{isHindi ? 'पुरानी पहले' : 'Oldest first'}</option>
+            <option value="az">A → Z</option>
+            <option value="videos">{isHindi ? 'सबसे ज़्यादा वीडियो' : 'Most videos'}</option>
+          </select>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            {filteredPlaylists.length} / {playlists.length}
+          </span>
+        </div>
+      )}
+
       {/* VIEW 1: SELECTED PLAYLIST DETAIL VIEW */}
       {selectedPlaylist ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
