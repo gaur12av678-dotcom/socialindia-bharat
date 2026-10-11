@@ -64,15 +64,33 @@ export const chatService = {
   async sendMessage(senderId: string, receiverId: string, text: string): Promise<string> {
     if (!text.trim()) return '';
 
-    const messagesCol = collection(db, 'chats');
-    const docRef = await addDoc(messagesCol, {
+    const newMsg: ChatMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       senderId,
       receiverId,
       text: text.trim(),
-      createdAt: Timestamp.now(),
+      createdAt: new Date().toISOString(),
       read: false
-    });
-    return docRef.id;
+    };
+
+    // Store in local cache immediately
+    const existing = this.getCachedMessages(senderId, receiverId);
+    this.setCachedMessages(senderId, receiverId, [...existing, newMsg]);
+
+    try {
+      const messagesCol = collection(db, 'chats');
+      const docRef = await addDoc(messagesCol, {
+        senderId,
+        receiverId,
+        text: text.trim(),
+        createdAt: Timestamp.now(),
+        read: false
+      });
+      return docRef.id;
+    } catch (err) {
+      console.warn('Firestore sendMessage failed, saved locally in cache:', err);
+      return newMsg.id;
+    }
   },
 
   // Listen for messages between two users in real-time with instant cache persistence
@@ -85,8 +103,58 @@ export const chatService = {
       orderBy('createdAt', 'asc')
     );
 
-    return onSnapshot(q, (snapshot) => {
-      const allMsgs = snapshot.docs.map(d => {
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const allMsgs = snapshot.docs.map(d => {
+          const data = d.data();
+          return {
+            id: d.id,
+            senderId: data.senderId,
+            receiverId: data.receiverId,
+            text: data.text,
+            createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+            read: data.read || false
+          } as ChatMessage;
+        });
+
+        // Filter local memory list to only messages belonging to userA and userB
+        const filtered = allMsgs.filter(m => 
+          (m.senderId === userA && m.receiverId === userB) ||
+          (m.senderId === userB && m.receiverId === userA)
+        );
+
+        // Persist to local cache for instant future loads
+        this.setCachedMessages(userA, userB, filtered);
+        callback(filtered);
+      },
+      (error) => {
+        console.warn('Real-time chat snapshot listener notice (serving cached messages):', error);
+        const cached = this.getCachedMessages(userA, userB);
+        callback(cached);
+      }
+    );
+  },
+
+  // Retrieve list of chat sessions (users whom the current user has chatted with, or can chat with)
+  async getChatSessions(currentUserId: string): Promise<ChatSession[]> {
+    // 1. Get all registered users to populate the contact pool
+    let otherUsers: User[] = [];
+    try {
+      const users = await userService.getAllUsers();
+      otherUsers = users.filter(u => u.uid !== currentUserId);
+    } catch (err) {
+      console.warn('Failed to load registered users for chat sessions:', err);
+    }
+
+    // 2. Fetch all messages to identify thread history
+    let allMsgs: any[] = [];
+    try {
+      const messagesCol = collection(db, 'chats');
+      const q = query(messagesCol, orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+
+      allMsgs = snapshot.docs.map(d => {
         const data = d.data();
         return {
           id: d.id,
@@ -95,43 +163,15 @@ export const chatService = {
           text: data.text,
           createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
           read: data.read || false
-        } as ChatMessage;
+        };
       });
-
-      // Filter local memory list to only messages belonging to userA and userB
-      const filtered = allMsgs.filter(m => 
-        (m.senderId === userA && m.receiverId === userB) ||
-        (m.senderId === userB && m.receiverId === userA)
-      );
-
-      // Persist to local cache for instant future loads
-      this.setCachedMessages(userA, userB, filtered);
-      callback(filtered);
-    });
-  },
-
-  // Retrieve list of chat sessions (users whom the current user has chatted with, or can chat with)
-  async getChatSessions(currentUserId: string): Promise<ChatSession[]> {
-    // 1. Get all registered users to populate the contact pool
-    const users = await userService.getAllUsers();
-    const otherUsers = users.filter(u => u.uid !== currentUserId);
-
-    // 2. Fetch all messages to identify thread history
-    const messagesCol = collection(db, 'chats');
-    const q = query(messagesCol, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
-
-    const allMsgs = snapshot.docs.map(d => {
-      const data = d.data();
-      return {
-        id: d.id,
-        senderId: data.senderId,
-        receiverId: data.receiverId,
-        text: data.text,
-        createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-        read: data.read || false
-      };
-    });
+    } catch (err) {
+      console.warn('Failed to load chat messages from Firestore, attempting cached sessions:', err);
+      const cached = this.getCachedSessions(currentUserId);
+      if (cached.length > 0) {
+        return cached;
+      }
+    }
 
     const sessions: ChatSession[] = [];
 
@@ -156,6 +196,21 @@ export const chatService = {
       });
     }
 
+    // If Firestore message list was empty, check if we have cached sessions with messages
+    const cachedSessions = this.getCachedSessions(currentUserId);
+    if (sessions.length === 0 && cachedSessions.length > 0) {
+      return cachedSessions;
+    }
+
+    // Merge cached conversation previews if available
+    for (const s of sessions) {
+      const cachedMatch = cachedSessions.find(cs => cs.userId === s.userId);
+      if (cachedMatch && !s.lastMessage && cachedMatch.lastMessage) {
+        s.lastMessage = cachedMatch.lastMessage;
+        s.lastMessageTime = cachedMatch.lastMessageTime;
+      }
+    }
+
     // Sort active conversations to the top
     const sorted = sessions.sort((a, b) => {
       if (a.lastMessageTime && b.lastMessageTime) {
@@ -172,45 +227,54 @@ export const chatService = {
 
   // Delete chat history between two users
   async deleteChatHistory(userA: string, userB: string): Promise<void> {
-    const messagesCol = collection(db, 'chats');
-    const snapshot = await getDocs(messagesCol);
-    
-    const batch = writeBatch(db);
-    let count = 0;
-
-    snapshot.docs.forEach((docSnap) => {
-      const data = docSnap.data();
-      const s = data.senderId;
-      const r = data.receiverId;
+    this.setCachedMessages(userA, userB, []);
+    try {
+      const messagesCol = collection(db, 'chats');
+      const snapshot = await getDocs(messagesCol);
       
-      if ((s === userA && r === userB) || (s === userB && r === userA)) {
-        batch.delete(docSnap.ref);
-        count++;
-      }
-    });
+      const batch = writeBatch(db);
+      let count = 0;
 
-    if (count > 0) {
-      await batch.commit();
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        const s = data.senderId;
+        const r = data.receiverId;
+        
+        if ((s === userA && r === userB) || (s === userB && r === userA)) {
+          batch.delete(docSnap.ref);
+          count++;
+        }
+      });
+
+      if (count > 0) {
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn('Firestore deleteChatHistory failed, cleared locally:', err);
     }
   },
 
   // Mark all messages from a partner user as read
   async markAsRead(receiverId: string, senderId: string): Promise<void> {
-    const messagesCol = collection(db, 'chats');
-    const q = query(
-      messagesCol, 
-      where('senderId', '==', senderId), 
-      where('receiverId', '==', receiverId),
-      where('read', '==', false)
-    );
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) return;
+    try {
+      const messagesCol = collection(db, 'chats');
+      const q = query(
+        messagesCol, 
+        where('senderId', '==', senderId), 
+        where('receiverId', '==', receiverId),
+        where('read', '==', false)
+      );
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) return;
 
-    const batch = writeBatch(db);
-    snapshot.docs.forEach((docSnap) => {
-      batch.update(docSnap.ref, { read: true });
-    });
-    await batch.commit();
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((docSnap) => {
+        batch.update(docSnap.ref, { read: true });
+      });
+      await batch.commit();
+    } catch (err) {
+      console.warn('Firestore markAsRead failed:', err);
+    }
   }
 };

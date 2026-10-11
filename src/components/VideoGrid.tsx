@@ -2,7 +2,7 @@ import React from 'react';
 import { Video, AdCampaign } from '../types';
 import { VideoCard } from './VideoCard';
 import { SponsoredAdCard } from './ads/SponsoredAdCard';
-import { Play, Plus } from 'lucide-react';
+import { Play, Plus, MoreVertical } from 'lucide-react';
 import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
 
@@ -23,7 +23,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   onDismissAd,
   emptyHeading = 'No videos available yet',
   emptyMessage = 'Videos published on SocialIndia will appear here.',
-  gridColsClass = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-10'
+  gridColsClass = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'
 }) => {
   const { navigate } = useRouter();
   const { currentUser } = useApp();
@@ -31,18 +31,21 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   if (loading) {
     return (
       <div className={gridColsClass}>
-        {Array.from({ length: 9 }).map((_, idx) => (
-          <div key={idx} className="flex flex-col space-y-4 animate-pulse">
-            <div className="aspect-video bg-slate-100 dark:bg-[#1e293b] w-full rounded-2xl shadow-inner border border-slate-50 dark:border-slate-800" />
-            <div className="flex gap-3 px-1">
-              <div className="w-10 h-10 bg-slate-100 dark:bg-[#1e293b] rounded-full shrink-0" />
-              <div className="flex-1 space-y-3 pt-1">
-                <div className="h-3.5 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-[90%]" />
-                <div className="space-y-2">
-                  <div className="h-2.5 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-[40%]" />
-                  <div className="h-2.5 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-[30%]" />
-                </div>
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <div key={idx} className="flex flex-col space-y-3 animate-pulse">
+            {/* Thumbnail skeleton with duration badge */}
+            <div className="aspect-video bg-[#dbe2ee] dark:bg-slate-800 rounded-2xl relative overflow-hidden shadow-xs">
+              <div className="absolute bottom-2.5 right-2.5 h-4 w-9 bg-[#bcc8dc] dark:bg-slate-700 rounded-md" />
+            </div>
+
+            {/* Avatar, title & meta lines, and 3-dots */}
+            <div className="flex items-start gap-2.5 pt-1 px-0.5">
+              <div className="w-9 h-9 rounded-full bg-[#dbe2ee] dark:bg-slate-800 shrink-0" />
+              <div className="flex-1 min-w-0 space-y-2 pt-0.5">
+                <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[88%]" />
+                <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[55%]" />
               </div>
+              <MoreVertical className="w-4 h-4 text-[#bcc8dc] dark:text-slate-600 shrink-0 mt-0.5" />
             </div>
           </div>
         ))}

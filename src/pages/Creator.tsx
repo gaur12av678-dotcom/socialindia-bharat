@@ -117,18 +117,36 @@ export const CreatorProfile: React.FC = () => {
         setBannerPreview(uProfile.bannerURL || '');
 
         if (currentUser) {
-          const isSub = await subscriptionService.isSubscribed(currentUser.uid, uProfile.uid);
-          if (isMounted) setSubscribed(isSub);
+          try {
+            const isSub = await subscriptionService.isSubscribed(currentUser.uid, uProfile.uid);
+            if (isMounted) setSubscribed(isSub);
+          } catch (subErr) {
+            console.warn('Could not check subscription status:', subErr);
+          }
         }
 
-        const creatorVideos = await videoService.getCreatorVideos(uProfile.uid);
-        if (!isMounted) return;
-        const publicVids = creatorVideos.filter(v => v.visibility === 'public');
-        setVideos(publicVids.filter(v => !v.isShort));
-        setShorts(publicVids.filter(v => v.isShort));
+        try {
+          const creatorVideos = await videoService.getCreatorVideos(uProfile.uid);
+          if (isMounted) {
+            const publicVids = creatorVideos.filter(v => v.visibility === 'public');
+            setVideos(publicVids.filter(v => !v.isShort));
+            setShorts(publicVids.filter(v => v.isShort));
+          }
+        } catch (vidErr) {
+          console.warn('Could not load creator videos:', vidErr);
+          if (isMounted) {
+            setVideos([]);
+            setShorts([]);
+          }
+        }
 
-        const userPls = await playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName);
-        if (isMounted) setPlaylists(userPls);
+        try {
+          const userPls = await playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName);
+          if (isMounted) setPlaylists(userPls);
+        } catch (plsErr) {
+          console.warn('Could not load creator playlists:', plsErr);
+          if (isMounted) setPlaylists([]);
+        }
 
       } catch (err) {
         console.error('Failed to load creator profile:', err);

@@ -75,6 +75,7 @@ import {
 } from 'lucide-react';
 import { formatViews, formatTimeAgo, getInitials } from '../utils/videoUtils';
 import { AdminExtraTabs } from '../components/AdminExtraTabs';
+import { AdminQuickTools } from '../components/AdminQuickTools';
 
 type AdminSection = 
   | 'dashboard' 

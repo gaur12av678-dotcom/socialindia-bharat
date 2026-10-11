@@ -411,8 +411,7 @@ export const ChatPage: React.FC = () => {
                   <p className="text-[11px] leading-relaxed">Introduce yourself, collaborate on content, or discuss awesome video ideas together.</p>
                 </div>
               ) : (
-                messages.map((m) => {
-                                messages.map((m, idx) => {
+                messages.map((m, idx) => {
                   const isMine = m.senderId === currentUser.uid;
                   const dayLabel = formatMsgDay(m.createdAt, messages[idx - 1]?.createdAt);
                   return (
@@ -457,26 +456,6 @@ export const ChatPage: React.FC = () => {
                         </div>
                       </div>
                     </React.Fragment>
-                  );
-                })}
-                      </div>
-
-                      {/* Message body */}
-                      <div className="space-y-1">
-                        <div
-                          className={`px-4 py-2.5 rounded-2xl text-xs font-semibold leading-relaxed shadow-xs ${
-                            isMine
-                              ? 'bg-blue-600 text-white rounded-tr-none'
-                              : 'bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-slate-100 border border-slate-100 dark:border-[#222] rounded-tl-none'
-                          }`}
-                        >
-                          <p className="break-words whitespace-pre-wrap">{m.text}</p>
-                        </div>
-                        <span className={`text-[9px] text-slate-400 font-bold block ${isMine ? 'text-right' : 'text-left'}`}>
-                          {formatMsgTime(m.createdAt)}
-                        </span>
-                      </div>
-                    </div>
                   );
                 })
               )}

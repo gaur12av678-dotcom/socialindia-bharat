@@ -52,15 +52,34 @@ export const playlistService = {
 
     try {
       await setDoc(doc(db, 'playlists', playlistId), newPlaylist);
-      return newPlaylist;
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `playlists/${playlistId}`);
-      throw err;
+      console.warn('Firestore setDoc failed for playlist, persisting locally:', err);
     }
+
+    // Always update local cache so the playlist exists immediately
+    try {
+      const cacheKey = `socialindia_playlists_${data.creatorId}`;
+      const existing: Playlist[] = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+      localStorage.setItem(cacheKey, JSON.stringify([newPlaylist, ...existing.filter(p => p.playlistId !== playlistId)]));
+    } catch (e) {
+      console.warn('Failed to cache playlist locally:', e);
+    }
+
+    return newPlaylist;
   },
 
   // Get user playlists (automatically creates default "Saved Videos" playlist if missing)
   async getUserPlaylists(creatorId: string, creatorUsername?: string, creatorDisplayName?: string): Promise<Playlist[]> {
+    const cacheKey = `socialindia_playlists_${creatorId}`;
+    const getLocalFallback = (): Playlist[] => {
+      try {
+        const raw = localStorage.getItem(cacheKey);
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    };
+
     try {
       const q = query(
         collection(db, 'playlists'),
@@ -91,11 +110,17 @@ export const playlistService = {
         }
       }
 
+      // Sync to local cache
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(list));
+      } catch {}
+
       // Sort by updatedAt descending
       return list.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     } catch (err) {
-      handleFirestoreError(err, OperationType.GET, 'playlists');
-      return [];
+      console.warn('Could not fetch playlists from Firestore, falling back to local cache:', err);
+      const fallbackList = getLocalFallback();
+      return fallbackList.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     }
   },
 
@@ -106,11 +131,23 @@ export const playlistService = {
       if (snap.exists()) {
         return snap.data() as Playlist;
       }
-      return null;
     } catch (err) {
-      handleFirestoreError(err, OperationType.GET, `playlists/${playlistId}`);
-      return null;
+      console.warn(`Could not fetch playlist ${playlistId} from Firestore:`, err);
     }
+
+    // Fallback: search localStorage
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('socialindia_playlists_')) {
+          const list: Playlist[] = JSON.parse(localStorage.getItem(key) || '[]');
+          const match = list.find(p => p.playlistId === playlistId);
+          if (match) return match;
+        }
+      }
+    } catch {}
+
+    return null;
   },
 
   // Add video to playlist
@@ -127,9 +164,29 @@ export const playlistService = {
       }
       await updateDoc(docRef, updates);
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `playlists/${playlistId}`);
-      throw err;
+      console.warn(`Firestore updateDoc failed for playlist ${playlistId}:`, err);
     }
+
+    // Update local cache
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('socialindia_playlists_')) {
+          const list: Playlist[] = JSON.parse(localStorage.getItem(key) || '[]');
+          const idx = list.findIndex(p => p.playlistId === playlistId);
+          if (idx !== -1) {
+            const currentIds = list[idx].videoIds || [];
+            if (!currentIds.includes(videoId)) {
+              list[idx].videoIds = [...currentIds, videoId];
+            }
+            if (thumbnailUrl) list[idx].thumbnailUrl = thumbnailUrl;
+            list[idx].updatedAt = now;
+            localStorage.setItem(key, JSON.stringify(list));
+            break;
+          }
+        }
+      }
+    } catch {}
   },
 
   // Remove video from playlist
@@ -141,9 +198,25 @@ export const playlistService = {
         updatedAt: new Date().toISOString()
       });
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `playlists/${playlistId}`);
-      throw err;
+      console.warn(`Firestore updateDoc remove video failed for playlist ${playlistId}:`, err);
     }
+
+    // Update local cache
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('socialindia_playlists_')) {
+          const list: Playlist[] = JSON.parse(localStorage.getItem(key) || '[]');
+          const idx = list.findIndex(p => p.playlistId === playlistId);
+          if (idx !== -1) {
+            list[idx].videoIds = (list[idx].videoIds || []).filter(id => id !== videoId);
+            list[idx].updatedAt = new Date().toISOString();
+            localStorage.setItem(key, JSON.stringify(list));
+            break;
+          }
+        }
+      }
+    } catch {}
   },
 
   // Delete a playlist
@@ -151,9 +224,23 @@ export const playlistService = {
     try {
       await deleteDoc(doc(db, 'playlists', playlistId));
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `playlists/${playlistId}`);
-      throw err;
+      console.warn(`Firestore deleteDoc failed for playlist ${playlistId}:`, err);
     }
+
+    // Remove from local cache
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('socialindia_playlists_')) {
+          const list: Playlist[] = JSON.parse(localStorage.getItem(key) || '[]');
+          const filtered = list.filter(p => p.playlistId !== playlistId);
+          if (filtered.length !== list.length) {
+            localStorage.setItem(key, JSON.stringify(filtered));
+            break;
+          }
+        }
+      }
+    } catch {}
   },
 
   // Fetch playlist along with populated video objects

@@ -170,6 +170,39 @@
         "status": { "type": "string", "enum": ["pending", "reviewed", "resolved"] }
       },
       "required": ["reportId", "reporterId", "targetType", "targetId", "reason", "createdAt", "status"]
+    },
+    "Playlist": {
+      "title": "Playlist",
+      "description": "User created video playlists",
+      "type": "object",
+      "properties": {
+        "playlistId": { "type": "string" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "creatorId": { "type": "string" },
+        "creatorUsername": { "type": "string" },
+        "creatorDisplayName": { "type": "string" },
+        "creatorPhotoURL": { "type": "string" },
+        "videoIds": { "type": "array" },
+        "isPrivate": { "type": "boolean" },
+        "thumbnailUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["playlistId", "title", "creatorId", "createdAt", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Direct chat message between users",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["senderId", "receiverId", "text", "createdAt"]
     }
   },
   "firestore": {
@@ -212,6 +245,14 @@
     "reports/{reportId}": {
       "schema": "Report",
       "description": "Inappropriate content reports submitted by users"
+    },
+    "playlists/{playlistId}": {
+      "schema": "Playlist",
+      "description": "User created video playlists"
+    },
+    "chats/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Direct chat messages between users"
     }
   }
 }

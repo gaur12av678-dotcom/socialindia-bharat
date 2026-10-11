@@ -95,7 +95,7 @@ export const recommendationService = {
     const creatorCount: Record<string, number> = {};
     const overflow: Video[] = [];
     for (const v of unwatched) {
-      const c = v.creatorUid || v.creatorUsername || 'unknown';
+      const c = v.creatorId || v.creatorUsername || 'unknown';
       if ((creatorCount[c] || 0) < 2 || result.length >= 20) {
         creatorCount[c] = (creatorCount[c] || 0) + 1;
         result.push(v);

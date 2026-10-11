@@ -165,9 +165,7 @@ export const WatchHistory: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="space-y-4">
-          {history.map((item) => (
-                   <div className="space-y-6">
+        <div className="space-y-6">
           {(['Today', 'Yesterday', 'This Week', 'Earlier'] as const).map(group => {
             const items = history.filter(item => getGroupLabel(item.watchedAt) === (isHindi
               ? { Today: 'आज', Yesterday: 'कल', 'This Week': 'इस सप्ताह', Earlier: 'पहले' }[group]
@@ -217,5 +215,7 @@ export const WatchHistory: React.FC = () => {
             );
           })}
         </div>
+      )}
+    </div>
   );
 };

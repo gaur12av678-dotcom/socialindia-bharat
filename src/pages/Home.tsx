@@ -166,9 +166,9 @@ export const Home: React.FC = () => {
     fetchHomeShorts();
   }, [selectedCategory]);
 
-  // For the 'All' feed, split videos so the top 3 (Row 1) display above Shorts, matching Capture.PNG!
-  const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 3) : videos;
-  const remainingVideos = selectedCategory === 'All' ? videos.slice(3) : [];
+  // For the 'All' feed, split videos so the top 4 (Row 1) display above Shorts, matching reference design!
+  const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 4) : videos;
+  const remainingVideos = selectedCategory === 'All' ? videos.slice(4) : [];
 
   return (
     <div className="p-4 md:p-6 space-y-7 max-w-7xl mx-auto">
@@ -200,40 +200,70 @@ export const Home: React.FC = () => {
         })}
       </div>
 
-      {/* Hero Banner (Curved India Gate/Creative overlay) - Vibrant Blue Gradient */}
+      {/* Hero Banner / Skeleton Banner */}
       {selectedCategory === 'All' && (
-        <div 
-          style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)' }}
-          className="relative overflow-hidden rounded-3xl p-6 md:p-8 text-white shadow-lg"
-        >
-          <div className="relative z-10 max-w-xl space-y-2.5">
-            <h2 className="text-2xl md:text-3xl font-black tracking-tight leading-tight text-white drop-shadow-xs">
-              {isHindi ? 'भारत के सर्वश्रेष्ठ क्रिएटर्स को खोजें' : 'Discover the best creators in India'}
-            </h2>
-            <p className="text-xs md:text-sm text-blue-100 leading-relaxed font-medium">
-              {isHindi ? 'लाखों दर्शकों के साथ तकनीक, संगीत, व्लॉग, शिक्षा, गेमिंग और अन्य वीडियो देखें।' : 'Join millions watching the latest in tech, music, vlogs, education, gaming and more.'}
-            </p>
-            
-            <div className="pt-2">
-              <button
-                onClick={() => navigate('trending')}
-                className="px-5 py-2.5 bg-white hover:bg-blue-50 text-[#1e40af] font-black text-xs md:text-sm rounded-full shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
-              >
-                <Play className="w-3.5 h-3.5 fill-[#1e40af] text-[#1e40af]" />
-                <span>{isHindi ? 'अभी देखें' : 'Explore Now'}</span>
-              </button>
+        loading ? (
+          /* Loading Skeleton Banner matching SocialIndia Video Platform Comparison.png */
+          <div 
+            style={{ background: 'linear-gradient(135deg, #7da5ea 0%, #8db3f2 50%, #9cbdf8 100%)' }}
+            className="relative overflow-hidden rounded-3xl p-6 md:p-8 shadow-sm animate-pulse min-h-[175px] sm:min-h-[195px] flex items-center"
+          >
+            <div className="relative z-10 flex items-center gap-5 sm:gap-6 w-full max-w-xl">
+              {/* Circular Avatar Skeleton */}
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/40 dark:bg-white/20 rounded-full shrink-0 shadow-inner" />
+              
+              {/* Text bars & button skeleton */}
+              <div className="flex-1 space-y-2.5">
+                <div className="h-4 sm:h-5 bg-white/50 dark:bg-white/25 rounded-full w-full max-w-md" />
+                <div className="h-3 sm:h-3.5 bg-white/40 dark:bg-white/20 rounded-full w-3/4 max-w-xs" />
+                <div className="pt-1.5">
+                  <div className="h-7 sm:h-8 w-28 bg-white/50 dark:bg-white/25 rounded-full" />
+                </div>
+              </div>
+            </div>
+
+            {/* Arch Silhouette Graphic on Right */}
+            <div className="absolute right-6 sm:right-12 -bottom-2 top-0 w-36 sm:w-48 pointer-events-none flex items-end justify-end opacity-25">
+              <div className="relative w-32 sm:w-44 h-36 sm:h-48 bg-white/35 rounded-t-full flex items-end justify-center">
+                <div className="w-16 sm:w-24 h-24 sm:h-32 bg-[#8db3f2] dark:bg-[#1e40af]/40 rounded-t-full" />
+              </div>
             </div>
           </div>
+        ) : (
+          /* Fully Loaded Hero Banner */
+          <div 
+            style={{ background: 'linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%)' }}
+            className="relative overflow-hidden rounded-3xl p-6 md:p-8 text-white shadow-lg"
+          >
+            <div className="relative z-10 max-w-xl space-y-2.5">
+              <h2 className="text-2xl md:text-3xl font-black tracking-tight leading-tight text-white drop-shadow-xs">
+                {isHindi ? 'भारत के सर्वश्रेष्ठ क्रिएटर्स को खोजें' : 'Discover the best creators in India'}
+              </h2>
+              <p className="text-xs md:text-sm text-blue-100 leading-relaxed font-medium">
+                {isHindi ? 'लाखों दर्शकों के साथ तकनीक, संगीत, व्लॉग, शिक्षा, गेमिंग और अन्य वीडियो देखें।' : 'Join millions watching the latest in tech, music, vlogs, education, gaming and more.'}
+              </p>
+              
+              <div className="pt-2">
+                <button
+                  onClick={() => navigate('trending')}
+                  className="px-5 py-2.5 bg-white hover:bg-blue-50 text-[#1e40af] font-black text-xs md:text-sm rounded-full shadow-md flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                >
+                  <Play className="w-3.5 h-3.5 fill-[#1e40af] text-[#1e40af]" />
+                  <span>{isHindi ? 'अभी देखें' : 'Explore Now'}</span>
+                </button>
+              </div>
+            </div>
 
-          {/* Decorative India Gate / Skyline Silhouette & Blur graphics */}
-          <div className="absolute right-0 bottom-0 top-0 w-1/3 opacity-25 pointer-events-none flex items-end justify-end p-4">
-            <svg viewBox="0 0 200 200" className="w-52 h-52 fill-current text-white" aria-hidden="true">
-              <path d="M40 180 h120 v-20 h-10 v-60 c0-30 -20-50 -50-50 s-50 20 -50 50 v60 h-10 z M70 180 v-40 c0-15 15-25 30-25 s30 10 30 25 v40 z" />
-            </svg>
+            {/* Decorative India Gate / Skyline Silhouette & Blur graphics */}
+            <div className="absolute right-0 bottom-0 top-0 w-1/3 opacity-25 pointer-events-none flex items-end justify-end p-4">
+              <svg viewBox="0 0 200 200" className="w-52 h-52 fill-current text-white" aria-hidden="true">
+                <path d="M40 180 h120 v-20 h-10 v-60 c0-30 -20-50 -50-50 s-50 20 -50 50 v60 h-10 z M70 180 v-40 c0-15 15-25 30-25 s30 10 30 25 v40 z" />
+              </svg>
+            </div>
+            <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/20 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-10 right-20 w-40 h-40 bg-blue-300/30 rounded-full blur-xl pointer-events-none" />
           </div>
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/20 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -bottom-10 right-20 w-40 h-40 bg-blue-300/30 rounded-full blur-xl pointer-events-none" />
-        </div>
+        )
       )}
 
       {/* 1. Recommended Videos Section (Row 1) */}
@@ -262,6 +292,7 @@ export const Home: React.FC = () => {
           loading={loading} 
           activeAds={adDismissed ? [] : activeAds}
           onDismissAd={() => setAdDismissed(true)}
+          gridColsClass="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
           emptyHeading={isHindi ? 'अभी कोई वीडियो उपलब्ध नहीं है' : 'No videos available yet'}
           emptyMessage={isHindi ? 'सोशलइंडिया पर प्रकाशित वीडियो यहां दिखाई देंगे।' : 'Videos published on SocialIndia will appear here.'}
         />
@@ -367,6 +398,7 @@ export const Home: React.FC = () => {
             videos={remainingVideos} 
             loading={false} 
             activeAds={[]}
+            gridColsClass="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
             emptyHeading={isHindi ? 'कोई और वीडियो नहीं' : 'No more videos'}
             emptyMessage={isHindi ? 'अधिक वीडियो प्रकाशित होने पर यहां दिखाई देंगे।' : 'More videos will appear here.'}
           />
