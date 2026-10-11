@@ -56,6 +56,18 @@ export const WatchHistory: React.FC = () => {
     }
   };
 
+    const getGroupLabel = (isoString: string): string => {
+    const d = new Date(isoString);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfItem = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const diffDays = Math.round((startOfToday - startOfItem) / 86400000);
+    if (diffDays === 0) return isHindi ? 'आज' : 'Today';
+    if (diffDays === 1) return isHindi ? 'कल' : 'Yesterday';
+    if (diffDays < 7) return isHindi ? 'इस सप्ताह' : 'This Week';
+    return isHindi ? 'पहले' : 'Earlier';
+  };
+
   if (!currentUser) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -155,40 +167,55 @@ export const WatchHistory: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {history.map((item) => (
-            <div
-              key={item.videoId}
-              onClick={() => navigate('watch', item.videoId)}
-              className="flex gap-4 p-3 bg-white dark:bg-[#0f0f0f] border border-slate-100 dark:border-[#272727] rounded-2xl cursor-pointer hover:shadow-md transition-all group relative"
-            >
-              <div className="w-32 sm:w-44 aspect-video bg-slate-100 dark:bg-[#272727] rounded-xl overflow-hidden shrink-0">
-                <img src={item.thumbnailUrl} alt={item.title} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1 min-w-0 flex flex-col justify-between py-1 pr-8">
-                <div>
-                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
-                    {item.title}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-1 truncate">
-                    {item.creatorDisplayName}
-                  </p>
+                   <div className="space-y-6">
+          {(['Today', 'Yesterday', 'This Week', 'Earlier'] as const).map(group => {
+            const items = history.filter(item => getGroupLabel(item.watchedAt) === (isHindi
+              ? { Today: 'आज', Yesterday: 'कल', 'This Week': 'इस सप्ताह', Earlier: 'पहले' }[group]
+              : group));
+            if (items.length === 0) return null;
+            return (
+              <div key={group} className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500 ml-1">
+                  {isHindi
+                    ? { Today: 'आज', Yesterday: 'कल', 'This Week': 'इस सप्ताह', Earlier: 'पहले' }[group]
+                    : group}
+                </h3>
+                <div className="space-y-3">
+                  {items.map((item) => (
+                    <div
+                      key={item.videoId}
+                      onClick={() => navigate('watch', item.videoId)}
+                      className="flex gap-4 p-3 bg-white dark:bg-[#0f0f0f] border border-slate-100 dark:border-[#272727] rounded-2xl cursor-pointer hover:shadow-md transition-all group relative"
+                    >
+                      <div className="w-32 sm:w-44 aspect-video bg-slate-100 dark:bg-[#272727] rounded-xl overflow-hidden shrink-0">
+                        <img src={item.thumbnailUrl} alt={item.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0 flex flex-col justify-between py-1 pr-8">
+                        <div>
+                          <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
+                            {item.title}
+                          </h3>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-1 truncate">
+                            {item.creatorDisplayName}
+                          </p>
+                        </div>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                          {isHindi ? `${formatTime(item.watchedAt)} देखा गया` : `Watched ${formatTime(item.watchedAt)}`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={(e) => handleRemoveItem(e, item.videoId)}
+                        className="absolute top-3 right-3 p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 dark:bg-slate-950 dark:hover:bg-rose-950/20 rounded-lg cursor-pointer transition-colors"
+                        title={isHindi ? 'हिस्ट्री से हटाएं' : 'Remove from history'}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                  {isHindi ? `${formatTime(item.watchedAt)} देखा गया` : `Watched ${formatTime(item.watchedAt)}`}
-                </p>
               </div>
-
-              {/* Delete button from History row */}
-              <button
-                onClick={(e) => handleRemoveItem(e, item.videoId)}
-                className="absolute top-3 right-3 p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 dark:bg-slate-950 dark:hover:bg-rose-950/20 rounded-lg cursor-pointer transition-colors"
-                title={isHindi ? 'हिस्ट्री से हटाएं' : 'Remove from history'}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      )}
-    </div>
   );
 };
