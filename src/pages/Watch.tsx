@@ -62,19 +62,30 @@ export const Watch: React.FC = () => {
   const { t, isHindi, formatTime } = useTranslation();
   const videoId = route.param;
 
-  const [video, setVideo] = useState<Video | null>(null);
-  const [creator, setCreator] = useState<User | null>(null);
+  // Instant synchronous cache resolution (0ms, no loading spinner flash!)
+  const cachedInitialVid = videoService.getCachedVideo(videoId);
+  const [video, setVideo] = useState<Video | null>(() => cachedInitialVid);
+  const [creator, setCreator] = useState<User | null>(() => {
+    if (cachedInitialVid?.creatorId) {
+      return userService.getCachedUserProfile(cachedInitialVid.creatorId);
+    }
+    return null;
+  });
   const [comments, setComments] = useState<Comment[]>([]);
   const [newCommentText, setNewCommentText] = useState('');
   const [relatedVideos, setRelatedVideos] = useState<Video[]>([]);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   
-  // Status states
-  const [loading, setLoading] = useState(true);
-  const [liked, setLiked] = useState(false);
+  // Status states - instantly ready if video was in cache
+  const [loading, setLoading] = useState<boolean>(() => !cachedInitialVid);
+  const [liked, setLiked] = useState<boolean>(() => {
+    return !!(currentUser?.uid && videoId && likeService.hasLikedSync(videoId, currentUser.uid));
+  });
   const [disliked, setDisliked] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [subscribed, setSubscribed] = useState(false);
+  const [subscribed, setSubscribed] = useState<boolean>(() => {
+    return !!(currentUser?.uid && cachedInitialVid?.creatorId && subscriptionService.isSubscribedSync(currentUser.uid, cachedInitialVid.creatorId));
+  });
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
@@ -211,13 +222,23 @@ export const Watch: React.FC = () => {
     let isMounted = true;
 
     const loadVideoDetails = async () => {
-      setLoading(true);
+      const cached = videoService.getCachedVideo(videoId);
+      if (cached) {
+        setVideo(cached);
+        setLoading(false);
+        if (cached.creatorId) {
+          const cr = userService.getCachedUserProfile(cached.creatorId);
+          if (cr) setCreator(cr);
+        }
+      } else {
+        setLoading(true);
+      }
       try {
         const vid = await videoService.getVideo(videoId);
         if (!isMounted) return;
 
         if (!vid) {
-          setVideo(null);
+          if (!cached) setVideo(null);
           setLoading(false);
           return;
         }

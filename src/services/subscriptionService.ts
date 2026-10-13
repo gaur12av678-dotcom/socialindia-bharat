@@ -11,18 +11,60 @@ import {
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Subscription, User } from '../types';
 
+const memorySubSet = new Map<string, Set<string>>(); // subscriberId -> Set of creatorIds
+
+function getStoredSubs(subscriberId: string): Set<string> {
+  if (!subscriberId || typeof window === 'undefined') return new Set();
+  const mem = memorySubSet.get(subscriberId);
+  if (mem) return mem;
+  try {
+    const raw = localStorage.getItem(`si_subs_${subscriberId}`);
+    if (raw) {
+      const set = new Set<string>(JSON.parse(raw));
+      memorySubSet.set(subscriberId, set);
+      return set;
+    }
+  } catch (_) {}
+  const empty = new Set<string>();
+  memorySubSet.set(subscriberId, empty);
+  return empty;
+}
+
+function saveStoredSubs(subscriberId: string, set: Set<string>) {
+  if (!subscriberId || typeof window === 'undefined') return;
+  memorySubSet.set(subscriberId, set);
+  try {
+    localStorage.setItem(`si_subs_${subscriberId}`, JSON.stringify(Array.from(set)));
+  } catch (_) {}
+}
+
 export const subscriptionService = {
-  // Check if subscribed to a creator
+  // Synchronous 0ms check for instant subscription rendering on page load
+  isSubscribedSync(subscriberId: string, creatorId: string): boolean {
+    if (!subscriberId || !creatorId || subscriberId === creatorId) return false;
+    return getStoredSubs(subscriberId).has(creatorId);
+  },
+
+  // Check if subscribed to a creator (instant cache with background revalidation)
   async isSubscribed(subscriberId: string, creatorId: string): Promise<boolean> {
     if (!subscriberId || !creatorId) return false;
     if (subscriberId === creatorId) return false;
+
+    const subs = getStoredSubs(subscriberId);
+    const isLocallySubbed = subs.has(creatorId);
+
     const docRef = doc(db, 'users', subscriberId, 'subscriptions', creatorId);
     try {
       const snap = await getDoc(docRef);
-      return snap.exists();
+      const exists = snap.exists();
+      if (exists !== isLocallySubbed) {
+        if (exists) subs.add(creatorId);
+        else subs.delete(creatorId);
+        saveStoredSubs(subscriberId, subs);
+      }
+      return exists;
     } catch (err) {
-      handleFirestoreError(err, OperationType.GET, `users/${subscriberId}/subscriptions/${creatorId}`);
-      return false;
+      return isLocallySubbed;
     }
   },
 

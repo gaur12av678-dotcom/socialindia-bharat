@@ -3,7 +3,67 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, PrivateUserInfo } from '../types';
 import { compressAvatar, compressBanner } from '../utils/imageUtils';
 
+// Ultra-fast in-memory and session caches for YouTube-like instant profile & subscriber rendering
+const userProfileMemoryCache = new Map<string, { data: User; timestamp: number }>();
+const usernameToUidMap = new Map<string, string>();
+const USER_CACHE_TTL_MS = 60000; // 60 seconds TTL with stale-while-revalidate
+
+function saveToLocalUserCache(user: User) {
+  if (!user || !user.uid) return;
+  userProfileMemoryCache.set(user.uid, { data: user, timestamp: Date.now() });
+  if (user.username) {
+    usernameToUidMap.set(user.username.trim().toLowerCase(), user.uid);
+  }
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      sessionStorage.setItem(`si_u_${user.uid}`, JSON.stringify(user));
+      if (user.username) {
+        sessionStorage.setItem(`si_un_${user.username.trim().toLowerCase()}`, user.uid);
+      }
+    }
+  } catch (_) {}
+}
+
+function getFromLocalUserCache(uid: string): User | null {
+  const mem = userProfileMemoryCache.get(uid);
+  if (mem) return mem.data;
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const raw = sessionStorage.getItem(`si_u_${uid}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as User;
+        userProfileMemoryCache.set(uid, { data: parsed, timestamp: Date.now() });
+        return parsed;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+function getFromLocalUsernameCache(username: string): User | null {
+  const clean = username.replace(/^@/, '').trim().toLowerCase();
+  const uid = usernameToUidMap.get(clean) || (typeof window !== 'undefined' ? sessionStorage.getItem(`si_un_${clean}`) : null);
+  if (uid) {
+    return getFromLocalUserCache(uid);
+  }
+  return null;
+}
+
 export const userService = {
+  // Expose cache manually for prefetching from video/comment payloads
+  cacheUserProfile(user: User) {
+    saveToLocalUserCache(user);
+  },
+
+  // Synchronous 0ms retrieval for instant initial state
+  getCachedUserProfile(uid: string): User | null {
+    return getFromLocalUserCache(uid);
+  },
+
+  getCachedUserByUsername(username: string): User | null {
+    return getFromLocalUsernameCache(username);
+  },
+
   // Check if a username is already taken
   async isUsernameTaken(username: string): Promise<boolean> {
     const cleanUsername = username.trim().toLowerCase();
@@ -21,40 +81,77 @@ export const userService = {
     }
   },
 
-  // Get user profile by UID
+  // Get user profile by UID (Fast Stale-While-Revalidate Cache)
   async getUserProfile(uid: string): Promise<User | null> {
-    const docRef = doc(db, 'users', uid);
-    try {
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        return snap.data() as User;
-      }
-      return null;
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, `users/${uid}`);
-      return null;
+    if (!uid) return null;
+    const cached = userProfileMemoryCache.get(uid);
+    const now = Date.now();
+
+    // If fresh in memory cache, return immediately (0ms)
+    if (cached && now - cached.timestamp < USER_CACHE_TTL_MS) {
+      return cached.data;
     }
+
+    // If present in local storage, return it and revalidate asynchronously in background!
+    const localCached = getFromLocalUserCache(uid);
+
+    const fetchPromise = (async () => {
+      const docRef = doc(db, 'users', uid);
+      try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const freshData = snap.data() as User;
+          saveToLocalUserCache(freshData);
+          return freshData;
+        }
+        return null;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `users/${uid}`);
+        return null;
+      }
+    })();
+
+    if (localCached) {
+      // Revalidate in background without blocking caller!
+      fetchPromise.catch(console.warn);
+      return localCached;
+    }
+
+    return fetchPromise;
   },
 
-  // Get user profile by username
+  // Get user profile by username (Fast Stale-While-Revalidate Cache)
   async getUserByUsername(username: string): Promise<User | null> {
     if (!username) return null;
     const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
-    const q = query(
-      collection(db, 'users'),
-      where('username', '==', cleanUsername),
-      limit(1)
-    );
-    try {
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        return snap.docs[0].data() as User;
+    const cached = getFromLocalUsernameCache(cleanUsername);
+
+    const fetchPromise = (async () => {
+      const q = query(
+        collection(db, 'users'),
+        where('username', '==', cleanUsername),
+        limit(1)
+      );
+      try {
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const freshData = snap.docs[0].data() as User;
+          saveToLocalUserCache(freshData);
+          return freshData;
+        }
+        return null;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, 'users');
+        return null;
       }
-      return null;
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, 'users');
-      return null;
+    })();
+
+    if (cached) {
+      fetchPromise.catch(console.warn);
+      return cached;
     }
+
+    return fetchPromise;
   },
 
   // Get user profile by email

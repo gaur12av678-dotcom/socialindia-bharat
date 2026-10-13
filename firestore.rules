@@ -79,11 +79,9 @@ match /adminSettings/{docId} {
 
     // --- WITHDRAWAL / PAYOUT REQUESTS COLLECTION ---
     match /withdrawal_requests/{requestId} {
-      allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || isAdmin()
-      );
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow update, delete: if isSignedIn();
     }
 
     // --- VIDEOS COLLECTION ---

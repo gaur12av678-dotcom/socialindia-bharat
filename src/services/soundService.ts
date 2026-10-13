@@ -57,6 +57,177 @@ export const DEFAULT_SOUNDS: SoundTrack[] = [
     coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&q=80',
     audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
     duration: 30,
+  },
+  {
+    soundId: 'sound_6',
+    title: 'Bhangra Dhol Explosion',
+    artist: 'Punjab Sound Masters',
+    category: 'Punjabi & Bollywood',
+    coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
+    duration: 35,
+  },
+  {
+    soundId: 'sound_7',
+    title: 'Monsoon Cafe Rain Lo-Fi',
+    artist: 'Acoustic Chai Lounge',
+    category: 'Lo-Fi & Chill',
+    coverUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
+    duration: 28,
+  },
+  {
+    soundId: 'sound_8',
+    title: 'Shorts Phonk Trap 2026',
+    artist: 'Desi Trap City',
+    category: 'Trending Viral',
+    coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
+    duration: 30,
+  },
+  {
+    soundId: 'sound_9',
+    title: 'Devotional Flute & Santoor Peace',
+    artist: 'Divine Bharat Ragas',
+    category: 'Classical & Fusion',
+    coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3',
+    duration: 40,
+  },
+  {
+    soundId: 'sound_10',
+    title: 'Neon Cyberpunk Rush',
+    artist: 'Techno India Beats',
+    category: 'Gaming & Tech',
+    coverUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3',
+    duration: 22,
+  },
+  {
+    soundId: 'sound_11',
+    title: 'Tum Ho Dil Mein Acoustic',
+    artist: 'Sur Taal Duo',
+    category: 'Romantic & Acoustic',
+    coverUrl: 'https://images.unsplash.com/photo-1487180144351-b8472da7d491?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3',
+    duration: 26,
+  },
+  {
+    soundId: 'sound_12',
+    title: 'Garba Folk Dhamaal',
+    artist: 'Gujarat Beatworks',
+    category: 'Classical & Fusion',
+    coverUrl: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3',
+    duration: 32,
+  },
+  {
+    soundId: 'sound_13',
+    title: 'Dholak Fusion Dhamaka',
+    artist: 'Desi Rhythm Band',
+    category: 'Punjabi & Bollywood',
+    coverUrl: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3',
+    duration: 28,
+  },
+  {
+    soundId: 'sound_14',
+    title: 'Bhojpuri Thumka Beat 2026',
+    artist: 'Purvanchal Beats Crew',
+    category: 'Bhojpuri & Folk',
+    coverUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3',
+    duration: 30,
+  },
+  {
+    soundId: 'sound_15',
+    title: 'Tamil Kuthu Energy Drop',
+    artist: 'Chennai Bass Project',
+    category: 'Trending Viral',
+    coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3',
+    duration: 24,
+  },
+  {
+    soundId: 'sound_16',
+    title: 'Vande Mataram Patriot Symphony',
+    artist: 'Sovereign Strings Ensemble',
+    category: 'Classical & Fusion',
+    coverUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3',
+    duration: 35,
+  },
+  {
+    soundId: 'sound_17',
+    title: 'Mumbai Gully Rap Beats',
+    artist: 'Bambai MC 808',
+    category: 'Trending Viral',
+    coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+    duration: 22,
+  },
+  {
+    soundId: 'sound_18',
+    title: 'Himalayan Bansuri Meditation',
+    artist: 'Rishikesh Flute Masters',
+    category: 'Devotional & Spiritual',
+    coverUrl: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+    duration: 45,
+  },
+  {
+    soundId: 'sound_19',
+    title: 'Jaipur Shehnai & Sitar Utsav',
+    artist: 'Royal Rajasthan Heritage',
+    category: 'Classical & Fusion',
+    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+    duration: 38,
+  },
+  {
+    soundId: 'sound_20',
+    title: 'Midnight Marine Drive Lo-Fi',
+    artist: 'Bombay Chill Station',
+    category: 'Lo-Fi & Chill',
+    coverUrl: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
+    duration: 27,
+  },
+  {
+    soundId: 'sound_21',
+    title: 'Holi Color Blast EDM',
+    artist: 'Festival DJ Squad',
+    category: 'Trending Viral',
+    coverUrl: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3',
+    duration: 31,
+  },
+  {
+    soundId: 'sound_22',
+    title: 'Sufi Qawwali Soul Strings',
+    artist: 'Nizamuddin Melody Circle',
+    category: 'Romantic & Acoustic',
+    coverUrl: 'https://images.unsplash.com/photo-1487180144351-b8472da7d491?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3',
+    duration: 34,
+  },
+  {
+    soundId: 'sound_23',
+    title: 'Cyber Desi Phonk Drift',
+    artist: 'Delhi Drift King',
+    category: 'Gaming & Tech',
+    coverUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3',
+    duration: 20,
+  },
+  {
+    soundId: 'sound_24',
+    title: 'Pahadi Folk Acoustic Breeze',
+    artist: 'Uttarakhand Echoes',
+    category: 'Bhojpuri & Folk',
+    coverUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
+    duration: 29,
   }
 ];
 
@@ -92,6 +263,14 @@ export const soundService = {
           }
           tracks.push(item);
         });
+
+        // Ensure all DEFAULT_SOUNDS are present
+        for (const defTrack of DEFAULT_SOUNDS) {
+          if (!tracks.some(t => t.soundId === defTrack.soundId)) {
+            tracks.push(defTrack);
+            setDoc(doc(db, 'sound_tracks', defTrack.soundId), defTrack).catch(() => {});
+          }
+        }
       } else {
         // Seed initial default tracks if collection empty
         tracks = [...DEFAULT_SOUNDS];
@@ -220,6 +399,20 @@ export const soundService = {
       return newSound;
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `sound_tracks/${soundId}`);
+      throw err;
+    }
+  },
+
+  // Admin: Update existing sound track details
+  async updateSoundTrack(soundId: string, data: Partial<SoundTrack>): Promise<void> {
+    try {
+      const docRef = doc(db, 'sound_tracks', soundId);
+      await updateDoc(docRef, {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `sound_tracks/${soundId}`);
       throw err;
     }
   },

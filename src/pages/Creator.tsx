@@ -57,6 +57,12 @@ export const CreatorProfile: React.FC = () => {
     if (currentUserProfile && (currentUserProfile.username.toLowerCase() === targetUsername || currentUserProfile.uid === rawParam)) {
       return currentUserProfile;
     }
+    const cachedByUsername = userService.getCachedUserByUsername(targetUsername);
+    if (cachedByUsername) return cachedByUsername;
+    if (rawParam) {
+      const cachedByUid = userService.getCachedUserProfile(rawParam);
+      if (cachedByUid) return cachedByUid;
+    }
     return null;
   });
   const [videos, setVideos] = useState<Video[]>([]);
@@ -64,12 +70,17 @@ export const CreatorProfile: React.FC = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(!creator);
   const [activeTab, setActiveTab] = useState<'videos' | 'shorts' | 'playlists' | 'about'>('videos');
-  const [subscribed, setSubscribed] = useState(false);
+  const [subscribed, setSubscribed] = useState(() => {
+    if (currentUser && creator) {
+      return subscriptionService.isSubscribedSync(currentUser.uid, creator.uid);
+    }
+    return false;
+  });
   const [subscribing, setSubscribing] = useState(false);
 
   // Banner Customization Modal State
   const [bannerModalOpen, setBannerModalOpen] = useState(false);
-  const [bannerPreview, setBannerPreview] = useState<string>('');
+  const [bannerPreview, setBannerPreview] = useState<string>(() => creator?.bannerURL || '');
   const [isSavingBanner, setIsSavingBanner] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
@@ -89,8 +100,16 @@ export const CreatorProfile: React.FC = () => {
     let isMounted = true;
 
     const loadCreatorProfile = async () => {
-      // If we don't already have the creator cached, show skeleton
-      if (!creator || creator.username.toLowerCase() !== targetUsername) {
+      // Check cache first so no loading flash occurs
+      const cached = userService.getCachedUserByUsername(targetUsername) || (rawParam ? userService.getCachedUserProfile(rawParam) : null);
+      if (cached) {
+        setCreator(cached);
+        setBannerPreview(cached.bannerURL || '');
+        setLoading(false);
+        if (currentUser) {
+          setSubscribed(subscriptionService.isSubscribedSync(currentUser.uid, cached.uid));
+        }
+      } else if (!creator) {
         setLoading(true);
       }
 
@@ -108,7 +127,7 @@ export const CreatorProfile: React.FC = () => {
         if (!isMounted) return;
 
         if (!uProfile) {
-          setCreator(null);
+          if (!cached) setCreator(null);
           setLoading(false);
           return;
         }
@@ -116,36 +135,25 @@ export const CreatorProfile: React.FC = () => {
         setCreator(uProfile);
         setBannerPreview(uProfile.bannerURL || '');
 
-        if (currentUser) {
-          try {
-            const isSub = await subscriptionService.isSubscribed(currentUser.uid, uProfile.uid);
-            if (isMounted) setSubscribed(isSub);
-          } catch (subErr) {
-            console.warn('Could not check subscription status:', subErr);
-          }
-        }
+        // Fetch subscriptions, videos, and playlists in PARALLEL (No waterfall!)
+        const [subResult, vidsResult, plsResult] = await Promise.allSettled([
+          currentUser ? subscriptionService.isSubscribed(currentUser.uid, uProfile.uid) : Promise.resolve(false),
+          videoService.getCreatorVideos(uProfile.uid),
+          playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName)
+        ]);
 
-        try {
-          const creatorVideos = await videoService.getCreatorVideos(uProfile.uid);
-          if (isMounted) {
-            const publicVids = creatorVideos.filter(v => v.visibility === 'public');
+        if (isMounted) {
+          if (subResult.status === 'fulfilled') {
+            setSubscribed(subResult.value);
+          }
+          if (vidsResult.status === 'fulfilled') {
+            const publicVids = vidsResult.value.filter(v => v.visibility === 'public');
             setVideos(publicVids.filter(v => !v.isShort));
             setShorts(publicVids.filter(v => v.isShort));
           }
-        } catch (vidErr) {
-          console.warn('Could not load creator videos:', vidErr);
-          if (isMounted) {
-            setVideos([]);
-            setShorts([]);
+          if (plsResult.status === 'fulfilled') {
+            setPlaylists(plsResult.value);
           }
-        }
-
-        try {
-          const userPls = await playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName);
-          if (isMounted) setPlaylists(userPls);
-        } catch (plsErr) {
-          console.warn('Could not load creator playlists:', plsErr);
-          if (isMounted) setPlaylists([]);
         }
 
       } catch (err) {

@@ -269,17 +269,20 @@ const ShortVideoMedia: React.FC<{
       });
     };
 
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-
+    if (window.YT && window.YT.Player) {
+      initShortPlayer();
+    } else {
+      const existingCb = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
+        if (typeof existingCb === 'function') existingCb();
         initShortPlayer();
       };
-    } else {
-      initShortPlayer();
+      if (!document.querySelector('script[src*="iframe_api"]')) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
+      }
     }
 
     return () => {
@@ -295,6 +298,15 @@ const ShortVideoMedia: React.FC<{
 
   return (
     <div className="absolute inset-0 overflow-hidden flex items-center justify-center bg-black">
+      {/* Instant poster thumbnail backdrop */}
+      {short.thumbnailUrl && (
+        <img
+          src={short.thumbnailUrl}
+          alt={short.title}
+          className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none filter blur-xs scale-105"
+        />
+      )}
+
       {/* Attached Sound Library Audio Element */}
       {resolvedSoundAudioUrl && (
         <audio
@@ -376,9 +388,12 @@ export const Shorts: React.FC = () => {
   const { route, navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
   const { t, isHindi, formatTime } = useTranslation();
-  
-  const [shorts, setShorts] = useState<Video[]>([]);
-  const [loading, setLoading] = useState(true);
+  const targetShortId = route.param;
+
+  // Instant synchronous cache retrieval (0ms initial frame render)
+  const initialCachedShort = targetShortId ? videoService.getCachedVideo(targetShortId) : null;
+  const [shorts, setShorts] = useState<Video[]>(() => initialCachedShort ? [initialCachedShort] : []);
+  const [loading, setLoading] = useState<boolean>(() => !initialCachedShort);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [swipeDirection, setTransitionDirection] = useState<'up' | 'down' | null>(null);
   const [isMediaReady, setIsMediaReady] = useState(false);
@@ -429,8 +444,6 @@ export const Shorts: React.FC = () => {
   // Subscription State
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
-
-  const targetShortId = route.param;
 
   const fetchShorts = async () => {
     setLoading(true);

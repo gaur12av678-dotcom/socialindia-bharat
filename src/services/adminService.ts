@@ -238,5 +238,40 @@ export const adminService = {
       handleFirestoreError(err, OperationType.WRITE, 'system_settings/announcement');
       throw err;
     }
+  },
+
+  // Get Monetization & Payout Configuration
+  async getMonetizationConfig(): Promise<{ payPerView: string; goproPrice: string; payoutUpiVpa: string }> {
+    try {
+      const snap = await getDoc(doc(db, 'system_settings', 'monetization'));
+      if (snap.exists()) {
+        const d = snap.data();
+        return {
+          payPerView: d.payPerView || '0.50',
+          goproPrice: d.goproPrice || '199.00',
+          payoutUpiVpa: d.payoutUpiVpa || 'finance@socialindia.upi'
+        };
+      }
+    } catch (err) {
+      console.warn('Failed to load monetization config:', err);
+    }
+    return {
+      payPerView: '0.50',
+      goproPrice: '199.00',
+      payoutUpiVpa: 'finance@socialindia.upi'
+    };
+  },
+
+  // Save Monetization & Payout Configuration
+  async saveMonetizationConfig(config: { payPerView: string; goproPrice: string; payoutUpiVpa: string }): Promise<void> {
+    try {
+      await setDoc(doc(db, 'system_settings', 'monetization'), {
+        ...config,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'system_settings/monetization');
+      throw err;
+    }
   }
 };

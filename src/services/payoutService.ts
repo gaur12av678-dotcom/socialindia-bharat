@@ -3,6 +3,7 @@ import {
   getDoc, 
   setDoc, 
   updateDoc, 
+  deleteDoc,
   collection, 
   query, 
   where, 
@@ -291,6 +292,18 @@ export const payoutService = {
       );
     } catch (e) {
       console.warn('Notification failed:', e);
+    }
+  },
+
+  // Admin deletes a fake or test withdrawal request permanently
+  async deleteWithdrawalRequest(requestId: string): Promise<void> {
+    if (!requestId) return;
+    const docRef = doc(db, 'withdrawal_requests', requestId);
+    try {
+      await deleteDoc(docRef);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `withdrawal_requests/${requestId}`);
+      throw err;
     }
   }
 };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Settings as SettingsIcon, 
   CreditCard, 
@@ -20,17 +20,36 @@ import {
   CheckCircle,
   AlertTriangle,
   Play,
-  RotateCcw
+  RotateCcw,
+  ArrowRight
 } from 'lucide-react';
+import { payoutService } from '../services/payoutService';
+import { adminService } from '../services/adminService';
+import { WithdrawalRequest } from '../types';
 
 interface ExtraTabsProps {
   activeSection: string;
   users: any[];
   videos: any[];
+  withdrawalRequests?: WithdrawalRequest[];
+  onApproveWithdrawal?: (req: WithdrawalRequest) => void;
+  onRejectWithdrawal?: (req: WithdrawalRequest) => void;
+  onDeleteWithdrawal?: (req: WithdrawalRequest) => void;
+  onNavigateSection?: (section: any) => void;
   addToast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-export const AdminExtraTabs: React.FC<ExtraTabsProps> = ({ activeSection, users, videos, addToast }) => {
+export const AdminExtraTabs: React.FC<ExtraTabsProps> = ({ 
+  activeSection, 
+  users, 
+  videos, 
+  withdrawalRequests = [], 
+  onApproveWithdrawal, 
+  onRejectWithdrawal,
+  onDeleteWithdrawal,
+  onNavigateSection,
+  addToast 
+}) => {
   // --- SETTINGS STATES ---
   const [siteTitle, setSiteTitle] = useState('SocialIndia');
   const [siteDesc, setSiteDesc] = useState("India's home-grown sovereign video sharing and rewards platform.");
@@ -38,13 +57,26 @@ export const AdminExtraTabs: React.FC<ExtraTabsProps> = ({ activeSection, users,
   const [maintenanceMode, setSiteMaintenance] = useState(false);
 
   // --- PAYMENTS & ADS STATES ---
-  const [payPerView, setPayPerView] = useState('0.05');
-  const [goproPrice, setGoProPrice] = useState('10.00');
-  const [paypalEmail, setPaypalEmail] = useState('finance@socialindia.com');
-  const [payoutRequests, setPayoutRequests] = useState([
-    { id: '1', displayName: 'Amit Kumar', email: 'amit@gmail.com', amount: 45.00, status: 'pending' },
-    { id: '2', displayName: 'Neha Sharma', email: 'neha@gmail.com', amount: 120.00, status: 'pending' },
-  ]);
+  const [payPerView, setPayPerView] = useState('0.50');
+  const [goproPrice, setGoProPrice] = useState('199.00');
+  const [paypalEmail, setPaypalEmail] = useState('finance@socialindia.upi');
+  const [isSavingMonetization, setIsSavingMonetization] = useState(false);
+  const [paymentsWithdrawalFilter, setPaymentsWithdrawalFilter] = useState<'all' | 'pending' | 'completed' | 'rejected'>('all');
+  const [liveWithdrawals, setLiveWithdrawals] = useState<WithdrawalRequest[]>(withdrawalRequests);
+
+  useEffect(() => {
+    adminService.getMonetizationConfig().then(cfg => {
+      if (cfg) {
+        setPayPerView(cfg.payPerView);
+        setGoProPrice(cfg.goproPrice);
+        setPaypalEmail(cfg.payoutUpiVpa);
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setLiveWithdrawals(withdrawalRequests);
+  }, [withdrawalRequests]);
 
   // --- LANGUAGE STATES ---
   const [languages, setLanguages] = useState([
@@ -172,60 +204,202 @@ export const AdminExtraTabs: React.FC<ExtraTabsProps> = ({ activeSection, users,
       {/* 2. PAYMENTS & ADS */}
       {activeSection === 'payments_ads' && (
         <div className="space-y-6">
+          {/* Real Metrics Header Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+              <p className="text-[10px] font-black uppercase text-slate-400">Total Registered Users</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{users.length}</p>
+              <p className="text-[10px] text-blue-500 font-bold mt-1">Real database profiles</p>
+            </div>
+            <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+              <p className="text-[10px] font-black uppercase text-slate-400">Total Creator Balances</p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                ₹{users.reduce((acc, u) => acc + (Number(u.mainBalance ?? u.walletBalance) || 0), 0).toFixed(2)}
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">Across all creator accounts</p>
+            </div>
+            <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+              <p className="text-[10px] font-black uppercase text-slate-400">Pending UPI Payouts</p>
+              <p className="text-2xl font-black text-amber-500 mt-1">
+                ₹{liveWithdrawals.filter(r => r.status === 'pending').reduce((acc, r) => acc + (r.amount || 0), 0).toFixed(2)}
+              </p>
+              <p className="text-[10px] text-amber-600 font-bold mt-1">
+                {liveWithdrawals.filter(r => r.status === 'pending').length} request(s) waiting
+              </p>
+            </div>
+            <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+              <p className="text-[10px] font-black uppercase text-slate-400">Settled Payouts</p>
+              <p className="text-2xl font-black text-emerald-500 mt-1">
+                ₹{liveWithdrawals.filter(r => r.status === 'completed').reduce((acc, r) => acc + (r.amount || 0), 0).toFixed(2)}
+              </p>
+              <p className="text-[10px] text-emerald-600 font-bold mt-1">
+                {liveWithdrawals.filter(r => r.status === 'completed').length} paid successfully
+              </p>
+            </div>
+          </div>
+
+          {/* Monetization & Ads Settings */}
           <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-6 shadow-xs space-y-6">
             <div>
               <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-emerald-600" />
-                <span>Monetization & Ads Configuration</span>
+                <span>Real Monetization & Ads Configuration</span>
               </h3>
-              <p className="text-xs text-slate-500 mt-1">Configure Points values, GoPro upgrade prices, and approve direct merchant payouts.</p>
+              <p className="text-xs text-slate-500 mt-1">Saved securely in Firestore (system_settings/monetization). Live for all creators.</p>
             </div>
             
-            <form onSubmit={(e) => { e.preventDefault(); addToast('Monetization rates updated!', 'success'); }} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <form onSubmit={async (e) => { 
+              e.preventDefault(); 
+              setIsSavingMonetization(true);
+              try {
+                await adminService.saveMonetizationConfig({
+                  payPerView: payPerView.trim() || '0.50',
+                  goproPrice: goproPrice.trim() || '199.00',
+                  payoutUpiVpa: paypalEmail.trim() || 'finance@socialindia.upi'
+                });
+                addToast('Platform monetization rates saved to database!', 'success');
+              } catch (err: any) {
+                addToast('Failed to save settings: ' + err.message, 'error');
+              } finally {
+                setIsSavingMonetization(false);
+              }
+            }} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Ad Cost Per View ($ USD)</label>
-                <input type="text" value={payPerView} onChange={(e) => setPayPerView(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold" />
+                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Ad Cost Per View (₹ INR)</label>
+                <input type="text" value={payPerView} onChange={(e) => setPayPerView(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold" required />
               </div>
               <div>
-                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">GoPro Pro Upgrade Price ($)</label>
-                <input type="text" value={goproPrice} onChange={(e) => setGoProPrice(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold" />
+                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">GoPro VIP Upgrade (₹ INR)</label>
+                <input type="text" value={goproPrice} onChange={(e) => setGoProPrice(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold" required />
               </div>
               <div>
-                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Merchant Payout Email</label>
-                <input type="text" value={paypalEmail} onChange={(e) => setPaypalEmail(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold" />
+                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">UPI Merchant Settlement VPA</label>
+                <input type="text" value={paypalEmail} onChange={(e) => setPaypalEmail(e.target.value)} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold" required />
               </div>
               <div className="sm:col-span-3 pt-2">
-                <button type="submit" className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer">Save Rates</button>
+                <button type="submit" disabled={isSavingMonetization} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 disabled:opacity-50">
+                  {isSavingMonetization ? 'Saving to Database...' : 'Save Monetization Rates'}
+                </button>
               </div>
             </form>
           </div>
 
+          {/* Real Creator Withdrawal Queue */}
           <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-6 shadow-xs space-y-4">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-950 dark:text-white">Pending Wallet Payout Requests</h3>
-            <div className="overflow-x-auto divide-y divide-slate-100 dark:divide-slate-800">
-              {payoutRequests.length === 0 ? (
-                <p className="text-xs text-slate-400 py-6 text-center">No pending payout withdrawal requests.</p>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-950 dark:text-white flex items-center gap-2">
+                  <span>Real Creator Withdrawal Queue</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-bold">
+                    {liveWithdrawals.filter(r => r.status === 'pending').length} Pending
+                  </span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Real creator requests from Firestore. You can approve, reject, or permanently delete test/fake requests.</p>
+              </div>
+              
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl">
+                  {(['all', 'pending', 'completed', 'rejected'] as const).map(tab => (
+                    <button
+                      type="button"
+                      key={tab}
+                      onClick={() => setPaymentsWithdrawalFilter(tab)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer ${
+                        paymentsWithdrawalFilter === tab
+                          ? 'bg-white dark:bg-[#252525] text-slate-900 dark:text-white shadow-xs'
+                          : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      {tab} ({liveWithdrawals.filter(r => tab === 'all' ? true : r.status === tab).length})
+                    </button>
+                  ))}
+                </div>
+
+                {onNavigateSection && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateSection('withdrawals')}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Full Tab</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto divide-y divide-slate-100 dark:divide-slate-800/80">
+              {liveWithdrawals.filter(r => paymentsWithdrawalFilter === 'all' ? true : r.status === paymentsWithdrawalFilter).length === 0 ? (
+                <div className="py-10 text-center text-slate-400 space-y-1">
+                  <p className="text-xs font-bold">No requests found under &quot;{paymentsWithdrawalFilter}&quot;.</p>
+                  <p className="text-[10px] text-slate-500">All creator payout requests are clean and up to date.</p>
+                </div>
               ) : (
-                payoutRequests.map(r => (
-                  <div key={r.id} className="py-3.5 flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-bold text-slate-900 dark:text-white">{r.displayName}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Withdraw to: {r.email}</p>
+                liveWithdrawals
+                  .filter(r => paymentsWithdrawalFilter === 'all' ? true : r.status === paymentsWithdrawalFilter)
+                  .map(r => (
+                    <div key={r.id} className="py-3.5 flex items-center justify-between gap-4 flex-wrap hover:bg-slate-50/50 dark:hover:bg-[#161616]/50 transition-colors p-2 rounded-2xl">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {r.displayName} <span className="text-slate-400 font-normal">(@{r.username})</span>
+                          </p>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                            r.status === 'completed'
+                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                              : r.status === 'rejected'
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'
+                              : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                          }`}>
+                            {r.status === 'completed' ? 'Paid' : r.status}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                          UPI: <strong className="text-slate-700 dark:text-slate-300 select-all">{r.upiId}</strong> • {new Date(r.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400">
+                          ₹{r.amount.toFixed(2)}
+                        </span>
+                        
+                        {r.status === 'pending' && onApproveWithdrawal && (
+                          <button
+                            type="button"
+                            onClick={() => onApproveWithdrawal(r)}
+                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase rounded-lg shadow-xs cursor-pointer transition-all active:scale-95 flex items-center gap-1"
+                            title="Open settlement approval modal"
+                          >
+                            <Check className="w-3 h-3 stroke-[3]" />
+                            <span>Approve</span>
+                          </button>
+                        )}
+
+                        {r.status === 'pending' && onRejectWithdrawal && (
+                          <button
+                            type="button"
+                            onClick={() => onRejectWithdrawal(r)}
+                            className="px-2 py-1.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 text-[10px] font-black uppercase rounded-lg cursor-pointer transition-all active:scale-95"
+                            title="Reject and refund"
+                          >
+                            <span>Reject</span>
+                          </button>
+                        )}
+
+                        {onDeleteWithdrawal && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteWithdrawal(r)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer transition-colors"
+                            title="Permanently delete test/fake request"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-black text-slate-900 dark:text-white">${r.amount.toFixed(2)} USD</span>
-                      <button
-                        onClick={() => {
-                          setPayoutRequests(prev => prev.filter(p => p.id !== r.id));
-                          addToast(`Payout of $${r.amount.toFixed(2)} approved & transferred successfully!`, 'success');
-                        }}
-                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase rounded-lg shadow-xs cursor-pointer transition-all"
-                      >
-                        Approve
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  ))
               )}
             </div>
           </div>

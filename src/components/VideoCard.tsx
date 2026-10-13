@@ -5,6 +5,7 @@ import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
 import { downloadService } from '../services/downloadService';
 import { savedVideoService } from '../services/savedVideoService';
+import { videoService } from '../services/videoService';
 import { UserAvatar } from './UserAvatar';
 import { userService } from '../services/userService';
 import { useTranslation } from '../i18n';
@@ -69,6 +70,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   }, [video.creatorId]);
 
   const handleCardClick = () => {
+    videoService.cacheVideo(video);
     if (video.isShort) {
       navigate('shorts', video.videoId);
     } else {

@@ -555,11 +555,60 @@ export const videoService = {
     }
   },
 
-  // Get a specific video with instant memory cache
+  // Cache a video object in memory and sessionStorage for 0ms transitions
+  cacheVideo(video: Video) {
+    if (!video || !video.videoId) return;
+    memoryVideoDetailCache.set(video.videoId, { data: video, timestamp: Date.now() });
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        sessionStorage.setItem(`si_v_${video.videoId}`, JSON.stringify(video));
+      }
+    } catch (_) {}
+
+    // Also populate creator info cache for instant avatar & handle rendering!
+    if (video.creatorId) {
+      userService.cacheUserProfile({
+        uid: video.creatorId,
+        username: video.creatorUsername || '',
+        displayName: video.creatorDisplayName || '',
+        photoURL: video.creatorPhotoURL || '',
+        followersCount: 0,
+        followingCount: 0,
+        videosCount: 0,
+        role: 'creator',
+        status: 'active',
+        createdAt: video.createdAt || new Date().toISOString(),
+        updatedAt: video.updatedAt || new Date().toISOString()
+      });
+    }
+  },
+
+  // Synchronously retrieve cached video in 0ms (no spinner/skeleton delay!)
+  getCachedVideo(videoId: string): Video | null {
+    if (!videoId) return null;
+    const mem = memoryVideoDetailCache.get(videoId);
+    if (mem) return mem.data;
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        const raw = sessionStorage.getItem(`si_v_${videoId}`);
+        if (raw) {
+          const parsed = JSON.parse(raw) as Video;
+          memoryVideoDetailCache.set(videoId, { data: parsed, timestamp: Date.now() });
+          return parsed;
+        }
+      }
+    } catch (_) {}
+    return null;
+  },
+
+  // Get a specific video with instant memory cache & background revalidation
   async getVideo(videoId: string): Promise<Video | null> {
-    const cached = memoryVideoDetailCache.get(videoId);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-      return cached.data;
+    const cached = this.getCachedVideo(videoId);
+    const cachedEntry = memoryVideoDetailCache.get(videoId);
+
+    // If fresh within TTL, return immediately without network call
+    if (cached && cachedEntry && Date.now() - cachedEntry.timestamp < CACHE_TTL_MS) {
+      return cached;
     }
 
     const docRef = doc(db, 'videos', videoId);
@@ -567,11 +616,12 @@ export const videoService = {
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const vData = snap.data() as Video;
-        memoryVideoDetailCache.set(videoId, { data: vData, timestamp: Date.now() });
+        this.cacheVideo(vData);
         return vData;
       }
-      return null;
+      return cached || null;
     } catch (err) {
+      if (cached) return cached;
       handleFirestoreError(err, OperationType.GET, `videos/${videoId}`);
       return null;
     }
@@ -664,10 +714,10 @@ export const videoService = {
       
       // Store in memory cache
       memoryVideoCache.set(cacheKey, { data: sorted, timestamp: Date.now() });
-      // Also cache individual videos for instant watch navigation
+      // Also cache individual videos and creator profiles for 0ms instant watch navigation
       sorted.forEach(v => {
         if (v.videoId) {
-          memoryVideoDetailCache.set(v.videoId, { data: v, timestamp: Date.now() });
+          this.cacheVideo(v);
         }
       });
 

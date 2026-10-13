@@ -279,17 +279,20 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       });
     };
 
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-
+    if (window.YT && window.YT.Player) {
+      initYTPlayer();
+    } else {
+      const existingCb = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
+        if (typeof existingCb === 'function') existingCb();
         initYTPlayer();
       };
-    } else {
-      initYTPlayer();
+      if (!document.querySelector('script[src*="iframe_api"]')) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
+      }
     }
 
     return () => {
@@ -653,6 +656,15 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
       {/* VIDEO IFRAME / VIDEO LAYER */}
       <div className="absolute inset-0 overflow-hidden flex items-center justify-center bg-black">
+        {/* Crisp poster thumbnail shown while media buffers to prevent black flash */}
+        {!isMediaReady && video.thumbnailUrl && (
+          <img
+            src={video.thumbnailUrl}
+            alt={video.title}
+            className="absolute inset-0 w-full h-full object-cover z-5 pointer-events-none"
+          />
+        )}
+
         {parsedMedia.type === 'youtube' ? (
           <div className="w-full h-full flex items-center justify-center">
             <div id={`yt-player-${video.videoId}`} className="w-full h-full" />

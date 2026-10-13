@@ -60,8 +60,26 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     (uid && currentUserProfile?.username && currentUserProfile.username.toLowerCase() === uid.toLowerCase())
   );
 
-  const [fetchedPhoto, setFetchedPhoto] = useState<string>('');
-  const [fetchedName, setFetchedName] = useState<string>('');
+  const [fetchedPhoto, setFetchedPhoto] = useState<string>(() => {
+    if (isCurrentLoggedInUser && currentUserProfile?.photoURL) return currentUserProfile.photoURL;
+    if (uid && profileCache[uid]?.photoURL) return profileCache[uid].photoURL;
+    if (uid) {
+      const u = userService.getCachedUserProfile(uid);
+      if (u?.photoURL) return u.photoURL;
+    }
+    return fallbackPhotoURL || '';
+  });
+  const [fetchedName, setFetchedName] = useState<string>(() => {
+    if (isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username)) {
+      return currentUserProfile.displayName || currentUserProfile.username;
+    }
+    if (uid && profileCache[uid]?.displayName) return profileCache[uid].displayName;
+    if (uid) {
+      const u = userService.getCachedUserProfile(uid);
+      if (u) return u.displayName || u.username;
+    }
+    return fallbackDisplayName || '';
+  });
   const [imgError, setImgError] = useState(false);
 
   // Sync current user profile into cache whenever it updates

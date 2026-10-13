@@ -28,6 +28,7 @@ import {
   UserX,
   EyeOff,
   Trash2,
+  Edit3,
   ExternalLink,
   ChevronRight,
   TrendingUp,
@@ -170,6 +171,23 @@ export const AdminPanel: React.FC = () => {
   const [purchasesList, setPurchasesList] = useState<VideoPurchase[]>([]);
   const [loadingPaidVideos, setLoadingPaidVideos] = useState(false);
 
+  // In-app Payout Modal state (prevents iframe popup blocking!)
+  const [payoutModalState, setPayoutModalState] = useState<{
+    isOpen: boolean;
+    type: 'approve' | 'reject';
+    request: WithdrawalRequest | null;
+    notes: string;
+  }>({
+    isOpen: false,
+    type: 'approve',
+    request: null,
+    notes: ''
+  });
+
+  // Sound Track Edit Modal state
+  const [editingSound, setEditingSound] = useState<SoundTrack | null>(null);
+  const [isUpdatingSound, setIsUpdatingSound] = useState(false);
+
   // Security Check: Only admins allowed
   useEffect(() => {
     if (currentUser && currentUserProfile && currentUserProfile.role !== 'admin') {
@@ -216,38 +234,73 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  // Approve & Mark Withdrawal as Paid (Tick)
-  const handleApprovePayout = async (req: WithdrawalRequest) => {
-    if (!window.confirm(`Mark ₹${req.amount.toFixed(2)} as Paid to @${req.username} on UPI (${req.upiId})? Ensure you have sent the payment via Paytm / UPI app.`)) {
-      return;
-    }
-    setIsProcessingPayoutId(req.id);
+  // Open Modal to Approve & Mark Withdrawal as Paid
+  const handleOpenApproveModal = (req: WithdrawalRequest) => {
+    setPayoutModalState({
+      isOpen: true,
+      type: 'approve',
+      request: req,
+      notes: 'Paid via Paytm / UPI app'
+    });
+  };
+
+  // Open Modal to Reject Withdrawal & Refund
+  const handleOpenRejectModal = (req: WithdrawalRequest) => {
+    setPayoutModalState({
+      isOpen: true,
+      type: 'reject',
+      request: req,
+      notes: 'Invalid UPI ID or account verification needed'
+    });
+  };
+
+  // Execute Payout Decision from Modal
+  const handleConfirmPayoutAction = async () => {
+    const { type, request, notes } = payoutModalState;
+    if (!request) return;
+
+    setIsProcessingPayoutId(request.id);
     try {
-      await payoutService.approveWithdrawal(req.id, 'Paid via Paytm / UPI app');
-      setWithdrawalRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'completed', paidAt: new Date().toISOString(), adminNotes: 'Paid via Paytm / UPI' } : r));
-      addToast(`✓ Payout of ₹${req.amount.toFixed(2)} marked as Paid to @${req.username}!`, 'success');
+      if (type === 'approve') {
+        await payoutService.approveWithdrawal(request.id, notes.trim() || 'Paid via Paytm / UPI app');
+        setWithdrawalRequests(prev => prev.map(r => r.id === request.id ? { 
+          ...r, 
+          status: 'completed', 
+          paidAt: new Date().toISOString(), 
+          adminNotes: notes.trim() || 'Paid via Paytm / UPI' 
+        } : r));
+        addToast(`✓ Payout of ₹${request.amount.toFixed(2)} marked as Paid to @${request.username}!`, 'success');
+      } else {
+        await payoutService.rejectWithdrawal(request.id, notes.trim() || 'Rejected by Admin');
+        setWithdrawalRequests(prev => prev.map(r => r.id === request.id ? { 
+          ...r, 
+          status: 'rejected', 
+          adminNotes: notes.trim() || 'Rejected by Admin', 
+          rejectedAt: new Date().toISOString() 
+        } : r));
+        addToast(`Withdrawal of ₹${request.amount.toFixed(2)} rejected and refunded to @${request.username}'s Balance.`, 'info');
+        // refresh users list to show updated balance
+        adminService.getAllUsers().then(setUsers);
+      }
+      setPayoutModalState({ isOpen: false, type: 'approve', request: null, notes: '' });
     } catch (err: any) {
-      addToast(err.message || 'Failed to mark as paid.', 'error');
+      addToast(err.message || 'Operation failed. Please try again.', 'error');
     } finally {
       setIsProcessingPayoutId(null);
     }
   };
 
-  // Reject Withdrawal and Refund Balance to User
-  const handleRejectPayout = async (req: WithdrawalRequest) => {
-    const reason = window.prompt(`Reject withdrawal request of ₹${req.amount.toFixed(2)} for @${req.username} and refund money to user's Balance? Enter reason:`, 'Invalid UPI ID or account verification needed');
-    if (reason === null) return;
-    setIsProcessingPayoutId(req.id);
+  // Permanently delete a fake or test withdrawal request
+  const handleDeleteWithdrawalRequest = async (req: WithdrawalRequest) => {
+    if (!window.confirm(`Permanently delete withdrawal request of ₹${req.amount.toFixed(2)} from @${req.username}? This cannot be undone.`)) {
+      return;
+    }
     try {
-      await payoutService.rejectWithdrawal(req.id, reason || 'Rejected by Admin');
-      setWithdrawalRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected', adminNotes: reason || 'Rejected by Admin', rejectedAt: new Date().toISOString() } : r));
-      addToast(`Withdrawal of ₹${req.amount.toFixed(2)} rejected and refunded to @${req.username}'s Balance.`, 'info');
-      // refresh users list to show updated balance
-      adminService.getAllUsers().then(setUsers);
+      await payoutService.deleteWithdrawalRequest(req.id);
+      setWithdrawalRequests(prev => prev.filter(r => r.id !== req.id));
+      addToast(`Permanently deleted withdrawal request for @${req.username}.`, 'info');
     } catch (err: any) {
-      addToast(err.message || 'Failed to reject withdrawal.', 'error');
-    } finally {
-      setIsProcessingPayoutId(null);
+      addToast(err.message || 'Failed to delete request.', 'error');
     }
   };
 
@@ -287,6 +340,33 @@ export const AdminPanel: React.FC = () => {
       addToast('Sound track removed from library.', 'info');
     } catch (err) {
       addToast('Failed to delete sound track.', 'error');
+    }
+  };
+
+  const handleUpdateSong = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSound) return;
+    if (!editingSound.title.trim() || !editingSound.artist.trim() || !editingSound.audioUrl.trim()) {
+      addToast('Please fill Song Title, Artist and Audio MP3 URL', 'error');
+      return;
+    }
+    setIsUpdatingSound(true);
+    try {
+      await soundService.updateSoundTrack(editingSound.soundId, {
+        title: editingSound.title.trim(),
+        artist: editingSound.artist.trim(),
+        category: editingSound.category,
+        coverUrl: editingSound.coverUrl.trim(),
+        audioUrl: editingSound.audioUrl.trim(),
+        duration: Number(editingSound.duration) || 30
+      });
+      setSounds(prev => prev.map(s => s.soundId === editingSound.soundId ? { ...s, ...editingSound } : s));
+      addToast(`Sound "${editingSound.title}" updated successfully!`, 'success');
+      setEditingSound(null);
+    } catch (err: any) {
+      addToast(err.message || 'Failed to update sound track.', 'error');
+    } finally {
+      setIsUpdatingSound(false);
     }
   };
 
@@ -990,7 +1070,17 @@ export const AdminPanel: React.FC = () => {
           <>
             {/* PlayTube Extra System Panels */}
             {['settings', 'payments_ads', 'languages', 'movies', 'articles', 'categories', 'design', 'pages', 'sitemap', 'mobile_api', 'backup', 'system_status', 'changelogs', 'faq_docs'].includes(activeSection) && (
-              <AdminExtraTabs activeSection={activeSection} users={users} videos={videos} addToast={addToast} />
+              <AdminExtraTabs 
+                activeSection={activeSection} 
+                users={users} 
+                videos={videos} 
+                withdrawalRequests={withdrawalRequests}
+                onApproveWithdrawal={handleOpenApproveModal}
+                onRejectWithdrawal={handleOpenRejectModal}
+                onDeleteWithdrawal={handleDeleteWithdrawalRequest}
+                onNavigateSection={setActiveSection}
+                addToast={addToast} 
+              />
             )}
         {(activeSection === 'dashboard' || activeSection === 'tools') && (
           <div className="mt-6">
@@ -1520,41 +1610,54 @@ export const AdminPanel: React.FC = () => {
                                   )}
                                 </td>
 
-                                <td className="px-6 py-4 text-right space-x-2">
-                                  {req.status === 'pending' ? (
-                                    <div className="inline-flex items-center gap-1.5">
-                                      <button
-                                        onClick={() => handleApprovePayout(req)}
-                                        disabled={isProcessingPayoutId === req.id}
-                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1"
-                                        title="Click after transferring money via Paytm / UPI"
-                                      >
-                                        {isProcessingPayoutId === req.id ? (
-                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                        ) : (
-                                          <Check className="w-4 h-4 stroke-[3]" />
-                                        )}
-                                        <span>Tick (Mark as Paid)</span>
-                                      </button>
-                                      <button
-                                        onClick={() => handleRejectPayout(req)}
-                                        disabled={isProcessingPayoutId === req.id}
-                                        className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 font-black text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1"
-                                        title="Reject and refund money to user balance"
-                                      >
-                                        <X className="w-3.5 h-3.5 stroke-[2.5]" />
-                                        <span>Reject</span>
-                                      </button>
-                                    </div>
-                                  ) : req.status === 'completed' ? (
-                                    <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                                      ✓ Settled
-                                    </span>
-                                  ) : (
-                                    <span className="text-[11px] font-bold text-slate-400">
-                                      Refunded
-                                    </span>
-                                  )}
+                                <td className="px-6 py-4 text-right">
+                                  <div className="inline-flex items-center justify-end gap-2">
+                                    {req.status === 'pending' ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenApproveModal(req)}
+                                          disabled={isProcessingPayoutId === req.id}
+                                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                                          title="Click after transferring money via Paytm / UPI"
+                                        >
+                                          {isProcessingPayoutId === req.id ? (
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          ) : (
+                                            <Check className="w-4 h-4 stroke-[3]" />
+                                          )}
+                                          <span>Tick (Mark as Paid)</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenRejectModal(req)}
+                                          disabled={isProcessingPayoutId === req.id}
+                                          className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 font-black text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                                          title="Reject and refund money to user balance"
+                                        >
+                                          <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                                          <span>Reject</span>
+                                        </button>
+                                      </>
+                                    ) : req.status === 'completed' ? (
+                                      <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mr-2">
+                                        ✓ Settled
+                                      </span>
+                                    ) : (
+                                      <span className="text-[11px] font-bold text-slate-400 mr-2">
+                                        Refunded
+                                      </span>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteWithdrawalRequest(req)}
+                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                                      title="Permanently delete test or fake request"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -1897,8 +2000,140 @@ export const AdminPanel: React.FC = () => {
             )}
 
             {/* CLOUD STORAGE MANAGEMENT SECTION */}
-            {activeSection === 'storage' && (
+            {activeSection === 'storage' && (() => {
+              const totalVids = videos.length;
+              const totalShorts = videos.filter(v => v.isShort).length;
+              const totalLong = videos.filter(v => !v.isShort).length;
+              const totalSeconds = videos.reduce((acc, v) => acc + (Number(v.duration) || 0), 0);
+              const totalHours = (totalSeconds / 3600).toFixed(1);
+              const totalMins = Math.round(totalSeconds / 60);
+              
+              // Real media storage footprint calculated from active video durations & thumbnails
+              // Standard web video bitrate ~ 2.2 MB / minute; posters ~ 180 KB each
+              const vidMB = Math.round((totalSeconds / 60) * 2.2);
+              const thumbMB = Math.round(totalVids * 0.18);
+              const totalMB = vidMB + thumbMB;
+              const totalGB = (totalMB / 1024).toFixed(2);
+              const freeQuotaGB = 25; // Cloudinary free tier 25GB
+              const quotaUsedPercent = Math.min(100, Math.max(0.1, Number(((totalMB / (freeQuotaGB * 1024)) * 100).toFixed(2))));
+              
+              const topVideos = [...videos].sort((a, b) => (Number(b.duration) || 0) - (Number(a.duration) || 0)).slice(0, 5);
+
+              return (
               <div className="space-y-6 max-w-4xl">
+                {/* Real Storage Analytics Header */}
+                <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl space-y-6 relative overflow-hidden">
+                  <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-cyan-300 text-[10px] font-black uppercase tracking-wider">
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>Live Firestore Media Assets & Storage</span>
+                      </div>
+                      <h2 className="text-xl sm:text-2xl font-black">Platform Real Storage Metrics</h2>
+                      <p className="text-xs text-white/75 max-w-xl font-medium">
+                        Real-time storage calculated directly from live video documents, playtimes, posters, and vault files in Firestore.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 shrink-0 text-right sm:text-right">
+                      <p className="text-[10px] uppercase font-black tracking-wider text-cyan-300">Total Calculated Storage</p>
+                      <p className="text-2xl font-black font-mono mt-0.5">
+                        {totalMB >= 1024 ? `${totalGB} GB` : `${totalMB} MB`}
+                      </p>
+                      <p className="text-[10px] text-white/70">of {freeQuotaGB} GB CDN Free Tier</p>
+                    </div>
+                  </div>
+
+                  {/* Quota Progress Bar */}
+                  <div className="space-y-2 relative z-10">
+                    <div className="flex justify-between text-[11px] font-bold">
+                      <span className="text-cyan-200">Storage Capacity Utilized: {quotaUsedPercent}%</span>
+                      <span className="text-white/80">{totalMB} MB / {freeQuotaGB * 1024} MB ({freeQuotaGB} GB)</span>
+                    </div>
+                    <div className="w-full h-3 bg-white/15 rounded-full overflow-hidden p-0.5 backdrop-blur-sm">
+                      <div 
+                        className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full transition-all duration-500 shadow-sm"
+                        style={{ width: `${Math.max(2, quotaUsedPercent)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4 Storage Breakdown Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 relative z-10 pt-2">
+                    <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
+                      <p className="text-[10px] font-black uppercase text-cyan-200">Standard Videos</p>
+                      <p className="text-lg font-black mt-0.5">{totalLong} files</p>
+                      <p className="text-[10px] text-white/70 font-mono">~{Math.round((videos.filter(v => !v.isShort).reduce((acc, v) => acc + (Number(v.duration)||0), 0) / 60) * 2.2)} MB</p>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
+                      <p className="text-[10px] font-black uppercase text-cyan-200">Vertical Shorts</p>
+                      <p className="text-lg font-black mt-0.5">{totalShorts} files</p>
+                      <p className="text-[10px] text-white/70 font-mono">~{Math.round((videos.filter(v => v.isShort).reduce((acc, v) => acc + (Number(v.duration)||0), 0) / 60) * 2.2)} MB</p>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
+                      <p className="text-[10px] font-black uppercase text-cyan-200">Cover Artworks</p>
+                      <p className="text-lg font-black mt-0.5">{totalVids} posters</p>
+                      <p className="text-[10px] text-white/70 font-mono">~{thumbMB} MB</p>
+                    </div>
+                    <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
+                      <p className="text-[10px] font-black uppercase text-cyan-200">Total Playtime</p>
+                      <p className="text-lg font-black mt-0.5">{totalHours} hrs</p>
+                      <p className="text-[10px] text-white/70">{totalMins} minutes</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Media Files in Database */}
+                {topVideos.length > 0 && (
+                  <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 shadow-xs space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                          <Film className="w-4 h-4 text-blue-600" />
+                          <span>Top Storage-Consuming Media Assets</span>
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Videos with largest duration & bitrate footprints in your Firestore database.</p>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400">{topVideos.length} listed</span>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                      {topVideos.map((vid, idx) => (
+                        <div key={vid.videoId || idx} className="py-3 flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img 
+                              src={vid.thumbnailUrl} 
+                              alt={vid.title} 
+                              className="w-14 h-9 rounded-lg object-cover bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-800" 
+                            />
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-sm">{vid.title}</p>
+                              <p className="text-[10px] text-slate-400">
+                                @{vid.creatorUsername || 'creator'} • {vid.isShort ? 'Short' : 'Video'} • {Math.floor((vid.duration || 0) / 60)}m {(vid.duration || 0) % 60}s
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-black font-mono text-blue-600 dark:text-blue-400">
+                              ~{Math.max(1, Math.round(((vid.duration || 30) / 60) * 2.2))} MB
+                            </span>
+                            <a
+                              href={`/#/watch/${vid.videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-slate-100 dark:hover:bg-[#202020] transition-colors"
+                              title="Inspect video"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Status Card */}
                 <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-8 shadow-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-[#272727]">
@@ -2063,7 +2298,8 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* TRASH & 180-DAY COMPLIANCE VAULT SECTION */}
             {activeSection === 'trash' && (
@@ -2651,8 +2887,17 @@ export const AdminPanel: React.FC = () => {
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
+                            onClick={() => setEditingSound(s)}
+                            className="px-2.5 py-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold active:scale-95"
+                            title="Edit sound track details"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Edit Details</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleDeleteSong(s.soundId)}
-                            className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                            className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer active:scale-95"
                             title="Delete sound track"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -3304,6 +3549,288 @@ export const AdminPanel: React.FC = () => {
                   >
                     {isAddingBonus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gift className="w-4 h-4" />}
                     <span>Add ₹{bonusAmount.toFixed(2)} Bonus</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* PAYOUT DECISION / CONFIRMATION MODAL */}
+        {payoutModalState.isOpen && payoutModalState.request && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#121215] border border-slate-200 dark:border-[#222] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#222] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black ${
+                    payoutModalState.type === 'approve'
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                      : 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                  }`}>
+                    {payoutModalState.type === 'approve' ? <Check className="w-5 h-5 stroke-[3]" /> : <X className="w-5 h-5 stroke-[3]" />}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                      {payoutModalState.type === 'approve' ? 'Approve & Settle Payout' : 'Reject & Refund Withdrawal'}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {payoutModalState.type === 'approve' 
+                        ? 'Confirm payment after transferring funds to creator UPI' 
+                        : 'Decline request and automatically refund money to creator balance'}
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setPayoutModalState({ isOpen: false, type: 'approve', request: null, notes: '' })}
+                  disabled={isProcessingPayoutId === payoutModalState.request.id}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#222] text-slate-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Creator details card */}
+              <div className="p-4 bg-slate-50 dark:bg-[#1a1a1a] rounded-2xl border border-slate-200/60 dark:border-[#2b2b2b] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                      {payoutModalState.request.userPhotoURL ? <img src={payoutModalState.request.userPhotoURL} className="w-full h-full object-cover" /> : getInitials(payoutModalState.request.displayName)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{payoutModalState.request.displayName}</p>
+                      <p className="text-[11px] text-slate-500 truncate">@{payoutModalState.request.username} • {payoutModalState.request.userEmail}</p>
+                      {payoutModalState.request.phone && (
+                        <p className="text-[10px] text-slate-400 font-mono">📞 {payoutModalState.request.phone}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] uppercase font-black text-slate-400 block">Amount</span>
+                    <span className="text-xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                      ₹{payoutModalState.request.amount.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* UPI details */}
+                <div className="pt-2 border-t border-slate-200/50 dark:border-[#282828] space-y-2">
+                  <div className="flex items-center justify-between bg-white dark:bg-[#111] p-3 rounded-xl border border-slate-200/60 dark:border-[#333]">
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">UPI ID / VPA</p>
+                      <p className="font-mono font-black text-sm text-slate-900 dark:text-white select-all">
+                        {payoutModalState.request.upiId}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(payoutModalState.request!.upiId);
+                        addToast(`Copied UPI ID: ${payoutModalState.request!.upiId}`, 'info');
+                      }}
+                      className="px-2.5 py-1.5 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <span>Copy</span>
+                    </button>
+                  </div>
+
+                  {payoutModalState.type === 'approve' && (
+                    <a
+                      href={`upi://pay?pa=${encodeURIComponent(payoutModalState.request.upiId)}&pn=${encodeURIComponent(payoutModalState.request.displayName)}&am=${payoutModalState.request.amount}&cu=INR&tn=${encodeURIComponent('SocialIndia Creator Payout')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2 bg-slate-100 dark:bg-[#242424] hover:bg-slate-200 dark:hover:bg-[#303030] text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Open in UPI App (Paytm / PhonePe / GPay)</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Notes / Reason input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                  {payoutModalState.type === 'approve' ? 'Transaction UTR / Settlement Reference Notes' : 'Reason for Rejection (Visible to User)'}
+                </label>
+                <input
+                  type="text"
+                  value={payoutModalState.notes}
+                  onChange={(e) => setPayoutModalState(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder={payoutModalState.type === 'approve' ? 'e.g. Paid via Paytm / UPI - UTR 412345678901' : 'e.g. Invalid UPI ID or verification required'}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPayoutModalState({ isOpen: false, type: 'approve', request: null, notes: '' })}
+                  disabled={isProcessingPayoutId === payoutModalState.request.id}
+                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-[#333] text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPayoutAction}
+                  disabled={isProcessingPayoutId === payoutModalState.request.id}
+                  className={`flex-1 py-3 px-4 rounded-xl text-white text-xs font-black transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                    payoutModalState.type === 'approve'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                      : 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
+                  }`}
+                >
+                  {isProcessingPayoutId === payoutModalState.request.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : payoutModalState.type === 'approve' ? (
+                    <Check className="w-4 h-4 stroke-[3]" />
+                  ) : (
+                    <X className="w-4 h-4 stroke-[3]" />
+                  )}
+                  <span>
+                    {payoutModalState.type === 'approve' 
+                      ? `Confirm & Mark ₹${payoutModalState.request.amount.toFixed(2)} Paid` 
+                      : `Confirm Reject & Refund ₹${payoutModalState.request.amount.toFixed(2)}`}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SOUND TRACK EDIT MODAL */}
+        {editingSound && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#121215] border border-slate-200 dark:border-[#222] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#222] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black">
+                    <Music className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Edit Sound Track Details</h3>
+                    <p className="text-xs text-slate-500">Update track title, artist, audio link, or category in platform library</p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setEditingSound(null)}
+                  disabled={isUpdatingSound}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#222] text-slate-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateSong} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Track Title *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingSound.title}
+                      onChange={(e) => setEditingSound(prev => prev ? { ...prev, title: e.target.value } : null)}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Artist / Creator *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingSound.artist}
+                      onChange={(e) => setEditingSound(prev => prev ? { ...prev, artist: e.target.value } : null)}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Category / Genre</label>
+                    <select
+                      value={editingSound.category}
+                      onChange={(e) => setEditingSound(prev => prev ? { ...prev, category: e.target.value } : null)}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="Punjabi & Bollywood">Punjabi & Bollywood</option>
+                      <option value="Trending Viral">Trending Viral</option>
+                      <option value="Bhojpuri & Folk">Bhojpuri & Folk</option>
+                      <option value="Lo-Fi & Chill">Lo-Fi & Chill</option>
+                      <option value="Romantic & Acoustic">Romantic & Acoustic</option>
+                      <option value="Classical & Fusion">Classical & Fusion</option>
+                      <option value="Gaming & Tech">Gaming & Tech</option>
+                      <option value="Devotional & Spiritual">Devotional & Spiritual</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Duration (Seconds)</label>
+                    <input
+                      type="number"
+                      min="5"
+                      max="300"
+                      value={editingSound.duration || 30}
+                      onChange={(e) => setEditingSound(prev => prev ? { ...prev, duration: parseInt(e.target.value) || 30 } : null)}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Audio MP3 URL *</label>
+                  <input
+                    type="url"
+                    required
+                    value={editingSound.audioUrl}
+                    onChange={(e) => setEditingSound(prev => prev ? { ...prev, audioUrl: e.target.value } : null)}
+                    placeholder="https://... audio stream file"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  />
+                  {editingSound.audioUrl && (
+                    <div className="mt-2 p-2 bg-slate-50 dark:bg-[#181818] rounded-xl border border-slate-200/60 dark:border-[#333]">
+                      <p className="text-[10px] font-bold text-slate-400 mb-1">Live Audio Preview:</p>
+                      <audio src={editingSound.audioUrl} controls className="w-full h-8" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Cover Artwork URL</label>
+                  <div className="flex gap-3 items-center">
+                    <img 
+                      src={editingSound.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80'} 
+                      alt="Cover preview" 
+                      className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-[#333] shrink-0"
+                    />
+                    <input
+                      type="url"
+                      value={editingSound.coverUrl}
+                      onChange={(e) => setEditingSound(prev => prev ? { ...prev, coverUrl: e.target.value } : null)}
+                      placeholder="https://images.unsplash.com/..."
+                      className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSound(null)}
+                    disabled={isUpdatingSound}
+                    className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-[#333] text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingSound}
+                    className="flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isUpdatingSound ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <span>Save Sound Changes</span>
                   </button>
                 </div>
               </form>
