@@ -1,6 +1,7 @@
 import { 
   doc, 
   setDoc, 
+  getDoc,
   getDocs, 
   deleteDoc, 
   updateDoc, 
@@ -16,7 +17,164 @@ import { updateUserAvatarCache } from '../components/UserAvatar';
 // Local user cache to prevent redundant fetches
 const commentUserCache = new Map<string, { photoURL?: string; displayName?: string; username?: string; fetchedAt: number }>();
 
+const getStoredLikedComments = (uid: string): Set<string> => {
+  if (typeof window === 'undefined' || !uid) return new Set();
+  try {
+    const raw = localStorage.getItem(`socialindia_comment_likes_${uid}`);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (_) {}
+  return new Set();
+};
+
+const saveStoredLikedComments = (uid: string, set: Set<string>) => {
+  if (typeof window === 'undefined' || !uid) return;
+  try {
+    localStorage.setItem(`socialindia_comment_likes_${uid}`, JSON.stringify(Array.from(set)));
+  } catch (_) {}
+};
+
+const getStoredDislikedComments = (uid: string): Set<string> => {
+  if (typeof window === 'undefined' || !uid) return new Set();
+  try {
+    const raw = localStorage.getItem(`socialindia_comment_dislikes_${uid}`);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (_) {}
+  return new Set();
+};
+
+const saveStoredDislikedComments = (uid: string, set: Set<string>) => {
+  if (typeof window === 'undefined' || !uid) return;
+  try {
+    localStorage.setItem(`socialindia_comment_dislikes_${uid}`, JSON.stringify(Array.from(set)));
+  } catch (_) {}
+};
+
 export const commentService = {
+  // Read reactions from local storage
+  getUserReactions(uid: string): { likedCommentIds: Set<string>; dislikedCommentIds: Set<string> } {
+    return {
+      likedCommentIds: getStoredLikedComments(uid),
+      dislikedCommentIds: getStoredDislikedComments(uid)
+    };
+  },
+
+  // Like a comment (YouTube Thumbs Up)
+  async likeComment(videoId: string, commentId: string, uid: string): Promise<void> {
+    if (!uid) return;
+    // Update local cache
+    const likedSet = getStoredLikedComments(uid);
+    const dislikedSet = getStoredDislikedComments(uid);
+    likedSet.add(commentId);
+    dislikedSet.delete(commentId);
+    saveStoredLikedComments(uid, likedSet);
+    saveStoredDislikedComments(uid, dislikedSet);
+
+    try {
+      const likeDocRef = doc(db, 'videos', videoId, 'comments', commentId, 'likes', uid);
+      await setDoc(likeDocRef, {
+        uid,
+        videoId,
+        commentId,
+        createdAt: new Date().toISOString()
+      });
+
+      const commentDocRef = doc(db, 'videos', videoId, 'comments', commentId);
+      await updateDoc(commentDocRef, {
+        likesCount: increment(1)
+      });
+
+      // If disliked before, delete dislike doc
+      try {
+        const dislikeDocRef = doc(db, 'videos', videoId, 'comments', commentId, 'dislikes', uid);
+        await deleteDoc(dislikeDocRef);
+      } catch (_) {}
+    } catch (err) {
+      console.warn('Could not persist comment like to Firestore:', err);
+    }
+  },
+
+  // Unlike a comment (Remove YouTube Thumbs Up)
+  async unlikeComment(videoId: string, commentId: string, uid: string): Promise<void> {
+    if (!uid) return;
+    const likedSet = getStoredLikedComments(uid);
+    likedSet.delete(commentId);
+    saveStoredLikedComments(uid, likedSet);
+
+    try {
+      const likeDocRef = doc(db, 'videos', videoId, 'comments', commentId, 'likes', uid);
+      await deleteDoc(likeDocRef);
+
+      const commentDocRef = doc(db, 'videos', videoId, 'comments', commentId);
+      await updateDoc(commentDocRef, {
+        likesCount: increment(-1)
+      });
+    } catch (err) {
+      console.warn('Could not remove comment like from Firestore:', err);
+    }
+  },
+
+  // Dislike a comment (YouTube Thumbs Down)
+  async dislikeComment(videoId: string, commentId: string, uid: string): Promise<void> {
+    if (!uid) return;
+    const dislikedSet = getStoredDislikedComments(uid);
+    const likedSet = getStoredLikedComments(uid);
+    const wasLiked = likedSet.has(commentId);
+
+    dislikedSet.add(commentId);
+    likedSet.delete(commentId);
+    saveStoredDislikedComments(uid, dislikedSet);
+    saveStoredLikedComments(uid, likedSet);
+
+    try {
+      const dislikeDocRef = doc(db, 'videos', videoId, 'comments', commentId, 'dislikes', uid);
+      await setDoc(dislikeDocRef, {
+        uid,
+        videoId,
+        commentId,
+        createdAt: new Date().toISOString()
+      });
+
+      if (wasLiked) {
+        const likeDocRef = doc(db, 'videos', videoId, 'comments', commentId, 'likes', uid);
+        await deleteDoc(likeDocRef);
+        const commentDocRef = doc(db, 'videos', videoId, 'comments', commentId);
+        await updateDoc(commentDocRef, {
+          likesCount: increment(-1)
+        });
+      }
+    } catch (err) {
+      console.warn('Could not persist comment dislike to Firestore:', err);
+    }
+  },
+
+  // Undislike a comment (Remove YouTube Thumbs Down)
+  async undislikeComment(videoId: string, commentId: string, uid: string): Promise<void> {
+    if (!uid) return;
+    const dislikedSet = getStoredDislikedComments(uid);
+    dislikedSet.delete(commentId);
+    saveStoredDislikedComments(uid, dislikedSet);
+
+    try {
+      const dislikeDocRef = doc(db, 'videos', videoId, 'comments', commentId, 'dislikes', uid);
+      await deleteDoc(dislikeDocRef);
+    } catch (err) {
+      console.warn('Could not remove comment dislike from Firestore:', err);
+    }
+  },
+
+  // Creator Heart a comment (YouTube creator ❤️ badge)
+  async heartComment(videoId: string, commentId: string, shouldHeart: boolean): Promise<void> {
+    const commentDocRef = doc(db, 'videos', videoId, 'comments', commentId);
+    try {
+      await updateDoc(commentDocRef, {
+        hasCreatorHeart: shouldHeart,
+        heartedAt: shouldHeart ? new Date().toISOString() : null
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `videos/${videoId}/comments/${commentId}`);
+      throw err;
+    }
+  },
   // Get comments on a video with synchronized, latest user avatars
   async getComments(videoId: string): Promise<Comment[]> {
     const colRef = collection(db, 'videos', videoId, 'comments');

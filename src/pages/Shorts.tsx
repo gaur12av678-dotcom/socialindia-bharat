@@ -9,7 +9,7 @@ import { downloadService } from '../services/downloadService';
 import { subscriptionService } from '../services/subscriptionService';
 import { DEFAULT_SOUNDS } from '../services/soundService';
 import { Video, Comment, User } from '../types';
-import { parseVideoUrl, getInitials, formatTimeAgo } from '../utils/videoUtils';
+import { parseVideoUrl, getInitials, formatTimeAgo, formatViews } from '../utils/videoUtils';
 import { UserAvatar } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
 import { 
@@ -40,7 +40,9 @@ import {
   Lock,
   Wallet,
   Sparkles,
-  ArrowLeft
+  ArrowLeft,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { paidVideoService } from '../services/paidVideoService';
@@ -395,6 +397,21 @@ export const Shorts: React.FC = () => {
   const [newCommentText, setNewCommentText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Comment reactions state (YouTube Thumbs Up & Thumbs Down)
+  const [likedCommentIds, setLikedCommentIds] = useState<Set<string>>(new Set());
+  const [dislikedCommentIds, setDislikedCommentIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (currentUser?.uid) {
+      const { likedCommentIds: lIds, dislikedCommentIds: dIds } = commentService.getUserReactions(currentUser.uid);
+      setLikedCommentIds(lIds);
+      setDislikedCommentIds(dIds);
+    } else {
+      setLikedCommentIds(new Set());
+      setDislikedCommentIds(new Set());
+    }
+  }, [currentUser?.uid]);
 
   // Offline Download state & 3-dot menu state
   const [isDownloaded, setIsDownloaded] = useState(false);
@@ -843,6 +860,113 @@ export const Shorts: React.FC = () => {
       } catch (err) {
         addToast('Failed to delete', 'error');
       }
+    }
+  };
+
+  const handleLikeComment = async (targetComment: Comment) => {
+    if (!currentUser) {
+      addToast('Please sign in to like comments.', 'info');
+      return;
+    }
+    const isCurrentlyLiked = likedCommentIds.has(targetComment.commentId);
+    const isCurrentlyDisliked = dislikedCommentIds.has(targetComment.commentId);
+
+    setLikedCommentIds(prev => {
+      const next = new Set(prev);
+      if (isCurrentlyLiked) next.delete(targetComment.commentId);
+      else next.add(targetComment.commentId);
+      return next;
+    });
+
+    if (isCurrentlyDisliked) {
+      setDislikedCommentIds(prev => {
+        const next = new Set(prev);
+        next.delete(targetComment.commentId);
+        return next;
+      });
+    }
+
+    setComments(prev => prev.map(c => {
+      if (c.commentId === targetComment.commentId) {
+        const diff = isCurrentlyLiked ? -1 : 1;
+        return {
+          ...c,
+          likesCount: Math.max(0, (c.likesCount || 0) + diff)
+        };
+      }
+      return c;
+    }));
+
+    try {
+      if (isCurrentlyLiked) {
+        await commentService.unlikeComment(activeShort.videoId, targetComment.commentId, currentUser.uid);
+      } else {
+        await commentService.likeComment(activeShort.videoId, targetComment.commentId, currentUser.uid);
+      }
+    } catch (err) {
+      console.warn('Failed to like comment:', err);
+    }
+  };
+
+  const handleDislikeComment = async (targetComment: Comment) => {
+    if (!currentUser) {
+      addToast('Please sign in to dislike comments.', 'info');
+      return;
+    }
+    const isCurrentlyDisliked = dislikedCommentIds.has(targetComment.commentId);
+    const isCurrentlyLiked = likedCommentIds.has(targetComment.commentId);
+
+    setDislikedCommentIds(prev => {
+      const next = new Set(prev);
+      if (isCurrentlyDisliked) next.delete(targetComment.commentId);
+      else next.add(targetComment.commentId);
+      return next;
+    });
+
+    if (isCurrentlyLiked) {
+      setLikedCommentIds(prev => {
+        const next = new Set(prev);
+        next.delete(targetComment.commentId);
+        return next;
+      });
+      setComments(prev => prev.map(c => {
+        if (c.commentId === targetComment.commentId) {
+          return {
+            ...c,
+            likesCount: Math.max(0, (c.likesCount || 0) - 1)
+          };
+        }
+        return c;
+      }));
+    }
+
+    try {
+      if (isCurrentlyDisliked) {
+        await commentService.undislikeComment(activeShort.videoId, targetComment.commentId, currentUser.uid);
+      } else {
+        await commentService.dislikeComment(activeShort.videoId, targetComment.commentId, currentUser.uid);
+      }
+    } catch (err) {
+      console.warn('Failed to dislike comment:', err);
+    }
+  };
+
+  const handleHeartComment = async (targetComment: Comment) => {
+    if (!currentUser || currentUser.uid !== activeShort?.creatorId) return;
+    const nextHeart = !targetComment.hasCreatorHeart;
+
+    setComments(prev => prev.map(c => {
+      if (c.commentId === targetComment.commentId) {
+        return { ...c, hasCreatorHeart: nextHeart };
+      }
+      return c;
+    }));
+
+    try {
+      await commentService.heartComment(activeShort.videoId, targetComment.commentId, nextHeart);
+      addToast(nextHeart ? 'Loved this comment ❤️' : 'Removed heart from comment', 'success');
+    } catch (err) {
+      console.warn('Failed to heart comment:', err);
     }
   };
 
@@ -1376,17 +1500,81 @@ export const Shorts: React.FC = () => {
                         <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed font-medium break-words">
                           {renderCommentText(c.text)}
                         </p>
-                        <div className="flex items-center gap-5 mt-2.5">
+                        {/* YouTube-Style Comment Action Row */}
+                        <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                          {/* Thumbs Up (Like) */}
+                          <button
+                            onClick={() => handleLikeComment(c)}
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-90 ${
+                              likedCommentIds.has(c.commentId)
+                                ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                            title="Like"
+                          >
+                            <ThumbsUp className={`w-3.5 h-3.5 ${likedCommentIds.has(c.commentId) ? 'fill-current scale-110' : ''}`} />
+                            {(c.likesCount || 0) > 0 && (
+                              <span className="text-[10px] font-bold">
+                                {formatViews(c.likesCount)}
+                              </span>
+                            )}
+                          </button>
+
+                          {/* Thumbs Down (Dislike) */}
+                          <button
+                            onClick={() => handleDislikeComment(c)}
+                            className={`p-1.5 rounded-full text-xs transition-all cursor-pointer active:scale-90 ${
+                              dislikedCommentIds.has(c.commentId)
+                                ? 'text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-700'
+                                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                            }`}
+                            title="Dislike"
+                          >
+                            <ThumbsDown className={`w-3.5 h-3.5 ${dislikedCommentIds.has(c.commentId) ? 'fill-current scale-110' : ''}`} />
+                          </button>
+
+                          {/* Creator Heart */}
+                          {currentUser?.uid === activeShort.creatorId ? (
+                            <button
+                              onClick={() => handleHeartComment(c)}
+                              className={`p-1.5 rounded-full transition-all cursor-pointer active:scale-90 ${
+                                c.hasCreatorHeart
+                                  ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/40'
+                                  : 'text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                              title={c.hasCreatorHeart ? "Remove heart" : "Heart this comment"}
+                            >
+                              <Heart className={`w-3.5 h-3.5 ${c.hasCreatorHeart ? 'fill-rose-500 text-rose-500' : ''}`} />
+                            </button>
+                          ) : c.hasCreatorHeart ? (
+                            <div 
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-[9px] font-bold text-rose-500"
+                              title={`Loved by ${activeShort.creatorDisplayName}`}
+                            >
+                              <UserAvatar
+                                uid={activeShort.creatorId}
+                                fallbackPhotoURL={activeShort.creatorPhotoURL}
+                                fallbackDisplayName={activeShort.creatorDisplayName}
+                                size="xs"
+                                className="w-3.5 h-3.5 rounded-full"
+                              />
+                              <Heart className="w-2.5 h-2.5 fill-rose-500 text-rose-500" />
+                            </div>
+                          ) : null}
+
+                          {/* Reply Button */}
                           <button 
                             onClick={() => setReplyingTo(c.commentId)}
-                            className="text-[9px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest transition-colors cursor-pointer"
+                            className="px-2 py-0.5 text-[10px] font-extrabold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
                           >
                             Reply
                           </button>
+
+                          {/* Delete if owner */}
                           {currentUser?.uid === c.uid && (
                             <button 
                               onClick={() => handleCommentDelete(c.commentId)}
-                              className="text-[9px] font-black text-slate-400 hover:text-rose-600 uppercase tracking-widest transition-colors cursor-pointer"
+                              className="px-2 py-0.5 text-[10px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                             >
                               Delete
                             </button>
@@ -1438,9 +1626,60 @@ export const Shorts: React.FC = () => {
                               <span className="text-[8px] text-slate-400 font-bold">{formatTimeAgo(r.createdAt)}</span>
                             </div>
                             <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium break-words">{renderCommentText(r.text)}</p>
-                            {currentUser?.uid === r.uid && (
-                              <button onClick={() => handleCommentDelete(r.commentId)} className="mt-1 text-[8px] font-black text-rose-500 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Delete</button>
-                            )}
+                            
+                            <div className="flex items-center gap-2 mt-2">
+                              <button
+                                onClick={() => handleLikeComment(r)}
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-90 ${
+                                  likedCommentIds.has(r.commentId)
+                                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60'
+                                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                                }`}
+                                title="Like"
+                              >
+                                <ThumbsUp className={`w-3 h-3 ${likedCommentIds.has(r.commentId) ? 'fill-current' : ''}`} />
+                                {(r.likesCount || 0) > 0 && (
+                                  <span className="text-[9px] font-bold">{formatViews(r.likesCount)}</span>
+                                )}
+                              </button>
+
+                              <button
+                                onClick={() => handleDislikeComment(r)}
+                                className={`p-1 rounded-full text-xs transition-all cursor-pointer active:scale-90 ${
+                                  dislikedCommentIds.has(r.commentId)
+                                    ? 'text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-700'
+                                    : 'text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                                }`}
+                                title="Dislike"
+                              >
+                                <ThumbsDown className={`w-3 h-3 ${dislikedCommentIds.has(r.commentId) ? 'fill-current' : ''}`} />
+                              </button>
+
+                              {currentUser?.uid === activeShort.creatorId ? (
+                                <button
+                                  onClick={() => handleHeartComment(r)}
+                                  className={`p-1 rounded-full transition-all cursor-pointer active:scale-90 ${
+                                    r.hasCreatorHeart
+                                      ? 'text-rose-500'
+                                      : 'text-slate-400 hover:text-rose-500'
+                                  }`}
+                                  title={r.hasCreatorHeart ? "Remove heart" : "Heart reply"}
+                                >
+                                  <Heart className={`w-3 h-3 ${r.hasCreatorHeart ? 'fill-rose-500 text-rose-500' : ''}`} />
+                                </button>
+                              ) : r.hasCreatorHeart ? (
+                                <div 
+                                  className="inline-flex items-center gap-1 px-1 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-[8px] font-bold text-rose-500"
+                                  title={`Loved by ${activeShort.creatorDisplayName}`}
+                                >
+                                  <Heart className="w-2 h-2 fill-rose-500 text-rose-500" />
+                                </div>
+                              ) : null}
+
+                              {currentUser?.uid === r.uid && (
+                                <button onClick={() => handleCommentDelete(r.commentId)} className="text-[9px] font-bold text-slate-400 hover:text-rose-600 transition-colors ml-auto cursor-pointer">Delete</button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}

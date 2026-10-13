@@ -179,6 +179,9 @@ export interface Comment {
   photoURL?: string;
   text: string;
   likesCount: number;
+  dislikesCount?: number;
+  hasCreatorHeart?: boolean;
+  heartedAt?: any;
   parentCommentId?: string; // For replies
   isPinned?: boolean; // Pinned by video creator
   pinnedAt?: any;

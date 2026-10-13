@@ -76,6 +76,10 @@
         "photoURL": { "type": "string" },
         "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
         "likesCount": { "type": "integer" },
+        "dislikesCount": { "type": "integer" },
+        "hasCreatorHeart": { "type": "boolean" },
+        "isPinned": { "type": "boolean" },
+        "parentCommentId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

@@ -130,6 +130,21 @@ export const Watch: React.FC = () => {
   const [editingCommentText, setEditingCommentText] = useState('');
   const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
 
+  // Comment reactions state (YouTube-Style likes, dislikes)
+  const [likedCommentIds, setLikedCommentIds] = useState<Set<string>>(new Set());
+  const [dislikedCommentIds, setDislikedCommentIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (currentUser?.uid) {
+      const { likedCommentIds: lIds, dislikedCommentIds: dIds } = commentService.getUserReactions(currentUser.uid);
+      setLikedCommentIds(lIds);
+      setDislikedCommentIds(dIds);
+    } else {
+      setLikedCommentIds(new Set());
+      setDislikedCommentIds(new Set());
+    }
+  }, [currentUser?.uid]);
+
   // Active Playlist Queue State (YouTube Style)
   const playlistId = route.searchParams?.list;
   const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(null);
@@ -627,6 +642,125 @@ export const Watch: React.FC = () => {
       addToast('Comment updated successfully.', 'success');
     } catch (err) {
       addToast('Failed to edit comment.', 'error');
+    }
+  };
+
+  const handleLikeComment = async (targetComment: Comment) => {
+    if (!currentUser) {
+      addToast('Please sign in to like comments.', 'info');
+      return;
+    }
+    const isCurrentlyLiked = likedCommentIds.has(targetComment.commentId);
+    const isCurrentlyDisliked = dislikedCommentIds.has(targetComment.commentId);
+
+    // Optimistic reaction update
+    setLikedCommentIds(prev => {
+      const next = new Set(prev);
+      if (isCurrentlyLiked) {
+        next.delete(targetComment.commentId);
+      } else {
+        next.add(targetComment.commentId);
+      }
+      return next;
+    });
+
+    if (isCurrentlyDisliked) {
+      setDislikedCommentIds(prev => {
+        const next = new Set(prev);
+        next.delete(targetComment.commentId);
+        return next;
+      });
+    }
+
+    setComments(prev => prev.map(c => {
+      if (c.commentId === targetComment.commentId) {
+        const diff = isCurrentlyLiked ? -1 : 1;
+        return {
+          ...c,
+          likesCount: Math.max(0, (c.likesCount || 0) + diff)
+        };
+      }
+      return c;
+    }));
+
+    try {
+      if (isCurrentlyLiked) {
+        await commentService.unlikeComment(video.videoId, targetComment.commentId, currentUser.uid);
+      } else {
+        await commentService.likeComment(video.videoId, targetComment.commentId, currentUser.uid);
+      }
+    } catch (err) {
+      console.warn('Failed to update comment like:', err);
+    }
+  };
+
+  const handleDislikeComment = async (targetComment: Comment) => {
+    if (!currentUser) {
+      addToast('Please sign in to dislike comments.', 'info');
+      return;
+    }
+    const isCurrentlyDisliked = dislikedCommentIds.has(targetComment.commentId);
+    const isCurrentlyLiked = likedCommentIds.has(targetComment.commentId);
+
+    // Optimistic reaction update
+    setDislikedCommentIds(prev => {
+      const next = new Set(prev);
+      if (isCurrentlyDisliked) {
+        next.delete(targetComment.commentId);
+      } else {
+        next.add(targetComment.commentId);
+      }
+      return next;
+    });
+
+    if (isCurrentlyLiked) {
+      setLikedCommentIds(prev => {
+        const next = new Set(prev);
+        next.delete(targetComment.commentId);
+        return next;
+      });
+      setComments(prev => prev.map(c => {
+        if (c.commentId === targetComment.commentId) {
+          return {
+            ...c,
+            likesCount: Math.max(0, (c.likesCount || 0) - 1)
+          };
+        }
+        return c;
+      }));
+    }
+
+    try {
+      if (isCurrentlyDisliked) {
+        await commentService.undislikeComment(video.videoId, targetComment.commentId, currentUser.uid);
+      } else {
+        await commentService.dislikeComment(video.videoId, targetComment.commentId, currentUser.uid);
+      }
+    } catch (err) {
+      console.warn('Failed to update comment dislike:', err);
+    }
+  };
+
+  const handleHeartComment = async (targetComment: Comment) => {
+    if (!currentUser || currentUser.uid !== video?.creatorId) return;
+    const nextHeart = !targetComment.hasCreatorHeart;
+
+    // Optimistic heart update
+    setComments(prev => prev.map(c => {
+      if (c.commentId === targetComment.commentId) {
+        return {
+          ...c,
+          hasCreatorHeart: nextHeart
+        };
+      }
+      return c;
+    }));
+
+    try {
+      await commentService.heartComment(video.videoId, targetComment.commentId, nextHeart);
+      addToast(nextHeart ? 'Loved this comment ❤️' : 'Removed heart from comment', 'success');
+    } catch (err) {
+      console.warn('Failed to heart comment:', err);
     }
   };
 
@@ -1349,10 +1483,82 @@ export const Watch: React.FC = () => {
                             {renderCommentText(comm.text)}
                           </p>
                           
-                          <div className="flex items-center gap-4 mt-3">
+                          {/* YouTube-Style Comment Action Row: Like, Dislike, Creator Heart, Reply */}
+                          <div className="flex items-center gap-1 sm:gap-2 mt-3 flex-wrap">
+                            {/* Like (Thumbs Up) */}
+                            <button
+                              onClick={() => handleLikeComment(comm)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-90 ${
+                                likedCommentIds.has(comm.commentId)
+                                  ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60'
+                                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                              title="Like"
+                              aria-label="Like comment"
+                            >
+                              <ThumbsUp
+                                className={`w-3.5 h-3.5 transition-transform ${
+                                  likedCommentIds.has(comm.commentId) ? 'fill-current scale-110' : ''
+                                }`}
+                              />
+                              {(comm.likesCount || 0) > 0 && (
+                                <span className="text-[11px] font-bold">
+                                  {formatViews(comm.likesCount)}
+                                </span>
+                              )}
+                            </button>
+
+                            {/* Dislike (Thumbs Down) */}
+                            <button
+                              onClick={() => handleDislikeComment(comm)}
+                              className={`p-1.5 rounded-full text-xs transition-all cursor-pointer active:scale-90 ${
+                                dislikedCommentIds.has(comm.commentId)
+                                  ? 'text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-700'
+                                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                              title="Dislike"
+                              aria-label="Dislike comment"
+                            >
+                              <ThumbsDown
+                                className={`w-3.5 h-3.5 transition-transform ${
+                                  dislikedCommentIds.has(comm.commentId) ? 'fill-current scale-110' : ''
+                                }`}
+                              />
+                            </button>
+
+                            {/* Creator Heart: if channel owner, clickable; otherwise creator badge */}
+                            {isVideoOwner ? (
+                              <button
+                                onClick={() => handleHeartComment(comm)}
+                                className={`p-1.5 rounded-full transition-all cursor-pointer active:scale-90 relative ${
+                                  comm.hasCreatorHeart
+                                    ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/40'
+                                    : 'text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                                title={comm.hasCreatorHeart ? "Remove creator heart" : "Heart this comment as creator"}
+                              >
+                                <Heart className={`w-3.5 h-3.5 ${comm.hasCreatorHeart ? 'fill-rose-500 text-rose-500' : ''}`} />
+                              </button>
+                            ) : comm.hasCreatorHeart ? (
+                              <div 
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 border border-rose-200/50 dark:border-rose-900/50 text-[10px] font-bold text-rose-600 dark:text-rose-400"
+                                title={`Loved by ${video.creatorDisplayName}`}
+                              >
+                                <UserAvatar
+                                  uid={video.creatorId}
+                                  fallbackPhotoURL={video.creatorPhotoURL}
+                                  fallbackDisplayName={video.creatorDisplayName}
+                                  size="xs"
+                                  className="w-3.5 h-3.5 rounded-full"
+                                />
+                                <Heart className="w-2.5 h-2.5 fill-rose-500 text-rose-500" />
+                              </div>
+                            ) : null}
+
+                            {/* Reply Button */}
                             <button 
                               onClick={() => handleReplyClick(comm.commentId)}
-                              className="text-[10px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest transition-colors cursor-pointer"
+                              className="px-2.5 py-1 text-[11px] font-extrabold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all cursor-pointer"
                             >
                               Reply
                             </button>
@@ -1503,6 +1709,59 @@ export const Watch: React.FC = () => {
                                   <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
                                     {renderCommentText(reply.text)}
                                   </p>
+
+                                  {/* Action row for reply */}
+                                  <div className="flex items-center gap-1 sm:gap-2 mt-2">
+                                    <button
+                                      onClick={() => handleLikeComment(reply)}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-90 ${
+                                        likedCommentIds.has(reply.commentId)
+                                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60'
+                                          : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                                      }`}
+                                      title="Like reply"
+                                    >
+                                      <ThumbsUp className={`w-3 h-3 ${likedCommentIds.has(reply.commentId) ? 'fill-current' : ''}`} />
+                                      {(reply.likesCount || 0) > 0 && (
+                                        <span className="text-[10px]">
+                                          {formatViews(reply.likesCount)}
+                                        </span>
+                                      )}
+                                    </button>
+
+                                    <button
+                                      onClick={() => handleDislikeComment(reply)}
+                                      className={`p-1 rounded-full text-xs transition-all cursor-pointer active:scale-90 ${
+                                        dislikedCommentIds.has(reply.commentId)
+                                          ? 'text-slate-900 dark:text-white bg-slate-200 dark:bg-slate-700'
+                                          : 'text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                                      }`}
+                                      title="Dislike reply"
+                                    >
+                                      <ThumbsDown className={`w-3 h-3 ${dislikedCommentIds.has(reply.commentId) ? 'fill-current' : ''}`} />
+                                    </button>
+
+                                    {isVideoOwner ? (
+                                      <button
+                                        onClick={() => handleHeartComment(reply)}
+                                        className={`p-1 rounded-full transition-all cursor-pointer active:scale-90 ${
+                                          reply.hasCreatorHeart
+                                            ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/40'
+                                            : 'text-slate-400 hover:text-rose-500'
+                                        }`}
+                                        title={reply.hasCreatorHeart ? "Remove heart" : "Heart reply"}
+                                      >
+                                        <Heart className={`w-3 h-3 ${reply.hasCreatorHeart ? 'fill-rose-500 text-rose-500' : ''}`} />
+                                      </button>
+                                    ) : reply.hasCreatorHeart ? (
+                                      <div 
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-[9px] font-bold text-rose-500"
+                                        title={`Loved by ${video.creatorDisplayName}`}
+                                      >
+                                        <Heart className="w-2.5 h-2.5 fill-rose-500 text-rose-500" />
+                                      </div>
+                                    ) : null}
+                                  </div>
                                   
                                   {/* Dropdown for replies (only delete for owner) */}
                                   {currentUser?.uid === reply.uid && (

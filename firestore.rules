@@ -110,7 +110,7 @@ match /adminSettings/{docId} {
           resource.data.userId == request.auth.uid || 
           isAdmin() ||
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'likesCount', 'isPinned', 'pinnedAt', 'text', 'updatedAt'
+            'likesCount', 'dislikesCount', 'hasCreatorHeart', 'heartedAt', 'isPinned', 'pinnedAt', 'text', 'updatedAt'
           ])
         );
         allow delete: if isSignedIn() && (
@@ -118,6 +118,18 @@ match /adminSettings/{docId} {
           resource.data.userId == request.auth.uid || 
           isAdmin()
         );
+
+        // Comment likes subcollection
+        match /likes/{userId} {
+          allow read: if true;
+          allow create, delete: if isSignedIn();
+        }
+
+        // Comment dislikes subcollection
+        match /dislikes/{userId} {
+          allow read: if true;
+          allow create, delete: if isSignedIn();
+        }
       }
 
       // Video likes subcollection
