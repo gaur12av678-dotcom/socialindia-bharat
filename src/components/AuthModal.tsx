@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { authService } from '../services/authService';
 import { SocialIndiaLogo } from './SocialIndiaLogo';
 import { X, Lock, User as UserIcon, Mail, AlertCircle, CheckCircle2, RotateCw } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface AuthModalProps {
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const { addToast } = useApp();
+  const { t, isHindi } = useTranslation();
   const [isLogin, setIsLogin] = useState(true);
   const [isVerifying, setIsVerifying] = useState(false);
   const [email, setEmail] = useState('');
@@ -157,14 +159,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
               <div className="space-y-1.5">
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white">
-                  Verify Your Email
+                  {t('auth_verify_email_title', 'Verify Your Email')}
                 </h2>
                 <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-                  We’ve sent a verification email to{' '}
+                  {isHindi ? 'हमने सत्यापन ईमेल भेजा है: ' : 'We’ve sent a verification email to '}
                   <strong className="text-[#0070f3] dark:text-[#00d2ff] break-all">{email || username}</strong>.
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                  Please check your inbox and click the verification link to verify your account.
+                  {isHindi 
+                    ? 'कृपया अपना इनबॉक्स (या स्पैम फ़ोल्डर) जांचें और अपने खाते को सत्यापित करने के लिए लिंक पर क्लिक करें।' 
+                    : 'Please check your inbox and click the verification link to verify your account.'}
                 </p>
               </div>
 
@@ -182,7 +186,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   className="w-full py-3 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{submitting ? 'Checking...' : "I've Verified My Email"}</span>
+                  <span>{submitting ? (isHindi ? 'जांच हो रही है...' : 'Checking...') : t('auth_verify_check_btn', "I've Verified My Email")}</span>
                 </button>
 
                 <button
@@ -192,7 +196,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <RotateCw className="w-4 h-4" />
-                  <span>{resendCooldown > 0 ? `Resend Email (${resendCooldown}s)` : 'Resend Email'}</span>
+                  <span>{resendCooldown > 0 ? `${t('auth_resend_email_btn', 'Resend Email')} (${resendCooldown}s)` : t('auth_resend_email_btn', 'Resend Email')}</span>
                 </button>
 
                 <button
@@ -203,7 +207,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   }}
                   className="w-full py-1 text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 font-semibold text-xs cursor-pointer"
                 >
-                  Back to Sign In
+                  {t('auth_back_to_login', 'Back to Sign In')}
                 </button>
               </div>
             </div>
@@ -211,11 +215,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             <>
               <div className="flex flex-col items-center justify-center text-center mb-6">
                 <SocialIndiaLogo size="lg" className="mb-3" />
-                <h2 className="text-2xl font-extrabold tracking-tight">
-                  {isLogin ? 'Log In to Your Account' : 'Create Creator Account'}
+                <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                  {isLogin ? t('auth_login_title', 'Log In to Your Account') : t('auth_create_account_title', 'Create Creator Account')}
                 </h2>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5">
-                  {isLogin ? 'Explore the best of Indian video content creators' : 'Join a vibrant community of creators across India'}
+                  {isLogin ? t('auth_login_subtitle', 'Explore the best of Indian video content creators') : t('auth_create_account_subtitle', 'Join a vibrant community of creators across India')}
                 </p>
               </div>
 
@@ -230,7 +234,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 {!isLogin && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                      Email Address (Gmail / Email) *
+                      {t('auth_email_label', 'Email Address (Gmail / Email)')} *
                     </label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
@@ -250,7 +254,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                    {isLogin ? 'Email or Username' : 'Username'}
+                    {isLogin ? (isHindi ? 'ईमेल या यूज़रनेम' : 'Email or Username') : t('auth_username_label', 'Username')}
                   </label>
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
@@ -259,7 +263,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                     <input
                       type="text"
                       required
-                      placeholder={isLogin ? 'e.g. yourname@gmail.com or bharat_creator' : 'e.g. bharat_creator'}
+                      placeholder={isLogin ? (isHindi ? 'उदा. yourname@gmail.com या bharat_creator' : 'e.g. yourname@gmail.com or bharat_creator') : 'e.g. bharat_creator'}
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
                       className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-sm font-medium"
@@ -270,7 +274,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 {!isLogin && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                      Display Name
+                      {t('auth_display_name_label', 'Display Name')}
                     </label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
@@ -279,7 +283,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                       <input
                         type="text"
                         required
-                        placeholder="e.g. India Bharat"
+                        placeholder={isHindi ? 'उदा. भारत क्रिएटर' : 'e.g. India Bharat'}
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
                         className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-sm font-medium"
@@ -288,81 +292,87 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   </div>
                 )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                  <Lock className="w-4 h-4" />
-                </span>
-                <input
-                  type="password"
-                  required
-                  placeholder="At least 6 characters"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-sm"
-                />
-              </div>
-            </div>
-
-            {!isLogin && (
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                    <Lock className="w-4 h-4" />
-                  </span>
-                  <input
-                    type="password"
-                    required
-                    placeholder="Repeat your password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-sm"
-                  />
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                    {t('auth_password_label', 'Password')}
+                  </label>
+                  <div className="relative">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                      <Lock className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      placeholder={isHindi ? 'कम से कम 6 अक्षर' : 'At least 6 characters'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-sm font-medium"
+                    />
+                  </div>
                 </div>
+
+                {!isLogin && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                      {t('auth_confirm_password_label', 'Confirm Password')}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                        <Lock className="w-4 h-4" />
+                      </span>
+                      <input
+                        type="password"
+                        required
+                        placeholder={isHindi ? 'पासवर्ड दोबारा दर्ज करें' : 'Repeat your password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 text-sm font-medium"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {!isLogin && (
+                  <div className="flex items-start gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="accept-policy"
+                      checked={acceptPolicy}
+                      onChange={(e) => setAcceptPolicy(e.target.checked)}
+                      className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <label htmlFor="accept-policy" className="text-xs text-slate-500 dark:text-slate-400 leading-tight">
+                      {isHindi ? (
+                        <>मैं <a href="#/privacy" className="text-blue-600 dark:text-blue-400 underline font-medium">गोपनीयता नीति</a>, <a href="#/terms" className="text-blue-600 dark:text-blue-400 underline font-medium">सेवा की शर्तें</a> और कम्युनिटी नियमों से सहमत हूँ।</>
+                      ) : (
+                        <>I accept the <a href="#/privacy" className="text-blue-600 dark:text-blue-400 underline font-medium">Privacy Policy</a> and <a href="#/terms" className="text-blue-600 dark:text-blue-400 underline font-medium">Terms of Service</a>.</>
+                      )}
+                    </label>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-3 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold rounded-full tracking-wide shadow-lg transition-all flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 cursor-pointer text-base active:scale-98"
+                >
+                  {submitting ? (isHindi ? 'कृपया प्रतीक्षा करें...' : 'Please wait...') : (isLogin ? t('auth_sign_in_btn', 'Sign In') : t('auth_create_account_btn', 'Sign Up'))}
+                </button>
+              </form>
+
+              <div className="text-center mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => {
+                    setErrorMsg('');
+                    setIsLogin(!isLogin);
+                  }}
+                  className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                >
+                  {isLogin 
+                    ? (isHindi ? 'सोशलइंडिया पर नए हैं? नया खाता बनाएं' : "New to SocialIndia? Create an account") 
+                    : (isHindi ? 'पहले से खाता है? साइन इन करें' : "Already have an account? Sign in")}
+                </button>
               </div>
-            )}
-
-            {!isLogin && (
-              <div className="flex items-start gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="accept-policy"
-                  checked={acceptPolicy}
-                  onChange={(e) => setAcceptPolicy(e.target.checked)}
-                  className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
-                />
-                <label htmlFor="accept-policy" className="text-xs text-slate-500 dark:text-slate-400 leading-tight">
-                  I accept the <a href="#/privacy" className="text-blue-600 dark:text-blue-400 underline font-medium">Privacy Policy</a>, <a href="#/terms" className="text-blue-600 dark:text-blue-400 underline font-medium">Terms of Service</a>, and <a href="#/guidelines" className="text-blue-600 dark:text-blue-400 underline font-medium">Community Guidelines</a>.
-                </label>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-3 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold rounded-full tracking-wide shadow-lg transition-all flex items-center justify-center focus:outline-none focus:ring-4 focus:ring-blue-500/20 disabled:opacity-50 cursor-pointer text-base"
-            >
-              {submitting ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')}
-            </button>
-          </form>
-
-          <div className="text-center mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
-            <button
-              onClick={() => {
-                setErrorMsg('');
-                setIsLogin(!isLogin);
-              }}
-              className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-            >
-              {isLogin ? "New to SocialIndia? Create an account" : "Already have an account? Sign in"}
-            </button>
-          </div>
             </>
           )}
         </div>
@@ -370,3 +380,4 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     </div>
   );
 };
+

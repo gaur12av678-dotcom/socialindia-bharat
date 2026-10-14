@@ -469,13 +469,29 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
             className="text-[44px] leading-[1.16] font-extrabold text-white tracking-tight"
           >
             {mode === 'register' ? (
-              <>Join SocialIndia.<br />Start your channel today.</>
+              isHindi ? (
+                <>सोशलइंडिया से जुड़ें।<br />आज ही अपना चैनल शुरू करें।</>
+              ) : (
+                <>Join SocialIndia.<br />Start your channel today.</>
+              )
             ) : mode === 'forgot-password' ? (
-              <>Recover Access.<br />Reset your password.</>
+              isHindi ? (
+                <>खाता पुनः प्राप्त करें।<br />अपना पासवर्ड रीसेट करें।</>
+              ) : (
+                <>Recover Access.<br />Reset your password.</>
+              )
             ) : mode === 'verify-email' ? (
-              <>Verify Your Email.<br />Protect your channel.</>
+              isHindi ? (
+                <>अपना ईमेल सत्यापित करें।<br />अपने चैनल को सुरक्षित करें।</>
+              ) : (
+                <>Verify Your Email.<br />Protect your channel.</>
+              )
             ) : (
-              <>Your channel. Your videos.<br />Your India.</>
+              isHindi ? (
+                <>आपका चैनल। आपके वीडियो।<br />आपका भारत।</>
+              ) : (
+                <>Your channel. Your videos.<br />Your India.</>
+              )
             )}
           </h1>
 
@@ -485,12 +501,12 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
             className="text-base text-[#CBD5E1] mt-5 leading-relaxed font-normal"
           >
             {mode === 'register'
-              ? 'Create your account to start your channel, upload videos, and earn points in your wallet.'
+              ? (isHindi ? 'अपना चैनल शुरू करने, वीडियो अपलोड करने और वॉलेट में पॉइंट्स कमाने के लिए खाता बनाएं।' : 'Create your account to start your channel, upload videos, and earn points in your wallet.')
               : mode === 'forgot-password'
-              ? 'Enter your registered email or username to regain access to your channel, videos, points, and wallet balance.'
+              ? (isHindi ? 'अपने चैनल, वीडियो, पॉइंट्स और वॉलेट बैलेंस तक पुनः पहुँचने के लिए पंजीकृत ईमेल या यूज़रनेम दर्ज करें।' : 'Enter your registered email or username to regain access to your channel, videos, points, and wallet balance.')
               : mode === 'verify-email'
-              ? 'Verify your Gmail address to unlock video uploads, studio features, and instant point redemptions.'
-              : 'Sign in to manage your channel, watch and upload videos, and track your points and wallet balance.'}
+              ? (isHindi ? 'वीडियो अपलोड, स्टूडियो सुविधाएं और त्वरित पॉइंट्स रिडेम्पशन अनलॉक करने के लिए अपना Gmail पता सत्यापित करें।' : 'Verify your Gmail address to unlock video uploads, studio features, and instant point redemptions.')
+              : (isHindi ? 'अपने चैनल को प्रबंधित करने, वीडियो देखने व अपलोड करने और पॉइंट्स व वॉलेट बैलेंस देखने के लिए साइन इन करें।' : 'Sign in to manage your channel, watch and upload videos, and track your points and wallet balance.')}
           </p>
 
           {/* 2x2 Grid of Feature Chips (background #14307F, rounded 14px, icon in #93C5FD + label) */}
@@ -500,7 +516,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
               <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
                 <UserIcon className="w-5 h-5 text-[#93C5FD] stroke-[2.2]" style={{ color: '#93C5FD' }} />
               </div>
-              <span className="text-white font-bold text-sm tracking-wide" style={{ color: '#ffffff' }}>Channel</span>
+              <span className="text-white font-bold text-sm tracking-wide" style={{ color: '#ffffff' }}>
+                {isHindi ? 'चैनल' : 'Channel'}
+              </span>
             </div>
 
             {/* 2. Videos */}
@@ -508,7 +526,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
               <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
                 <Video className="w-5 h-5 text-[#93C5FD] stroke-[2.2]" style={{ color: '#93C5FD' }} />
               </div>
-              <span className="text-white font-bold text-sm tracking-wide" style={{ color: '#ffffff' }}>Videos</span>
+              <span className="text-white font-bold text-sm tracking-wide" style={{ color: '#ffffff' }}>
+                {isHindi ? 'वीडियो' : 'Videos'}
+              </span>
             </div>
 
             {/* 3. Points */}
@@ -516,7 +536,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
               <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
                 <Star className="w-5 h-5 text-[#93C5FD] stroke-[2.2]" style={{ color: '#93C5FD' }} />
               </div>
-              <span className="text-white font-bold text-sm tracking-wide" style={{ color: '#ffffff' }}>Points</span>
+              <span className="text-white font-bold text-sm tracking-wide" style={{ color: '#ffffff' }}>
+                {isHindi ? 'पॉइंट्स' : 'Points'}
+              </span>
             </div>
 
             {/* 4. Wallet */}
@@ -524,7 +546,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
               <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
                 <Wallet className="w-5 h-5 text-[#93C5FD] stroke-[2.2]" style={{ color: '#93C5FD' }} />
               </div>
-              <span className="text-white font-bold text-sm tracking-wide" style={{ color: '#ffffff' }}>Wallet</span>
+              <span className="text-white font-bold text-sm tracking-wide" style={{ color: '#ffffff' }}>
+                {isHindi ? 'वॉलेट' : 'Wallet'}
+              </span>
             </div>
           </div>
         </div>
@@ -535,7 +559,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
             style={{ color: '#CBD5E1' }}
             className="text-sm text-[#CBD5E1] font-medium tracking-wide"
           >
-            An India-owned video platform.
+            {isHindi ? 'भारत का अपना गौरवशाली वीडियो प्लेटफ़ॉर्म।' : 'An India-owned video platform.'}
           </p>
         </div>
 
@@ -556,7 +580,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
             onClick={() => navigate('home')}
             className="text-xs font-bold text-[#475569] hover:text-[#0F172A] py-1.5 px-3 bg-white/80 rounded-full transition-colors cursor-pointer"
           >
-            Back to Home
+            {isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}
           </button>
         </div>
 
@@ -575,10 +599,10 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                   <KeyRound className="w-6 h-6 stroke-[2.2]" />
                 </div>
                 <h2 className="text-[30px] font-extrabold text-[#0F172A] leading-tight tracking-tight">
-                  Reset Password
+                  {isHindi ? 'पासवर्ड रीसेट करें' : 'Reset Password'}
                 </h2>
                 <p className="text-xs sm:text-[13px] text-[#475569] mt-2 font-normal leading-relaxed">
-                  Enter your registered Gmail or username to regain access to your channel.
+                  {isHindi ? 'अपने चैनल तक पुनः पहुँचने के लिए अपना पंजीकृत जीमेल या यूज़रनेम दर्ज करें।' : 'Enter your registered Gmail or username to regain access to your channel.'}
                 </p>
               </div>
 
@@ -596,7 +620,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       : 'text-[#475569] hover:text-[#0F172A]'
                   }`}
                 >
-                  Send Reset Link
+                  {isHindi ? 'रीसेट लिंक भेजें' : 'Send Reset Link'}
                 </button>
                 <button
                   type="button"
@@ -610,7 +634,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       : 'text-[#475569] hover:text-[#0F172A]'
                   }`}
                 >
-                  Instant In-App Reset
+                  {isHindi ? 'तुरंत ऐप में रीसेट करें' : 'Instant In-App Reset'}
                 </button>
               </div>
 
@@ -631,9 +655,11 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                         <CheckCircle2 className="w-8 h-8 stroke-[2.2]" />
                       </div>
                       <div>
-                        <h4 className="font-extrabold text-[#0F172A] text-xl">Reset Link Sent</h4>
+                        <h4 className="font-extrabold text-[#0F172A] text-xl">
+                          {isHindi ? 'रीसेट लिंक भेज दिया गया' : 'Reset Link Sent'}
+                        </h4>
                         <p className="text-xs text-[#475569] mt-1.5 leading-relaxed">
-                          We've sent a password reset link to:
+                          {isHindi ? 'हमने इस पते पर पासवर्ड रीसेट लिंक भेजा है:' : "We've sent a password reset link to:"}
                         </p>
                         <p className="font-extrabold text-[#2563EB] text-sm mt-1 break-all">
                           {resolvedResetEmail || forgotEmail}
@@ -644,13 +670,17 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       <div className="p-4 bg-amber-50 border border-amber-200/90 rounded-[16px] text-left space-y-2">
                         <div className="flex items-center gap-2 font-bold text-amber-900 text-xs">
                           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                          <span>Gmail users: Why email is in Spam folder</span>
+                          <span>{isHindi ? 'Gmail यूज़र्स: स्पैम फ़ोल्डर क्यों जांचें' : 'Gmail users: Why email is in Spam folder'}</span>
                         </div>
                         <p className="text-[12px] leading-relaxed text-amber-900/90 font-medium">
-                          Security confirmation emails (sender: <strong>noreply@socialindia.us.ci</strong>) may sometimes be filtered by Gmail into your <strong>Spam / Junk</strong> folder or <strong>Promotions</strong> tab.
+                          {isHindi
+                            ? 'सुरक्षा पुष्टिकरण ईमेल कभी-कभी Gmail द्वारा आपके स्पैम / जंक फ़ोल्डर या प्रमोशन्स टैब में भेजे जा सकते हैं।'
+                            : 'Security confirmation emails (sender: noreply@socialindia.us.ci) may sometimes be filtered by Gmail into your Spam / Junk folder or Promotions tab.'}
                         </p>
                         <p className="text-[11px] leading-relaxed text-amber-800">
-                          Please open your <strong>Spam</strong> folder, click the email, and click <em>"Report not spam"</em> or click the reset link.
+                          {isHindi 
+                            ? 'कृपया अपना स्पैम फ़ोल्डर खोलें, ईमेल पर क्लिक करें और "Report not spam" दबाएं या रीसेट लिंक पर क्लिक करें।' 
+                            : 'Please open your Spam folder, click the email, and click "Report not spam" or click the reset link.'}
                         </p>
                       </div>
 
@@ -663,7 +693,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           className="w-full h-[50px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold text-sm rounded-[14px] shadow-[0_8px_20px_-4px_rgba(37,99,235,0.35)] transition-all cursor-pointer flex items-center justify-center gap-2"
                         >
                           <ExternalLink className="w-4 h-4" />
-                          <span>Open Gmail Spam Folder</span>
+                          <span>{isHindi ? 'Gmail स्पैम फ़ोल्डर खोलें' : 'Open Gmail Spam Folder'}</span>
                         </a>
 
                         <button
@@ -676,7 +706,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           className="w-full h-[46px] bg-[#F8FAFC] hover:bg-slate-100 text-[#0F172A] border-[1.5px] border-[#CBD5E1] font-bold text-xs rounded-[14px] transition-all cursor-pointer flex items-center justify-center gap-2"
                         >
                           <KeyRound className="w-4 h-4 text-[#2563EB]" />
-                          <span>Or Reset Password Instantly (No Email Wait)</span>
+                          <span>{isHindi ? 'या तुरंत ऐप में पासवर्ड बदलें' : 'Or Reset Password Instantly (No Email Wait)'}</span>
                         </button>
 
                         <button
@@ -684,7 +714,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           onClick={() => handleSwitchMode('login')}
                           className="w-full py-2 text-xs font-semibold text-[#475569] hover:text-[#0F172A] transition-colors cursor-pointer"
                         >
-                          ← Back to Sign In
+                          ← {isHindi ? 'साइन इन पर वापस जाएं' : 'Back to Sign In'}
                         </button>
                       </div>
                     </div>
@@ -695,7 +725,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           htmlFor="forgot-email-input" 
                           className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
                         >
-                          Registered Gmail or Username
+                          {isHindi ? 'पंजीकृत जीमेल या यूज़रनेम' : 'Registered Gmail or Username'}
                         </label>
                         <div className="relative">
                           <Mail 
@@ -705,7 +735,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                             id="forgot-email-input"
                             type="text"
                             required
-                            placeholder="e.g. maryxbgamer@gmail.com or rahul_tech"
+                            placeholder={isHindi ? 'उदा. yourname@gmail.com या rahul_tech' : 'e.g. maryxbgamer@gmail.com or rahul_tech'}
                             value={forgotEmail}
                             onChange={(e) => setForgotEmail(e.target.value)}
                             className="w-full h-[50px] pl-11 pr-4 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
@@ -715,7 +745,10 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
 
                       {/* Information note */}
                       <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[14px] text-xs text-[#475569] leading-relaxed">
-                        <span className="font-bold text-[#2563EB]">Note:</span> Reset emails are delivered instantly. Make sure to check your <strong>Gmail Spam folder</strong> if it does not show in Primary inbox.
+                        <span className="font-bold text-[#2563EB]">{isHindi ? 'नोट:' : 'Note:'}</span>{' '}
+                        {isHindi 
+                          ? 'रीसेट ईमेल तुरंत भेजा जाता है। यदि यह इनबॉक्स में न दिखे तो अपना Gmail स्पैम फ़ोल्डर ज़रूर जांचें।' 
+                          : 'Reset emails are delivered instantly. Make sure to check your Gmail Spam folder if it does not show in Primary inbox.'}
                       </div>
 
                       <button
@@ -724,7 +757,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                         className="w-full h-[52px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold text-sm sm:text-base rounded-[14px] shadow-[0_8px_20px_-4px_rgba(37,99,235,0.35)] transition-all cursor-pointer flex items-center justify-center gap-2.5 disabled:opacity-60"
                       >
                         {sendingReset && <Loader2 className="w-4 h-4 animate-spin text-white" />}
-                        <span>Send Password Reset Link</span>
+                        <span>{isHindi ? 'पासवर्ड रीसेट लिंक भेजें' : 'Send Password Reset Link'}</span>
                       </button>
 
                       <div className="text-center pt-2">
@@ -733,7 +766,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           onClick={() => handleSwitchMode('login')}
                           className="text-xs font-bold text-[#2563EB] hover:underline cursor-pointer inline-flex items-center gap-1"
                         >
-                          <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
+                          <ArrowLeft className="w-3.5 h-3.5" /> {isHindi ? 'साइन इन पर वापस जाएं' : 'Back to Sign In'}
                         </button>
                       </div>
                     </form>
@@ -749,16 +782,20 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
                         <CheckCircle2 className="w-8 h-8 stroke-[2.2]" />
                       </div>
-                      <h4 className="font-extrabold text-[#0F172A] text-xl">Password Updated!</h4>
+                      <h4 className="font-extrabold text-[#0F172A] text-xl">
+                        {isHindi ? 'पासवर्ड सफलतापूर्वक अपडेट हुआ!' : 'Password Updated!'}
+                      </h4>
                       <p className="text-xs text-[#475569]">
-                        Your password has been updated. Redirecting you to your channel dashboard...
+                        {isHindi ? 'आपका नया पासवर्ड सेट हो गया है। चैनल डैशबोर्ड पर ले जाया जा रहा है...' : 'Your password has been updated. Redirecting you to your channel dashboard...'}
                       </p>
                       <Loader2 className="w-5 h-5 animate-spin text-[#2563EB] mx-auto mt-2" />
                     </div>
                   ) : (
                     <form onSubmit={handleInstantResetSubmit} className="space-y-4">
                       <p className="text-xs text-[#475569] leading-relaxed">
-                        Reset your password directly in-app without waiting for email delivery:
+                        {isHindi 
+                          ? 'ईमेल की प्रतीक्षा किए बिना सीधे ऐप में अपना पासवर्ड रीसेट करें:' 
+                          : 'Reset your password directly in-app without waiting for email delivery:'}
                       </p>
 
                       {/* Username or Email */}
@@ -767,7 +804,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           htmlFor="instant-id" 
                           className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
                         >
-                          Channel Username or Email
+                          {isHindi ? 'चैनल यूज़रनेम या ईमेल' : 'Channel Username or Email'}
                         </label>
                         <div className="relative">
                           <UserIcon className="w-4 h-4 text-[#64748B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -775,7 +812,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                             id="instant-id"
                             type="text"
                             required
-                            placeholder="e.g. rahul_tech or maryxbgamer@gmail.com"
+                            placeholder={isHindi ? 'उदा. rahul_tech या yourname@gmail.com' : 'e.g. rahul_tech or maryxbgamer@gmail.com'}
                             value={instantIdentifier}
                             onChange={(e) => setInstantIdentifier(e.target.value)}
                             className="w-full h-[50px] pl-11 pr-4 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
@@ -789,7 +826,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           htmlFor="instant-pass" 
                           className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
                         >
-                          New Password
+                          {isHindi ? 'नया पासवर्ड' : 'New Password'}
                         </label>
                         <div className="relative">
                           <Lock className="w-4 h-4 text-[#64748B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -797,7 +834,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                             id="instant-pass"
                             type={showInstantPass ? 'text' : 'password'}
                             required
-                            placeholder="Enter new password (min. 8 chars)"
+                            placeholder={isHindi ? 'नया पासवर्ड दर्ज करें (कम से कम 8 अक्षर)' : 'Enter new password (min. 8 chars)'}
                             value={instantNewPass}
                             onChange={(e) => setInstantNewPass(e.target.value)}
                             className="w-full h-[50px] pl-11 pr-11 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
@@ -818,7 +855,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           htmlFor="instant-confirm" 
                           className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
                         >
-                          Confirm New Password
+                          {isHindi ? 'नया पासवर्ड दोबारा दर्ज करें' : 'Confirm New Password'}
                         </label>
                         <div className="relative">
                           <Lock className="w-4 h-4 text-[#64748B] absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -826,7 +863,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                             id="instant-confirm"
                             type={showInstantPass ? 'text' : 'password'}
                             required
-                            placeholder="Re-enter new password"
+                            placeholder={isHindi ? 'नया पासवर्ड पुनः लिखें' : 'Re-enter new password'}
                             value={instantConfirmPass}
                             onChange={(e) => setInstantConfirmPass(e.target.value)}
                             className="w-full h-[50px] pl-11 pr-4 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
@@ -840,7 +877,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                         className="w-full h-[52px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold text-sm sm:text-base rounded-[14px] shadow-[0_8px_20px_-4px_rgba(37,99,235,0.35)] transition-all cursor-pointer flex items-center justify-center gap-2.5 disabled:opacity-60"
                       >
                         {instantLoading && <Loader2 className="w-4 h-4 animate-spin text-white" />}
-                        <span>Set New Password & Sign In</span>
+                        <span>{isHindi ? 'नया पासवर्ड सेट करें और साइन इन करें' : 'Set New Password & Sign In'}</span>
                       </button>
 
                       <div className="text-center pt-2">
@@ -849,7 +886,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           onClick={() => handleSwitchMode('login')}
                           className="text-xs font-bold text-[#2563EB] hover:underline cursor-pointer inline-flex items-center gap-1"
                         >
-                          <ArrowLeft className="w-3.5 h-3.5" /> Back to Sign In
+                          <ArrowLeft className="w-3.5 h-3.5" /> {isHindi ? 'साइन इन पर वापस जाएं' : 'Back to Sign In'}
                         </button>
                       </div>
                     </form>
@@ -874,16 +911,18 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
               {/* Exact Requested Verification Text */}
               <div className="space-y-2">
                 <h2 className="text-[28px] font-extrabold text-[#0F172A] tracking-tight">
-                  Verify Your Email
+                  {isHindi ? 'अपना ईमेल सत्यापित करें' : 'Verify Your Email'}
                 </h2>
                 <p className="text-xs sm:text-sm text-[#475569] leading-relaxed font-medium">
-                  We’ve sent a verification email to{' '}
+                  {isHindi ? 'हमने सत्यापन ईमेल भेजा है: ' : 'We’ve sent a verification email to '}
                   <strong className="text-[#2563EB] font-bold break-all">
                     {verificationTargetEmail || 'your email'}
                   </strong>.
                 </p>
                 <p className="text-xs text-[#64748B] leading-relaxed font-normal pt-1">
-                  Please check your inbox and click the link from SocialIndia to verify your account.
+                  {isHindi 
+                    ? 'कृपया अपना इनबॉक्स जांचें और अपने खाते को सत्यापित करने के लिए सोशलइंडिया के लिंक पर क्लिक करें।' 
+                    : 'Please check your inbox and click the link from SocialIndia to verify your account.'}
                 </p>
               </div>
 
@@ -891,10 +930,12 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
               <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-[14px] text-xs text-amber-900 font-medium text-left space-y-1">
                 <div className="flex items-center gap-2 font-bold text-amber-800">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Gmail Users: Check Spam / Junk Folder</span>
+                  <span>{isHindi ? 'Gmail यूज़र्स: स्पैम / जंक फ़ोल्डर जांचें' : 'Gmail Users: Check Spam / Junk Folder'}</span>
                 </div>
                 <p className="text-[11px] leading-relaxed text-amber-800/90">
-                  Automated emails from SocialIndia Security (sender: <strong>noreply@socialindia.us.ci</strong>) may sometimes be sorted into Gmail's <strong>Spam / Junk</strong> folder or <strong>Promotions</strong> tab.
+                  {isHindi 
+                    ? 'सोशलइंडिया सिक्योरिटी से स्वचालित ईमेल कभी-कभी Gmail द्वारा आपके स्पैम / जंक फ़ोल्डर या प्रमोशन्स टैब में भेजे जा सकते हैं।' 
+                    : "Automated emails from SocialIndia Security (sender: noreply@socialindia.us.ci) may sometimes be sorted into Gmail's Spam / Junk folder or Promotions tab."}
                 </p>
               </div>
 
@@ -919,7 +960,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                   ) : (
                     <CheckCircle2 className="w-4 h-4 text-white" />
                   )}
-                  <span>I've Verified My Email</span>
+                  <span>{isHindi ? "मैंने ईमेल सत्यापित कर लिया है" : "I've Verified My Email"}</span>
                 </button>
 
                 {/* 2. Open Gmail Spam Folder Button */}
@@ -930,7 +971,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                   className="w-full h-[46px] bg-white hover:bg-slate-50 text-[#0F172A] border-[1.5px] border-[#CBD5E1] font-bold text-xs rounded-[14px] transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <ExternalLink className="w-4 h-4 text-[#2563EB]" />
-                  <span>Open Gmail Spam Folder</span>
+                  <span>{isHindi ? 'Gmail स्पैम फ़ोल्डर खोलें' : 'Open Gmail Spam Folder'}</span>
                 </a>
 
                 {/* 3. Resend Email Button */}
@@ -946,7 +987,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                     <RotateCw className="w-4 h-4 text-[#475569]" />
                   )}
                   <span>
-                    {resendCooldown > 0 ? `Resend Email (${resendCooldown}s)` : 'Resend Email'}
+                    {resendCooldown > 0 
+                      ? `${isHindi ? 'ईमेल पुनः भेजें' : 'Resend Email'} (${resendCooldown}s)` 
+                      : (isHindi ? 'ईमेल पुनः भेजें' : 'Resend Email')}
                   </span>
                 </button>
 
@@ -956,7 +999,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                   onClick={handleCancelVerification}
                   className="w-full py-2 text-xs font-semibold text-[#475569] hover:text-[#0F172A] transition-colors cursor-pointer"
                 >
-                  Change Email or Sign In with another account
+                  {isHindi ? 'ईमेल बदलें या दूसरे खाते से साइन इन करें' : 'Change Email or Sign In with another account'}
                 </button>
               </div>
             </div>
@@ -968,12 +1011,14 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
               {/* Card Header Centered */}
               <div className="text-center">
                 <h2 className="text-[32px] font-extrabold text-[#0F172A] leading-tight tracking-tight">
-                  {mode === 'login' ? 'Welcome Back' : 'Create Account'}
+                  {mode === 'login' 
+                    ? (isHindi ? 'पुनः स्वागत है' : 'Welcome Back') 
+                    : (isHindi ? 'नया खाता बनाएं' : 'Create Account')}
                 </h2>
                 <p className="text-xs sm:text-[13px] text-[#475569] mt-2 font-normal leading-relaxed">
                   {mode === 'login'
-                    ? 'Sign in to access your channel, videos, points, and wallet balance.'
-                    : 'Join SocialIndia to create your channel, upload videos, and earn points.'}
+                    ? (isHindi ? 'अपने चैनल, वीडियो, पॉइंट्स और वॉलेट बैलेंस तक पहुँचने के लिए साइन इन करें।' : 'Sign in to access your channel, videos, points, and wallet balance.')
+                    : (isHindi ? 'अपना चैनल बनाने, वीडियो अपलोड करने और पॉइंट्स कमाने के लिए सोशलइंडिया से जुड़ें।' : 'Join SocialIndia to create your channel, upload videos, and earn points.')}
                 </p>
               </div>
 
@@ -994,7 +1039,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       : 'text-[#475569] hover:text-[#0F172A]'
                   }`}
                 >
-                  Sign In
+                  {isHindi ? 'साइन इन' : 'Sign In'}
                 </button>
                 <button
                   type="button"
@@ -1007,7 +1052,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       : 'text-[#475569] hover:text-[#0F172A]'
                   }`}
                 >
-                  Create Account
+                  {isHindi ? 'खाता बनाएं' : 'Create Account'}
                 </button>
               </div>
 
@@ -1031,7 +1076,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                     htmlFor="auth-username" 
                     className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
                   >
-                    Username
+                    {isHindi ? 'यूज़रनेम' : 'Username'}
                   </label>
                   <div className="relative">
                     <UserIcon 
@@ -1043,7 +1088,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       name="username"
                       type="text"
                       autoComplete="username"
-                      placeholder="e.g. rahul_tech"
+                      placeholder={isHindi ? 'उदा. rahul_tech' : 'e.g. rahul_tech'}
                       value={username}
                       onChange={(e) => {
                         setUsername(e.target.value);
@@ -1073,7 +1118,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       htmlFor="auth-email" 
                       className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
                     >
-                      Email
+                      {isHindi ? 'ईमेल (जीमेल)' : 'Email'}
                     </label>
                     <div className="relative">
                       <Mail 
@@ -1085,7 +1130,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                         name="email"
                         type="email"
                         autoComplete="email"
-                        placeholder="you@example.com"
+                        placeholder="you@gmail.com"
                         value={email}
                         onChange={(e) => {
                           setEmail(e.target.value);
@@ -1115,7 +1160,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                     htmlFor="auth-password" 
                     className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
                   >
-                    Password
+                    {isHindi ? 'पासवर्ड' : 'Password'}
                   </label>
                   <div className="relative">
                     <Lock 
@@ -1127,7 +1172,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       name="password"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                      placeholder={mode === 'login' ? 'Enter your password' : 'Create a password'}
+                      placeholder={mode === 'login' ? (isHindi ? 'अपना पासवर्ड दर्ज करें' : 'Enter your password') : (isHindi ? 'कम से कम 8 अक्षर का पासवर्ड बनाएं' : 'Create a password')}
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
@@ -1169,7 +1214,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       htmlFor="auth-confirm-password" 
                       className="block text-[13px] font-bold text-[#0F172A] mb-1.5"
                     >
-                      Confirm Password
+                      {isHindi ? 'पासवर्ड दोबारा दर्ज करें' : 'Confirm Password'}
                     </label>
                     <div className="relative">
                       <Lock 
@@ -1181,7 +1226,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                         name="confirmPassword"
                         type={showConfirmPassword ? 'text' : 'password'}
                         autoComplete="new-password"
-                        placeholder="Re-enter your password"
+                        placeholder={isHindi ? 'पासवर्ड पुनः लिखें' : 'Re-enter your password'}
                         value={confirmPassword}
                         onChange={(e) => {
                           setConfirmPassword(e.target.value);
@@ -1233,7 +1278,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                         className="w-4 h-4 rounded-[4px] border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB] cursor-pointer"
                       />
                       <span className="text-xs sm:text-[13px] text-[#475569] font-medium">
-                        Remember me
+                        {isHindi ? 'मुझे याद रखें' : 'Remember me'}
                       </span>
                     </label>
 
@@ -1242,7 +1287,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       onClick={() => handleSwitchMode('forgot-password')}
                       className="text-xs sm:text-[13px] font-bold text-[#2563EB] hover:underline cursor-pointer"
                     >
-                      Forgot password?
+                      {isHindi ? 'पासवर्ड भूल गए?' : 'Forgot password?'}
                     </button>
                   </div>
                 )}
@@ -1268,28 +1313,58 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                         className="w-4 h-4 mt-0.5 rounded-[4px] border-[#CBD5E1] text-[#2563EB] focus:ring-[#2563EB] cursor-pointer shrink-0"
                       />
                       <span className="text-xs text-[#475569] leading-relaxed font-medium">
-                        I agree to the{' '}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate('terms');
-                          }}
-                          className="font-bold text-[#2563EB] hover:underline cursor-pointer"
-                        >
-                          Terms
-                        </button>
-                        {' '}and{' '}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate('privacy');
-                          }}
-                          className="font-bold text-[#2563EB] hover:underline cursor-pointer"
-                        >
-                          Privacy Policy
-                        </button>
+                        {isHindi ? (
+                          <>
+                            मैं सोशलइंडिया के{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate('terms');
+                              }}
+                              className="font-bold text-[#2563EB] hover:underline cursor-pointer"
+                            >
+                              नियमों
+                            </button>
+                            {' '}और{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate('privacy');
+                              }}
+                              className="font-bold text-[#2563EB] hover:underline cursor-pointer"
+                            >
+                              गोपनीयता नीति
+                            </button>
+                            {' '}से सहमत हूँ।
+                          </>
+                        ) : (
+                          <>
+                            I agree to the{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate('terms');
+                              }}
+                              className="font-bold text-[#2563EB] hover:underline cursor-pointer"
+                            >
+                              Terms
+                            </button>
+                            {' '}and{' '}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate('privacy');
+                              }}
+                              className="font-bold text-[#2563EB] hover:underline cursor-pointer"
+                            >
+                              Privacy Policy
+                            </button>
+                          </>
+                        )}
                       </span>
                     </label>
                     {errors.agreeTerms && touched.agreeTerms && (
@@ -1311,7 +1386,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                       <Loader2 className="w-4 h-4 animate-spin text-white" />
                     )}
                     <span>
-                      {mode === 'login' ? 'Sign In' : 'Create Account'}
+                      {mode === 'login' 
+                        ? (isHindi ? 'साइन इन करें' : 'Sign In') 
+                        : (isHindi ? 'खाता बनाएं' : 'Create Account')}
                     </span>
                   </button>
                 </div>
@@ -1320,7 +1397,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                 <div className="flex items-center gap-3 my-5" aria-hidden="true">
                   <div className="h-[1px] flex-1 bg-[#CBD5E1]" />
                   <span className="text-xs uppercase tracking-wider text-[#475569] font-semibold">
-                    or
+                    {isHindi ? 'या' : 'or'}
                   </span>
                   <div className="h-[1px] flex-1 bg-[#CBD5E1]" />
                 </div>
@@ -1361,8 +1438,10 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                   )}
                   <span>
                     {googleLoading 
-                      ? 'Connecting with Google...' 
-                      : (mode === 'login' ? 'Continue with Google' : 'Sign up with Google')}
+                      ? (isHindi ? 'Google से जुड़ रहे हैं...' : 'Connecting with Google...') 
+                      : (mode === 'login' 
+                          ? (isHindi ? 'Google के साथ आगे बढ़ें' : 'Continue with Google') 
+                          : (isHindi ? 'Google के साथ खाता बनाएं' : 'Sign up with Google'))}
                   </span>
                 </button>
 
@@ -1373,24 +1452,24 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                 <p className="text-xs sm:text-sm text-[#475569] font-medium">
                   {mode === 'login' ? (
                     <>
-                      Don't have an account yet?{' '}
+                      {isHindi ? 'अभी तक खाता नहीं है?' : "Don't have an account yet?"}{' '}
                       <button
                         type="button"
                         onClick={() => handleSwitchMode('register')}
                         className="font-bold text-[#2563EB] hover:underline cursor-pointer ml-1"
                       >
-                        Create Account
+                        {isHindi ? 'नया खाता बनाएं' : 'Create Account'}
                       </button>
                     </>
                   ) : (
                     <>
-                      Already have an account?{' '}
+                      {isHindi ? 'पहले से खाता है?' : 'Already have an account?'}{' '}
                       <button
                         type="button"
                         onClick={() => handleSwitchMode('login')}
                         className="font-bold text-[#2563EB] hover:underline cursor-pointer ml-1"
                       >
-                        Sign In
+                        {isHindi ? 'साइन इन करें' : 'Sign In'}
                       </button>
                     </>
                   )}

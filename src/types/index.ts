@@ -357,6 +357,8 @@ export interface ChatMessage {
   senderId: string;
   receiverId: string;
   text: string;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
   createdAt: any;
   read: boolean;
 }

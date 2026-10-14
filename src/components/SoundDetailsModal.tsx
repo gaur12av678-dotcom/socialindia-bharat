@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { SoundTrack, Video } from '../types';
 import { soundService } from '../services/soundService';
 import { useRouter } from '../hooks/useRouter';
+import { useTranslation } from '../i18n';
 import { Play, Pause, Music, X, Sparkles, Film, Eye, Flame } from 'lucide-react';
 import { formatViews } from '../utils/videoUtils';
 
@@ -19,6 +20,7 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
   onUseSound
 }) => {
   const { navigate } = useRouter();
+  const { isHindi } = useTranslation();
   const [sound, setSound] = useState<SoundTrack | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +83,7 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
           <div className="flex items-center gap-2">
             <Music className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
-              Sound Track Details
+              {isHindi ? 'साउंड ट्रैक विवरण' : 'Sound Track Details'}
             </h3>
           </div>
 
@@ -102,7 +104,9 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
           {loading ? (
             <div className="py-12 text-center space-y-3">
               <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-xs font-bold text-slate-500">Loading sound details...</p>
+              <p className="text-xs font-bold text-slate-500">
+                {isHindi ? 'साउंड विवरण लोड हो रहा है...' : 'Loading sound details...'}
+              </p>
             </div>
           ) : sound ? (
             <>
@@ -139,12 +143,12 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
                   <div className="flex items-center justify-center sm:justify-start gap-3">
                     <span className="text-xs font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 shadow-2xs">
                       <Film className="w-3.5 h-3.5 text-blue-500" />
-                      <span>{sound.usesCount || videos.length} REAL Shorts</span>
+                      <span>{sound.usesCount || videos.length} {isHindi ? 'वास्तविक शॉर्ट्स' : 'REAL Shorts'}</span>
                     </span>
 
                     {sound.isOriginalSound && (
                       <span className="text-[10px] font-black bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2.5 py-1 rounded-full">
-                        Original Creator Sound
+                        {isHindi ? 'मूल क्रिएटर साउंड' : 'Original Creator Sound'}
                       </span>
                     )}
                   </div>
@@ -160,7 +164,7 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
                       className="px-6 py-3 bg-[#065fd4] hover:bg-[#054fb1] text-white font-black text-xs rounded-2xl shadow-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto"
                     >
                       <Sparkles className="w-4 h-4" />
-                      <span>📹 Use This Sound in My Short</span>
+                      <span>{isHindi ? '📹 इस साउंड का अपने शॉर्ट में उपयोग करें' : '📹 Use This Sound in My Short'}</span>
                     </button>
                   </div>
                 </div>
@@ -170,14 +174,14 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
               {/* Grid of Shorts made with this sound */}
               <div className="space-y-3">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Shorts created with this sound ({videos.length})
+                  {isHindi ? `इस साउंड से बने शॉर्ट्स (${videos.length})` : `Shorts created with this sound (${videos.length})`}
                 </h3>
 
                 {videos.length === 0 ? (
                   <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
                     <Film className="w-8 h-8 text-slate-400 mx-auto" />
                     <p className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
-                      Be the first creator to make a Short with this sound!
+                      {isHindi ? 'इस साउंड से शॉर्ट बनाने वाले पहले क्रिएटर बनें!' : 'Be the first creator to make a Short with this sound!'}
                     </p>
                   </div>
                 ) : (
@@ -197,7 +201,7 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
                           <p className="text-xs font-black truncate drop-shadow-md">{v.title}</p>
                           <div className="flex items-center gap-1 text-[10px] font-bold text-slate-300 mt-1">
                             <Eye className="w-3 h-3 text-blue-400" />
-                            <span>{formatViews(v.viewsCount)} views</span>
+                            <span>{formatViews(v.viewsCount)} {isHindi ? 'दृश्य' : 'views'}</span>
                           </div>
                         </div>
                       </div>
@@ -208,7 +212,7 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
             </>
           ) : (
             <div className="py-8 text-center text-xs font-bold text-slate-500">
-              Sound track not found.
+              {isHindi ? 'साउंड ट्रैक नहीं मिला।' : 'Sound track not found.'}
             </div>
           )}
 

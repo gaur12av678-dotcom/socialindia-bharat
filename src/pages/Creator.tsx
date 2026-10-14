@@ -406,12 +406,19 @@ export const CreatorProfile: React.FC = () => {
       <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs">
         
         {/* 1. CHANNEL BANNER (YouTube 16:9 / 6:1 Responsive Panoramic Aspect) */}
-        <div className="relative w-full h-40 sm:h-52 md:h-64 bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-950 overflow-hidden flex items-center justify-center group/banner">
+        <div 
+          style={{
+            backgroundColor: '#0f172a',
+            backgroundImage: 'linear-gradient(135deg, #1e3a8a 0%, #312e81 40%, #0f172a 100%)'
+          }}
+          className="relative w-full h-44 sm:h-56 md:h-64 overflow-hidden flex items-center justify-center group/banner"
+        >
           
           {/* Mobile Back Button */}
           <button
             onClick={() => navigate('home')}
-            className="absolute top-3 left-3 md:hidden p-2 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white rounded-xl flex items-center justify-center transition-all border border-white/20 cursor-pointer shadow-xs z-20"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', color: '#ffffff' }}
+            className="absolute top-3 left-3 md:hidden p-2 text-white rounded-xl flex items-center justify-center transition-all border border-white/20 cursor-pointer shadow-md z-30"
             title="Back to Home"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -424,26 +431,42 @@ export const CreatorProfile: React.FC = () => {
               className="w-full h-full object-cover group-hover/banner:scale-101 transition-transform duration-500"
             />
           ) : (
-            <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-800 via-indigo-900 to-slate-950 text-white/40 font-black text-2xl md:text-5xl tracking-widest uppercase select-none px-6 text-center">
-              <span className="drop-shadow-lg">{creator.displayName}</span>
+            <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+              {/* Subtle aesthetic pattern */}
+              <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#93c5fd_1px,transparent_1px)] [background-size:16px_16px]" />
+              <div className="relative text-center px-6">
+                <span className="text-white/90 font-black text-xl sm:text-3xl md:text-4xl tracking-wider uppercase drop-shadow-md">
+                  {creator.displayName}
+                </span>
+                <p className="text-[11px] text-cyan-300 font-bold mt-1 tracking-widest uppercase">
+                  SocialIndia Official Channel
+                </p>
+              </div>
             </div>
           )}
 
           {/* Gradient shadow overlay at banner bottom for contrast */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
 
           {/* Quick YouTube-Style Customize Banner Button for Channel Owner */}
           {isOwner && (
             <button
+              type="button"
               onClick={() => {
                 setBannerPreview(creator.bannerURL || '');
                 setBannerModalOpen(true);
               }}
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 px-3.5 py-2 bg-black/70 hover:bg-black/90 backdrop-blur-md text-white text-xs font-bold rounded-2xl flex items-center gap-2 transition-all border border-white/20 cursor-pointer shadow-lg active:scale-95 z-20 group"
-              title="Customize YouTube-style Channel Banner"
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                color: '#ffffff'
+              }}
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 px-3.5 py-2 hover:bg-black text-white text-xs font-black rounded-xl flex items-center gap-2 transition-all border border-white/40 cursor-pointer shadow-xl active:scale-95 z-30 ring-1 ring-white/20"
+              title={isHindi ? 'चैनल बैनर बदलें' : 'Change Channel Banner'}
             >
-              <Camera className="w-4 h-4 text-blue-400 group-hover:rotate-12 transition-transform" />
-              <span>Change Banner</span>
+              <Camera className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="font-black text-white whitespace-nowrap text-xs">
+                {isHindi ? 'बैनर बदलें' : 'Change Banner'}
+              </span>
             </button>
           )}
         </div>
@@ -518,7 +541,7 @@ export const CreatorProfile: React.FC = () => {
                   className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md shadow-blue-500/20 transition-all active:scale-95"
                 >
                   <Camera className="w-4 h-4" />
-                  <span>{isHindi ? 'बैनर बदलें' : 'Banner'}</span>
+                  <span>{isHindi ? 'बैनर बदलें' : 'Change Banner'}</span>
                 </button>
                 <button
                   onClick={() => navigate('studio')}

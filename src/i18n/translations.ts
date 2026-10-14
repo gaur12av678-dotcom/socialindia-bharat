@@ -243,6 +243,78 @@ export interface Translations {
   gopro_feature_downloads: string;
   gopro_feature_background: string;
   gopro_upgrade_btn: string;
+
+  // Auth, Login & Registration
+  auth_login_title: string;
+  auth_login_subtitle: string;
+  auth_create_account_title: string;
+  auth_create_account_subtitle: string;
+  auth_email_label: string;
+  auth_username_label: string;
+  auth_display_name_label: string;
+  auth_password_label: string;
+  auth_confirm_password_label: string;
+  auth_remember_me: string;
+  auth_forgot_password: string;
+  auth_terms_agree: string;
+  auth_terms_link: string;
+  auth_privacy_link: string;
+  auth_sign_in_btn: string;
+  auth_create_account_btn: string;
+  auth_no_account: string;
+  auth_have_account: string;
+  auth_verify_email_title: string;
+  auth_verify_email_desc: string;
+  auth_verify_check_btn: string;
+  auth_resend_email_btn: string;
+  auth_back_to_login: string;
+  auth_reset_password_title: string;
+  auth_reset_password_desc: string;
+  auth_send_reset_link: string;
+  auth_instant_reset: string;
+
+  // Direct Messages & Chat
+  chat_direct_messages: string;
+  chat_search_placeholder: string;
+  chat_loading: string;
+  chat_no_conversations: string;
+  chat_empty_title: string;
+  chat_empty_desc: string;
+  chat_write_placeholder: string;
+  chat_caption_placeholder: string;
+  chat_send: string;
+  chat_delete_history: string;
+  chat_uploading: string;
+  chat_today: string;
+  chat_yesterday: string;
+
+  // Explore & Sidebar
+  explore_title: string;
+  explore_music: string;
+  explore_gaming: string;
+  explore_tech: string;
+  explore_education: string;
+  explore_news: string;
+  explore_sports: string;
+  explore_entertainment: string;
+  explore_more: string;
+
+  // Policies & Legal Footer
+  footer_refund: string;
+  footer_faqs: string;
+  footer_terms: string;
+  footer_privacy: string;
+  footer_about: string;
+  footer_contact: string;
+
+  // Playlists
+  playlist_save_to: string;
+  playlist_create_new: string;
+  playlist_title_label: string;
+  playlist_privacy_label: string;
+  playlist_public: string;
+  playlist_private: string;
+  playlist_done: string;
 }
 
 export const translations: Record<LanguageCode, Translations> = {
@@ -486,6 +558,78 @@ export const translations: Record<LanguageCode, Translations> = {
     gopro_feature_downloads: 'High-speed Offline Downloads',
     gopro_feature_background: 'Background & Screen-off Play',
     gopro_upgrade_btn: 'Upgrade to GoPro',
+
+    // Auth, Login & Registration
+    auth_login_title: 'Welcome Back',
+    auth_login_subtitle: 'Sign in to access your channel, videos, points, and wallet balance.',
+    auth_create_account_title: 'Create Account',
+    auth_create_account_subtitle: 'Join SocialIndia to create your channel, upload videos, and earn rewards.',
+    auth_email_label: 'Email Address',
+    auth_username_label: 'Username',
+    auth_display_name_label: 'Display Name',
+    auth_password_label: 'Password',
+    auth_confirm_password_label: 'Confirm Password',
+    auth_remember_me: 'Remember me',
+    auth_forgot_password: 'Forgot password?',
+    auth_terms_agree: 'I agree to the',
+    auth_terms_link: 'Terms of Service',
+    auth_privacy_link: 'Privacy Policy',
+    auth_sign_in_btn: 'Sign In',
+    auth_create_account_btn: 'Create Account',
+    auth_no_account: "Don't have an account?",
+    auth_have_account: 'Already have an account?',
+    auth_verify_email_title: 'Verify Your Email',
+    auth_verify_email_desc: 'We’ve sent a verification link to your email. Please check your inbox and verify.',
+    auth_verify_check_btn: "I've Verified My Email",
+    auth_resend_email_btn: 'Resend Verification Email',
+    auth_back_to_login: 'Back to Sign In',
+    auth_reset_password_title: 'Reset Password',
+    auth_reset_password_desc: 'Enter your registered Gmail or username to regain access to your channel.',
+    auth_send_reset_link: 'Send Reset Link',
+    auth_instant_reset: 'Instant In-App Reset',
+
+    // Direct Messages & Chat
+    chat_direct_messages: 'Direct Messages',
+    chat_search_placeholder: 'Search chat partners...',
+    chat_loading: 'Loading contacts...',
+    chat_no_conversations: 'No matching conversations found',
+    chat_empty_title: 'Send a friendly message!',
+    chat_empty_desc: 'Introduce yourself, share photos, videos, or discuss awesome ideas together.',
+    chat_write_placeholder: 'Write a message...',
+    chat_caption_placeholder: 'Add a caption...',
+    chat_send: 'Send Message',
+    chat_delete_history: 'Delete Conversation History',
+    chat_uploading: 'Uploading media...',
+    chat_today: 'Today',
+    chat_yesterday: 'Yesterday',
+
+    // Explore & Sidebar
+    explore_title: 'Explore',
+    explore_music: 'Music',
+    explore_gaming: 'Gaming',
+    explore_tech: 'Technology',
+    explore_education: 'Education',
+    explore_news: 'News',
+    explore_sports: 'Sports & Cricket',
+    explore_entertainment: 'Entertainment',
+    explore_more: 'More',
+
+    // Policies & Legal Footer
+    footer_refund: 'Refund',
+    footer_faqs: 'FAQs',
+    footer_terms: 'Terms',
+    footer_privacy: 'Privacy',
+    footer_about: 'About Us',
+    footer_contact: 'Contact',
+
+    // Playlists
+    playlist_save_to: 'Save to playlist',
+    playlist_create_new: 'Create new playlist',
+    playlist_title_label: 'Playlist Title',
+    playlist_privacy_label: 'Privacy',
+    playlist_public: 'Public (Anyone can view)',
+    playlist_private: 'Private (Only you can view)',
+    playlist_done: 'Done',
   },
 
   hi: {
@@ -728,6 +872,78 @@ export const translations: Record<LanguageCode, Translations> = {
     gopro_feature_downloads: 'सुपर-फास्ट ऑफ़लाइन डाउनलोड',
     gopro_feature_background: 'स्क्रीन बंद रहने पर भी बैकग्राउंड प्ले',
     gopro_upgrade_btn: 'गो प्रो में अपग्रेड करें',
+
+    // Auth, Login & Registration (लॉगिन और नया खाता)
+    auth_login_title: 'स्वागत है',
+    auth_login_subtitle: 'अपने चैनल, वीडियो, रिवॉर्ड्स और वॉलेट बैलेंस देखने के लिए साइन इन करें।',
+    auth_create_account_title: 'नया खाता बनाएं',
+    auth_create_account_subtitle: 'अपना चैनल शुरू करने, वीडियो अपलोड करने और पॉइंट्स कमाने के लिए सोशलइंडिया से जुड़ें।',
+    auth_email_label: 'ईमेल पता (Gmail / Email)',
+    auth_username_label: 'यूज़रनेम / हैंडल',
+    auth_display_name_label: 'दिखाया जाने वाला नाम',
+    auth_password_label: 'पासवर्ड',
+    auth_confirm_password_label: 'पासवर्ड की पुष्टि करें',
+    auth_remember_me: 'मुझे याद रखें',
+    auth_forgot_password: 'पासवर्ड भूल गए?',
+    auth_terms_agree: 'मैं सहमत हूँ',
+    auth_terms_link: 'सेवा की शर्तें',
+    auth_privacy_link: 'गोपनीयता नीति',
+    auth_sign_in_btn: 'साइन इन करें',
+    auth_create_account_btn: 'खाता बनाएं',
+    auth_no_account: 'खाता नहीं है?',
+    auth_have_account: 'पहले से खाता है?',
+    auth_verify_email_title: 'अपना ईमेल सत्यापित करें',
+    auth_verify_email_desc: 'हमने आपके ईमेल पर एक सत्यापन लिंक भेजा है। कृपया अपना इनबॉक्स देखें और लिंक पर क्लिक करें।',
+    auth_verify_check_btn: 'मैंने ईमेल सत्यापित कर लिया है',
+    auth_resend_email_btn: 'सत्यापन ईमेल पुनः भेजें',
+    auth_back_to_login: 'साइन इन पर वापस जाएं',
+    auth_reset_password_title: 'पासवर्ड रीसेट करें',
+    auth_reset_password_desc: 'अपने चैनल तक पुनः पहुँचने के लिए अपना पंजीकृत जीमेल या यूज़रनेम दर्ज करें।',
+    auth_send_reset_link: 'रीसेट लिंक भेजें',
+    auth_instant_reset: 'तुरंत ऐप में रीसेट करें',
+
+    // Direct Messages & Chat (सीधे संदेश / चैट)
+    chat_direct_messages: 'सीधे संदेश (मैसेज)',
+    chat_search_placeholder: 'चैट साथी खोजें...',
+    chat_loading: 'संपर्क लोड हो रहे हैं...',
+    chat_no_conversations: 'कोई बातचीत नहीं मिली',
+    chat_empty_title: 'एक संदेश भेजें!',
+    chat_empty_desc: 'बातचीत शुरू करें, तस्वीरें, वीडियो या नए विचार एक साथ साझा करें।',
+    chat_write_placeholder: 'एक संदेश लिखें...',
+    chat_caption_placeholder: 'विवरण (कैप्शन) जोड़ें...',
+    chat_send: 'संदेश भेजें',
+    chat_delete_history: 'चैट इतिहास हटाएं',
+    chat_uploading: 'मीडिया अपलोड हो रहा है...',
+    chat_today: 'आज',
+    chat_yesterday: 'कल',
+
+    // Explore & Sidebar (एक्सप्लोर और श्रेणियां)
+    explore_title: 'एक्सप्लोर करें',
+    explore_music: 'संगीत (Music)',
+    explore_gaming: 'गेमिंग (Gaming)',
+    explore_tech: 'तकनीक (Tech)',
+    explore_education: 'शिक्षा (Education)',
+    explore_news: 'समाचार (News)',
+    explore_sports: 'खेलकूद व क्रिकेट',
+    explore_entertainment: 'मनोरंजन (Entertainment)',
+    explore_more: 'और भी श्रेणियां',
+
+    // Policies & Legal Footer (नीतियां और सहायता)
+    footer_refund: 'रिफंड नीति',
+    footer_faqs: 'अक्सर पूछे जाने वाले सवाल (FAQs)',
+    footer_terms: 'नियम व शर्तें',
+    footer_privacy: 'गोपनीयता नीति',
+    footer_about: 'हमारे बारे में',
+    footer_contact: 'संपर्क करें',
+
+    // Playlists (प्लेलिस्ट)
+    playlist_save_to: 'प्लेलिस्ट में सहेजें',
+    playlist_create_new: 'नई प्लेलिस्ट बनाएं',
+    playlist_title_label: 'प्लेलिस्ट का शीर्षक',
+    playlist_privacy_label: 'गोपनीयता',
+    playlist_public: 'सार्वजनिक (कोई भी देख सकता है)',
+    playlist_private: 'निजी (केवल आप देख सकते हैं)',
+    playlist_done: 'संपन्न',
   },
 };
 

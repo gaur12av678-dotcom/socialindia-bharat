@@ -272,13 +272,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
             <WifiOff className="w-4 h-4" />
-            <span>You are currently Offline. You can watch your downloaded videos & shorts without internet!</span>
+            <span>
+              {isHindi 
+                ? 'आप अभी ऑफ़लाइन हैं। आप बिना इंटरनेट के अपने डाउनलोड किए वीडियो और शॉर्ट्स देख सकते हैं!' 
+                : 'You are currently Offline. You can watch your downloaded videos & shorts without internet!'}
+            </span>
           </div>
           <button
             onClick={() => navigate('downloads')}
             className="px-3 py-1 bg-white text-amber-800 rounded-lg text-xs font-black hover:bg-amber-50 cursor-pointer shadow-xs transition-colors shrink-0"
           >
-            Open Downloads
+            {isHindi ? 'डाउनलोड्स खोलें' : 'Open Downloads'}
           </button>
         </div>
       )}
@@ -341,14 +345,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   type="button"
                   onClick={() => setMobileSearchOpen(false)}
                   className="min-w-10 min-h-10 p-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full flex items-center justify-center cursor-pointer"
-                  title="Close Search"
+                  title={isHindi ? 'सर्च बंद करें' : 'Close Search'}
                 >
                   <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
                 </button>
                 <input
                   type="text"
                   autoFocus
-                  placeholder="Search videos, creators..."
+                  placeholder={t('search_placeholder', 'Search videos, creators...')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="flex-1 px-4 py-2.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-950 dark:text-white"
@@ -357,7 +361,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   type="submit"
                   className="min-w-14 min-h-10 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-xs"
                 >
-                  Go
+                  {isHindi ? 'खोजें' : 'Go'}
                 </button>
               </form>
             ) : (
@@ -372,8 +376,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                           ? 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
                           : 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
                       }`}
-                      aria-label="Back to Home"
-                      title="Back to Home"
+                      aria-label={isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}
+                      title={isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}
                     >
                       <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
                     </button>
@@ -382,7 +386,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <button 
                     onClick={() => setSidebarOpen(!sidebarOpen)}
                     className="hidden md:flex min-w-10 min-h-10 p-2 hover:bg-[#f2f2f2] dark:hover:bg-[#272727] rounded-full transition-colors cursor-pointer text-[#0f0f0f] dark:text-[#f1f1f1] items-center justify-center"
-                    aria-label="Toggle sidebar"
+                    aria-label={isHindi ? 'साइडबार दिखाएं / छुपाएं' : 'Toggle sidebar'}
                   >
                     <Menu className="w-5 h-5" />
                   </button>
@@ -435,7 +439,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       const isDarkActive = document.documentElement.classList.contains('dark');
                       setTheme(isDarkActive ? 'light' : 'dark');
                     }}
-                    className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer flex items-center justify-center ${
+                    className={`hidden sm:flex min-w-10 min-h-10 p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer items-center justify-center ${
                       isShortsPage
                         ? 'hover:bg-white/10 text-white'
                         : 'hover:bg-[#f2f2f2] dark:hover:bg-[#272727] text-[#0f0f0f] dark:text-[#f1f1f1]'
@@ -481,21 +485,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             {notifDropdownOpen && (
               <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-2xl z-50 overflow-hidden">
                 <div className="p-4 border-b border-slate-100 dark:border-[#334155] flex items-center justify-between">
-                  <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-slate-100">Notifications</span>
+                  <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-slate-100">{t('notifications', 'Notifications')}</span>
                   {unreadCount > 0 && (
                     <button 
                       onClick={markNotificationsAsRead}
                       className="text-xs font-semibold text-[#2563eb] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      Mark all read
+                      {t('mark_all_read', 'Mark all read')}
                     </button>
                   )}
                 </div>
                 <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                   {notifications.length === 0 ? (
                     <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
-                      No notifications yet.
+                      {t('no_notifications', 'No notifications yet.')}
                     </div>
                   ) : (
                     notifications.map((n) => (
@@ -950,23 +954,23 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             {/* 2. Explore Section */}
             <div className="space-y-1">
               <span className="px-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">
-                Explore
+                {t('explore_title', 'Explore')}
               </span>
 
               {[
-                { label: 'Music', icon: Music, cat: 'Music' },
-                { label: 'Gaming', icon: Gamepad2, cat: 'Gaming' },
-                { label: 'Technology', icon: Cpu, cat: 'Technology' },
-                { label: 'Education', icon: GraduationCap, cat: 'Education' },
-                { label: 'News', icon: Newspaper, cat: 'News' },
-                { label: 'Sports', icon: Trophy, cat: 'Sports' },
-                { label: 'Entertainment', icon: Film, cat: 'Entertainment' },
+                { label: t('explore_music', 'Music'), icon: Music, cat: 'Music' },
+                { label: t('explore_gaming', 'Gaming'), icon: Gamepad2, cat: 'Gaming' },
+                { label: t('explore_tech', 'Technology'), icon: Cpu, cat: 'Technology' },
+                { label: t('explore_education', 'Education'), icon: GraduationCap, cat: 'Education' },
+                { label: t('explore_news', 'News'), icon: Newspaper, cat: 'News' },
+                { label: t('explore_sports', 'Sports & Cricket'), icon: Trophy, cat: 'Sports' },
+                { label: t('explore_entertainment', 'Entertainment'), icon: Film, cat: 'Entertainment' },
               ].map((item) => {
                 const Icon = item.icon;
                 const isCatActive = route.path === 'home' && route.searchParams?.category === item.cat;
                 return (
                   <button
-                    key={item.label}
+                    key={item.cat}
                     onClick={() => navigate('home', undefined, { category: item.cat })}
                     className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                       isCatActive
@@ -986,7 +990,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               >
                 <div className="flex items-center gap-3">
                   <MoreHorizontal className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
-                  <span>More</span>
+                  <span>{t('explore_more', 'More')}</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               </button>
@@ -1016,7 +1020,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             {followedCreators.length > 0 && (
               <div className="space-y-1">
                 <span className="px-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">
-                  Subscriptions
+                  {t('nav_subscriptions', 'Subscriptions')}
                 </span>
                 {followedCreators.slice(0, 4).map((sub) => (
                   <button
@@ -1038,29 +1042,29 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </div>
             )}
 
-            {/* 5. Bottom Callout Card: Create. Share. Grow. (Matches Capture.PNG) */}
+            {/* 5. Bottom Callout Card: Create. Share. Grow. */}
             <div 
               onClick={() => triggerProtectedAction(() => navigate('upload'))}
               className="p-3.5 bg-gradient-to-br from-blue-50/90 to-indigo-50/70 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-100/80 dark:border-blue-900/40 rounded-2xl space-y-1 shadow-xs cursor-pointer hover:border-blue-300 dark:hover:border-blue-800 transition-all active:scale-98 group"
             >
               <div className="flex items-center gap-2 text-xs font-extrabold text-[#065fd4] dark:text-[#60a5fa]">
                 <Rocket className="w-4 h-4 text-[#065fd4] dark:text-[#60a5fa] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                <span>Create. Share. Grow.</span>
+                <span>{isHindi ? 'बनाएं. शेयर करें. आगे बढ़ें.' : 'Create. Share. Grow.'}</span>
               </div>
               <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-snug">
-                Be part of India's next gen video platform.
+                {isHindi ? 'भारत के अगली पीढ़ी के वीडियो प्लेटफ़ॉर्म का हिस्सा बनें।' : "Be part of India's next gen video platform."}
               </p>
             </div>
 
             {/* 6. Elegant 2-Column Policy & Legal Links */}
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 px-2 space-y-2 select-none">
               <div className="grid grid-cols-2 gap-y-1.5 gap-x-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                <button onClick={() => navigate('refund')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">Refund</button>
-                <button onClick={() => navigate('faq')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">FAQs</button>
-                <button onClick={() => navigate('terms')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">Terms</button>
-                <button onClick={() => navigate('privacy')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">Privacy</button>
-                <button onClick={() => navigate('about')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">About us</button>
-                <button onClick={() => navigate('contact')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">Contact</button>
+                <button onClick={() => navigate('refund')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_refund', 'Refund')}</button>
+                <button onClick={() => navigate('faq')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_faqs', 'FAQs')}</button>
+                <button onClick={() => navigate('terms')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_terms', 'Terms')}</button>
+                <button onClick={() => navigate('privacy')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_privacy', 'Privacy')}</button>
+                <button onClick={() => navigate('about')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_about', 'About us')}</button>
+                <button onClick={() => navigate('contact')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_contact', 'Contact')}</button>
               </div>
               <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 font-medium leading-tight">
                 <p>© {new Date().getFullYear()} SocialIndia.</p>

@@ -20,13 +20,15 @@ import {
   Sparkles,
   RefreshCw,
   ListVideo,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
 
 export const MobileMenu: React.FC = () => {
-  const { currentUser, currentUserProfile, addToast } = useApp();
+  const { currentUser, currentUserProfile, theme, setTheme, addToast } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
@@ -244,6 +246,37 @@ export const MobileMenu: React.FC = () => {
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
+            </button>
+
+            <button
+              onClick={() => {
+                const isDarkActive = document.documentElement.classList.contains('dark');
+                setTheme(isDarkActive ? 'light' : 'dark');
+              }}
+              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                  {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark')) ? (
+                    <Sun className="w-4 h-4 text-amber-500" />
+                  ) : (
+                    <Moon className="w-4 h-4 text-indigo-600" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {isHindi ? 'थीम मोड (लाइट / डार्क)' : 'Appearance Theme'}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark'))
+                      ? (isHindi ? 'डार्क नाइट मोड सक्रिय' : 'Dark Night Mode Active')
+                      : (isHindi ? 'लाइट मोड सक्रिय' : 'Light Day Mode Active')}
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark')) ? 'Dark' : 'Light'}
+              </span>
             </button>
           </div>
         </div>

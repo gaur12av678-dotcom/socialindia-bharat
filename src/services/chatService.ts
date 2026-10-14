@@ -14,6 +14,7 @@ import {
 import { db } from '../firebase';
 import { ChatMessage, ChatSession, User } from '../types';
 import { userService } from './userService';
+import { getCloudinaryConfigAsync } from './videoService';
 
 const getChatCacheKey = (userA: string, userB: string) => {
   const sorted = [userA, userB].sort().join('_');
@@ -60,15 +61,130 @@ export const chatService = {
     }
   },
 
-  // Send a direct chat message
-  async sendMessage(senderId: string, receiverId: string, text: string): Promise<string> {
-    if (!text.trim()) return '';
+  // Upload chat media (image or video) with Cloudinary and resilient client-side fallback
+  async uploadChatMedia(
+    file: File, 
+    onProgress?: (percent: number) => void
+  ): Promise<{ url: string; type: 'image' | 'video' }> {
+    const isVideo = file.type.startsWith('video/');
+    const type: 'image' | 'video' = isVideo ? 'video' : 'image';
+
+    // 1. Try Cloudinary if configured
+    try {
+      const { cloudName, preset } = await getCloudinaryConfigAsync();
+      if (cloudName && preset) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', preset);
+        formData.append('folder', 'socialindia_chats');
+
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${isVideo ? 'video' : 'image'}/upload`;
+
+        const res = await new Promise<{ secure_url: string }>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable && onProgress) {
+              onProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          });
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                resolve(JSON.parse(xhr.responseText));
+              } catch (e) {
+                reject(e);
+              }
+            } else {
+              reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+          });
+          xhr.addEventListener('error', () => reject(new Error('Network error during media upload')));
+          xhr.open('POST', uploadUrl);
+          xhr.send(formData);
+        });
+
+        if (res.secure_url) {
+          return { url: res.secure_url, type };
+        }
+      }
+    } catch (cldErr) {
+      console.warn('Cloudinary upload skipped or failed, using local resilient processing:', cldErr);
+    }
+
+    // 2. Resilient Fallback:
+    // If image, compress via canvas to optimize storage and transfer
+    if (!isVideo) {
+      const compressedDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_DIM = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_DIM) {
+                height = Math.round((height * MAX_DIM) / width);
+                width = MAX_DIM;
+              }
+            } else {
+              if (height > MAX_DIM) {
+                width = Math.round((width * MAX_DIM) / height);
+                height = MAX_DIM;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(e.target?.result as string);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            resolve(dataUrl);
+          };
+          img.onerror = () => resolve(e.target?.result as string);
+          img.src = e.target?.result as string;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      return { url: compressedDataUrl, type: 'image' };
+    } else {
+      // For video fallback: read as data URL
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      return { url: dataUrl, type: 'video' };
+    }
+  },
+
+  // Send a direct chat message (with optional media attachment)
+  async sendMessage(
+    senderId: string, 
+    receiverId: string, 
+    text: string,
+    mediaUrl?: string,
+    mediaType?: 'image' | 'video'
+  ): Promise<string> {
+    const trimmedText = text.trim();
+    if (!trimmedText && !mediaUrl) return '';
 
     const newMsg: ChatMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       senderId,
       receiverId,
-      text: text.trim(),
+      text: trimmedText,
+      mediaUrl: mediaUrl || undefined,
+      mediaType: mediaType || undefined,
       createdAt: new Date().toISOString(),
       read: false
     };
@@ -79,13 +195,17 @@ export const chatService = {
 
     try {
       const messagesCol = collection(db, 'chats');
-      const docRef = await addDoc(messagesCol, {
+      const docPayload: any = {
         senderId,
         receiverId,
-        text: text.trim(),
+        text: trimmedText,
         createdAt: Timestamp.now(),
         read: false
-      });
+      };
+      if (mediaUrl) docPayload.mediaUrl = mediaUrl;
+      if (mediaType) docPayload.mediaType = mediaType;
+
+      const docRef = await addDoc(messagesCol, docPayload);
       return docRef.id;
     } catch (err) {
       console.warn('Firestore sendMessage failed, saved locally in cache:', err);
@@ -112,7 +232,9 @@ export const chatService = {
             id: d.id,
             senderId: data.senderId,
             receiverId: data.receiverId,
-            text: data.text,
+            text: data.text || '',
+            mediaUrl: data.mediaUrl || undefined,
+            mediaType: data.mediaType || undefined,
             createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
             read: data.read || false
           } as ChatMessage;
@@ -185,12 +307,16 @@ export const chatService = {
       const lastMsg = userMsgs[0]; // Since messages are ordered desc, the first is the latest
       const unread = userMsgs.filter(m => m.senderId === user.uid && !m.read).length;
 
+      const lastPreview = lastMsg
+        ? (lastMsg.text || (lastMsg.mediaType === 'image' ? '📷 Photo' : lastMsg.mediaType === 'video' ? '🎥 Video' : 'Attachment'))
+        : undefined;
+
       sessions.push({
         userId: user.uid,
         displayName: user.displayName,
         username: user.username,
         photoURL: user.photoURL,
-        lastMessage: lastMsg ? lastMsg.text : undefined,
+        lastMessage: lastPreview,
         lastMessageTime: lastMsg ? lastMsg.createdAt : undefined,
         unreadCount: unread
       });

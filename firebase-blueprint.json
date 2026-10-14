@@ -202,11 +202,13 @@
       "properties": {
         "senderId": { "type": "string" },
         "receiverId": { "type": "string" },
-        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "text": { "type": "string", "maxLength": 2000 },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "read": { "type": "boolean" }
       },
-      "required": ["senderId", "receiverId", "text", "createdAt"]
+      "required": ["senderId", "receiverId", "createdAt"]
     }
   },
   "firestore": {

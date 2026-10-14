@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SoundTrack } from '../types';
 import { soundService } from '../services/soundService';
+import { useTranslation } from '../i18n';
 import { Play, Pause, Music, Search, Check, X, Sparkles, Volume2, Flame } from 'lucide-react';
 
 interface SoundLibraryModalProps {
@@ -16,6 +17,7 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
   onSelectSound,
   selectedSoundId
 }) => {
+  const { t, isHindi } = useTranslation();
   const [sounds, setSounds] = useState<SoundTrack[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,7 +25,14 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const categories = ['All', 'Punjabi & Bollywood', 'Lo-Fi & Chill', 'Gaming & Tech', 'Trending Viral', 'Romantic & Acoustic'];
+  const categories = [
+    { key: 'All', label: isHindi ? 'सभी' : 'All' },
+    { key: 'Punjabi & Bollywood', label: isHindi ? 'पंजाबी व बॉलीवुड' : 'Punjabi & Bollywood' },
+    { key: 'Lo-Fi & Chill', label: isHindi ? 'लो-फ़ाई और चिल' : 'Lo-Fi & Chill' },
+    { key: 'Gaming & Tech', label: isHindi ? 'गेमिंग और टेक' : 'Gaming & Tech' },
+    { key: 'Trending Viral', label: isHindi ? 'वायरल ट्रेंडिंग' : 'Trending Viral' },
+    { key: 'Romantic & Acoustic', label: isHindi ? 'रोमांटिक और ध्वनिक' : 'Romantic & Acoustic' }
+  ];
 
   useEffect(() => {
     loadSounds();
@@ -80,12 +89,14 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-black text-slate-900 dark:text-blue-400 flex items-center gap-1.5">
-                <span>Shorts Sound Library</span>
+                <span>{isHindi ? 'शॉर्ट्स साउंड लाइब्रेरी' : 'Shorts Sound Library'}</span>
                 <span className="text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                  <Flame className="w-3 h-3 fill-current" /> Viral Audio
+                  <Flame className="w-3 h-3 fill-current" /> {isHindi ? 'वायरल ऑडियो' : 'Viral Audio'}
                 </span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-semibold">Select background music or viral audio for your Short</p>
+              <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-semibold">
+                {isHindi ? 'अपने शॉर्ट के लिए बैकग्राउंड संगीत या वायरल ऑडियो चुनें' : 'Select background music or viral audio for your Short'}
+              </p>
             </div>
           </div>
 
@@ -108,7 +119,7 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search sounds, artists or viral beats..."
+              placeholder={isHindi ? 'साउंड, कलाकार या वायरल बीट्स खोजें...' : 'Search sounds, artists or viral beats...'}
               className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-semibold text-slate-900 dark:text-blue-400 focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -116,18 +127,18 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
             {categories.map((cat) => (
               <button
-                key={cat}
+                key={cat.key}
                 onClick={() => {
-                  setSelectedCategory(cat);
+                  setSelectedCategory(cat.key);
                   setSearchQuery('');
                 }}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap cursor-pointer transition-all ${
-                  selectedCategory === cat && !searchQuery
+                  selectedCategory === cat.key && !searchQuery
                     ? 'bg-blue-600 text-blue-200 shadow-xs'
                     : 'bg-white dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-blue-400'
                 }`}
               >
-                {cat}
+                {cat.label}
               </button>
             ))}
           </div>
@@ -138,7 +149,9 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
           {sounds.length === 0 ? (
             <div className="py-12 text-center space-y-2">
               <Music className="w-8 h-8 text-slate-400 mx-auto" />
-              <p className="text-xs font-extrabold text-slate-600 dark:text-slate-400">No sounds found matching "{searchQuery}"</p>
+              <p className="text-xs font-extrabold text-slate-600 dark:text-slate-400">
+                {isHindi ? `"${searchQuery}" से मेल खाता कोई साउंड नहीं मिला` : `No sounds found matching "${searchQuery}"`}
+              </p>
             </div>
           ) : (
             sounds.map((sound) => {
@@ -178,7 +191,7 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
                         {sound.artist} • <span className="text-blue-600 dark:text-blue-400 font-bold">{sound.duration}s</span>
                       </p>
                       <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
-                        🔥 {sound.usesCount || 0} Shorts used
+                        🔥 {sound.usesCount || 0} {isHindi ? 'शॉर्ट्स में उपयोग' : 'Shorts used'}
                       </p>
                     </div>
                   </div>
@@ -199,12 +212,12 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
                     {isSelected ? (
                       <>
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
-                        <span>Selected</span>
+                        <span>{isHindi ? 'चुना गया' : 'Selected'}</span>
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-3.5 h-3.5" />
-                        <span>Use Sound</span>
+                        <span>{isHindi ? 'साउंड उपयोग करें' : 'Use Sound'}</span>
                       </>
                     )}
                   </button>

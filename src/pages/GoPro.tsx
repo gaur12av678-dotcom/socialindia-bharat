@@ -44,19 +44,21 @@ export const GoProPage: React.FC = () => {
     setSuccessMsg('');
 
     if (!currentUser || !currentUserProfile) {
-      addToast('Please sign in to upgrade your membership.', 'error');
+      addToast(isHindi ? 'सदस्यता अपग्रेड करने के लिए कृपया साइन इन करें।' : 'Please sign in to upgrade your membership.', 'error');
       navigate('login');
       return;
     }
 
     if (isPro) {
-      addToast('You already have an active SocialIndia Pro Creator Membership!', 'info');
+      addToast(isHindi ? 'आपके पास पहले से ही सक्रिय सोशलइंडिया प्रो क्रिएटर सदस्यता है!' : 'You already have an active SocialIndia Pro Creator Membership!', 'info');
       return;
     }
 
     if (totalAvailable < PRO_PRICE) {
-      setErrorMsg(`Insufficient Balance ($${totalAvailable.toFixed(2)} USD available). You need $${PRO_PRICE.toFixed(2)} USD. Please convert points or top up in Settings.`);
-      addToast('Insufficient balance for Pro upgrade.', 'error');
+      setErrorMsg(isHindi 
+        ? `अपर्याप्त बैलेंस ($${totalAvailable.toFixed(2)} USD उपलब्ध)। आपको $${PRO_PRICE.toFixed(2)} USD की आवश्यकता है। कृपया सेटिंग्स में पॉइंट्स बदलें या वॉलेट रीचार्ज करें।`
+        : `Insufficient Balance ($${totalAvailable.toFixed(2)} USD available). You need $${PRO_PRICE.toFixed(2)} USD. Please convert points or top up in Settings.`);
+      addToast(isHindi ? 'प्रो अपग्रेड के लिए अपर्याप्त बैलेंस।' : 'Insufficient balance for Pro upgrade.', 'error');
       return;
     }
 
@@ -74,11 +76,11 @@ export const GoProPage: React.FC = () => {
         bonusBalance: newBonus
       });
       await refreshProfile();
-      setSuccessMsg('🎉 Congratulations! You are now a verified SocialIndia PRO Creator!');
-      addToast('Upgraded to SocialIndia Pro successfully!', 'success');
+      setSuccessMsg(isHindi ? '🎉 बधाई हो! अब आप एक सत्यापित सोशलइंडिया प्रो क्रिएटर हैं!' : '🎉 Congratulations! You are now a verified SocialIndia PRO Creator!');
+      addToast(isHindi ? 'सोशलइंडिया प्रो में सफलतापूर्वक अपग्रेड हो गए!' : 'Upgraded to SocialIndia Pro successfully!', 'success');
     } catch (err: any) {
-      setErrorMsg('Failed to complete Pro upgrade. Please try again.');
-      addToast('Upgrade failed. Please check your network connection.', 'error');
+      setErrorMsg(isHindi ? 'प्रो अपग्रेड पूरा करने में विफल। कृपया पुनः प्रयास करें।' : 'Failed to complete Pro upgrade. Please try again.');
+      addToast(isHindi ? 'अपग्रेड विफल। कृपया इंटरनेट कनेक्शन जांचें।' : 'Upgrade failed. Please check your network connection.', 'error');
     } finally {
       setIsUpgrading(false);
     }

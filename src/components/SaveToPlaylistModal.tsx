@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Playlist, Video } from '../types';
 import { playlistService } from '../services/playlistService';
 import { useApp } from '../context/AppContext';
+import { useTranslation } from '../i18n';
 import { ListPlus, Plus, Lock, Globe, Check, X, Loader2, Bookmark } from 'lucide-react';
 
 interface SaveToPlaylistModalProps {
@@ -16,6 +17,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
   onClose
 }) => {
   const { currentUser, currentUserProfile, addToast } = useApp();
+  const { t, isHindi } = useTranslation();
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -56,14 +58,14 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
       if (isChecked) {
         await playlistService.removeVideoFromPlaylist(pl.playlistId, video.videoId);
         setPlaylists(prev => prev.map(p => p.playlistId === pl.playlistId ? { ...p, videoIds: p.videoIds.filter(id => id !== video.videoId) } : p));
-        addToast(`Removed from "${pl.title}"`, 'info');
+        addToast(isHindi ? `"${pl.title}" से हटाया गया` : `Removed from "${pl.title}"`, 'info');
       } else {
         await playlistService.addVideoToPlaylist(pl.playlistId, video.videoId, video.thumbnailUrl);
         setPlaylists(prev => prev.map(p => p.playlistId === pl.playlistId ? { ...p, videoIds: [...p.videoIds, video.videoId] } : p));
-        addToast(`Saved to "${pl.title}"`, 'success');
+        addToast(isHindi ? `"${pl.title}" में सहेजा गया` : `Saved to "${pl.title}"`, 'success');
       }
     } catch (err) {
-      addToast('Failed to update playlist', 'error');
+      addToast(isHindi ? 'प्लेलिस्ट अपडेट करने में विफल' : 'Failed to update playlist', 'error');
     }
   };
 
@@ -85,11 +87,11 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
       });
 
       setPlaylists(prev => [created, ...prev]);
-      addToast(`Playlist "${created.title}" created!`, 'success');
+      addToast(isHindi ? `प्लेलिस्ट "${created.title}" बनाई गई!` : `Playlist "${created.title}" created!`, 'success');
       setNewTitle('');
       setShowCreateForm(false);
     } catch (err) {
-      addToast('Failed to create playlist', 'error');
+      addToast(isHindi ? 'प्लेलिस्ट बनाने में विफल' : 'Failed to create playlist', 'error');
     } finally {
       setCreating(false);
     }
@@ -106,7 +108,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
           <div className="flex items-center gap-2">
             <Bookmark className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-              Save Video to Playlist
+              {isHindi ? 'वीडियो को प्लेलिस्ट में सहेजें' : 'Save Video to Playlist'}
             </h3>
           </div>
 
@@ -123,11 +125,13 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
           {loading ? (
             <div className="py-6 text-center space-y-2">
               <Loader2 className="w-6 h-6 text-blue-600 animate-spin mx-auto" />
-              <p className="text-xs font-bold text-slate-500">Loading playlists...</p>
+              <p className="text-xs font-bold text-slate-500">
+                {isHindi ? 'प्लेलिस्ट लोड हो रही हैं...' : 'Loading playlists...'}
+              </p>
             </div>
           ) : playlists.length === 0 ? (
             <p className="text-center py-6 text-xs font-bold text-slate-400">
-              No playlists found. Create your first playlist below!
+              {isHindi ? 'कोई प्लेलिस्ट नहीं मिली। नीचे अपनी पहली प्लेलिस्ट बनाएं!' : 'No playlists found. Create your first playlist below!'}
             </p>
           ) : (
             playlists.map((pl) => {
@@ -150,7 +154,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
                       <p className="text-xs font-black truncate">{pl.title}</p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1 mt-0.5">
                         {pl.isPrivate ? <Lock className="w-3 h-3 text-amber-500" /> : <Globe className="w-3 h-3 text-emerald-500" />}
-                        <span>{pl.videoIds.length} videos</span>
+                        <span>{pl.videoIds.length} {isHindi ? 'वीडियो' : 'videos'}</span>
                       </p>
                     </div>
                   </div>
@@ -168,7 +172,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
               className="w-full py-3 bg-[#065fd4] hover:bg-[#054fb1] text-white text-xs font-black rounded-2xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Create New Playlist</span>
+              <span>{isHindi ? 'नई प्लेलिस्ट बनाएं' : 'Create New Playlist'}</span>
             </button>
           ) : (
             <form onSubmit={handleCreatePlaylist} className="space-y-3 animate-in fade-in duration-200">
@@ -177,7 +181,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
                 required
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Enter playlist title..."
+                placeholder={isHindi ? 'प्लेलिस्ट का शीर्षक दर्ज करें...' : 'Enter playlist title...'}
                 className="w-full px-4 py-2.5 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
               />
 
@@ -189,7 +193,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
                     onChange={(e) => setIsPrivate(e.target.checked)}
                     className="rounded text-blue-600 w-4 h-4 cursor-pointer"
                   />
-                  <span>Private Playlist (Only visible to you)</span>
+                  <span>{isHindi ? 'निजी प्लेलिस्ट (केवल आपको दिखाई देगी)' : 'Private Playlist (Only visible to you)'}</span>
                 </label>
               </div>
 
@@ -199,7 +203,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
                   onClick={() => setShowCreateForm(false)}
                   className="px-3.5 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
                 >
-                  Cancel
+                  {isHindi ? 'रद्द करें' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
@@ -207,7 +211,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
                 >
                   {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                  <span>Create & Save</span>
+                  <span>{isHindi ? 'बनाएं और सहेजें' : 'Create & Save'}</span>
                 </button>
               </div>
             </form>

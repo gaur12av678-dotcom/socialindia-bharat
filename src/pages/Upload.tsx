@@ -338,15 +338,19 @@ export const UploadPage: React.FC = () => {
         <div className="w-16 h-16 rounded-3xl bg-blue-50 dark:bg-blue-950/40 text-[#065fd4] flex items-center justify-center mx-auto mb-4 shadow-md">
           <Upload className="w-8 h-8" />
         </div>
-        <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Sign in to Upload Videos</h2>
+        <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+          {isHindi ? 'वीडियो अपलोड करने के लिए साइन इन करें' : 'Sign in to Upload Videos'}
+        </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 font-bold mt-1.5 max-w-sm mx-auto">
-          Share your videos, reels and shorts with millions of viewers across SocialIndia.
+          {isHindi 
+            ? 'सोशलइंडिया पर अपने वीडियो, रील्स और शॉर्ट्स लाखों दर्शकों के साथ साझा करें।' 
+            : 'Share your videos, reels and shorts with millions of viewers across SocialIndia.'}
         </p>
         <button
           onClick={() => navigate('login')}
           className="mt-6 px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white text-xs font-black rounded-full shadow-md transition-all cursor-pointer"
         >
-          Sign In Now
+          {isHindi ? 'अभी साइन इन करें' : 'Sign In Now'}
         </button>
       </div>
     );
@@ -580,7 +584,7 @@ export const UploadPage: React.FC = () => {
                         className="absolute top-3 right-3 px-3.5 py-1.5 bg-black/80 hover:bg-black text-white text-xs font-bold rounded-xl backdrop-blur-md transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
-                        <span>Change Video</span>
+                        <span>{isHindi ? 'वीडियो बदलें' : 'Change Video'}</span>
                       </button>
                     )}
                   </div>
@@ -589,12 +593,12 @@ export const UploadPage: React.FC = () => {
                   <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-900/80 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                        {videoFileName || 'Selected Video File'}
+                        {videoFileName || (isHindi ? 'चुनी गई वीडियो फ़ाइल' : 'Selected Video File')}
                       </p>
                       <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                        <span>Duration: {formatDuration(duration)}</span>
+                        <span>{isHindi ? 'अवधि:' : 'Duration:'} {formatDuration(duration)}</span>
                         <span>•</span>
-                        <span>{isShort ? '⚡ Shorts (9:16)' : '🎥 Video (16:9)'}</span>
+                        <span>{isShort ? (isHindi ? '⚡ शॉर्ट्स (9:16)' : '⚡ Shorts (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span>
                         {selectedVideoFile && (
                           <>
                             <span>•</span>
@@ -609,7 +613,7 @@ export const UploadPage: React.FC = () => {
                       onClick={() => setCurrentStep(2)}
                       className="px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white text-xs font-bold rounded-full cursor-pointer shadow-md shadow-blue-600/20 flex items-center gap-2 transition-all active:scale-95"
                     >
-                      <span>Continue to Details</span>
+                      <span>{isHindi ? 'विवरण पर जारी रखें' : 'Continue to Details'}</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
@@ -655,10 +659,10 @@ export const UploadPage: React.FC = () => {
                   {/* Heading & Subtitle */}
                   <div className="space-y-1 mt-3 max-w-md">
                     <h3 className="text-xl sm:text-2xl font-black text-[#0f172a] dark:text-white tracking-tight">
-                      Drag and drop video files to upload
+                      {isHindi ? 'अपलोड करने के लिए वीडियो फ़ाइल खींचें और छोड़ें' : 'Drag and drop video files to upload'}
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-                      Your videos will be private until you publish them.
+                      {isHindi ? 'जब तक आप प्रकाशित नहीं करते, आपके वीडियो निजी रहेंगे।' : 'Your videos will be private until you publish them.'}
                     </p>
                   </div>
 
@@ -669,12 +673,12 @@ export const UploadPage: React.FC = () => {
                     className="mt-6 px-8 py-3.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-xs sm:text-sm rounded-full shadow-md shadow-blue-600/25 flex items-center gap-2.5 cursor-pointer active:scale-95 transition-all"
                   >
                     <FolderOpen className="w-4 h-4" />
-                    <span>Select Media from Device</span>
+                    <span>{isHindi ? 'डिवाइस से मीडिया चुनें' : 'Select Media from Device'}</span>
                   </button>
 
                   {/* Supported Formats & Max Size Bar */}
                   <div className="flex items-center justify-center gap-2.5 flex-wrap mt-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    <span>Supported formats:</span>
+                    <span>{isHindi ? 'समर्थित प्रारूप:' : 'Supported formats:'}</span>
                     {['MP4', 'WebM', 'MOV', 'AVI', 'MKV'].map((fmt) => (
                       <span 
                         key={fmt}
@@ -686,7 +690,7 @@ export const UploadPage: React.FC = () => {
                     <span className="text-slate-300 dark:text-slate-600">|</span>
                     <span className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300">
                       <CloudUpload className="w-3.5 h-3.5 text-[#065fd4]" />
-                      Max file size: <strong className="text-slate-800 dark:text-white">10 GB</strong>
+                      {isHindi ? 'अधिकतम फ़ाइल आकार:' : 'Max file size:'} <strong className="text-slate-800 dark:text-white">10 GB</strong>
                     </span>
                   </div>
 
@@ -694,14 +698,14 @@ export const UploadPage: React.FC = () => {
                   <div className="mt-6 w-full max-w-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl px-4 py-2.5 flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
                       <span className="text-amber-500">💡</span>
-                      <span><strong>Pro Tip:</strong> Use a high-quality thumbnail to get more views!</span>
+                      <span><strong>{isHindi ? 'सुझाव:' : 'Pro Tip:'}</strong> {isHindi ? 'अधिक व्यूज पाने के लिए आकर्षक थंबनेल लगाएं!' : 'Use a high-quality thumbnail to get more views!'}</span>
                     </div>
                     <button
                       type="button"
-                      onClick={() => addToast('Recommended thumbnail size: 1280x720 pixels (16:9 ratio) under 5MB.', 'info')}
+                      onClick={() => addToast(isHindi ? 'अनुशंसित थंबनेल आकार: 1280x720 पिक्सल (16:9 अनुपात) 5MB से कम।' : 'Recommended thumbnail size: 1280x720 pixels (16:9 ratio) under 5MB.', 'info')}
                       className="text-[#065fd4] dark:text-[#3b82f6] font-bold hover:underline shrink-0 cursor-pointer"
                     >
-                      Learn more →
+                      {isHindi ? 'और जानें →' : 'Learn more →'}
                     </button>
                   </div>
 
@@ -722,7 +726,7 @@ export const UploadPage: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-slate-700 dark:text-slate-300 text-xs font-bold">
-                      Video Title *
+                      {isHindi ? 'वीडियो का शीर्षक *' : 'Video Title *'}
                     </label>
                     <span className={`text-[11px] font-mono font-bold ${title.length > 90 ? 'text-amber-600' : 'text-slate-400'}`}>
                       {title.length}/100
@@ -732,7 +736,7 @@ export const UploadPage: React.FC = () => {
                     type="text"
                     required
                     maxLength={100}
-                    placeholder={uploadMode === 'short' ? 'Add catchy short title... #shorts' : 'Enter an engaging video title...'}
+                    placeholder={uploadMode === 'short' ? (isHindi ? 'आकर्षक शॉर्ट्स शीर्षक जोड़ें... #shorts' : 'Add catchy short title... #shorts') : (isHindi ? 'आकर्षक वीडियो शीर्षक दर्ज करें...' : 'Enter an engaging video title...')}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50/70 dark:bg-[#1e293b] text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#065fd4]/20 focus:border-[#065fd4] font-semibold text-sm transition-all"
@@ -743,14 +747,14 @@ export const UploadPage: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-slate-700 dark:text-slate-300 text-xs font-bold">
-                      Description
+                      {isHindi ? 'विवरण' : 'Description'}
                     </label>
                     <span className="text-[11px] font-mono font-bold text-slate-400">
                       {description.length}/5000
                     </span>
                   </div>
                   <textarea
-                    placeholder="Tell viewers what your video is about, add hashtags, links, credits and timestamps..."
+                    placeholder={isHindi ? 'दर्शकों को बताएं कि आपका वीडियो किस बारे में है, हैशटैग, लिंक और क्रेडिट जोड़ें...' : 'Tell viewers what your video is about, add hashtags, links, credits and timestamps...'}
                     rows={4}
                     maxLength={5000}
                     value={description}
@@ -763,7 +767,7 @@ export const UploadPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-slate-700 dark:text-slate-300 mb-1.5 text-xs font-bold">
-                      Category *
+                      {isHindi ? 'श्रेणी *' : 'Category *'}
                     </label>
                     <select
                       value={category}
@@ -778,11 +782,11 @@ export const UploadPage: React.FC = () => {
 
                   <div>
                     <label className="block text-slate-700 dark:text-slate-300 mb-1.5 text-xs font-bold">
-                      Tags (Comma separated)
+                      {isHindi ? 'टैग्स (अल्पविराम से अलग करें)' : 'Tags (Comma separated)'}
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. tech, india, gaming, vlog"
+                      placeholder={isHindi ? 'उदा. tech, india, gaming, vlog' : 'e.g. tech, india, gaming, vlog'}
                       value={tagsInput}
                       onChange={(e) => setTagsInput(e.target.value)}
                       className="w-full px-4 py-2.5 border border-slate-200 dark:border-[#334155] bg-slate-50/70 dark:bg-[#1e293b] text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#065fd4]/20 focus:border-[#065fd4] font-medium text-xs"
@@ -800,12 +804,12 @@ export const UploadPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <label className="text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1.5">
                       <ImageIcon className="w-4 h-4 text-[#065fd4]" />
-                      <span>Thumbnail</span>
+                      <span>{isHindi ? 'थंबनेल' : 'Thumbnail'}</span>
                     </label>
                     {(thumbnailPreviewUrl || thumbnailUrl) && (
                       <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        {isAutoCapturedThumb ? 'Auto Scene' : 'Custom Image'}
+                        {isAutoCapturedThumb ? (isHindi ? 'ऑटो फ़्रेम' : 'Auto Scene') : (isHindi ? 'कस्टम इमेज' : 'Custom Image')}
                       </span>
                     )}
                   </div>
@@ -830,7 +834,7 @@ export const UploadPage: React.FC = () => {
                       {isAutoCapturedThumb && (
                         <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/80 backdrop-blur-md rounded-md text-white text-[9px] font-bold uppercase tracking-wider border border-white/10 flex items-center gap-1">
                           <Film className="w-3 h-3 text-blue-400" />
-                          <span>Auto Frame</span>
+                          <span>{isHindi ? 'ऑटो फ़्रेम' : 'Auto Frame'}</span>
                         </div>
                       )}
 
@@ -841,7 +845,7 @@ export const UploadPage: React.FC = () => {
                           className="absolute top-2 right-2 px-3 py-1 bg-black/75 hover:bg-black text-white text-[10px] font-bold rounded-lg backdrop-blur-md transition-all shadow-xs flex items-center gap-1 cursor-pointer"
                         >
                           <Edit3 className="w-3 h-3" />
-                          <span>{isAutoCapturedThumb ? 'Upload Custom' : 'Change Image'}</span>
+                          <span>{isAutoCapturedThumb ? (isHindi ? 'कस्टम अपलोड करें' : 'Upload Custom') : (isHindi ? 'इमेज बदलें' : 'Change Image')}</span>
                         </button>
                       )}
                     </div>
@@ -854,7 +858,9 @@ export const UploadPage: React.FC = () => {
                         <ImageIcon className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Upload Custom Thumbnail</p>
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                          {isHindi ? 'कस्टम थंबनेल अपलोड करें' : 'Upload Custom Thumbnail'}
+                        </p>
                         <p className="text-[10px] text-slate-400 font-medium mt-0.5">JPG, PNG or WebP</p>
                       </div>
                     </div>
@@ -863,9 +869,9 @@ export const UploadPage: React.FC = () => {
 
                 {/* Video Info Summary Card */}
                 <div className="p-4 bg-slate-50/80 dark:bg-slate-900/60 rounded-2xl border border-slate-200/90 dark:border-slate-800 space-y-2 text-xs text-slate-600 dark:text-slate-400">
-                  <p className="truncate">File: <span className="font-semibold text-slate-800 dark:text-slate-200">{videoFileName || 'Selected Video'}</span></p>
-                  <p>Duration: <span className="font-semibold text-slate-800 dark:text-slate-200">{formatDuration(duration)}</span></p>
-                  <p>Format: <span className="font-semibold text-slate-800 dark:text-slate-200">{isShort ? '⚡ Shorts (9:16)' : '🎥 Video (16:9)'}</span></p>
+                  <p className="truncate">{isHindi ? 'फ़ाइल:' : 'File:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{videoFileName || (isHindi ? 'चुनी गई वीडियो' : 'Selected Video')}</span></p>
+                  <p>{isHindi ? 'अवधि:' : 'Duration:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{formatDuration(duration)}</span></p>
+                  <p>{isHindi ? 'प्रारूप:' : 'Format:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{isShort ? (isHindi ? '⚡ शॉर्ट्स (9:16)' : '⚡ Shorts (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span></p>
                 </div>
 
               </div>
@@ -885,8 +891,12 @@ export const UploadPage: React.FC = () => {
                       <Music className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">Background Music & Sound</h4>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Attach audio or royalty-free background track</p>
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                        {isHindi ? 'बैकग्राउंड संगीत और साउंड' : 'Background Music & Sound'}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                        {isHindi ? 'ऑडियो या कॉपीराइट-मुक्त बैकग्राउंड ट्रैक जोड़ें' : 'Attach audio or royalty-free background track'}
+                      </p>
                     </div>
                   </div>
 
@@ -897,7 +907,7 @@ export const UploadPage: React.FC = () => {
                       className="text-rose-500 hover:text-rose-600 text-xs font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
-                      <span>Remove</span>
+                      <span>{isHindi ? 'हटाएं' : 'Remove'}</span>
                     </button>
                   )}
                 </div>
@@ -916,10 +926,10 @@ export const UploadPage: React.FC = () => {
                     )}
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                        {selectedSoundTrack ? selectedSoundTrack.title : 'No background track selected'}
+                        {selectedSoundTrack ? selectedSoundTrack.title : (isHindi ? 'कोई बैकग्राउंड ट्रैक नहीं चुना गया' : 'No background track selected')}
                       </p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                        {selectedSoundTrack ? selectedSoundTrack.artist : 'Original video audio will play. Click to choose from library.'}
+                        {selectedSoundTrack ? selectedSoundTrack.artist : (isHindi ? 'मूल वीडियो ऑडियो बजेगा। लाइब्रेरी से चुनने के लिए क्लिक करें।' : 'Original video audio will play. Click to choose from library.')}
                       </p>
                     </div>
                   </div>
@@ -928,7 +938,7 @@ export const UploadPage: React.FC = () => {
                     type="button" 
                     className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-xs cursor-pointer"
                   >
-                    {selectedSoundTrack ? 'Change' : 'Choose Music'}
+                    {selectedSoundTrack ? (isHindi ? 'बदलें' : 'Change') : (isHindi ? 'संगीत चुनें' : 'Choose Music')}
                   </button>
                 </div>
               </div>
@@ -944,14 +954,16 @@ export const UploadPage: React.FC = () => {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                            Make Video Paid
+                            {isHindi ? 'वीडियो को पेड (सशुल्क) बनाएं' : 'Make Video Paid'}
                           </h4>
                           <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-200/70 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
-                            ✓ Monetized
+                            {isHindi ? '✓ मुद्रीकृत' : '✓ Monetized'}
                           </span>
                         </div>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                          Charge viewers to watch this video. Revenue is credited 100% directly to your wallet.
+                          {isHindi 
+                            ? 'दर्शकों से इस वीडियो को देखने का शुल्क लें। कमाई सीधे 100% आपके वॉलेट में जमा होगी।' 
+                            : 'Charge viewers to watch this video. Revenue is credited 100% directly to your wallet.'}
                         </p>
                       </div>
                     </div>
@@ -971,7 +983,7 @@ export const UploadPage: React.FC = () => {
                     <div className="pt-3 border-t border-emerald-200/80 dark:border-emerald-800/50 flex items-center justify-between gap-4 flex-wrap">
                       <div className="flex-1 min-w-[180px]">
                         <label className="block text-[11px] font-bold text-slate-800 dark:text-slate-200 mb-1">
-                          Set Access Price (₹ INR) *
+                          {isHindi ? 'एक्सेस शुल्क सेट करें (₹ INR) *' : 'Set Access Price (₹ INR) *'}
                         </label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-emerald-600 dark:text-emerald-400">
@@ -990,7 +1002,7 @@ export const UploadPage: React.FC = () => {
                       </div>
 
                       <div className="space-y-1">
-                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block">Presets:</span>
+                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block">{isHindi ? 'प्रीसेट:' : 'Presets:'}</span>
                         <div className="flex gap-1.5 items-center flex-wrap">
                           {[5, 10, 20, 50, 100].map((preset) => (
                             <button
@@ -1020,16 +1032,20 @@ export const UploadPage: React.FC = () => {
                     <MessageSquare className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">Comments & Community</h4>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Choose how viewers can engage with this video</p>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                      {isHindi ? 'कमेंट्स और कम्युनिटी' : 'Comments & Community'}
+                    </h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                      {isHindi ? 'तय करें कि दर्शक इस वीडियो पर कैसे प्रतिक्रिया दे सकते हैं' : 'Choose how viewers can engage with this video'}
+                    </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 pt-1">
                   {[
-                    { id: 'allow', label: 'Allow All' },
-                    { id: 'hold', label: 'Hold Review' },
-                    { id: 'disabled', label: 'Disabled' }
+                    { id: 'allow', label: isHindi ? 'सभी की अनुमति दें' : 'Allow All' },
+                    { id: 'hold', label: isHindi ? 'समीक्षा के लिए रोकें' : 'Hold Review' },
+                    { id: 'disabled', label: isHindi ? 'अक्षम करें' : 'Disabled' }
                   ].map((opt) => (
                     <button
                       key={opt.id}
@@ -1057,27 +1073,33 @@ export const UploadPage: React.FC = () => {
               {/* Visibility Options */}
               <div className="space-y-3">
                 <label className="block text-slate-700 dark:text-slate-300 text-xs font-bold">
-                  Choose Visibility *
+                  {isHindi ? 'दृश्यता चुनें *' : 'Choose Visibility *'}
                 </label>
                 
                 <div className="grid grid-cols-1 gap-2.5">
                   {[
                     {
                       id: 'public',
-                      title: 'Public',
-                      desc: 'Everyone can watch your video. It will appear on the Home feed, search results, and your channel.',
+                      title: isHindi ? 'सार्वजनिक' : 'Public',
+                      desc: isHindi 
+                        ? 'हर कोई आपका वीडियो देख सकता है। यह होम फ़ीड, सर्च परिणामों और आपके चैनल पर दिखेगा।' 
+                        : 'Everyone can watch your video. It will appear on the Home feed, search results, and your channel.',
                       icon: Globe
                     },
                     {
                       id: 'unlisted',
-                      title: 'Unlisted',
-                      desc: 'Anyone with the video link can watch. It will not appear on public feeds or search.',
+                      title: isHindi ? 'अनलिस्टेड' : 'Unlisted',
+                      desc: isHindi 
+                        ? 'केवल वीडियो लिंक वाले व्यक्ति ही इसे देख सकते हैं। यह सार्वजनिक फ़ीड या सर्च में नहीं दिखेगा।' 
+                        : 'Anyone with the video link can watch. It will not appear on public feeds or search.',
                       icon: EyeOff
                     },
                     {
                       id: 'private',
-                      title: 'Private',
-                      desc: 'Only you can watch this video. You can change visibility anytime.',
+                      title: isHindi ? 'निजी' : 'Private',
+                      desc: isHindi 
+                        ? 'केवल आप इस वीडियो को देख सकते हैं। आप कभी भी दृश्यता बदल सकते हैं।' 
+                        : 'Only you can watch this video. You can change visibility anytime.',
                       icon: Lock
                     }
                   ].map((item) => {
@@ -1122,7 +1144,9 @@ export const UploadPage: React.FC = () => {
 
               {/* Pre-Publish Review Summary */}
               <div className="p-4 bg-slate-50/80 dark:bg-slate-900/60 rounded-2xl border border-slate-200/90 dark:border-slate-800 space-y-2.5">
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white">Summary Review</h4>
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                  {isHindi ? 'सारांश समीक्षा' : 'Summary Review'}
+                </h4>
                 <div className="flex items-center gap-3">
                   <div className="w-20 h-14 rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-200 dark:border-slate-700">
                     <img 
@@ -1132,13 +1156,13 @@ export const UploadPage: React.FC = () => {
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{title || 'Untitled Video'}</p>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{title || (isHindi ? 'शीर्षकहीन वीडियो' : 'Untitled Video')}</p>
                     <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium flex-wrap">
                       <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-950 text-[#065fd4] dark:text-[#3b82f6] rounded font-bold">{category}</span>
                       <span>•</span>
                       <span>{formatDuration(duration)}</span>
                       <span>•</span>
-                      <span>{isShort ? '⚡ Shorts' : '🎥 Video'}</span>
+                      <span>{isShort ? (isHindi ? '⚡ शॉर्ट्स' : '⚡ Shorts') : (isHindi ? '🎥 वीडियो' : '🎥 Video')}</span>
                     </div>
                   </div>
                 </div>
@@ -1151,7 +1175,7 @@ export const UploadPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 text-[#065fd4] animate-spin" />
                       <span className="text-xs font-bold text-slate-900 dark:text-white">
-                        {uploadStageText || `Uploading Video... ${uploadProgress}%`}
+                        {uploadStageText || (isHindi ? `वीडियो अपलोड हो रहा है... ${uploadProgress}%` : `Uploading Video... ${uploadProgress}%`)}
                       </span>
                     </div>
                     <span className="text-xs font-bold text-[#065fd4] font-mono">
@@ -1167,7 +1191,9 @@ export const UploadPage: React.FC = () => {
                   </div>
 
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium text-center">
-                    Please keep this window open while the video is uploading to SocialIndia...
+                    {isHindi 
+                      ? 'कृपया वीडियो अपलोड होने तक इस विंडो को खुला रखें...' 
+                      : 'Please keep this window open while the video is uploading to SocialIndia...'}
                   </p>
                 </div>
               )}
@@ -1186,7 +1212,7 @@ export const UploadPage: React.FC = () => {
                 disabled={isPublishing}
                 className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-full cursor-pointer transition-all text-xs disabled:opacity-50"
               >
-                Cancel
+                {isHindi ? 'रद्द करें' : 'Cancel'}
               </button>
             ) : (
               <button
@@ -1196,7 +1222,7 @@ export const UploadPage: React.FC = () => {
                 className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-full cursor-pointer transition-all text-xs disabled:opacity-50 flex items-center gap-1.5"
               >
                 <ChevronRight className="w-3.5 h-3.5 rotate-180" />
-                <span>Back</span>
+                <span>{isHindi ? 'वापस' : 'Back'}</span>
               </button>
             )}
 
@@ -1208,18 +1234,18 @@ export const UploadPage: React.FC = () => {
                   disabled={currentStep === 1 && !selectedVideoFile && !videoUrl}
                   onClick={() => {
                     if (currentStep === 1 && !selectedVideoFile && !videoUrl) {
-                      addToast('Please select a video file first.', 'error');
+                      addToast(isHindi ? 'कृपया पहले एक वीडियो फ़ाइल चुनें।' : 'Please select a video file first.', 'error');
                       return;
                     }
                     if (currentStep === 2 && !title.trim()) {
-                      addToast('Please enter a video title.', 'error');
+                      addToast(isHindi ? 'कृपया वीडियो का शीर्षक दर्ज करें।' : 'Please enter a video title.', 'error');
                       return;
                     }
                     setCurrentStep((prev) => (prev + 1) as any);
                   }}
                   className="px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-xs rounded-full shadow-md shadow-blue-600/20 flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50 active:scale-95"
                 >
-                  <span>Next Step</span>
+                  <span>{isHindi ? 'अगला चरण' : 'Next Step'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               ) : (
@@ -1231,12 +1257,12 @@ export const UploadPage: React.FC = () => {
                   {isPublishing ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Publishing Video...</span>
+                      <span>{isHindi ? 'वीडियो प्रकाशित हो रहा है...' : 'Publishing Video...'}</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      <span>Publish Video (+20 Pts)</span>
+                      <span>{isHindi ? 'वीडियो प्रकाशित करें (+20 पॉइंट्स)' : 'Publish Video (+20 Pts)'}</span>
                     </>
                   )}
                 </button>
