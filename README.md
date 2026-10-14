@@ -1,4 +1,4 @@
-# SocialIndia - Indian Video Sharing & Rewards Platform
+# SocialIndia - Indian own Video Sharing  Platform
 
 SocialIndia is India's home-grown premium video-sharing and creator economy platform. Built with React, TypeScript, Vite, Tailwind CSS v4, and Firebase Firestore/Auth/Storage.
 
