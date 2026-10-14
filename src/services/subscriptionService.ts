@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Subscription, User } from '../types';
+import { userService } from './userService';
 
 const memorySubSet = new Map<string, Set<string>>(); // subscriberId -> Set of creatorIds
 
@@ -97,6 +98,13 @@ export const subscriptionService = {
             await updateDoc(doc(db, 'users', creatorId), {
               followersCount: increment(-1)
             });
+            const cProfile = userService.getCachedUserProfile(creatorId);
+            if (cProfile) {
+              userService.cacheUserProfile({
+                ...cProfile,
+                followersCount: Math.max(0, (cProfile.followersCount || 1) - 1)
+              });
+            }
           } catch {}
         }
         return false;
@@ -123,6 +131,13 @@ export const subscriptionService = {
             await updateDoc(doc(db, 'users', creatorId), {
               followersCount: increment(1)
             });
+            const cProfile = userService.getCachedUserProfile(creatorId);
+            if (cProfile) {
+              userService.cacheUserProfile({
+                ...cProfile,
+                followersCount: (cProfile.followersCount || 0) + 1
+              });
+            }
           } catch {}
         }
         return true;

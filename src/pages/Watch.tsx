@@ -289,7 +289,7 @@ export const Watch: React.FC = () => {
             }).catch(console.error);
         }
 
-        userService.getUserProfile(vid.creatorId).then(crProfile => {
+        userService.getUserProfile(vid.creatorId, true).then(crProfile => {
           if (isMounted && crProfile) {
             setCreator(crProfile);
             
@@ -431,7 +431,7 @@ export const Watch: React.FC = () => {
       if (previouslyLiked) {
         await likeService.unlikeVideo(video.videoId, currentUser.uid);
       } else {
-        await likeService.likeVideo(video.videoId, currentUser.uid);
+        await likeService.likeVideo(video.videoId, currentUser.uid, video);
         // Award 5 points for liking video quietly in background
         userService.awardPoints(currentUser.uid, 5).catch(console.error);
 

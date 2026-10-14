@@ -506,8 +506,8 @@ export const Shorts: React.FC = () => {
     setShowComments(false);
     setCreator(null);
     
-    // Fetch latest creator profile for up-to-date avatar
-    userService.getUserProfile(activeShort.creatorId).then(crProfile => {
+    // Fetch latest creator profile for up-to-date avatar & subscriber count
+    userService.getUserProfile(activeShort.creatorId, true).then(crProfile => {
       if (crProfile) {
         setCreator(crProfile);
         
@@ -754,7 +754,7 @@ export const Shorts: React.FC = () => {
       } else {
         setIsLiked(true);
         setLikesCount(prev => prev + 1);
-        await likeService.likeVideo(activeShort.videoId, currentUser.uid);
+        await likeService.likeVideo(activeShort.videoId, currentUser.uid, activeShort);
         userService.awardPoints(currentUser.uid, 5).catch(console.error);
       }
     } catch (err) {

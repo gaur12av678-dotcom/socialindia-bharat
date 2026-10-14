@@ -194,7 +194,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshProfile = useCallback(async () => {
     const uid = authService.getCurrentUserUid();
     if (uid) {
-      let profile = await userService.getUserProfile(uid);
+      let profile = await userService.getUserProfile(uid, true);
       if (profile) {
         setCurrentUserProfile(profile);
         try {
@@ -253,9 +253,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setLoading(true);
       setCurrentUser(user);
       if (user) {
-        // Fetch or recover public profile
+        // Fetch fresh public profile from Firestore
         try {
-          let profile = await userService.getUserProfile(user.uid);
+          let profile = await userService.getUserProfile(user.uid, true);
           if (!profile) {
             profile = await userService.recoverOrCreateProfile(user);
           }

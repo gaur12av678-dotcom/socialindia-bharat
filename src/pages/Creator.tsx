@@ -116,11 +116,16 @@ export const CreatorProfile: React.FC = () => {
       try {
         let uProfile: User | null = null;
         if (currentUserProfile && (currentUserProfile.username.toLowerCase() === targetUsername || currentUserProfile.uid === rawParam)) {
-          uProfile = currentUserProfile;
+          uProfile = await userService.getUserProfile(currentUserProfile.uid, true);
+          if (uProfile) {
+            updateUserProfileState(uProfile);
+          } else {
+            uProfile = currentUserProfile;
+          }
         } else {
-          uProfile = await userService.getUserByUsername(targetUsername);
+          uProfile = await userService.getUserByUsername(targetUsername, true);
           if (!uProfile && rawParam) {
-            uProfile = await userService.getUserProfile(rawParam);
+            uProfile = await userService.getUserProfile(rawParam, true);
           }
         }
 

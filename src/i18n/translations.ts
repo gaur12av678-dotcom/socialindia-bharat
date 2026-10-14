@@ -23,6 +23,7 @@ export interface Translations {
   nav_chat: string;
   nav_library: string;
   nav_playlists: string;
+  nav_liked_videos: string;
 
   // Header & Search
   search_placeholder: string;
@@ -338,6 +339,7 @@ export const translations: Record<LanguageCode, Translations> = {
     nav_chat: 'Messages',
     nav_library: 'Library',
     nav_playlists: 'Playlists',
+    nav_liked_videos: 'Liked Videos',
 
     // Header & Search
     search_placeholder: 'Search videos, creators, or topics...',
@@ -652,6 +654,7 @@ export const translations: Record<LanguageCode, Translations> = {
     nav_chat: 'मैसेज',
     nav_library: 'लाइब्रेरी',
     nav_playlists: 'प्लेलिस्ट',
+    nav_liked_videos: 'पसंद किए गए वीडियो',
 
     // Header & Search (खोज और हेडर)
     search_placeholder: 'वीडियो, क्रिएटर या विषय खोजें...',

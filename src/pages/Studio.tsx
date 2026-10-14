@@ -901,7 +901,7 @@ export const CreatorStudio: React.FC = () => {
                     <div>
                       <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Subscribers</span>
                       <p className="text-2xl font-black text-slate-900 dark:text-white leading-tight mt-0.5">
-                        {stats.followers || 3}
+                        {stats.followers || 0}
                       </p>
                       <span className="text-[11px] text-slate-400 block mt-0.5 font-medium">Total subscribers</span>
                     </div>

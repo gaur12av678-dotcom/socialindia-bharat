@@ -13,6 +13,7 @@ import { Trending } from './pages/Trending';
 import { Subscriptions } from './pages/Subscriptions';
 import { WatchHistory } from './pages/History';
 import { SavedVideos } from './pages/Saved';
+import { LikedVideos } from './pages/Liked';
 import { PlaylistsPage } from './pages/Playlists';
 import { CreatorProfile } from './pages/Creator';
 import { CreatorStudio } from './pages/Studio';
@@ -162,6 +163,9 @@ function MainAppContent() {
         return <WatchHistory />;
       case 'saved':
         return <SavedVideos />;
+      case 'liked':
+      case 'liked-videos':
+        return <LikedVideos />;
       case 'playlists':
       case 'playlist':
         return <PlaylistsPage />;

@@ -8,17 +8,33 @@ const userProfileMemoryCache = new Map<string, { data: User; timestamp: number }
 const usernameToUidMap = new Map<string, string>();
 const USER_CACHE_TTL_MS = 60000; // 60 seconds TTL with stale-while-revalidate
 
-function saveToLocalUserCache(user: User) {
+function saveToLocalUserCache(user: Partial<User> & { uid: string }) {
   if (!user || !user.uid) return;
-  userProfileMemoryCache.set(user.uid, { data: user, timestamp: Date.now() });
-  if (user.username) {
-    usernameToUidMap.set(user.username.trim().toLowerCase(), user.uid);
+  const existing = userProfileMemoryCache.get(user.uid)?.data || getFromLocalUserCache(user.uid);
+  const merged: User = existing ? {
+    ...existing,
+    ...user,
+    // Preserve existing real subscriber count if incoming partial has 0 or undefined
+    followersCount: typeof user.followersCount === 'number' && user.followersCount > 0
+      ? user.followersCount
+      : (existing.followersCount ?? (typeof user.followersCount === 'number' ? user.followersCount : 0)),
+    followingCount: typeof user.followingCount === 'number' && user.followingCount > 0
+      ? user.followingCount
+      : (existing.followingCount ?? (typeof user.followingCount === 'number' ? user.followingCount : 0)),
+    videosCount: typeof user.videosCount === 'number' && user.videosCount > 0
+      ? user.videosCount
+      : (existing.videosCount ?? (typeof user.videosCount === 'number' ? user.videosCount : 0)),
+  } : (user as User);
+
+  userProfileMemoryCache.set(user.uid, { data: merged, timestamp: Date.now() });
+  if (merged.username) {
+    usernameToUidMap.set(merged.username.trim().toLowerCase(), user.uid);
   }
   try {
     if (typeof window !== 'undefined' && window.sessionStorage) {
-      sessionStorage.setItem(`si_u_${user.uid}`, JSON.stringify(user));
-      if (user.username) {
-        sessionStorage.setItem(`si_un_${user.username.trim().toLowerCase()}`, user.uid);
+      sessionStorage.setItem(`si_u_${user.uid}`, JSON.stringify(merged));
+      if (merged.username) {
+        sessionStorage.setItem(`si_un_${merged.username.trim().toLowerCase()}`, user.uid);
       }
     }
   } catch (_) {}
@@ -51,7 +67,7 @@ function getFromLocalUsernameCache(username: string): User | null {
 
 export const userService = {
   // Expose cache manually for prefetching from video/comment payloads
-  cacheUserProfile(user: User) {
+  cacheUserProfile(user: Partial<User> & { uid: string }) {
     saveToLocalUserCache(user);
   },
 
@@ -81,77 +97,63 @@ export const userService = {
     }
   },
 
-  // Get user profile by UID (Fast Stale-While-Revalidate Cache)
-  async getUserProfile(uid: string): Promise<User | null> {
+  // Get user profile by UID (Fast cache + real Firestore fetch to prevent 0 subscribers bug)
+  async getUserProfile(uid: string, forceFresh: boolean = false): Promise<User | null> {
     if (!uid) return null;
     const cached = userProfileMemoryCache.get(uid);
     const now = Date.now();
 
-    // If fresh in memory cache, return immediately (0ms)
-    if (cached && now - cached.timestamp < USER_CACHE_TTL_MS) {
+    // If fresh in memory cache, has positive subscribers, and not forced, return immediately
+    if (!forceFresh && cached && now - cached.timestamp < USER_CACHE_TTL_MS && (cached.data.followersCount !== undefined && cached.data.followersCount > 0)) {
       return cached.data;
     }
 
-    // If present in local storage, return it and revalidate asynchronously in background!
-    const localCached = getFromLocalUserCache(uid);
-
-    const fetchPromise = (async () => {
+    try {
       const docRef = doc(db, 'users', uid);
-      try {
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const freshData = snap.data() as User;
-          saveToLocalUserCache(freshData);
-          return freshData;
-        }
-        return null;
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `users/${uid}`);
-        return null;
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const freshData = snap.data() as User;
+        saveToLocalUserCache(freshData);
+        return freshData;
       }
-    })();
-
-    if (localCached) {
-      // Revalidate in background without blocking caller!
-      fetchPromise.catch(console.warn);
-      return localCached;
+      return null;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, `users/${uid}`);
+      return getFromLocalUserCache(uid);
     }
-
-    return fetchPromise;
   },
 
-  // Get user profile by username (Fast Stale-While-Revalidate Cache)
-  async getUserByUsername(username: string): Promise<User | null> {
+  // Get user profile by username (Fast cache + real Firestore fetch)
+  async getUserByUsername(username: string, forceFresh: boolean = false): Promise<User | null> {
     if (!username) return null;
     const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
     const cached = getFromLocalUsernameCache(cleanUsername);
+    const now = Date.now();
 
-    const fetchPromise = (async () => {
+    if (!forceFresh && cached) {
+      const mem = userProfileMemoryCache.get(cached.uid);
+      if (mem && now - mem.timestamp < USER_CACHE_TTL_MS && (cached.followersCount !== undefined && cached.followersCount > 0)) {
+        return cached;
+      }
+    }
+
+    try {
       const q = query(
         collection(db, 'users'),
         where('username', '==', cleanUsername),
         limit(1)
       );
-      try {
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const freshData = snap.docs[0].data() as User;
-          saveToLocalUserCache(freshData);
-          return freshData;
-        }
-        return null;
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, 'users');
-        return null;
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const freshData = snap.docs[0].data() as User;
+        saveToLocalUserCache(freshData);
+        return freshData;
       }
-    })();
-
-    if (cached) {
-      fetchPromise.catch(console.warn);
+      return null;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, 'users');
       return cached;
     }
-
-    return fetchPromise;
   },
 
   // Get user profile by email

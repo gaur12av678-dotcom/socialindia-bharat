@@ -53,7 +53,8 @@ import {
   Tv,
   ListVideo,
   MessageCircle,
-  Globe
+  Globe,
+  ThumbsUp
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
@@ -920,6 +921,19 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               >
                 <ListVideo className={`w-5 h-5 shrink-0 ${route.path === 'playlists' || route.path === 'playlist' || route.path === 'saved' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
                 <span className="truncate">{t('nav_playlists', 'Playlists')}</span>
+              </button>
+
+              {/* Liked Videos */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('liked'))}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                  route.path === 'liked' || route.path === 'liked-videos'
+                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
+                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                }`}
+              >
+                <ThumbsUp className={`w-5 h-5 shrink-0 ${route.path === 'liked' || route.path === 'liked-videos' ? 'text-[#065fd4] dark:text-[#60a5fa] fill-[#065fd4]/20' : 'text-slate-600 dark:text-slate-400'}`} />
+                <span className="truncate">{t('nav_liked_videos', isHindi ? 'पसंद किए गए वीडियो' : 'Liked Videos')}</span>
               </button>
 
               {/* Downloaded / Downloads */}

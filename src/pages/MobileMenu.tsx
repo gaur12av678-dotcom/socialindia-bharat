@@ -22,7 +22,8 @@ import {
   ListVideo,
   ArrowDownToLine,
   Sun,
-  Moon
+  Moon,
+  ThumbsUp
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
@@ -154,6 +155,26 @@ export const MobileMenu: React.FC = () => {
                   </p>
                   <p className="text-[10px] text-slate-500">
                     {isHindi ? 'ऑफ़लाइन प्लेबैक संग्रह' : 'Offline playback library'}
+                  </p>
+                </div>
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-400" />
+            </button>
+
+            <button
+              onClick={() => navigate('liked')}
+              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-xl">
+                  <ThumbsUp className="w-4 h-4 fill-current" />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                    {t('nav_liked_videos', isHindi ? 'पसंद किए गए वीडियो' : 'Liked Videos')}
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    {isHindi ? 'आपके द्वारा लाइक किए गए वीडियो' : 'Videos you have liked'}
                   </p>
                 </div>
               </div>

@@ -65,6 +65,11 @@ match /adminSettings/{docId} {
         allow read, write, delete: if isOwner(uid);
       }
 
+      // User liked videos subcollection
+      match /likedVideos/{videoId} {
+        allow read, write, delete: if isOwner(uid);
+      }
+
       // User watch history subcollection
       match /history/{videoId} {
         allow read, write, delete: if isOwner(uid);
