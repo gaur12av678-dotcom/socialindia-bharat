@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SocialIndia</string>
+    <string name="error_title">Connection Error</string>
+    <string name="error_desc">Unable to connect to SocialIndia. Please check your internet connection.</string>
+    <string name="retry">Try Again</string>
+    <string name="exit_prompt">Press back again to exit</string>
+</resources>

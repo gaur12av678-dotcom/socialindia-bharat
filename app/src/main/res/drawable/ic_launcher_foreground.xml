@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.65"
+        android:scaleY="0.65"
+        android:translateX="18.9"
+        android:translateY="18.9">
+        <!-- Rounded White Card Background -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M24,14h60c8.8,0 16,7.2 16,16v48c0,8.8 -7.2,16 -16,16h-60c-8.8,0 -16,-7.2 -16,-16v-48c0,-8.8 7.2,-16 16,-16z" />
+        <!-- Top Saffron Wave -->
+        <path
+            android:fillColor="#FF9933"
+            android:pathData="M16,30c0,-4.4 3.6,-8 8,-8h60c4.4,0 8,3.6 8,8v12c-15,-6 -35,-8 -76,2z" />
+        <!-- Bottom Green Wave -->
+        <path
+            android:fillColor="#138808"
+            android:pathData="M16,66c18,-6 40,-4 76,4v8c0,4.4 -3.6,8 -8,8h-60c-4.4,0 -8,-3.6 -8,-8z" />
+        <!-- Blue Play Triangle -->
+        <path
+            android:fillColor="#065FD4"
+            android:pathData="M46,40 L68,54 L46,68 Z" />
+    </group>
+</vector>

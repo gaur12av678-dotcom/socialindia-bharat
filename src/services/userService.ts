@@ -1,6 +1,6 @@
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, limit, increment } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, limit, increment } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { User, PrivateUserInfo } from '../types';
+import { User, PrivateUserInfo, Subscription } from '../types';
 import { compressAvatar, compressBanner } from '../utils/imageUtils';
 
 // Ultra-fast in-memory and session caches for YouTube-like instant profile & subscriber rendering
@@ -430,62 +430,75 @@ export const userService = {
     return created || (newProfile as User);
   },
 
-  // Ensure the main official Social India channel account exists
-  async ensureSocialIndiaAccount(): Promise<string> {
-    const docRef = doc(db, 'users', 'socialindia');
+  // Find the official SocialIndia channel account
+  async getOfficialSocialIndiaAccount(): Promise<User | null> {
     try {
-      const snap = await getDoc(docRef);
-      if (!snap.exists()) {
-        const now = new Date().toISOString();
-        const socialIndiaUser: User = {
-          uid: 'socialindia',
-          username: 'socialindia',
-          email: 'official@socialindia.us.ci',
-          emailVerified: true,
-          displayName: 'Social India',
-          bio: 'Official SocialIndia Channel - Connect, Share, and Discover with India\'s Own Video Platform.',
-          photoURL: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&auto=format&fit=crop&q=80',
-          bannerURL: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&auto=format&fit=crop&q=80',
-          followersCount: 0,
-          followingCount: 0,
-          videosCount: 0,
-          role: 'admin',
-          status: 'active',
-          createdAt: now,
-          updatedAt: now,
-        };
-        await setDoc(docRef, socialIndiaUser);
+      const q = query(
+        collection(db, 'users'),
+        where('username', '==', 'socialindia'),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const u = snap.docs[0].data() as User;
+        saveToLocalUserCache(u);
+        return u;
       }
-      return 'socialindia';
+      const directDoc = await getDoc(doc(db, 'users', 'RTUVtjrw5sPWaiq10OIMiloF8HQ2'));
+      if (directDoc.exists()) {
+        const u = directDoc.data() as User;
+        saveToLocalUserCache(u);
+        return u;
+      }
+      return null;
     } catch (err) {
-      console.error('Ensure SocialIndia account error:', err);
-      return 'socialindia';
+      console.warn('Error fetching official SocialIndia account:', err);
+      return null;
     }
+  },
+
+  // Backward compatibility alias
+  async ensureSocialIndiaAccount(): Promise<string> {
+    const acc = await this.getOfficialSocialIndiaAccount();
+    return acc?.uid || 'RTUVtjrw5sPWaiq10OIMiloF8HQ2';
   },
 
   // Ensure every user account has SocialIndia subscribed by default unless explicitly unsubscribed
   async ensureDefaultSubscription(userId: string): Promise<void> {
-    if (!userId || userId === 'socialindia') return;
+    if (!userId) return;
     try {
+      const officialUser = await this.getOfficialSocialIndiaAccount();
+      const officialUid = officialUser?.uid || 'RTUVtjrw5sPWaiq10OIMiloF8HQ2';
+
+      if (userId === officialUid || userId === 'socialindia') return;
+
       const privateInfo = await this.getPrivateInfo(userId);
       if (privateInfo && privateInfo.socialIndiaDefaultSubbed) {
+        // User has already had default subscription initialized.
+        // If they chose to unsubscribe later, respect their decision!
         return;
       }
 
-      const socialIndiaId = await this.ensureSocialIndiaAccount();
-      if (userId === socialIndiaId) return;
+      // 1. Clean up any stale dummy subscription using 'socialindia' as doc ID
+      try {
+        const dummyRef = doc(db, 'users', userId, 'subscriptions', 'socialindia');
+        const dummySnap = await getDoc(dummyRef);
+        if (dummySnap.exists()) {
+          await deleteDoc(dummyRef);
+        }
+      } catch (_) {}
 
-      const subRef = doc(db, 'users', userId, 'subscriptions', socialIndiaId);
+      // 2. Ensure official subscription using the real account UID
+      const subRef = doc(db, 'users', userId, 'subscriptions', officialUid);
       const subSnap = await getDoc(subRef);
 
       if (!subSnap.exists()) {
-        const socialIndiaUser = await this.getUserProfile(socialIndiaId);
-        const subData = {
+        const subData: Subscription = {
           subscriberId: userId,
-          creatorId: socialIndiaId,
-          creatorUsername: socialIndiaUser?.username || 'socialindia',
-          creatorDisplayName: socialIndiaUser?.displayName || 'Social India',
-          creatorPhotoURL: socialIndiaUser?.photoURL || '',
+          creatorId: officialUid,
+          creatorUsername: officialUser?.username || 'socialindia',
+          creatorDisplayName: officialUser?.displayName || 'SocialIndia',
+          creatorPhotoURL: officialUser?.photoURL || '',
           createdAt: new Date().toISOString(),
         };
         await setDoc(subRef, subData);
@@ -496,7 +509,7 @@ export const userService = {
           });
         } catch {}
         try {
-          await updateDoc(doc(db, 'users', socialIndiaId), {
+          await updateDoc(doc(db, 'users', officialUid), {
             followersCount: increment(1)
           });
         } catch {}

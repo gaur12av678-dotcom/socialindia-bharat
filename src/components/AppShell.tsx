@@ -844,245 +844,288 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         
         {/* SIDEBAR (Desktop) */}
         <aside 
-          className={`hidden md:block shrink-0 bg-white dark:bg-[#111827] border-r border-slate-200 dark:border-[#334155] transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-60' : 'w-0 overflow-hidden border-r-0'}`}
+          className={`hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-60' : 'w-0 overflow-hidden border-r-0'}`}
         >
-          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto p-3 space-y-4 scrollbar-none">
+          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto px-3 py-3.5 space-y-4.5 scrollbar-none">
             
-            {/* 1. Main Navigation Items */}
+            {/* 1. Feeds & Discover Section */}
             <div className="space-y-1">
+              <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
+                {isHindi ? 'फीड व डिस्कवरी' : 'FEED & DISCOVER'}
+              </span>
+
+              {/* Home */}
               <button
                 onClick={() => navigate('home')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
                   route.path === 'home' && !route.searchParams?.category
-                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
-                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <Home className={`w-5 h-5 shrink-0 ${route.path === 'home' && !route.searchParams?.category ? 'text-[#065fd4] dark:text-[#60a5fa] fill-[#065fd4]/20' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">{t('nav_home', 'Home')}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Home className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'home' && !route.searchParams?.category ? 'text-[#2563eb] dark:text-blue-400 fill-[#2563eb]/20' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span className="truncate">{t('nav_home', 'Home')}</span>
+                </div>
               </button>
 
+              {/* Shorts */}
               <button
                 onClick={() => navigate('shorts')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
                   route.path === 'shorts'
-                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
-                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <Zap className={`w-5 h-5 shrink-0 ${route.path === 'shorts' ? 'text-[#065fd4] dark:text-[#60a5fa] fill-current' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">{t('nav_shorts', 'Shorts')}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Zap className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'text-amber-500 fill-amber-500' : 'text-amber-500/80'}`} />
+                  <span className="truncate">{t('nav_shorts', 'Shorts')}</span>
+                </div>
+                <span className="text-[9px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  Reels
+                </span>
               </button>
 
+              {/* Trending */}
               <button
                 onClick={() => navigate('trending')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
                   route.path === 'trending'
-                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
-                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <Flame className={`w-5 h-5 shrink-0 ${route.path === 'trending' ? 'text-red-500 fill-red-500' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">{t('nav_trending', 'Trending')}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Flame className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'trending' ? 'text-rose-500 fill-rose-500' : 'text-rose-500/80'}`} />
+                  <span className="truncate">{t('nav_trending', 'Trending')}</span>
+                </div>
               </button>
 
+              {/* Subscriptions */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('subscriptions'))}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
                   route.path === 'subscriptions'
-                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
-                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <Tv className={`w-5 h-5 shrink-0 ${route.path === 'subscriptions' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">{t('nav_subscriptions', 'Subscriptions')}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Tv className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'subscriptions' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span className="truncate">{t('nav_subscriptions', 'Subscriptions')}</span>
+                </div>
               </button>
+            </div>
 
+            <div className="h-px bg-slate-200/70 dark:bg-slate-800/70" />
+
+            {/* 2. My Space / Personal Library Tools */}
+            <div className="space-y-1">
+              <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
+                {isHindi ? 'मेरी लाइब्रेरी' : 'MY SPACE'}
+              </span>
+
+              {/* History */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('history'))}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
                   route.path === 'history'
-                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
-                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <Clock className={`w-5 h-5 shrink-0 ${route.path === 'history' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">{t('nav_history', 'Library / History')}</span>
-              </button>
-
-              {/* Playlists / Playlist */}
-              <button
-                onClick={() => triggerProtectedAction(() => navigate('playlists'))}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
-                  route.path === 'playlists' || route.path === 'playlist' || route.path === 'saved'
-                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
-                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
-                }`}
-              >
-                <ListVideo className={`w-5 h-5 shrink-0 ${route.path === 'playlists' || route.path === 'playlist' || route.path === 'saved' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">{t('nav_playlists', 'Playlists')}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <Clock className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'history' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span className="truncate">{t('nav_history', 'Watch History')}</span>
+                </div>
               </button>
 
               {/* Liked Videos */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('liked'))}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
                   route.path === 'liked' || route.path === 'liked-videos'
-                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
-                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <ThumbsUp className={`w-5 h-5 shrink-0 ${route.path === 'liked' || route.path === 'liked-videos' ? 'text-[#065fd4] dark:text-[#60a5fa] fill-[#065fd4]/20' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">{t('nav_liked_videos', isHindi ? 'पसंद किए गए वीडियो' : 'Liked Videos')}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <ThumbsUp className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'liked' || route.path === 'liked-videos' ? 'text-blue-600 dark:text-blue-400 fill-current' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span className="truncate">{t('nav_liked_videos', isHindi ? 'पसंद किए गए' : 'Liked Videos')}</span>
+                </div>
               </button>
 
-              {/* Downloaded / Downloads */}
+              {/* Playlists */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('playlists'))}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'playlists' || route.path === 'playlist'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <ListVideo className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'playlists' || route.path === 'playlist' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span className="truncate">{t('nav_playlists', 'Playlists')}</span>
+                </div>
+              </button>
+
+              {/* Saved / Watch Later */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('saved'))}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'saved'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Bookmark className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'saved' ? 'text-amber-500 fill-amber-500' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span className="truncate">{isHindi ? 'सहेजे गए वीडियो' : 'Watch Later'}</span>
+                </div>
+              </button>
+
+              {/* Offline Downloads */}
               <button
                 onClick={() => navigate('downloads')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
                   route.path === 'downloads'
-                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
-                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <ArrowDownToLine className={`w-5 h-5 shrink-0 ${route.path === 'downloads' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">{t('nav_downloads', 'Downloaded')}</span>
-              </button>
-
-              {/* Chat (Direct Messages & Conversations) */}
-              <button
-                onClick={() => triggerProtectedAction(() => navigate('chat'))}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all cursor-pointer ${
-                  route.path === 'chat'
-                    ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold shadow-xs' 
-                    : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-200 font-medium'
-                }`}
-              >
-                <MessageCircle className={`w-5 h-5 shrink-0 ${route.path === 'chat' ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-600 dark:text-slate-400'}`} />
-                <span className="truncate">{t('nav_chat', 'Chat')}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <ArrowDownToLine className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'downloads' ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span className="truncate">{t('nav_downloads', 'Downloads')}</span>
+                </div>
               </button>
             </div>
 
-            <div className="h-px bg-slate-100 dark:bg-slate-800" />
+            <div className="h-px bg-slate-200/70 dark:bg-slate-800/70" />
 
-            {/* 2. Explore Section */}
+            {/* 3. Creator & Community Tools Section */}
             <div className="space-y-1">
-              <span className="px-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">
-                {t('explore_title', 'Explore')}
+              <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
+                {isHindi ? 'क्रिएटर टूल्स' : 'CREATOR TOOLS'}
               </span>
 
-              {[
-                { label: t('explore_music', 'Music'), icon: Music, cat: 'Music' },
-                { label: t('explore_gaming', 'Gaming'), icon: Gamepad2, cat: 'Gaming' },
-                { label: t('explore_tech', 'Technology'), icon: Cpu, cat: 'Technology' },
-                { label: t('explore_education', 'Education'), icon: GraduationCap, cat: 'Education' },
-                { label: t('explore_news', 'News'), icon: Newspaper, cat: 'News' },
-                { label: t('explore_sports', 'Sports & Cricket'), icon: Trophy, cat: 'Sports' },
-                { label: t('explore_entertainment', 'Entertainment'), icon: Film, cat: 'Entertainment' },
-              ].map((item) => {
-                const Icon = item.icon;
-                const isCatActive = route.path === 'home' && route.searchParams?.category === item.cat;
-                return (
-                  <button
-                    key={item.cat}
-                    onClick={() => navigate('home', undefined, { category: item.cat })}
-                    className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                      isCatActive
-                        ? 'bg-[#eff6ff] dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa] font-bold'
-                        : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <Icon className={`w-4 h-4 shrink-0 ${isCatActive ? 'text-[#065fd4] dark:text-[#60a5fa]' : 'text-slate-500 dark:text-slate-400'}`} />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                );
-              })}
-
+              {/* Creator Studio */}
               <button
-                onClick={() => navigate('home')}
-                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-[#272727] text-slate-700 dark:text-slate-300 transition-all cursor-pointer"
+                onClick={() => triggerProtectedAction(() => navigate('studio'))}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'studio'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
               >
-                <div className="flex items-center gap-3">
-                  <MoreHorizontal className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
-                  <span>{t('explore_more', 'More')}</span>
+                <div className="flex items-center gap-3 min-w-0">
+                  <LayoutDashboard className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'studio' ? 'text-[#2563eb]' : 'text-blue-500'}`} />
+                  <span className="truncate">{t('menu_creator_studio', 'Creator Studio')}</span>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              </button>
+
+              {/* Upload Video Tool */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('upload'))}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'upload'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Upload className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'upload' ? 'text-indigo-600' : 'text-indigo-500'}`} />
+                  <span className="truncate">{isHindi ? 'वीडियो अपलोड करें' : 'Upload Video'}</span>
+                </div>
+              </button>
+
+              {/* Messages / Direct Chat */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('chat'))}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'chat'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <MessageCircle className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'chat' ? 'text-emerald-500' : 'text-emerald-500'}`} />
+                  <span className="truncate">{t('nav_chat', 'Messages & Chat')}</span>
+                </div>
+              </button>
+
+              {/* Advertising Hub */}
+              <button
+                onClick={() => navigate('advertising')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'advertising' || route.path === 'ad-info'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Megaphone className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'advertising' ? 'text-amber-500' : 'text-amber-500'}`} />
+                  <span className="truncate">{isHindi ? 'विज्ञापन केंद्र' : 'Advertise'}</span>
+                </div>
+              </button>
+
+              {/* Super Admin (If authorized) */}
+              {currentUserProfile?.role === 'admin' && (
+                <button
+                  onClick={() => navigate('admin')}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer group ${
+                    route.path === 'admin' 
+                      ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-l-[3px] border-red-600 rounded-l-xs shadow-xs' 
+                      : 'text-red-600 dark:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-950/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <ShieldCheck className="w-4 h-4 shrink-0 text-red-500" />
+                    <span className="truncate">{t('nav_admin', 'Admin Hub')}</span>
+                  </div>
+                </button>
+              )}
+            </div>
+
+            {/* 4. Creator Callout Action Tile */}
+            <div className="p-3 bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-transparent border border-blue-500/20 dark:border-blue-500/30 rounded-2xl">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                  <Sparkles className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-black text-slate-900 dark:text-white truncate">
+                    {isHindi ? 'सोशलइंडिया क्रिएटर' : 'SocialIndia Creator'}
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {isHindi ? 'चैनल बढ़ाएं व कमाएं' : 'Publish & Monetize'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('upload'))}
+                className="mt-2.5 w-full py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-[11px] font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-98 flex items-center justify-center gap-1.5"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>{isHindi ? 'नया वीडियो अपलोड' : 'Upload Video'}</span>
               </button>
             </div>
 
-            <div className="h-px bg-slate-100 dark:bg-slate-800" />
-
-            {/* 3. Creator / Platform Admin Hub */}
-            {currentUserProfile?.role === 'admin' && (
-              <div className="space-y-1">
-                <button
-                  onClick={() => navigate('admin')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    route.path === 'admin' 
-                      ? 'bg-blue-50 dark:bg-blue-950/50 text-[#065fd4] dark:text-[#60a5fa]' 
-                      : 'hover:bg-slate-100 dark:hover:bg-[#272727] text-[#065fd4] dark:text-[#60a5fa]'
-                  }`}
-                >
-                  <ShieldCheck className="w-4 h-4 shrink-0 text-[#065fd4] dark:text-[#60a5fa]" />
-                  <span className="truncate">{t('nav_admin', 'Admin Hub')}</span>
-                </button>
-                <div className="h-px bg-slate-100 dark:bg-slate-800" />
+            {/* 5. Minimalist Platform Footer */}
+            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 px-2 space-y-1.5 select-none">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                <button onClick={() => navigate('about')} className="hover:text-blue-600 hover:underline cursor-pointer">{t('footer_about', 'About')}</button>
+                <span>·</span>
+                <button onClick={() => navigate('help')} className="hover:text-blue-600 hover:underline cursor-pointer">{isHindi ? 'सहायता' : 'Help'}</button>
+                <span>·</span>
+                <button onClick={() => navigate('privacy')} className="hover:text-blue-600 hover:underline cursor-pointer">{t('footer_privacy', 'Privacy')}</button>
+                <span>·</span>
+                <button onClick={() => navigate('terms')} className="hover:text-blue-600 hover:underline cursor-pointer">{t('footer_terms', 'Terms')}</button>
               </div>
-            )}
-
-            {/* 4. Subscriptions Mini List (if following creators) */}
-            {followedCreators.length > 0 && (
-              <div className="space-y-1">
-                <span className="px-3.5 text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">
-                  {t('nav_subscriptions', 'Subscriptions')}
-                </span>
-                {followedCreators.slice(0, 4).map((sub) => (
-                  <button
-                    key={sub.creatorId}
-                    onClick={() => navigate('creator', sub.creatorUsername)}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl text-xs font-medium hover:bg-slate-100 dark:hover:bg-[#272727] transition-all cursor-pointer text-left"
-                  >
-                    <div className="w-5 h-5 rounded-full bg-blue-600 shrink-0 overflow-hidden">
-                      {sub.creatorPhotoURL ? (
-                        <img src={sub.creatorPhotoURL} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-white font-black text-[9px]">{sub.creatorDisplayName[0]}</div>
-                      )}
-                    </div>
-                    <span className="truncate text-slate-700 dark:text-slate-300">{sub.creatorDisplayName}</span>
-                  </button>
-                ))}
-                <div className="h-px bg-slate-100 dark:bg-slate-800" />
-              </div>
-            )}
-
-            {/* 5. Bottom Callout Card: Create. Share. Grow. */}
-            <div 
-              onClick={() => triggerProtectedAction(() => navigate('upload'))}
-              className="p-3.5 bg-gradient-to-br from-blue-50/90 to-indigo-50/70 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-100/80 dark:border-blue-900/40 rounded-2xl space-y-1 shadow-xs cursor-pointer hover:border-blue-300 dark:hover:border-blue-800 transition-all active:scale-98 group"
-            >
-              <div className="flex items-center gap-2 text-xs font-extrabold text-[#065fd4] dark:text-[#60a5fa]">
-                <Rocket className="w-4 h-4 text-[#065fd4] dark:text-[#60a5fa] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                <span>{isHindi ? 'बनाएं. शेयर करें. आगे बढ़ें.' : 'Create. Share. Grow.'}</span>
-              </div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium leading-snug">
-                {isHindi ? 'भारत के अगली पीढ़ी के वीडियो प्लेटफ़ॉर्म का हिस्सा बनें।' : "Be part of India's next gen video platform."}
+              <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                SocialIndia · {isHindi ? 'भारत का अपना वीडियो मंच 🇮🇳' : 'Made for Bharat 🇮🇳'}
               </p>
-            </div>
-
-            {/* 6. Elegant 2-Column Policy & Legal Links */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 px-2 space-y-2 select-none">
-              <div className="grid grid-cols-2 gap-y-1.5 gap-x-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                <button onClick={() => navigate('refund')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_refund', 'Refund')}</button>
-                <button onClick={() => navigate('faq')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_faqs', 'FAQs')}</button>
-                <button onClick={() => navigate('terms')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_terms', 'Terms')}</button>
-                <button onClick={() => navigate('privacy')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_privacy', 'Privacy')}</button>
-                <button onClick={() => navigate('about')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_about', 'About us')}</button>
-                <button onClick={() => navigate('contact')} className="text-left hover:text-blue-600 hover:underline cursor-pointer truncate">{t('footer_contact', 'Contact')}</button>
-              </div>
-              <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 font-medium leading-tight">
-                <p>© {new Date().getFullYear()} SocialIndia.</p>
-              </div>
             </div>
           </div>
         </aside>

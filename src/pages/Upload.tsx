@@ -359,8 +359,8 @@ export const UploadPage: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       
-      {/* 1. TOP PREMIUM HERO BANNER (Matches Capture.PNG with Indian Tricolor Wave & Landmark Silhouettes) */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-50/90 via-white to-amber-50/30 dark:from-[#131722] dark:via-[#161b26] dark:to-[#1a1720] border border-blue-100/90 dark:border-slate-800 shadow-sm p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      {/* 1. TOP PREMIUM HERO BANNER (Hidden on mobile per user request) */}
+      <div className="hidden md:flex relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-50/90 via-white to-amber-50/30 dark:from-[#131722] dark:via-[#161b26] dark:to-[#1a1720] border border-blue-100/90 dark:border-slate-800 shadow-sm p-6 sm:p-8 flex-col md:flex-row items-start md:items-center justify-between gap-6">
         
         {/* Left Side: Icon & Titles */}
         <div className="flex items-center gap-4 sm:gap-5 z-10 max-w-xl">
@@ -439,8 +439,8 @@ export const UploadPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. UPLOAD PROGRESS STEPPER (4 Connected Modern Steps) */}
-      <div className="bg-white dark:bg-[#16171a] rounded-2xl p-4 sm:p-5 border border-blue-100/90 dark:border-slate-800 shadow-xs">
+      {/* 2. UPLOAD PROGRESS STEPPER (Hidden on mobile per user request) */}
+      <div className="hidden md:block bg-white dark:bg-[#16171a] rounded-2xl p-4 sm:p-5 border border-blue-100/90 dark:border-slate-800 shadow-xs">
         <div className="flex items-center justify-between gap-2 overflow-x-auto select-none scrollbar-none py-1">
           
           {[
@@ -694,8 +694,8 @@ export const UploadPage: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Pro Tip Bar */}
-                  <div className="mt-6 w-full max-w-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl px-4 py-2.5 flex items-center justify-between gap-2 text-xs">
+                  {/* Pro Tip Bar (Hidden on mobile per user request) */}
+                  <div className="mt-6 w-full max-w-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl px-4 py-2.5 hidden sm:flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
                       <span className="text-amber-500">💡</span>
                       <span><strong>{isHindi ? 'सुझाव:' : 'Pro Tip:'}</strong> {isHindi ? 'अधिक व्यूज पाने के लिए आकर्षक थंबनेल लगाएं!' : 'Use a high-quality thumbnail to get more views!'}</span>
