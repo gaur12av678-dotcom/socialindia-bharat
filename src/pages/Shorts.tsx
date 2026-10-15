@@ -49,6 +49,7 @@ import { paidVideoService } from '../services/paidVideoService';
 import { SoundLibraryModal } from '../components/SoundLibraryModal';
 import { SoundDetailsModal } from '../components/SoundDetailsModal';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
+import { DEFAULT_CURATED_SHORTS } from './Home';
 
 declare global {
   interface Window {
@@ -57,28 +58,41 @@ declare global {
   }
 }
 
-// Inner player for Shorts that autoplays & crops YouTube overlays cleanly, and plays attached sound library tracks
+// Inner player for Shorts that autoplays reliably, handles browser audio autoplay restrictions, and synchronizes playback
 const ShortVideoMedia: React.FC<{ 
   short: Video, 
   isPlaying: boolean, 
   volume: number, 
   isMuted: boolean,
-  onMediaReady: () => void
-}> = ({ short, isPlaying, volume, isMuted, onMediaReady }) => {
+  onMediaReady: () => void,
+  onPlaybackStateChange?: (playing: boolean) => void,
+  onMuteChange?: (muted: boolean) => void
+}> = ({ short, isPlaying, volume, isMuted, onMediaReady, onPlaybackStateChange, onMuteChange }) => {
   const parsedMedia = parseVideoUrl(short.videoUrl);
   const containerId = `yt-short-${short.videoId}`;
   const playerRef = useRef<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const soundAudioRef = useRef<HTMLAudioElement>(null);
 
-  // Resolve valid audio track URL (handles soundId fallback and excludes broken pixabay links)
+  const [isFrameReady, setIsFrameReady] = useState(false);
+
+  // A custom soundtrack is only used when the short explicitly references a non-original sound
+  // or an external audio URL that is distinct from the video file itself.
   const resolvedSoundAudioUrl = useMemo(() => {
+    // If sound is original audio (orig_sound_* or same as videoUrl), the sound is already inside the video!
+    if (!short.soundId || short.soundId.startsWith('orig_sound_')) {
+      return null;
+    }
+    if (short.soundAudioUrl && short.soundAudioUrl === short.videoUrl) {
+      return null;
+    }
+
     let url = short.soundAudioUrl;
     if (url && url.includes('pixabay.com')) {
       const fallback = DEFAULT_SOUNDS.find(s => s.soundId === short.soundId);
       url = fallback ? fallback.audioUrl : undefined;
     }
-    if (!url && short.soundId && !short.soundId.startsWith('orig_sound_')) {
+    if (!url && short.soundId) {
       const fallback = DEFAULT_SOUNDS.find(s => s.soundId === short.soundId);
       if (fallback) url = fallback.audioUrl;
     }
@@ -87,24 +101,43 @@ const ShortVideoMedia: React.FC<{
       return url;
     }
     return null;
-  }, [short.soundAudioUrl, short.soundId]);
+  }, [short.soundAudioUrl, short.soundId, short.videoUrl]);
 
   // Sync volume and mute for direct video
   useEffect(() => {
-    if (videoRef.current) {
-      // If a soundtrack is attached, keep direct video muted so custom soundtrack plays crystal clear
-      videoRef.current.volume = resolvedSoundAudioUrl ? 0 : volume;
-      videoRef.current.muted = resolvedSoundAudioUrl ? true : isMuted;
+    const video = videoRef.current;
+    if (video) {
+      video.volume = volume;
+      video.muted = resolvedSoundAudioUrl ? true : isMuted;
+      video.defaultMuted = resolvedSoundAudioUrl ? true : isMuted;
     }
   }, [volume, isMuted, resolvedSoundAudioUrl]);
 
-  // Sync play/pause for direct video
+  // Sync play/pause for direct video with auto-mute fallback
   useEffect(() => {
-    if (videoRef.current) {
-      if (isPlaying) videoRef.current.play().catch(() => {});
-      else videoRef.current.pause();
+    const video = videoRef.current;
+    if (!video || parsedMedia.type !== 'direct') return;
+
+    if (isPlaying) {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsFrameReady(true);
+          })
+          .catch((err) => {
+            console.warn('Playback with audio restricted by browser policy, falling back to muted playback:', err);
+            video.muted = true;
+            onMuteChange?.(true);
+            video.play()
+              .then(() => setIsFrameReady(true))
+              .catch(e => console.error('Muted playback retry failed:', e));
+          });
+      }
+    } else {
+      video.pause();
     }
-  }, [isPlaying]);
+  }, [isPlaying, short.videoId]);
 
   // Sync volume and mute for attached sound track
   useEffect(() => {
@@ -127,13 +160,13 @@ const ShortVideoMedia: React.FC<{
     }
   }, [isPlaying, isMuted, resolvedSoundAudioUrl]);
 
-  // Sync for YouTube with explicit unMute
+  // Sync for YouTube
   useEffect(() => {
     if (playerRef.current && typeof playerRef.current.setVolume === 'function') {
-      if (resolvedSoundAudioUrl) {
+      if (resolvedSoundAudioUrl || isMuted) {
         try { playerRef.current.mute(); } catch (_) {}
       } else {
-        if (!isMuted && volume > 0) {
+        if (volume > 0) {
           try {
             if (typeof playerRef.current.unMute === 'function') {
               playerRef.current.unMute();
@@ -149,8 +182,11 @@ const ShortVideoMedia: React.FC<{
 
   useEffect(() => {
     if (playerRef.current && typeof playerRef.current.pauseVideo === 'function') {
-      if (isPlaying) playerRef.current.playVideo();
-      else playerRef.current.pauseVideo();
+      if (isPlaying) {
+        try { playerRef.current.playVideo(); } catch (_) {}
+      } else {
+        try { playerRef.current.pauseVideo(); } catch (_) {}
+      }
     }
   }, [isPlaying]);
 
@@ -158,26 +194,21 @@ const ShortVideoMedia: React.FC<{
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        // Tab is active again — resume sound and playback seamlessly
-        if (soundAudioRef.current && isPlaying && !isMuted) {
+        if (soundAudioRef.current && isPlaying && !isMuted && resolvedSoundAudioUrl) {
           soundAudioRef.current.play().catch(() => {});
         }
         if (videoRef.current && isPlaying) {
-          videoRef.current.play().catch(() => {});
-          if (!resolvedSoundAudioUrl) {
-            videoRef.current.muted = isMuted;
-            videoRef.current.volume = volume;
-          }
+          videoRef.current.play().catch(() => {
+            if (videoRef.current) {
+              videoRef.current.muted = true;
+              onMuteChange?.(true);
+              videoRef.current.play().catch(() => {});
+            }
+          });
         }
         if (playerRef.current && typeof playerRef.current.playVideo === 'function' && isPlaying) {
           try {
             playerRef.current.playVideo();
-            if (!isMuted && !resolvedSoundAudioUrl) {
-              if (typeof playerRef.current.unMute === 'function') {
-                playerRef.current.unMute();
-              }
-              playerRef.current.setVolume(volume * 100);
-            }
           } catch (_) {}
         }
       }
@@ -191,20 +222,24 @@ const ShortVideoMedia: React.FC<{
     if (parsedMedia.type !== 'youtube' || !parsedMedia.youtubeId) return;
 
     let isMounted = true;
+    let pollInterval: any = null;
+    let pollTimeout: any = null;
 
     const initShortPlayer = () => {
-      if (!window.YT || !window.YT.Player) {
-        setTimeout(initShortPlayer, 100);
-        return;
-      }
+      if (!window.YT || !window.YT.Player) return;
 
       const element = document.getElementById(containerId);
       if (!element) return;
+
+      if (playerRef.current && playerRef.current.destroy) {
+        try { playerRef.current.destroy(); } catch (_) {}
+      }
 
       playerRef.current = new window.YT.Player(containerId, {
         videoId: parsedMedia.youtubeId,
         playerVars: {
           autoplay: 1,
+          mute: isMuted ? 1 : 0,
           controls: 0,
           modestbranding: 1,
           rel: 0,
@@ -214,46 +249,51 @@ const ShortVideoMedia: React.FC<{
           playlist: parsedMedia.youtubeId,
           disablekb: 1,
           fs: 0,
-          playsinline: 1
+          playsinline: 1,
+          enablejsapi: 1,
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined
         },
         events: {
           onReady: (event: any) => {
             if (!isMounted) return;
             onMediaReady();
-            if (resolvedSoundAudioUrl) {
+            if (resolvedSoundAudioUrl || isMuted) {
               try { event.target.mute(); } catch (_) {}
-              if (soundAudioRef.current && isPlaying && !isMuted) {
-                soundAudioRef.current.play().catch(() => {});
-              }
             } else {
-              if (!isMuted) {
-                try {
-                  event.target.unMute();
-                  event.target.setVolume(volume * 100);
-                } catch (_) {}
-              } else {
-                try { event.target.mute(); } catch (_) {}
-              }
+              try {
+                event.target.setVolume(volume * 100);
+                event.target.unMute();
+              } catch (_) {}
             }
-            try {
-              if (isPlaying) event.target.playVideo();
-            } catch (e) {
-              if (isPlaying) event.target.playVideo();
+            if (isPlaying) {
+              try {
+                event.target.playVideo();
+              } catch (e) {
+                try {
+                  event.target.mute();
+                  onMuteChange?.(true);
+                  event.target.playVideo();
+                } catch (_) {}
+              }
             }
           },
           onStateChange: (event: any) => {
             if (!isMounted) return;
             if (event.data === 1) { // Playing
+              setIsFrameReady(true);
+              onMediaReady();
+              onPlaybackStateChange?.(true);
               if (!isMuted && !resolvedSoundAudioUrl) {
                 try {
                   event.target.unMute();
                   event.target.setVolume(volume * 100);
                 } catch (_) {}
               }
-              if (soundAudioRef.current && isPlaying && !isMuted) {
+              if (soundAudioRef.current && isPlaying && !isMuted && resolvedSoundAudioUrl) {
                 soundAudioRef.current.play().catch(() => {});
               }
             } else if (event.data === 2) { // Paused
+              onPlaybackStateChange?.(false);
               if (soundAudioRef.current) {
                 soundAudioRef.current.pause();
               }
@@ -272,8 +312,21 @@ const ShortVideoMedia: React.FC<{
     if (window.YT && window.YT.Player) {
       initShortPlayer();
     } else {
+      pollInterval = setInterval(() => {
+        if (window.YT && window.YT.Player) {
+          clearInterval(pollInterval);
+          clearTimeout(pollTimeout);
+          initShortPlayer();
+        }
+      }, 60);
+      pollTimeout = setTimeout(() => {
+        clearInterval(pollInterval);
+      }, 10000);
+
       const existingCb = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
+        clearInterval(pollInterval);
+        clearTimeout(pollTimeout);
         if (typeof existingCb === 'function') existingCb();
         initShortPlayer();
       };
@@ -287,6 +340,8 @@ const ShortVideoMedia: React.FC<{
 
     return () => {
       isMounted = false;
+      if (pollInterval) clearInterval(pollInterval);
+      if (pollTimeout) clearTimeout(pollTimeout);
       if (playerRef.current && playerRef.current.destroy) {
         try { playerRef.current.destroy(); } catch (e) {}
       }
@@ -296,18 +351,40 @@ const ShortVideoMedia: React.FC<{
     };
   }, [short.videoId, short.videoUrl, resolvedSoundAudioUrl]);
 
+  const handleMediaReadyAndPlay = () => {
+    setIsFrameReady(true);
+    onMediaReady();
+    const video = videoRef.current;
+    if (video && isPlaying && video.paused) {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsFrameReady(true);
+          })
+          .catch(() => {
+            video.muted = true;
+            onMuteChange?.(true);
+            video.play().then(() => setIsFrameReady(true)).catch(() => {});
+          });
+      }
+    }
+  };
+
   return (
     <div className="absolute inset-0 overflow-hidden flex items-center justify-center bg-black">
-      {/* Instant poster thumbnail backdrop */}
+      {/* Instant poster thumbnail backdrop (smoothly fades away as soon as live video frames render) */}
       {short.thumbnailUrl && (
         <img
           src={short.thumbnailUrl}
           alt={short.title}
-          className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none filter blur-xs scale-105"
+          className={`absolute inset-0 w-full h-full object-cover z-0 pointer-events-none transition-opacity duration-300 ${
+            isFrameReady ? 'opacity-0' : 'opacity-100 filter blur-xs scale-105'
+          }`}
         />
       )}
 
-      {/* Attached Sound Library Audio Element */}
+      {/* Attached Sound Library Audio Element (only if custom track selected) */}
       {resolvedSoundAudioUrl && (
         <audio
           ref={soundAudioRef}
@@ -324,7 +401,7 @@ const ShortVideoMedia: React.FC<{
       )}
 
       {parsedMedia.type === 'youtube' ? (
-        <div className="w-full h-full flex items-center justify-center bg-black">
+        <div className="relative z-10 w-full h-full flex items-center justify-center bg-black">
           <div id={containerId} className="w-full h-full" />
         </div>
       ) : parsedMedia.type === 'drive' ? (
@@ -333,8 +410,11 @@ const ShortVideoMedia: React.FC<{
           title={short.title}
           frameBorder="0"
           allow="autoplay; encrypted-media"
-          onLoad={onMediaReady}
-          className="w-full h-full object-cover scale-110"
+          onLoad={() => {
+            setIsFrameReady(true);
+            onMediaReady();
+          }}
+          className="relative z-10 w-full h-full object-cover scale-110"
         />
       ) : parsedMedia.type === 'direct' ? (
         <video
@@ -343,28 +423,39 @@ const ShortVideoMedia: React.FC<{
           autoPlay
           loop
           playsInline
+          // @ts-ignore
+          webkit-playsinline="true"
+          preload="auto"
           muted={resolvedSoundAudioUrl ? true : isMuted}
-          onCanPlay={() => {
+          onCanPlay={handleMediaReadyAndPlay}
+          onLoadedData={handleMediaReadyAndPlay}
+          onLoadedMetadata={() => {
             onMediaReady();
-            if (videoRef.current && isPlaying) {
-              videoRef.current.play().catch(() => {});
-            }
-            if (soundAudioRef.current && isPlaying && !isMuted) {
-              soundAudioRef.current.play().catch(() => {});
-            }
+          }}
+          onPlaying={() => {
+            setIsFrameReady(true);
+            onMediaReady();
+            onPlaybackStateChange?.(true);
           }}
           onPlay={() => {
-            if (soundAudioRef.current && isPlaying && !isMuted) {
+            setIsFrameReady(true);
+            onMediaReady();
+            onPlaybackStateChange?.(true);
+            if (soundAudioRef.current && isPlaying && !isMuted && resolvedSoundAudioUrl) {
               soundAudioRef.current.play().catch(() => {});
             }
           }}
           onPause={() => {
+            onPlaybackStateChange?.(false);
             if (soundAudioRef.current) {
               soundAudioRef.current.pause();
             }
           }}
           onTimeUpdate={() => {
-            if (videoRef.current && soundAudioRef.current) {
+            if (videoRef.current && videoRef.current.currentTime > 0) {
+              setIsFrameReady(true);
+            }
+            if (videoRef.current && soundAudioRef.current && resolvedSoundAudioUrl) {
               const vTime = videoRef.current.currentTime;
               const dur = soundAudioRef.current.duration || 30;
               if (Math.abs((vTime % dur) - soundAudioRef.current.currentTime) > 1.5) {
@@ -372,7 +463,7 @@ const ShortVideoMedia: React.FC<{
               }
             }
           }}
-          className="w-full h-full object-cover"
+          className="relative z-10 w-full h-full object-cover"
         />
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center text-slate-400">
@@ -449,31 +540,55 @@ export const Shorts: React.FC = () => {
     setLoading(true);
     try {
       const data = await videoService.getVideos({ isShort: true });
-      if (data.length > 0) {
+      let allShorts = data;
+      if (allShorts.length < 5) {
+        const curated = DEFAULT_CURATED_SHORTS as Video[];
+        const existingIds = new Set(data.map(v => v.videoId));
+        const filteredCurated = curated.filter(c => !existingIds.has(c.videoId));
+        allShorts = [...data, ...filteredCurated];
+      }
+
+      if (allShorts.length > 0) {
         // AI Recommendation Ranking & Anti-Repeat Filter
-        const ranked = recommendationService.rankAndFilterVideos(data, {
+        const ranked = recommendationService.rankAndFilterVideos(allShorts, {
           isShortsOnly: true,
           userUid: currentUser?.uid
         });
-
-        setShorts(ranked);
 
         // If route specifies a short ID, find index or fetch
         if (targetShortId) {
           const idx = ranked.findIndex(s => s.videoId === targetShortId);
           if (idx !== -1) {
+            setShorts(ranked);
             setCurrentIndex(idx);
           } else {
-            const singleShort = await videoService.getVideo(targetShortId);
-            if (singleShort && singleShort.isShort) {
-              setShorts([singleShort, ...ranked]);
+            const matchedCurated = (DEFAULT_CURATED_SHORTS as Video[]).find(s => s.videoId === targetShortId);
+            if (matchedCurated) {
+              setShorts([matchedCurated, ...ranked]);
               setCurrentIndex(0);
+            } else {
+              const singleShort = await videoService.getVideo(targetShortId);
+              if (singleShort && singleShort.isShort) {
+                setShorts([singleShort, ...ranked]);
+                setCurrentIndex(0);
+              } else {
+                setShorts(ranked);
+                setCurrentIndex(0);
+              }
             }
           }
+        } else {
+          setShorts(ranked);
+          setCurrentIndex(0);
         }
+      } else {
+        setShorts(DEFAULT_CURATED_SHORTS as Video[]);
+        setCurrentIndex(0);
       }
     } catch (err) {
       console.error(err);
+      setShorts(DEFAULT_CURATED_SHORTS as Video[]);
+      setCurrentIndex(0);
     } finally {
       setLoading(false);
     }
@@ -1076,12 +1191,28 @@ export const Shorts: React.FC = () => {
               volume={volume}
               isMuted={isMuted}
               onMediaReady={() => setIsMediaReady(true)}
+              onPlaybackStateChange={setIsPlaying}
+              onMuteChange={setIsMuted}
             />
           </div>
 
+          {/* Tap to Unmute Floating Prompt if browser restricted initial audio */}
+          {isMuted && isPlaying && !isShortLocked && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMuted(false);
+              }}
+              className="absolute top-16 left-1/2 -translate-x-1/2 z-35 px-3.5 py-1.5 rounded-full bg-black/65 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white text-[11px] font-black tracking-wide flex items-center gap-1.5 transition-all shadow-xl cursor-pointer active:scale-95"
+            >
+              <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isHindi ? 'आवाज़ चालू करें' : 'Tap to unmute'}</span>
+            </button>
+          )}
+
           {/* PAID SHORT PAYWALL OVERLAY */}
           {isShortLocked && (
-            <div className="absolute inset-0 z-35 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-white">
+            <div className="absolute inset-0 z-40 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-white">
               {activeShort.thumbnailUrl && (
                 <img 
                   src={activeShort.thumbnailUrl} 
@@ -1159,7 +1290,7 @@ export const Shorts: React.FC = () => {
           )}
 
           {/* TOP BAR: Single Sound / Volume Button & YouTube-style 3-Dot More Options Menu */}
-          <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+          <div className="absolute top-4 right-4 z-35 flex items-center gap-2">
             <div className="group/vol relative flex items-center">
               <button
                 onClick={(e) => {
@@ -1209,7 +1340,7 @@ export const Shorts: React.FC = () => {
             {optionsMenuOpen && (
               <div 
                 onClick={(e) => e.stopPropagation()}
-                className="absolute top-12 right-0 w-60 bg-slate-900/95 backdrop-blur-xl border border-white/15 rounded-2xl p-2 shadow-2xl z-40 text-white animate-zoom-in"
+                className="absolute top-12 right-0 w-60 bg-slate-900/95 backdrop-blur-xl border border-white/15 rounded-2xl p-2 shadow-2xl z-50 text-white animate-zoom-in"
               >
                 <button
                   onClick={() => {
@@ -1278,7 +1409,7 @@ export const Shorts: React.FC = () => {
           {/* PLAY/PAUSE OVERLAY ON VIDEO */}
           <div 
             onClick={() => !isShortLocked && setIsPlaying(!isPlaying)}
-            className="absolute inset-0 z-10 cursor-pointer flex items-center justify-center"
+            className="absolute inset-0 z-20 cursor-pointer flex items-center justify-center"
           >
             {!isPlaying && !isShortLocked && (
               <div className="w-20 h-20 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white animate-zoom-in">
@@ -1288,7 +1419,7 @@ export const Shorts: React.FC = () => {
           </div>
 
           {/* Interaction Side Overlay */}
-          <div className="absolute right-3 sm:right-3.5 bottom-20 md:bottom-22 flex flex-col gap-3.5 text-white z-20">
+          <div className="absolute right-3 sm:right-3.5 bottom-20 md:bottom-22 flex flex-col gap-3.5 text-white z-30">
             {/* LIKE BUTTON */}
             <button 
               onClick={handleLikeToggle}
@@ -1359,7 +1490,7 @@ export const Shorts: React.FC = () => {
           </div>
 
           {/* Details Overlay bottom */}
-          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/85 to-transparent p-4 sm:p-5 pb-4 sm:pb-5 md:pb-4 text-white flex flex-col gap-2 z-10 pointer-events-none">
+          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/85 to-transparent p-4 sm:p-5 pb-4 sm:pb-5 md:pb-4 text-white flex flex-col gap-2 z-25 pointer-events-none">
             {/* Creator Row + Subscribe Button */}
             <div className="flex items-center justify-between gap-3 pointer-events-auto">
               <div className="flex items-center gap-2.5 min-w-0">

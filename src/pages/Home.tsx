@@ -31,12 +31,12 @@ export const categoryHindiMap: Record<string, string> = {
   'Comedy': 'कॉमेडी'
 };
 
-// Fallback curated Shorts to ensure all 5 vertical slots are always populated beautifully like Capture.PNG
-const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
+// Fallback curated Shorts to ensure all 5 vertical slots are always populated beautifully with working Cloud CDN streams
+export const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
   {
     videoId: 'sample-short-1',
-    title: 'Breathtaking Himalayan Valley Drone View 🏔️',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-tree-branches-in-the-breeze-1188-large.mp4',
+    title: 'Vande Bharat or Orange Snake 😮 A stunning video of Vande Bharat Express',
+    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1790959177/socialindia_videos/snhqik26jkpwje0hbbrh.mp4',
     thumbnailUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&auto=format&fit=crop&q=80',
     duration: 48,
     viewsCount: 14200,
@@ -46,8 +46,8 @@ const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
   },
   {
     videoId: 'sample-short-2',
-    title: 'Top 5 AI Coding Extensions in 2026 💻',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-hands-typing-on-a-laptop-42998-large.mp4',
+    title: 'Co-pilot Smit Machhar’s courage saved 180+ lives during cockpit emergency ✈️',
+    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1791199131/socialindia_videos/b9toykpxtfctrgewy3je.mp4',
     thumbnailUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
     duration: 32,
     viewsCount: 28900,
@@ -57,8 +57,8 @@ const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
   },
   {
     videoId: 'sample-short-3',
-    title: 'Minecraft Speedrun: Nether Fortress Tricks 🎮',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-game-animation-of-a-character-running-42994-large.mp4',
+    title: 'Minecraft Horror Is Very Creepy... #shorts 🎮',
+    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1791129740/socialindia_videos/n4ulzx1ar4xrwilc8x4g.mp4',
     thumbnailUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&auto=format&fit=crop&q=80',
     duration: 59,
     viewsCount: 56300,
@@ -68,8 +68,8 @@ const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
   },
   {
     videoId: 'sample-short-4',
-    title: 'Sunset at India Gate, New Delhi ❤️',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-clouds-and-blue-sky-2408-large.mp4',
+    title: 'What a reply 🥶🔥 SocialIndia Trending Shorts',
+    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1791729664/socialindia_videos/kstfqksi9zckb7hdw78d.mp4',
     thumbnailUrl: 'https://images.unsplash.com/photo-1587474260584-136574528ed5?w=600&auto=format&fit=crop&q=80',
     duration: 41,
     viewsCount: 39100,
@@ -79,8 +79,8 @@ const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
   },
   {
     videoId: 'sample-short-5',
-    title: 'Fastest 5G Smartphone in India under ₹15,000 📱',
-    videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-person-scrolling-on-a-smartphone-42992-large.mp4',
+    title: 'AVOID these places — unless you’re ready for an unforgettable India! #shorts 📱',
+    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1791612442/socialindia_videos/skktxp6ft9gkbu1rzctn.mp4',
     thumbnailUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80',
     duration: 37,
     viewsCount: 47800,

@@ -677,8 +677,15 @@ export const videoService = {
       await updateDoc(docRef, {
         viewsCount: increment(1)
       });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `videos/${videoId}`);
+    } catch (err: any) {
+      // Don't interrupt video viewing for background analytics if document is missing or offline
+      if (err?.code === 'permission-denied') {
+        console.warn(`[Views Counter] Permission denied incrementing view count for video: ${videoId}`);
+      } else if (err?.code === 'not-found') {
+        console.warn(`[Views Counter] Video document not found in database: ${videoId}`);
+      } else {
+        console.warn(`[Views Counter] Could not sync view count:`, err);
+      }
     }
   },
 

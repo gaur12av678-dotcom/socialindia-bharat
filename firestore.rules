@@ -96,12 +96,21 @@ match /adminSettings/{docId} {
       allow create: if isSignedIn() && 
         request.resource.data.creatorId == request.auth.uid;
         
-      allow update, delete: if isSignedIn() && (
+      allow update: if (isSignedIn() && (
         resource.data.creatorId == request.auth.uid || 
         isAdmin() ||
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'viewsCount', 'likesCount', 'commentsCount', 'sharesCount', 'paidSalesCount', 'paidEarnings'
         ])
+      )) || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'viewsCount', 'sharesCount'
+        ])
+      );
+
+      allow delete: if isSignedIn() && (
+        resource.data.creatorId == request.auth.uid || 
+        isAdmin()
       );
 
       // Video comments subcollection
