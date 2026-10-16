@@ -48,17 +48,26 @@ export const CreatorProfile: React.FC = () => {
   
   // Resolve target username safely (remove leading @ and fallback to current logged-in profile if empty)
   const rawParam = route.param;
-  const targetUsername = (rawParam || currentUserProfile?.username || '')
+  const currentUsername = currentUserProfile?.username ? String(currentUserProfile.username).trim() : '';
+  const currentUsernameLower = currentUsername.toLowerCase();
+
+  const targetUsername = (rawParam || currentUsername || '')
     .replace(/^@/, '')
     .trim()
     .toLowerCase();
 
   const [creator, setCreator] = useState<User | null>(() => {
-    if (currentUserProfile && (currentUserProfile.username.toLowerCase() === targetUsername || currentUserProfile.uid === rawParam)) {
-      return currentUserProfile;
+    if (currentUserProfile) {
+      const matchesUsername = Boolean(currentUsernameLower && targetUsername && currentUsernameLower === targetUsername);
+      const matchesUid = Boolean(rawParam && currentUserProfile.uid === rawParam);
+      if (matchesUsername || matchesUid || (!rawParam && !targetUsername)) {
+        return currentUserProfile;
+      }
     }
-    const cachedByUsername = userService.getCachedUserByUsername(targetUsername);
-    if (cachedByUsername) return cachedByUsername;
+    if (targetUsername) {
+      const cachedByUsername = userService.getCachedUserByUsername(targetUsername);
+      if (cachedByUsername) return cachedByUsername;
+    }
     if (rawParam) {
       const cachedByUid = userService.getCachedUserProfile(rawParam);
       if (cachedByUid) return cachedByUid;
@@ -115,7 +124,13 @@ export const CreatorProfile: React.FC = () => {
 
       try {
         let uProfile: User | null = null;
-        if (currentUserProfile && (currentUserProfile.username.toLowerCase() === targetUsername || currentUserProfile.uid === rawParam)) {
+        const isCurrentMatch = currentUserProfile && (
+          (currentUsernameLower && targetUsername && currentUsernameLower === targetUsername) ||
+          (rawParam && currentUserProfile.uid === rawParam) ||
+          (!rawParam && !targetUsername)
+        );
+
+        if (isCurrentMatch && currentUserProfile) {
           uProfile = await userService.getUserProfile(currentUserProfile.uid, true);
           if (uProfile) {
             updateUserProfileState(uProfile);

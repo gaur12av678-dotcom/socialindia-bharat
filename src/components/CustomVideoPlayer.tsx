@@ -30,6 +30,7 @@ import {
   Copy,
   Sliders,
   Sparkles,
+  Sun,
   Flag
 } from 'lucide-react';
 
@@ -71,25 +72,45 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const ytPlayerRef = useRef<any>(null);
 
-  // Handle external seekToTime request (e.g. description timestamp click)
-  useEffect(() => {
-    if (seekToTime !== undefined && seekToTime >= 0) {
-      if (parsedMedia.type === 'direct' && videoRef.current) {
-        videoRef.current.currentTime = seekToTime;
-        setCurrentTime(seekToTime);
-        videoRef.current.play().catch(console.error);
-        setIsPlaying(true);
-      } else if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
-        try {
-          ytPlayerRef.current.seekTo(seekToTime, true);
-          ytPlayerRef.current.playVideo();
-          setIsPlaying(true);
-        } catch (e) {
-          console.warn('YouTube seek failed:', e);
-        }
-      }
+  // Ambient Mode (Enhanced YouTube Ambient Light)
+  const ambientVideoRef = useRef<HTMLVideoElement>(null);
+  const ambientCanvasRef = useRef<HTMLCanvasElement>(null);
+  const ytAmbientPlayerRef = useRef<any>(null);
+
+  const [isAmbientMode, setIsAmbientMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('socialindia_ambient_mode');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
     }
-  }, [seekToTime]);
+  });
+
+  const [ambientIntensity, setAmbientIntensity] = useState<'subtle' | 'balanced' | 'ultra'>(() => {
+    try {
+      const saved = localStorage.getItem('socialindia_ambient_intensity');
+      return (saved === 'subtle' || saved === 'balanced' || saved === 'ultra') ? saved : 'balanced';
+    } catch {
+      return 'balanced';
+    }
+  });
+
+  const toggleAmbientMode = () => {
+    setIsAmbientMode(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('socialindia_ambient_mode', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleAmbientIntensityChange = (level: 'subtle' | 'balanced' | 'ultra') => {
+    setAmbientIntensity(level);
+    try {
+      localStorage.setItem('socialindia_ambient_intensity', level);
+    } catch {}
+  };
 
   const [isMediaReady, setIsMediaReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -99,6 +120,65 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+
+  // Dynamic ambient glow spread, blur, and opacity settings based on user-chosen intensity
+  const ambientConfig = React.useMemo(() => {
+    switch (ambientIntensity) {
+      case 'subtle':
+        return {
+          blur: 'blur(36px)',
+          saturate: 'saturate(150%)',
+          opacity: isPlaying ? 0.6 : 0.35,
+          scale: 'scale(1.08)',
+          spreadClass: '-inset-3 sm:-inset-5 md:-inset-8'
+        };
+      case 'ultra':
+        return {
+          blur: 'blur(76px)',
+          saturate: 'saturate(220%)',
+          opacity: isPlaying ? 0.95 : 0.55,
+          scale: 'scale(1.22)',
+          spreadClass: '-inset-8 sm:-inset-12 md:-inset-18'
+        };
+      case 'balanced':
+      default:
+        return {
+          blur: 'blur(56px)',
+          saturate: 'saturate(180%)',
+          opacity: isPlaying ? 0.8 : 0.45,
+          scale: 'scale(1.15)',
+          spreadClass: '-inset-5 sm:-inset-8 md:-inset-12'
+        };
+    }
+  }, [ambientIntensity, isPlaying]);
+
+  // Handle external seekToTime request (e.g. description timestamp click)
+  useEffect(() => {
+    if (seekToTime !== undefined && seekToTime >= 0) {
+      if (parsedMedia.type === 'direct' && videoRef.current) {
+        videoRef.current.currentTime = seekToTime;
+        if (ambientVideoRef.current) {
+          ambientVideoRef.current.currentTime = seekToTime;
+          ambientVideoRef.current.play().catch(() => {});
+        }
+        setCurrentTime(seekToTime);
+        videoRef.current.play().catch(console.error);
+        setIsPlaying(true);
+      } else if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.seekTo(seekToTime, true);
+          ytPlayerRef.current.playVideo();
+          if (ytAmbientPlayerRef.current?.seekTo) {
+            ytAmbientPlayerRef.current.seekTo(seekToTime, true);
+            ytAmbientPlayerRef.current.playVideo();
+          }
+          setIsPlaying(true);
+        } catch (e) {
+          console.warn('YouTube seek failed:', e);
+        }
+      }
+    }
+  }, [seekToTime]);
 
   // Custom Timeline & Controls State
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -110,7 +190,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [isSavedWatchLater, setIsSavedWatchLater] = useState(false);
   const [showPlayerMenu, setShowPlayerMenu] = useState(false);
   const [playerMenuAnchor, setPlayerMenuAnchor] = useState<'top' | 'bottom'>('top');
-  const [playerSubMenu, setPlayerSubMenu] = useState<'main' | 'speed' | 'quality'>('main');
+  const [playerSubMenu, setPlayerSubMenu] = useState<'main' | 'speed' | 'quality' | 'ambient'>('main');
   const [isLooping, setIsLooping] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState('1080p HD');
   const [linkCopied, setLinkCopied] = useState(false);
@@ -155,11 +235,17 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
       try {
         ytPlayerRef.current.seekTo(targetTime, true);
+        if (ytAmbientPlayerRef.current?.seekTo) {
+          ytAmbientPlayerRef.current.seekTo(targetTime, true);
+        }
       } catch (err) {
         console.warn('YT seek error', err);
       }
     } else if (videoRef.current) {
       videoRef.current.currentTime = targetTime;
+      if (ambientVideoRef.current) {
+        ambientVideoRef.current.currentTime = targetTime;
+      }
     }
   };
 
@@ -167,8 +253,14 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     setPlaybackSpeed(speed);
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.setPlaybackRate) {
       ytPlayerRef.current.setPlaybackRate(speed);
+      try {
+        ytAmbientPlayerRef.current?.setPlaybackRate(speed);
+      } catch (_) {}
     } else if (videoRef.current) {
       videoRef.current.playbackRate = speed;
+      if (ambientVideoRef.current) {
+        ambientVideoRef.current.playbackRate = speed;
+      }
     }
     setShowPlayerMenu(false);
   };
@@ -210,7 +302,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     };
   }, [isPlaying]);
 
-  // Handle YouTube IFrame API Initialization
+  // Handle YouTube IFrame API Initialization (Primary Player + Synchronized Ambient Player)
   useEffect(() => {
     if (parsedMedia.type !== 'youtube' || !parsedMedia.youtubeId) return;
 
@@ -251,6 +343,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             try {
               event.target.playVideo();
               setIsPlaying(true);
+              ytAmbientPlayerRef.current?.playVideo();
             } catch (e) {
               // Fallback to muted autoplay if browser blocks audio
               try {
@@ -258,6 +351,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 setIsMuted(true);
                 event.target.playVideo();
                 setIsPlaying(true);
+                ytAmbientPlayerRef.current?.playVideo();
               } catch (err) {
                 console.warn('Autoplay fallback error', err);
               }
@@ -268,15 +362,60 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             if (event.data === 1) {
               setIsMediaReady(true);
               setIsPlaying(true);
+              try {
+                ytAmbientPlayerRef.current?.playVideo();
+              } catch (_) {}
             } else if (event.data === 2) {
               setIsPlaying(false);
+              try {
+                ytAmbientPlayerRef.current?.pauseVideo();
+              } catch (_) {}
             } else if (event.data === 0) {
               setIsPlaying(false);
+              try {
+                ytAmbientPlayerRef.current?.pauseVideo();
+              } catch (_) {}
               if (onEnded) onEnded();
             }
           }
         }
       });
+
+      // Synchronized Ambient YouTube Player for authentic live blurred backdrop
+      const ambientElementId = `yt-ambient-player-${video.videoId}`;
+      const ambientEl = document.getElementById(ambientElementId);
+      if (ambientEl) {
+        try {
+          ytAmbientPlayerRef.current = new window.YT.Player(ambientElementId, {
+            videoId: parsedMedia.youtubeId,
+            playerVars: {
+              autoplay: 1,
+              controls: 0,
+              modestbranding: 1,
+              rel: 0,
+              showinfo: 0,
+              iv_load_policy: 3,
+              disablekb: 1,
+              fs: 0,
+              mute: 1,
+              playsinline: 1,
+              loop: 1,
+              playlist: parsedMedia.youtubeId
+            },
+            events: {
+              onReady: (event: any) => {
+                if (!isMounted) return;
+                try {
+                  event.target.mute();
+                  event.target.playVideo();
+                } catch (_) {}
+              }
+            }
+          });
+        } catch (e) {
+          console.warn('Ambient YT player init error:', e);
+        }
+      }
     };
 
     if (window.YT && window.YT.Player) {
@@ -300,6 +439,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       if (ytPlayerRef.current && ytPlayerRef.current.destroy) {
         try {
           ytPlayerRef.current.destroy();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      if (ytAmbientPlayerRef.current && ytAmbientPlayerRef.current.destroy) {
+        try {
+          ytAmbientPlayerRef.current.destroy();
         } catch (e) {
           console.error(e);
         }
@@ -330,6 +476,40 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     return () => clearInterval(interval);
   }, [parsedMedia.type]);
 
+  // Real-time Canvas Frame Sampling for authentic Ambient Light (Direct Videos)
+  useEffect(() => {
+    if (!isAmbientMode || parsedMedia.type !== 'direct') return;
+
+    let animId: number;
+    const canvas = ambientCanvasRef.current;
+    const ctx = canvas?.getContext('2d', { willReadFrequently: false });
+    if (!canvas || !ctx) return;
+
+    const renderCanvas = () => {
+      if (
+        videoRef.current &&
+        !videoRef.current.paused &&
+        !videoRef.current.ended &&
+        videoRef.current.readyState >= 2
+      ) {
+        try {
+          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        } catch (_) {
+          // If canvas tainted by remote CORS, the blurred background video element handles it natively
+        }
+      }
+      animId = requestAnimationFrame(renderCanvas);
+    };
+
+    if (isPlaying) {
+      animId = requestAnimationFrame(renderCanvas);
+    }
+
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isAmbientMode, isPlaying, parsedMedia.type]);
+
   // Direct HTML5 Video Handlers
   const handleDirectTimeUpdate = () => {
     if (videoRef.current) {
@@ -337,6 +517,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       setCurrentTime(cur);
       setDuration(videoRef.current.duration || video.duration || 0);
       if (onProgress) onProgress(cur);
+
+      if (ambientVideoRef.current) {
+        const diff = Math.abs(ambientVideoRef.current.currentTime - cur);
+        if (diff > 0.35) {
+          ambientVideoRef.current.currentTime = cur;
+        }
+      }
     }
   };
 
@@ -344,18 +531,27 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
       if (isPlaying) {
         ytPlayerRef.current.pauseVideo();
+        try {
+          ytAmbientPlayerRef.current?.pauseVideo();
+        } catch (_) {}
         setIsPlaying(false);
       } else {
         ytPlayerRef.current.playVideo();
+        try {
+          ytAmbientPlayerRef.current?.playVideo();
+        } catch (_) {}
         setIsPlaying(true);
       }
     } else if (videoRef.current) {
       if (isPlaying) {
         videoRef.current.pause();
+        ambientVideoRef.current?.pause();
         setIsPlaying(false);
       } else {
-        videoRef.current.play();
-        setIsPlaying(true);
+        videoRef.current.play().then(() => {
+          ambientVideoRef.current?.play().catch(() => {});
+          setIsPlaying(true);
+        }).catch(console.error);
       }
     }
   };
@@ -366,8 +562,14 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
       ytPlayerRef.current.seekTo(targetTime, true);
+      try {
+        ytAmbientPlayerRef.current?.seekTo(targetTime, true);
+      } catch (_) {}
     } else if (videoRef.current) {
       videoRef.current.currentTime = targetTime;
+      if (ambientVideoRef.current) {
+        ambientVideoRef.current.currentTime = targetTime;
+      }
     }
   };
 
@@ -448,11 +650,17 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
       try {
         ytPlayerRef.current.seekTo(newTime, true);
+        if (ytAmbientPlayerRef.current?.seekTo) {
+          ytAmbientPlayerRef.current.seekTo(newTime, true);
+        }
       } catch (err) {
         console.warn('YT seek error', err);
       }
     } else if (videoRef.current) {
       videoRef.current.currentTime = newTime;
+      if (ambientVideoRef.current) {
+        ambientVideoRef.current.currentTime = newTime;
+      }
     }
   };
 
@@ -608,12 +816,58 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className={`relative w-full bg-slate-950 overflow-hidden shadow-2xl group select-none transition-all ${
+      className={`relative w-full group select-none transition-all ${
         isFullscreen 
-          ? 'h-screen w-screen rounded-none border-none max-w-none max-h-none flex items-center justify-center' 
-          : 'aspect-video rounded-none sm:rounded-2xl border-none sm:border border-slate-200 dark:border-[#334155]'
+          ? 'h-screen w-screen bg-black overflow-hidden flex items-center justify-center' 
+          : 'aspect-video'
       }`}
     >
+      {/* REAL AMBIENT LIGHT BACKDROP (Radiates into the page when not fullscreen, and fills letterbox gaps in fullscreen) */}
+      <div 
+        className={`absolute pointer-events-none select-none z-0 transition-all duration-700 ease-out ${
+          isFullscreen ? 'inset-0 overflow-hidden' : `${ambientConfig.spreadClass} overflow-visible`
+        } ${isAmbientMode ? 'opacity-100' : 'opacity-0'}`}
+        style={{
+          opacity: isAmbientMode ? (isPlaying ? ambientConfig.opacity : ambientConfig.opacity * 0.5) : 0,
+          filter: `${ambientConfig.blur} ${ambientConfig.saturate}`,
+          transform: `${ambientConfig.scale} translateZ(0)`,
+          willChange: 'filter, transform, opacity'
+        }}
+      >
+        {parsedMedia.type === 'youtube' ? (
+          <div className="w-full h-full scale-125 overflow-hidden flex items-center justify-center opacity-90">
+            <div id={`yt-ambient-player-${video.videoId}`} className="w-full h-full pointer-events-none" />
+          </div>
+        ) : parsedMedia.type === 'direct' ? (
+          <div className="w-full h-full scale-125 overflow-hidden flex items-center justify-center">
+            <video
+              ref={ambientVideoRef}
+              src={parsedMedia.embedUrl}
+              muted
+              playsInline
+              autoPlay
+              loop={isLooping}
+              className="w-full h-full object-cover pointer-events-none"
+            />
+          </div>
+        ) : video.thumbnailUrl ? (
+          <img
+            src={video.thumbnailUrl}
+            alt=""
+            className="w-full h-full object-cover scale-125"
+          />
+        ) : null}
+        <canvas ref={ambientCanvasRef} className="hidden" width={64} height={36} />
+      </div>
+
+      {/* INNER VIDEO BOX */}
+      <div 
+        className={`relative w-full h-full z-10 bg-slate-950 overflow-hidden shadow-2xl ${
+          isFullscreen 
+            ? 'rounded-none border-none flex items-center justify-center' 
+            : 'rounded-none sm:rounded-2xl border-none sm:border border-slate-200 dark:border-[#334155]'
+        }`}
+      >
       {/* SKELETON LOADING OVERLAY (Displayed until media stream is ready) */}
       <AnimatePresence>
         {!isMediaReady && (
@@ -776,7 +1030,11 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -24 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="absolute top-0 inset-x-0 z-30 p-3 sm:p-4 bg-gradient-to-b from-black/90 via-black/40 to-transparent pointer-events-auto flex items-center justify-between"
+            className={`absolute top-0 inset-x-0 z-30 p-3 sm:p-4 ${
+              isAmbientMode 
+                ? 'bg-gradient-to-b from-black/50 via-black/20 to-transparent backdrop-blur-[2px]' 
+                : 'bg-gradient-to-b from-black/90 via-black/40 to-transparent'
+            } pointer-events-auto flex items-center justify-between transition-colors duration-300`}
           >
             {/* Left: Channel Avatar & Title */}
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -889,7 +1147,11 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className="absolute bottom-0 inset-x-0 z-30 px-3 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-auto space-y-1.5"
+            className={`absolute bottom-0 inset-x-0 z-30 px-3 sm:px-4 py-2.5 sm:py-3 ${
+              isAmbientMode 
+                ? 'bg-gradient-to-t from-black/60 via-black/30 to-transparent backdrop-blur-[3px]' 
+                : 'bg-gradient-to-t from-black/95 via-black/60 to-transparent'
+            } pointer-events-auto space-y-1.5 transition-colors duration-300`}
           >
             {/* Custom Interactive Timeline (Electric Blue Played Track + Hover Preview Tooltip) */}
             <div 
@@ -998,6 +1260,19 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   CC
                 </button>
 
+                {/* Ambient Mode Quick Toggle (Enhanced YouTube Ambient Light) */}
+                <button
+                  onClick={toggleAmbientMode}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center justify-center ${
+                    isAmbientMode 
+                      ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/50 shadow-sm shadow-amber-500/20' 
+                      : 'hover:bg-white/20 text-slate-300'
+                  }`}
+                  title={isHindi ? (isAmbientMode ? 'अम्बिएंट मोड: चालू' : 'अम्बिएंट मोड: बंद') : (isAmbientMode ? 'Ambient Mode: On' : 'Ambient Mode: Off')}
+                >
+                  <Sun className={`w-4 h-4 ${isAmbientMode ? 'text-amber-400 animate-spin-slow' : 'text-slate-300'}`} />
+                </button>
+
                 {/* Settings with HD Badge (YouTube Style) */}
                 <button
                   onClick={() => {
@@ -1103,6 +1378,25 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     </div>
                     <div className="flex items-center gap-1 text-[11px] text-slate-400">
                       <span>{playbackSpeed === 1 ? (isHindi ? 'सामान्य' : 'Normal') : `${playbackSpeed}x`}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                    </div>
+                  </button>
+
+                  {/* 3. Ambient Mode (Enhanced YouTube Ambient Light) */}
+                  <button
+                    onClick={() => setPlayerSubMenu('ambient')}
+                    className="w-full py-2 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Sun className={`w-4 h-4 ${isAmbientMode ? 'text-amber-400' : 'text-slate-400'}`} />
+                      <span className="text-xs font-semibold">{t('player_ambient_mode', 'Ambient mode')}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        isAmbientMode ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-slate-400'
+                      }`}>
+                        {isAmbientMode ? (isHindi ? 'चालू' : 'On') : (isHindi ? 'बंद' : 'Off')}
+                      </span>
                       <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
                     </div>
                   </button>
@@ -1253,11 +1547,90 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   ))}
                 </div>
               )}
+
+              {/* Sub-menu: Ambient Mode (Enhanced YouTube Ambient Light) */}
+              {playerSubMenu === 'ambient' && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-2 border-b border-white/10 px-1">
+                    <button
+                      onClick={() => setPlayerSubMenu('main')}
+                      className="p-1 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <ArrowLeftIcon className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <Sun className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-black uppercase tracking-wider text-slate-200">
+                        {t('player_ambient_mode', 'Ambient Mode')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <div className="p-2.5 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                    <div className="space-y-0.5 pr-2">
+                      <p className="text-xs font-bold text-white">
+                        {isHindi ? 'अम्बिएंट लाइटिंग' : 'Ambient Lighting'}
+                      </p>
+                      <p className="text-[10px] text-slate-400 leading-tight">
+                        {isHindi 
+                          ? 'वीडियो के रंगों को बैकग्राउंड में ब्लर करके इमर्सिव अनुभव प्रदान करता है' 
+                          : 'Projects blurred video colors into the background for high immersion'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={isAmbientMode}
+                      onClick={toggleAmbientMode}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        isAmbientMode ? 'bg-amber-500' : 'bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                          isAmbientMode ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Intensity Presets (YouTube Better Ambient style) */}
+                  {isAmbientMode && (
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-1">
+                        {isHindi ? 'रोशनी की तीव्रता (Glow Intensity)' : 'Glow Intensity'}
+                      </span>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: 'subtle', label: isHindi ? 'सूक्ष्म' : 'Subtle', desc: '36px' },
+                          { id: 'balanced', label: isHindi ? 'संतुलित' : 'Balanced', desc: '56px' },
+                          { id: 'ultra', label: isHindi ? 'अल्ट्रा' : 'Ultra', desc: '76px' },
+                        ].map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => handleAmbientIntensityChange(item.id as any)}
+                            className={`py-2 px-1 rounded-xl text-center border transition-all cursor-pointer ${
+                              ambientIntensity === item.id
+                                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold'
+                                : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 font-medium'
+                            }`}
+                          >
+                            <div className="text-[11px] truncate">{item.label}</div>
+                            <div className="text-[9px] text-slate-400">{item.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
+      </div>
     </div>
   );
 };

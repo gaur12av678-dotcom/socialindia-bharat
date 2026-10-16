@@ -52,12 +52,17 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 }) => {
   const { currentUser, currentUserProfile } = useApp();
 
-  // Check if this avatar belongs to the currently logged in user
+  // Check if this avatar belongs to the currently logged in user safely
+  const currentUsernameLower = (currentUserProfile?.username || '').trim().toLowerCase();
+  const currentDisplayNameLower = (currentUserProfile?.displayName || '').trim().toLowerCase();
+  const fallbackNameLower = (fallbackDisplayName || '').trim().toLowerCase();
+  const uidLower = (uid || '').trim().toLowerCase();
+
   const isCurrentLoggedInUser = Boolean(
     (uid && currentUser?.uid && currentUser.uid === uid) || 
-    (fallbackDisplayName && currentUserProfile?.username && currentUserProfile.username.toLowerCase() === fallbackDisplayName.toLowerCase()) ||
-    (fallbackDisplayName && currentUserProfile?.displayName && currentUserProfile.displayName.toLowerCase() === fallbackDisplayName.toLowerCase()) ||
-    (uid && currentUserProfile?.username && currentUserProfile.username.toLowerCase() === uid.toLowerCase())
+    (fallbackNameLower && currentUsernameLower && currentUsernameLower === fallbackNameLower) ||
+    (fallbackNameLower && currentDisplayNameLower && currentDisplayNameLower === fallbackNameLower) ||
+    (uidLower && currentUsernameLower && currentUsernameLower === uidLower)
   );
 
   const [fetchedPhoto, setFetchedPhoto] = useState<string>(() => {
