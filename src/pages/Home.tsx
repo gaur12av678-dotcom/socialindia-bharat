@@ -41,8 +41,10 @@ export const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
     duration: 48,
     viewsCount: 14200,
     isShort: true,
+    creatorId: 'c_nature_india',
     creatorDisplayName: 'Nature Explorer',
-    creatorUsername: 'nature_india'
+    creatorUsername: 'nature_india',
+    creatorPhotoURL: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200&auto=format&fit=crop&q=80'
   },
   {
     videoId: 'sample-short-2',
@@ -52,8 +54,10 @@ export const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
     duration: 32,
     viewsCount: 28900,
     isShort: true,
+    creatorId: 'c_gaurav_saini',
     creatorDisplayName: 'Gaurav Saini',
-    creatorUsername: 'gaurav_saini'
+    creatorUsername: 'gaurav_saini',
+    creatorPhotoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80'
   },
   {
     videoId: 'sample-short-3',
@@ -63,8 +67,10 @@ export const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
     duration: 59,
     viewsCount: 56300,
     isShort: true,
+    creatorId: 'c_progamer',
     creatorDisplayName: 'Pro Gamer India',
-    creatorUsername: 'progamer'
+    creatorUsername: 'progamer',
+    creatorPhotoURL: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=200&auto=format&fit=crop&q=80'
   },
   {
     videoId: 'sample-short-4',
@@ -74,8 +80,10 @@ export const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
     duration: 41,
     viewsCount: 39100,
     isShort: true,
+    creatorId: 'c_delhivlogs',
     creatorDisplayName: 'Delhi Vlogs',
-    creatorUsername: 'delhivlogs'
+    creatorUsername: 'delhivlogs',
+    creatorPhotoURL: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80'
   },
   {
     videoId: 'sample-short-5',
@@ -85,8 +93,10 @@ export const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
     duration: 37,
     viewsCount: 47800,
     isShort: true,
+    creatorId: 'c_techguru',
     creatorDisplayName: 'Tech Guru India',
-    creatorUsername: 'techguru'
+    creatorUsername: 'techguru',
+    creatorPhotoURL: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80'
   }
 ];
 

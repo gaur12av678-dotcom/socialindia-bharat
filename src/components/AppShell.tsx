@@ -513,13 +513,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                         }}
                         className={`p-3.5 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] transition-colors cursor-pointer flex gap-3 items-start ${!n.read ? 'bg-[#eff6ff] dark:bg-blue-950/20' : ''}`}
                       >
-                        <div className="w-8 h-8 rounded-lg bg-[#2563eb] text-white flex items-center justify-center shrink-0 font-bold text-xs">
-                          {n.actorPhotoURL ? (
-                            <img src={n.actorPhotoURL} alt={n.actorUsername} className="w-full h-full object-cover rounded-lg" />
-                          ) : (
-                            getInitials(n.actorDisplayName)
-                          )}
-                        </div>
+                        <UserAvatar 
+                          fallbackPhotoURL={n.actorPhotoURL}
+                          fallbackDisplayName={n.actorDisplayName || n.actorUsername}
+                          size="xs"
+                          className="w-8 h-8 rounded-full shrink-0"
+                        />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-normal">{n.message}</p>
                           <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1">{new Date(n.createdAt).toLocaleDateString()}</span>

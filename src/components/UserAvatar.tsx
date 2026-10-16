@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { userService } from '../services/userService';
 import { useApp } from '../context/AppContext';
-import { getInitials } from '../utils/videoUtils';
-import { User as UserIcon } from 'lucide-react';
 
-interface UserAvatarProps {
+export interface UserAvatarProps {
   uid?: string;
   fallbackPhotoURL?: string;
   fallbackDisplayName?: string;
@@ -13,28 +11,38 @@ interface UserAvatarProps {
   onClick?: (e: React.MouseEvent) => void;
 }
 
-// 10 Vibrant gradients for avatar backgrounds
-const avatarGradients = [
-  'linear-gradient(135deg, #2563eb, #1d4ed8)', // Blue
-  'linear-gradient(135deg, #e11d48, #be123c)', // Rose
-  'linear-gradient(135deg, #059669, #047857)', // Emerald
-  'linear-gradient(135deg, #7c3aed, #6d28d9)', // Purple
-  'linear-gradient(135deg, #d97706, #b45309)', // Amber
-  'linear-gradient(135deg, #0891b2, #0e7490)', // Cyan
-  'linear-gradient(135deg, #ea580c, #c2410c)', // Orange
-  'linear-gradient(135deg, #4f46e5, #4338ca)', // Indigo
-  'linear-gradient(135deg, #db2777, #9d174d)', // Pink
-  'linear-gradient(135deg, #0284c7, #0369a1)', // Sky
+// YouTube / Google Material solid color palette for letter avatars
+export const YOUTUBE_AVATAR_COLORS = [
+  '#c5221f', // YouTube Red
+  '#e37400', // Deep Orange
+  '#b06000', // Amber / Ochre
+  '#137333', // Google Forest Green
+  '#007b83', // Deep Teal
+  '#00897b', // Teal Green
+  '#1a73e8', // YouTube / Google Blue
+  '#3949ab', // Indigo
+  '#7b1fa2', // Purple
+  '#c2185b', // Pink / Rose
+  '#5f6368', // Slate Neutral Grey
 ];
 
-function getGradientForName(str: string): string {
-  if (!str) return avatarGradients[0];
+export function getYouTubeColor(str: string): string {
+  if (!str) return '#5f6368';
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const index = Math.abs(hash) % avatarGradients.length;
-  return avatarGradients[index];
+  const index = Math.abs(hash) % YOUTUBE_AVATAR_COLORS.length;
+  return YOUTUBE_AVATAR_COLORS[index];
+}
+
+// Single uppercase letter avatar (YouTube standard)
+export function getYouTubeInitial(name: string): string {
+  if (!name) return '';
+  const clean = name.replace(/^@/, '').trim();
+  if (!clean) return '';
+  const match = clean.match(/[a-zA-Z0-9\u0900-\u097F]/);
+  return (match ? match[0] : clean[0]).toUpperCase();
 }
 
 // Global in-memory cache initialized with localStorage
@@ -80,8 +88,9 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   onClick
 }) => {
   const { currentUser, currentUserProfile } = useApp();
+  const imgRef = useRef<HTMLImageElement>(null);
 
-  // Check if this avatar belongs to the currently logged in user safely
+  // Check if this avatar belongs to current logged in user
   const currentUsernameLower = (currentUserProfile?.username || '').trim().toLowerCase();
   const currentDisplayNameLower = (currentUserProfile?.displayName || '').trim().toLowerCase();
   const fallbackNameLower = (fallbackDisplayName || '').trim().toLowerCase();
@@ -94,8 +103,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     (uidLower && currentUsernameLower && currentUsernameLower === uidLower)
   );
 
-  // Initial fast photo from memory or persistent localStorage
-  const [fetchedPhoto, setFetchedPhoto] = useState<string>(() => {
+  // Dynamic user data states
+  const [livePhoto, setLivePhoto] = useState<string>(() => {
     if (isCurrentLoggedInUser && currentUserProfile?.photoURL) return currentUserProfile.photoURL;
     if (uid) {
       const persisted = getPersistedAvatar(uid);
@@ -103,11 +112,10 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       const u = userService.getCachedUserProfile(uid);
       if (u?.photoURL) return u.photoURL;
     }
-    return fallbackPhotoURL || '';
+    return (fallbackPhotoURL || '').trim();
   });
 
-  // Initial fast display name from memory or persistent localStorage
-  const [fetchedName, setFetchedName] = useState<string>(() => {
+  const [liveDisplayName, setLiveDisplayName] = useState<string>(() => {
     if (isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username)) {
       return currentUserProfile.displayName || currentUserProfile.username;
     }
@@ -117,37 +125,57 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       const u = userService.getCachedUserProfile(uid);
       if (u) return u.displayName || u.username;
     }
-    return fallbackDisplayName || '';
+    return (fallbackDisplayName || '').trim();
   });
 
   const [imgError, setImgError] = useState(false);
   const [isImgLoaded, setIsImgLoaded] = useState(false);
 
-  // Sync current user profile into cache whenever it updates
+  // Synchronize when current user profile updates
   useEffect(() => {
-    if (currentUser?.uid && currentUserProfile) {
+    if (isCurrentLoggedInUser && currentUserProfile) {
       if (currentUserProfile.photoURL) {
-        updateUserAvatarCache(
-          currentUser.uid,
-          currentUserProfile.photoURL,
-          currentUserProfile.displayName || currentUserProfile.username || ''
-        );
+        setLivePhoto(currentUserProfile.photoURL);
+        setImgError(false);
+        if (currentUser?.uid) {
+          updateUserAvatarCache(
+            currentUser.uid,
+            currentUserProfile.photoURL,
+            currentUserProfile.displayName || currentUserProfile.username || ''
+          );
+        }
+      }
+      if (currentUserProfile.displayName || currentUserProfile.username) {
+        setLiveDisplayName(currentUserProfile.displayName || currentUserProfile.username);
       }
     }
-  }, [currentUser?.uid, currentUserProfile?.photoURL, currentUserProfile?.displayName, currentUserProfile?.username]);
+  }, [isCurrentLoggedInUser, currentUserProfile?.photoURL, currentUserProfile?.displayName, currentUserProfile?.username]);
 
-  // Listen for external cache update events
+  // Synchronize when fallback props change
+  useEffect(() => {
+    if (!isCurrentLoggedInUser) {
+      if (fallbackPhotoURL && fallbackPhotoURL.trim()) {
+        setLivePhoto(fallbackPhotoURL.trim());
+        setImgError(false);
+      }
+      if (fallbackDisplayName && fallbackDisplayName.trim()) {
+        setLiveDisplayName(fallbackDisplayName.trim());
+      }
+    }
+  }, [fallbackPhotoURL, fallbackDisplayName, isCurrentLoggedInUser]);
+
+  // Listen for global user avatar updates
   useEffect(() => {
     if (!uid) return;
     const handleAvatarUpdate = (e: any) => {
       const detail = e.detail;
       if (detail && detail.uid === uid) {
         if (detail.photoURL) {
-          setFetchedPhoto(detail.photoURL);
+          setLivePhoto(detail.photoURL);
           setImgError(false);
         }
         if (detail.displayName) {
-          setFetchedName(detail.displayName);
+          setLiveDisplayName(detail.displayName);
         }
       }
     };
@@ -158,34 +186,24 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     };
   }, [uid]);
 
-  // Fetch or retrieve from cache for any UID
+  // Background fetch for remote profiles
   useEffect(() => {
-    setImgError(false);
-    setIsImgLoaded(false);
-
-    if (isCurrentLoggedInUser && currentUserProfile?.photoURL) {
-      setFetchedPhoto(currentUserProfile.photoURL);
-      return;
-    }
+    if (isCurrentLoggedInUser) return;
 
     if (uid) {
       const persisted = getPersistedAvatar(uid);
-      if (persisted?.photoURL) {
-        setFetchedPhoto(persisted.photoURL);
-      }
-      if (persisted?.displayName) {
-        setFetchedName(persisted.displayName);
-      }
-      
-      // Always fetch latest profile in background to keep avatar up-to-date
+      if (persisted?.photoURL) setLivePhoto(persisted.photoURL);
+      if (persisted?.displayName) setLiveDisplayName(persisted.displayName);
+
       userService.getUserProfile(uid).then(profile => {
         if (profile) {
           if (profile.photoURL) {
             updateUserAvatarCache(uid, profile.photoURL, profile.displayName || profile.username || '');
-            setFetchedPhoto(profile.photoURL);
+            setLivePhoto(profile.photoURL);
+            setImgError(false);
           }
           if (profile.displayName || profile.username) {
-            setFetchedName(profile.displayName || profile.username);
+            setLiveDisplayName(profile.displayName || profile.username);
           }
         }
       }).catch(() => {});
@@ -196,74 +214,115 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
             if (uProfile.uid) {
               updateUserAvatarCache(uProfile.uid, uProfile.photoURL, uProfile.displayName || uProfile.username || '');
             }
-            setFetchedPhoto(uProfile.photoURL);
+            setLivePhoto(uProfile.photoURL);
+            setImgError(false);
           }
           if (uProfile.displayName || uProfile.username) {
-            setFetchedName(uProfile.displayName || uProfile.username);
+            setLiveDisplayName(uProfile.displayName || uProfile.username);
           }
         }
       }).catch(() => {});
     }
-  }, [uid, fallbackDisplayName, isCurrentLoggedInUser, currentUserProfile?.photoURL]);
+  }, [uid, fallbackDisplayName, isCurrentLoggedInUser]);
 
-  // Priority order for photo:
-  const liveUserPhoto = isCurrentLoggedInUser && currentUserProfile?.photoURL ? currentUserProfile.photoURL : '';
-  const cachedPhoto = uid ? (profileCache[uid]?.photoURL || getPersistedAvatar(uid)?.photoURL || '') : '';
-  const resolvedPhoto = (liveUserPhoto || fetchedPhoto || cachedPhoto || fallbackPhotoURL || '').trim();
+  // Compute final effective photo & name
+  const effectivePhoto = useMemo(() => {
+    const raw = (
+      (isCurrentLoggedInUser && currentUserProfile?.photoURL ? currentUserProfile.photoURL : '') ||
+      livePhoto ||
+      (uid ? (profileCache[uid]?.photoURL || getPersistedAvatar(uid)?.photoURL || '') : '') ||
+      fallbackPhotoURL ||
+      ''
+    ).trim();
 
-  const liveUserName = isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username) 
-    ? (currentUserProfile.displayName || currentUserProfile.username) 
-    : '';
-  const effectiveDisplayName = liveUserName || fetchedName || fallbackDisplayName || uid || 'User';
+    return raw;
+  }, [isCurrentLoggedInUser, currentUserProfile?.photoURL, livePhoto, uid, fallbackPhotoURL]);
 
-  const hasValidPhoto = Boolean(resolvedPhoto && !imgError);
-  const bgGradient = getGradientForName(effectiveDisplayName);
+  const effectiveDisplayName = useMemo(() => {
+    return (
+      (isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username)
+        ? (currentUserProfile.displayName || currentUserProfile.username)
+        : '') ||
+      liveDisplayName ||
+      fallbackDisplayName ||
+      'User'
+    ).trim();
+  }, [isCurrentLoggedInUser, currentUserProfile?.displayName, currentUserProfile?.username, liveDisplayName, fallbackDisplayName]);
 
-  // Explicit pixel / rem sizing mappings
+  // Check image readiness upon source changes
+  useEffect(() => {
+    setImgError(false);
+    if (!effectivePhoto) {
+      setIsImgLoaded(false);
+      return;
+    }
+    // Check if the image element is already cached and loaded
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setIsImgLoaded(true);
+    } else {
+      setIsImgLoaded(false);
+    }
+  }, [effectivePhoto]);
+
+  const hasPhoto = Boolean(effectivePhoto && !imgError);
+  const initial = getYouTubeInitial(effectiveDisplayName);
+  const solidColor = getYouTubeColor(effectiveDisplayName || uid || 'User');
+
+  // Sizing maps matching YouTube specifications
   const getSizeStyles = () => {
     switch (size) {
       case 'xs':
-        return 'w-6 h-6 min-w-[24px] min-h-[24px] text-[9px]';
+        return 'w-6 h-6 min-w-[24px] min-h-[24px] text-[11px]';
       case 'sm':
-        return 'w-9 h-9 min-w-[36px] min-h-[36px] text-xs';
+        return 'w-9 h-9 min-w-[36px] min-h-[36px] text-sm';
       case 'lg':
-        return 'w-12 h-12 min-w-[48px] min-h-[48px] text-sm';
+        return 'w-12 h-12 min-w-[48px] min-h-[48px] text-lg';
       case 'xl':
-        return 'w-16 h-16 min-w-[64px] min-h-[64px] text-base';
+        return 'w-16 h-16 min-w-[64px] min-h-[64px] text-2xl';
       case 'md':
       default:
-        return 'w-10 h-10 min-w-[40px] min-h-[40px] text-xs';
+        return 'w-10 h-10 min-w-[40px] min-h-[40px] text-base';
     }
   };
 
   const sizeStyle = getSizeStyles();
-  const initials = getInitials(effectiveDisplayName);
 
   return (
     <div 
       onClick={onClick}
       style={{
-        background: bgGradient,
+        backgroundColor: solidColor,
         color: '#ffffff'
       }}
-      className={`relative ${sizeStyle} rounded-full overflow-hidden flex items-center justify-center font-black shrink-0 select-none shadow-xs transition-transform ${onClick ? 'cursor-pointer hover:scale-105 active:scale-95' : ''} ${className}`}
+      className={`relative ${sizeStyle} !rounded-full overflow-hidden flex items-center justify-center font-medium shrink-0 select-none shadow-xs transition-transform ${
+        onClick ? 'cursor-pointer hover:opacity-95 active:scale-95' : ''
+      } ${className}`}
     >
-      {/* Base Layer: Beautiful crisp initials or sleek fallback icon (NEVER blank or broken) */}
-      <span className="text-white font-black leading-none select-none tracking-wider flex items-center justify-center w-full h-full">
-        {initials && initials !== 'SI' ? (
-          initials
+      {/* YouTube Default Fallback: Authentic Single Letter or Classic YouTube Silhouette */}
+      <div className="w-full h-full flex items-center justify-center font-semibold text-white leading-none select-none tracking-normal !rounded-full">
+        {initial ? (
+          <span className="uppercase transform translate-y-[-0.5px]">{initial}</span>
         ) : (
-          <UserIcon className="w-1/2 h-1/2 text-white/90" />
+          <svg 
+            viewBox="0 0 24 24" 
+            className="w-[60%] h-[60%] fill-current text-white/95" 
+            aria-hidden="true"
+          >
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+          </svg>
         )}
-      </span>
+      </div>
 
-      {/* Image Layer: Renders over the background and only fades in on successful load */}
-      {hasValidPhoto && (
+      {/* Real Image Layer: Smoothly layered on top with no-referrer for reliable CDN/Google photo loading */}
+      {hasPhoto && (
         <img 
-          src={resolvedPhoto} 
+          ref={imgRef}
+          src={effectivePhoto} 
           alt={effectiveDisplayName} 
-          loading="lazy"
+          loading="eager"
           decoding="async"
+          referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
           onLoad={() => {
             setIsImgLoaded(true);
             setImgError(false);
@@ -272,15 +331,10 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
             setImgError(true);
             setIsImgLoaded(false);
           }}
-          className={`absolute inset-0 w-full h-full object-cover rounded-full pointer-events-none transition-opacity duration-300 ${
+          className={`absolute inset-0 w-full h-full object-cover !rounded-full pointer-events-none transition-opacity duration-150 ${
             isImgLoaded ? 'opacity-100' : 'opacity-0'
           }`}
         />
-      )}
-
-      {/* Subtle shimmer placeholder while image is resolving across network */}
-      {hasValidPhoto && !isImgLoaded && (
-        <div className="absolute inset-0 bg-white/20 dark:bg-black/20 animate-pulse pointer-events-none rounded-full" />
       )}
     </div>
   );

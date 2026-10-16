@@ -5,6 +5,7 @@ import { subscriptionService } from '../services/subscriptionService';
 import { videoService } from '../services/videoService';
 import { Video } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
+import { UserAvatar } from '../components/UserAvatar';
 import { Users, Compass } from 'lucide-react';
 import { useTranslation } from '../i18n';
 
@@ -78,16 +79,14 @@ export const Subscriptions: React.FC = () => {
               onClick={() => navigate('creator', sub.creatorUsername)}
               className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer"
             >
-              <div className="w-14 h-14 rounded-full bg-blue-600 p-0.5 border-2 border-transparent group-hover:border-blue-500 transition-all overflow-hidden">
-                {sub.creatorPhotoURL ? (
-                  <img src={sub.creatorPhotoURL} alt={sub.creatorDisplayName} className="w-full h-full object-cover rounded-full" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white font-black text-lg">
-                    {sub.creatorDisplayName[0]}
-                  </div>
-                )}
-              </div>
-              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-blue-600 truncate max-w-[70px]">
+              <UserAvatar
+                uid={sub.creatorId}
+                fallbackPhotoURL={sub.creatorPhotoURL}
+                fallbackDisplayName={sub.creatorDisplayName || sub.creatorUsername}
+                size="lg"
+                className="w-14 h-14 ring-2 ring-transparent group-hover:ring-blue-500 transition-all shadow-sm"
+              />
+              <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 group-hover:text-blue-600 truncate max-w-[76px]">
                 {sub.creatorDisplayName}
               </span>
             </button>

@@ -1762,7 +1762,7 @@ export const Shorts: React.FC = () => {
                             fallbackPhotoURL={r.photoURL}
                             fallbackDisplayName={r.displayName}
                             size="xs"
-                            className="rounded-xl shrink-0 border border-slate-200 dark:border-slate-800"
+                            className="shrink-0 border border-slate-200 dark:border-slate-800"
                           />
                           <div className="flex-1 min-w-0 bg-slate-50/50 dark:bg-slate-900/30 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
                             <div className="flex items-center justify-between mb-1">

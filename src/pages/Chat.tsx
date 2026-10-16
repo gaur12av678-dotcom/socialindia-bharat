@@ -25,6 +25,7 @@ import {
 import { getInitials } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
 import { EmojiPicker } from '../components/chat/EmojiPicker';
+import { UserAvatar } from '../components/UserAvatar';
 
 export const ChatPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -495,12 +496,14 @@ export const ChatPage: React.FC = () => {
                       : 'hover:bg-slate-50 dark:hover:bg-[#161616]'
                   }`}
                 >
-                  <div className="relative w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-xs">
-                    {s.photoURL ? (
-                      <img src={s.photoURL} className="w-full h-full object-cover" alt="" />
-                    ) : (
-                      getInitials(s.displayName)
-                    )}
+                  <div className="relative shrink-0">
+                    <UserAvatar
+                      uid={s.userId}
+                      fallbackPhotoURL={s.photoURL}
+                      fallbackDisplayName={s.displayName || s.username}
+                      size="sm"
+                      className="w-11 h-11"
+                    />
                     {s.unreadCount > 0 && (
                       <span className="absolute bottom-0 right-0 w-3 h-3 bg-blue-600 border border-white dark:border-[#0f0f0f] rounded-full flex items-center justify-center text-[8px] text-white font-black">
                         {s.unreadCount}
@@ -542,13 +545,13 @@ export const ChatPage: React.FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                 </button>
 
-                <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
-                  {selectedUser.photoURL ? (
-                    <img src={selectedUser.photoURL} className="w-full h-full object-cover" alt="" />
-                  ) : (
-                    getInitials(selectedUser.displayName)
-                  )}
-                </div>
+                <UserAvatar
+                  uid={selectedUser.userId}
+                  fallbackPhotoURL={selectedUser.photoURL}
+                  fallbackDisplayName={selectedUser.displayName || selectedUser.username}
+                  size="sm"
+                  className="w-9 h-9"
+                />
 
                 <div className="min-w-0">
                   <p className="text-xs font-black text-slate-900 dark:text-white truncate">{selectedUser.displayName}</p>
@@ -590,21 +593,13 @@ export const ChatPage: React.FC = () => {
                       )}
 
                       <div className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-800 text-[10px] font-bold flex items-center justify-center shrink-0 overflow-hidden ${isMine ? 'order-2' : 'order-1'}`}>
-                          {isMine ? (
-                            currentUserProfile?.photoURL ? (
-                              <img src={currentUserProfile.photoURL} className="w-full h-full object-cover" alt="" />
-                            ) : (
-                              getInitials(currentUserProfile?.displayName || 'Me')
-                            )
-                          ) : (
-                            selectedUser.photoURL ? (
-                              <img src={selectedUser.photoURL} className="w-full h-full object-cover" alt="" />
-                            ) : (
-                              getInitials(selectedUser.displayName)
-                            )
-                          )}
-                        </div>
+                        <UserAvatar
+                          uid={isMine ? currentUser.uid : selectedUser.userId}
+                          fallbackPhotoURL={isMine ? currentUserProfile?.photoURL : selectedUser.photoURL}
+                          fallbackDisplayName={isMine ? (currentUserProfile?.displayName || 'Me') : selectedUser.displayName}
+                          size="xs"
+                          className={`w-7 h-7 ${isMine ? 'order-2' : 'order-1'}`}
+                        />
 
                         <div className={`space-y-1 max-w-[85%] sm:max-w-[70%] ${isMine ? 'order-1' : 'order-2'}`}>
                           <div

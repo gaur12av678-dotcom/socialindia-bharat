@@ -228,12 +228,11 @@ export function formatTimeAgo(dateString: string): string {
   return `${years}yr ago`;
 }
 
-// Get user profile initial letters
+// Get user profile initial letter (YouTube single-letter standard)
 export function getInitials(name: string): string {
-  if (!name) return 'SI';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return name.trim().slice(0, 2).toUpperCase();
+  if (!name) return 'S';
+  const clean = name.replace(/^@/, '').trim();
+  if (!clean) return 'S';
+  const match = clean.match(/[a-zA-Z0-9\u0900-\u097F]/);
+  return (match ? match[0] : clean[0]).toUpperCase();
 }

@@ -1455,7 +1455,7 @@ export const Watch: React.FC = () => {
               fallbackPhotoURL={currentUserProfile?.photoURL}
               fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
               size="sm"
-              className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700"
+              className="w-9 h-9 border border-slate-200 dark:border-slate-700"
             />
             <div className="flex-1 flex gap-2">
               <input
@@ -1492,7 +1492,7 @@ export const Watch: React.FC = () => {
                       fallbackPhotoURL={comm.photoURL}
                       fallbackDisplayName={comm.displayName}
                       size="sm"
-                      className="rounded-xl shrink-0 border border-slate-200 dark:border-slate-800"
+                      className="shrink-0 border border-slate-200 dark:border-slate-800"
                     />
 
                     {/* Body content */}
@@ -1759,7 +1759,7 @@ export const Watch: React.FC = () => {
                                   fallbackPhotoURL={reply.photoURL}
                                   fallbackDisplayName={reply.displayName}
                                   size="xs"
-                                  className="rounded-lg shrink-0 border border-slate-200 dark:border-slate-800"
+                                  className="shrink-0 border border-slate-200 dark:border-slate-800"
                                 />
                                 <div className="flex-1 min-w-0 bg-slate-50/50 dark:bg-[#0f0f0f]/40 p-3 rounded-2xl border border-slate-100 dark:border-slate-800 relative">
                                   <div className="flex items-center gap-1.5 mb-1 flex-wrap">
