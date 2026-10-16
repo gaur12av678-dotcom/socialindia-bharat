@@ -7,9 +7,9 @@ This project uses a split deployment architecture managed by FireVlyx.
 
 ## Frontend — Firebase Hosting
 - Platform: Firebase Hosting
-- URL: https://socialindia-cf742.web.app
+- URL: https://socialindia.web.app
 - Deployed via: GitHub Actions (auto-triggers on push to main)
-- Workflow file: .github/workflows/firebase-hosting-socialindia-cf742.yml
+- Workflow file: .github/workflows/firebase-hosting-socialindia.yml
 - Build command: npm run build
 - Build output: dist
 - Config generated at deploy time (firebase.json + .firebaserc
