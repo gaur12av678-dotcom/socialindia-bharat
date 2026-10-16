@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { userService } from '../services/userService';
 import { useApp } from '../context/AppContext';
 import { getInitials } from '../utils/videoUtils';
+import { User as UserIcon } from 'lucide-react';
 
 interface UserAvatarProps {
   uid?: string;
@@ -12,34 +13,62 @@ interface UserAvatarProps {
   onClick?: (e: React.MouseEvent) => void;
 }
 
-// 8 Vibrant colors for fallback avatar backgrounds
-const avatarColors = [
-  '#2563eb', // Blue
-  '#e11d48', // Rose
-  '#059669', // Emerald
-  '#7c3aed', // Purple
-  '#d97706', // Amber
-  '#0891b2', // Cyan
-  '#ea580c', // Orange
-  '#4f46e5', // Indigo
+// 10 Vibrant gradients for avatar backgrounds
+const avatarGradients = [
+  'linear-gradient(135deg, #2563eb, #1d4ed8)', // Blue
+  'linear-gradient(135deg, #e11d48, #be123c)', // Rose
+  'linear-gradient(135deg, #059669, #047857)', // Emerald
+  'linear-gradient(135deg, #7c3aed, #6d28d9)', // Purple
+  'linear-gradient(135deg, #d97706, #b45309)', // Amber
+  'linear-gradient(135deg, #0891b2, #0e7490)', // Cyan
+  'linear-gradient(135deg, #ea580c, #c2410c)', // Orange
+  'linear-gradient(135deg, #4f46e5, #4338ca)', // Indigo
+  'linear-gradient(135deg, #db2777, #9d174d)', // Pink
+  'linear-gradient(135deg, #0284c7, #0369a1)', // Sky
 ];
 
-function getColorForName(str: string): string {
-  if (!str) return avatarColors[0];
+function getGradientForName(str: string): string {
+  if (!str) return avatarGradients[0];
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const index = Math.abs(hash) % avatarColors.length;
-  return avatarColors[index];
+  const index = Math.abs(hash) % avatarGradients.length;
+  return avatarGradients[index];
 }
 
-// Global in-memory cache to sync profile avatars across all components
+// Global in-memory cache initialized with localStorage
 const profileCache: Record<string, { photoURL: string; displayName: string }> = {};
+
+function getPersistedAvatar(uid: string): { photoURL: string; displayName: string } | null {
+  if (!uid) return null;
+  if (profileCache[uid]) return profileCache[uid];
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = localStorage.getItem(`si_av_${uid}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        profileCache[uid] = parsed;
+        return parsed;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
 
 export function updateUserAvatarCache(uid: string, photoURL: string, displayName: string = '') {
   if (!uid) return;
   profileCache[uid] = { photoURL, displayName };
+  try {
+    if (typeof window !== 'undefined') {
+      if (window.localStorage) {
+        localStorage.setItem(`si_av_${uid}`, JSON.stringify({ photoURL, displayName }));
+      }
+      window.dispatchEvent(new CustomEvent('si_user_avatar_updated', {
+        detail: { uid, photoURL, displayName }
+      }));
+    }
+  } catch (_) {}
 }
 
 export const UserAvatar: React.FC<UserAvatarProps> = ({ 
@@ -65,43 +94,74 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     (uidLower && currentUsernameLower && currentUsernameLower === uidLower)
   );
 
+  // Initial fast photo from memory or persistent localStorage
   const [fetchedPhoto, setFetchedPhoto] = useState<string>(() => {
     if (isCurrentLoggedInUser && currentUserProfile?.photoURL) return currentUserProfile.photoURL;
-    if (uid && profileCache[uid]?.photoURL) return profileCache[uid].photoURL;
     if (uid) {
+      const persisted = getPersistedAvatar(uid);
+      if (persisted?.photoURL) return persisted.photoURL;
       const u = userService.getCachedUserProfile(uid);
       if (u?.photoURL) return u.photoURL;
     }
     return fallbackPhotoURL || '';
   });
+
+  // Initial fast display name from memory or persistent localStorage
   const [fetchedName, setFetchedName] = useState<string>(() => {
     if (isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username)) {
       return currentUserProfile.displayName || currentUserProfile.username;
     }
-    if (uid && profileCache[uid]?.displayName) return profileCache[uid].displayName;
     if (uid) {
+      const persisted = getPersistedAvatar(uid);
+      if (persisted?.displayName) return persisted.displayName;
       const u = userService.getCachedUserProfile(uid);
       if (u) return u.displayName || u.username;
     }
     return fallbackDisplayName || '';
   });
+
   const [imgError, setImgError] = useState(false);
+  const [isImgLoaded, setIsImgLoaded] = useState(false);
 
   // Sync current user profile into cache whenever it updates
   useEffect(() => {
     if (currentUser?.uid && currentUserProfile) {
       if (currentUserProfile.photoURL) {
-        profileCache[currentUser.uid] = {
-          photoURL: currentUserProfile.photoURL,
-          displayName: currentUserProfile.displayName || currentUserProfile.username || ''
-        };
+        updateUserAvatarCache(
+          currentUser.uid,
+          currentUserProfile.photoURL,
+          currentUserProfile.displayName || currentUserProfile.username || ''
+        );
       }
     }
-  }, [currentUser?.uid, currentUserProfile?.photoURL, currentUserProfile?.displayName]);
+  }, [currentUser?.uid, currentUserProfile?.photoURL, currentUserProfile?.displayName, currentUserProfile?.username]);
+
+  // Listen for external cache update events
+  useEffect(() => {
+    if (!uid) return;
+    const handleAvatarUpdate = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.uid === uid) {
+        if (detail.photoURL) {
+          setFetchedPhoto(detail.photoURL);
+          setImgError(false);
+        }
+        if (detail.displayName) {
+          setFetchedName(detail.displayName);
+        }
+      }
+    };
+
+    window.addEventListener('si_user_avatar_updated', handleAvatarUpdate);
+    return () => {
+      window.removeEventListener('si_user_avatar_updated', handleAvatarUpdate);
+    };
+  }, [uid]);
 
   // Fetch or retrieve from cache for any UID
   useEffect(() => {
     setImgError(false);
+    setIsImgLoaded(false);
 
     if (isCurrentLoggedInUser && currentUserProfile?.photoURL) {
       setFetchedPhoto(currentUserProfile.photoURL);
@@ -109,19 +169,19 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     }
 
     if (uid) {
-      if (profileCache[uid]?.photoURL) {
-        setFetchedPhoto(profileCache[uid].photoURL);
-        setFetchedName(profileCache[uid].displayName);
+      const persisted = getPersistedAvatar(uid);
+      if (persisted?.photoURL) {
+        setFetchedPhoto(persisted.photoURL);
+      }
+      if (persisted?.displayName) {
+        setFetchedName(persisted.displayName);
       }
       
       // Always fetch latest profile in background to keep avatar up-to-date
       userService.getUserProfile(uid).then(profile => {
         if (profile) {
           if (profile.photoURL) {
-            profileCache[uid] = { 
-              photoURL: profile.photoURL, 
-              displayName: profile.displayName || profile.username 
-            };
+            updateUserAvatarCache(uid, profile.photoURL, profile.displayName || profile.username || '');
             setFetchedPhoto(profile.photoURL);
           }
           if (profile.displayName || profile.username) {
@@ -134,10 +194,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
         if (uProfile) {
           if (uProfile.photoURL) {
             if (uProfile.uid) {
-              profileCache[uProfile.uid] = { 
-                photoURL: uProfile.photoURL, 
-                displayName: uProfile.displayName || uProfile.username 
-              };
+              updateUserAvatarCache(uProfile.uid, uProfile.photoURL, uProfile.displayName || uProfile.username || '');
             }
             setFetchedPhoto(uProfile.photoURL);
           }
@@ -150,20 +207,17 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   }, [uid, fallbackDisplayName, isCurrentLoggedInUser, currentUserProfile?.photoURL]);
 
   // Priority order for photo:
-  // 1. Live Context Photo if it matches current logged in creator (from Settings!)
-  // 2. Freshly fetched or cached Photo from Firestore User Document (so settings updates reflect on all videos!)
-  // 3. Directly provided fallbackPhotoURL
   const liveUserPhoto = isCurrentLoggedInUser && currentUserProfile?.photoURL ? currentUserProfile.photoURL : '';
-  const cachedPhoto = uid && profileCache[uid]?.photoURL ? profileCache[uid].photoURL : '';
-  const resolvedPhoto = liveUserPhoto || fetchedPhoto || cachedPhoto || fallbackPhotoURL;
+  const cachedPhoto = uid ? (profileCache[uid]?.photoURL || getPersistedAvatar(uid)?.photoURL || '') : '';
+  const resolvedPhoto = (liveUserPhoto || fetchedPhoto || cachedPhoto || fallbackPhotoURL || '').trim();
 
   const liveUserName = isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username) 
     ? (currentUserProfile.displayName || currentUserProfile.username) 
     : '';
   const effectiveDisplayName = liveUserName || fetchedName || fallbackDisplayName || uid || 'User';
 
-  const hasValidPhoto = Boolean(resolvedPhoto && resolvedPhoto.trim() && !imgError);
-  const bgColor = getColorForName(effectiveDisplayName);
+  const hasValidPhoto = Boolean(resolvedPhoto && !imgError);
+  const bgGradient = getGradientForName(effectiveDisplayName);
 
   // Explicit pixel / rem sizing mappings
   const getSizeStyles = () => {
@@ -183,27 +237,50 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   };
 
   const sizeStyle = getSizeStyles();
+  const initials = getInitials(effectiveDisplayName);
 
   return (
     <div 
       onClick={onClick}
       style={{
-        backgroundColor: hasValidPhoto ? 'transparent' : bgColor,
+        background: bgGradient,
         color: '#ffffff'
       }}
-      className={`${sizeStyle} rounded-full overflow-hidden flex items-center justify-center font-black shrink-0 select-none shadow-xs transition-transform ${onClick ? 'cursor-pointer hover:scale-105 active:scale-95' : ''} ${className}`}
+      className={`relative ${sizeStyle} rounded-full overflow-hidden flex items-center justify-center font-black shrink-0 select-none shadow-xs transition-transform ${onClick ? 'cursor-pointer hover:scale-105 active:scale-95' : ''} ${className}`}
     >
-      {hasValidPhoto ? (
+      {/* Base Layer: Beautiful crisp initials or sleek fallback icon (NEVER blank or broken) */}
+      <span className="text-white font-black leading-none select-none tracking-wider flex items-center justify-center w-full h-full">
+        {initials && initials !== 'SI' ? (
+          initials
+        ) : (
+          <UserIcon className="w-1/2 h-1/2 text-white/90" />
+        )}
+      </span>
+
+      {/* Image Layer: Renders over the background and only fades in on successful load */}
+      {hasValidPhoto && (
         <img 
           src={resolvedPhoto} 
           alt={effectiveDisplayName} 
-          className="w-full h-full object-cover rounded-full" 
-          onError={() => setImgError(true)}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => {
+            setIsImgLoaded(true);
+            setImgError(false);
+          }}
+          onError={() => {
+            setImgError(true);
+            setIsImgLoaded(false);
+          }}
+          className={`absolute inset-0 w-full h-full object-cover rounded-full pointer-events-none transition-opacity duration-300 ${
+            isImgLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
         />
-      ) : (
-        <span className="text-white font-bold leading-none select-none tracking-wider">
-          {getInitials(effectiveDisplayName)}
-        </span>
+      )}
+
+      {/* Subtle shimmer placeholder while image is resolving across network */}
+      {hasValidPhoto && !isImgLoaded && (
+        <div className="absolute inset-0 bg-white/20 dark:bg-black/20 animate-pulse pointer-events-none rounded-full" />
       )}
     </div>
   );

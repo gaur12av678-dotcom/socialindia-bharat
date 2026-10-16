@@ -57,11 +57,13 @@ import {
   MoreVertical,
   Play,
   ShieldCheck,
-  Clock
+  Clock,
+  Subtitles
 } from 'lucide-react';
 import { commentService } from '../services/commentService';
 import { Comment } from '../types';
 import { UserAvatar } from '../components/UserAvatar';
+import { CaptionEditorModal } from '../components/CaptionEditorModal';
 
 // High-Fidelity Creator Studio Assets matching reference design
 import creatorStudioHeroImg from '../assets/images/creator_studio_hero_1791372781603.jpg';
@@ -145,6 +147,7 @@ export const CreatorStudio: React.FC = () => {
   // Video publishing state
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [captionEditorVideo, setCaptionEditorVideo] = useState<Video | null>(null);
 
   // Form Fields
   const [title, setTitle] = useState('');
@@ -1351,8 +1354,15 @@ export const CreatorStudio: React.FC = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => handleEditClick(v)} className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-500 hover:text-blue-600 rounded-xl transition-all cursor-pointer"><Edit3 className="w-4 h-4" /></button>
-                              <button onClick={() => handleDeleteClick(v)} className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-slate-500 hover:text-rose-600 rounded-xl transition-all cursor-pointer"><Trash2 className="w-4 h-4" /></button>
+                              <button 
+                                onClick={() => setCaptionEditorVideo(v)} 
+                                className="p-2 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-slate-500 hover:text-purple-600 rounded-xl transition-all cursor-pointer"
+                                title="Manage Subtitles / Captions (सबटाइटल्स जोड़ें)"
+                              >
+                                <Subtitles className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => handleEditClick(v)} className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-500 hover:text-blue-600 rounded-xl transition-all cursor-pointer" title="Edit Video"><Edit3 className="w-4 h-4" /></button>
+                              <button onClick={() => handleDeleteClick(v)} className="p-2 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-slate-500 hover:text-rose-600 rounded-xl transition-all cursor-pointer" title="Delete Video"><Trash2 className="w-4 h-4" /></button>
                             </div>
                           </td>
                         </tr>
@@ -2524,6 +2534,47 @@ export const CreatorStudio: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Subtitles & Captions Tool (YouTube Studio Style) */}
+                    <div className="p-5 bg-gradient-to-r from-purple-50/70 to-indigo-50/40 dark:from-purple-950/20 dark:to-indigo-950/10 rounded-3xl border border-purple-200/80 dark:border-purple-800/60 space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-purple-600/30">
+                            <Subtitles className="w-5 h-5 stroke-[2.5]" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                Subtitles & Captions
+                              </h4>
+                              {editingVideo?.captions && editingVideo.captions.length > 0 && (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-200/70 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300">
+                                  ✓ {editingVideo.captions.length} Lines Added
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                              Add timestamped subtitles in Hindi, English, or any language like YouTube Studio.
+                            </p>
+                          </div>
+                        </div>
+
+                        {editingVideo ? (
+                          <button
+                            type="button"
+                            onClick={() => setCaptionEditorVideo(editingVideo)}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black shrink-0 shadow-xs cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Subtitles className="w-4 h-4" />
+                            <span>Manage Subtitles</span>
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400">
+                            Available after upload
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
                     {/* 2. Make Video Paid (Exclusive for Monetized Channels) */}
                     {(currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin') ? (
                       <div className="p-5 bg-gradient-to-r from-emerald-50/70 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/10 rounded-3xl border border-emerald-300/80 dark:border-emerald-800/60 space-y-4 shadow-xs">
@@ -2916,6 +2967,22 @@ export const CreatorStudio: React.FC = () => {
         }}
         selectedSoundId={selectedSoundTrack?.soundId}
       />
+
+      {/* Subtitles & Captions Editor Modal (YouTube Studio Style) */}
+      {captionEditorVideo && (
+        <CaptionEditorModal
+          video={captionEditorVideo}
+          isOpen={!!captionEditorVideo}
+          onClose={() => setCaptionEditorVideo(null)}
+          onSaved={(updatedCues) => {
+            setVideos(prev => prev.map(item => item.videoId === captionEditorVideo.videoId ? { ...item, captions: updatedCues } : item));
+            if (editingVideo && editingVideo.videoId === captionEditorVideo.videoId) {
+              setEditingVideo(prev => prev ? { ...prev, captions: updatedCues } : null);
+            }
+            addToast('Subtitles & captions updated successfully!', 'success');
+          }}
+        />
+      )}
 
     </div>
   );

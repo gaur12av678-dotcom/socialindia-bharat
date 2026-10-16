@@ -10,7 +10,7 @@ import { User, Video, Playlist, ReportCategory } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { getInitials, formatSubscribers } from '../utils/videoUtils';
 import { compressBanner, compressAvatar } from '../utils/imageUtils';
-import { updateUserAvatarCache } from '../components/UserAvatar';
+import { UserAvatar, updateUserAvatarCache } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
 import { 
   Video as VideoIcon, 
@@ -495,12 +495,14 @@ export const CreatorProfile: React.FC = () => {
         <div className="p-4 sm:p-6 pt-0 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left relative">
           
           {/* Compact YouTube-Style Avatar Overlapping Banner */}
-          <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-extrabold text-2xl sm:text-3xl border-4 border-white dark:border-[#111827] shadow-xl overflow-hidden shrink-0 -mt-10 sm:-mt-12 z-10 relative group">
-            {creator.photoURL ? (
-              <img src={creator.photoURL} alt={creator.username} className="w-full h-full object-cover" />
-            ) : (
-              <span>{getInitials(creator.displayName)}</span>
-            )}
+          <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full border-4 border-white dark:border-[#111827] shadow-xl overflow-hidden shrink-0 -mt-10 sm:-mt-12 z-10 relative group">
+            <UserAvatar 
+              uid={creator.uid}
+              fallbackPhotoURL={creator.photoURL}
+              fallbackDisplayName={creator.displayName}
+              size="xl"
+              className="w-full h-full text-2xl sm:text-3xl"
+            />
             {isOwner && (
               <>
                 <button
@@ -793,9 +795,13 @@ export const CreatorProfile: React.FC = () => {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute bottom-3 left-4 flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-full border-2 border-white bg-blue-600 text-white flex items-center justify-center text-xs font-black shadow-md overflow-hidden">
-                    {creator.photoURL ? <img src={creator.photoURL} className="w-full h-full object-cover" /> : getInitials(creator.displayName)}
-                  </div>
+                  <UserAvatar 
+                    uid={creator.uid}
+                    fallbackPhotoURL={creator.photoURL}
+                    fallbackDisplayName={creator.displayName}
+                    size="sm"
+                    className="w-10 h-10 border-2 border-white shadow-md text-xs"
+                  />
                   <span className="text-xs font-bold text-white drop-shadow-md">{creator.displayName}</span>
                 </div>
               </div>

@@ -31,25 +31,81 @@ function saveToLocalUserCache(user: Partial<User> & { uid: string }) {
     usernameToUidMap.set(merged.username.trim().toLowerCase(), user.uid);
   }
   try {
-    if (typeof window !== 'undefined' && window.sessionStorage) {
-      sessionStorage.setItem(`si_u_${user.uid}`, JSON.stringify(merged));
-      if (merged.username) {
-        sessionStorage.setItem(`si_un_${merged.username.trim().toLowerCase()}`, user.uid);
+    if (typeof window !== 'undefined') {
+      const serialized = JSON.stringify(merged);
+      if (window.localStorage) {
+        localStorage.setItem(`si_u_${user.uid}`, serialized);
+        if (merged.username) {
+          localStorage.setItem(`si_un_${merged.username.trim().toLowerCase()}`, user.uid);
+        }
+        // Save to lightweight directory for instant lookup across the app
+        try {
+          const dirRaw = localStorage.getItem('si_users_directory');
+          const dir = dirRaw ? JSON.parse(dirRaw) : {};
+          dir[user.uid] = {
+            displayName: merged.displayName || merged.username || 'User',
+            username: merged.username || '',
+            photoURL: merged.photoURL || '',
+            followersCount: merged.followersCount || 0
+          };
+          const keys = Object.keys(dir);
+          if (keys.length > 250) {
+            delete dir[keys[0]];
+          }
+          localStorage.setItem('si_users_directory', JSON.stringify(dir));
+        } catch (_) {}
+      }
+      if (window.sessionStorage) {
+        sessionStorage.setItem(`si_u_${user.uid}`, serialized);
+        if (merged.username) {
+          sessionStorage.setItem(`si_un_${merged.username.trim().toLowerCase()}`, user.uid);
+        }
       }
     }
   } catch (_) {}
 }
 
 function getFromLocalUserCache(uid: string): User | null {
+  if (!uid) return null;
   const mem = userProfileMemoryCache.get(uid);
   if (mem) return mem.data;
   try {
-    if (typeof window !== 'undefined' && window.sessionStorage) {
-      const raw = sessionStorage.getItem(`si_u_${uid}`);
+    if (typeof window !== 'undefined') {
+      let raw = window.localStorage ? localStorage.getItem(`si_u_${uid}`) : null;
+      if (!raw && window.sessionStorage) {
+        raw = sessionStorage.getItem(`si_u_${uid}`);
+      }
       if (raw) {
         const parsed = JSON.parse(raw) as User;
         userProfileMemoryCache.set(uid, { data: parsed, timestamp: Date.now() });
         return parsed;
+      }
+      // Check lightweight directory fallback
+      if (window.localStorage) {
+        const dirRaw = localStorage.getItem('si_users_directory');
+        if (dirRaw) {
+          const dir = JSON.parse(dirRaw);
+          if (dir && dir[uid]) {
+            const entry = dir[uid];
+            const fallbackUser: User = {
+              uid,
+              displayName: entry.displayName || 'User',
+              username: entry.username || '',
+              photoURL: entry.photoURL || '',
+              followersCount: entry.followersCount || 0,
+              email: '',
+              followingCount: 0,
+              videosCount: 0,
+              role: 'user',
+              status: 'active',
+              points: 0,
+              walletBalance: 0,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            return fallbackUser;
+          }
+        }
       }
     }
   } catch (_) {}
@@ -57,11 +113,34 @@ function getFromLocalUserCache(uid: string): User | null {
 }
 
 function getFromLocalUsernameCache(username: string): User | null {
+  if (!username) return null;
   const clean = username.replace(/^@/, '').trim().toLowerCase();
-  const uid = usernameToUidMap.get(clean) || (typeof window !== 'undefined' ? sessionStorage.getItem(`si_un_${clean}`) : null);
+  let uid = usernameToUidMap.get(clean);
+  if (!uid && typeof window !== 'undefined') {
+    if (window.localStorage) {
+      uid = localStorage.getItem(`si_un_${clean}`) || undefined;
+    }
+    if (!uid && window.sessionStorage) {
+      uid = sessionStorage.getItem(`si_un_${clean}`) || undefined;
+    }
+  }
   if (uid) {
     return getFromLocalUserCache(uid);
   }
+  // Search in lightweight directory
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const dirRaw = localStorage.getItem('si_users_directory');
+      if (dirRaw) {
+        const dir = JSON.parse(dirRaw);
+        for (const [dirUid, entry] of Object.entries<any>(dir)) {
+          if (entry.username && entry.username.trim().toLowerCase() === clean) {
+            return getFromLocalUserCache(dirUid);
+          }
+        }
+      }
+    }
+  } catch (_) {}
   return null;
 }
 

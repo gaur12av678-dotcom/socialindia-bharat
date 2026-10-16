@@ -94,6 +94,17 @@ export const FAQPage: React.FC = () => {
                 : 'A: Creators with active profile portfolios can apply from the Settings page. Applications are evaluated for genuine quality, copyright ownership, and constructive engagement parameters by our platform safety team.'}
             </p>
           </div>
+
+          <div className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 p-6 rounded-3xl space-y-2">
+            <h4 className="font-extrabold text-xs uppercase tracking-wider text-blue-700 dark:text-blue-300">
+              {isHindi ? 'प्र: Android APK इंस्टॉल करते समय "Play Protect: App scan recommended" क्यों आता है और क्या करें?' : 'Q: Why does "Play Protect: App scan recommended" appear when installing the Android APK, and how to proceed?'}
+            </h4>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+              {isHindi 
+                ? 'उ: यह कोई एरर या वायरस नहीं है। जब कोई ऐप Google Play Store के बाहर (जैसे WhatsApp, Telegram या डायरेक्ट लिंक) से पहली बार इंस्टॉल की जाती है, तो Google Play Protect सुरक्षा के लिए यह स्कैन सुझाव दिखाता है। इसे इंस्टॉल करने के 2 आसान तरीके हैं: (1) "Scan app" बटन दबाएं — Google 5 सेकंड में स्कैन करके ऐप को सुरक्षित मार्क कर देगा और इंस्टॉल हो जाएगा। (2) या "More details" पर टैप करके "Install anyway" चुनें। 2-3 यूज़र्स द्वारा स्कैन होने के बाद Google के सिस्टम में यह अपने आप सुरक्षित दर्ज हो जाती है।' 
+                : 'A: This is not an error or virus. When an app is sideloaded outside the Google Play Store for the first time, Google Play Protect displays a standard "App scan recommended" safety check. To install: (1) Tap "Scan app" — Google scans the APK in seconds and installs it safely. (2) Or tap "More details" and select "Install anyway". Once scanned, Google registers the build signature as verified safe.'}
+            </p>
+          </div>
         </div>
 
       </div>

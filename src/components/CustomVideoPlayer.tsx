@@ -4,6 +4,7 @@ import { Video } from '../types';
 import { parseVideoUrl, formatDuration, getInitials } from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
 import { useTranslation } from '../i18n';
+import { UserAvatar } from './UserAvatar';
 import { 
   Play, 
   Pause, 
@@ -621,18 +622,30 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
 
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => {
+    if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+      const enterPromise = containerRef.current.requestFullscreen
+        ? containerRef.current.requestFullscreen()
+        : (containerRef.current as any).webkitRequestFullscreen
+        ? (containerRef.current as any).webkitRequestFullscreen()
+        : Promise.resolve();
+
+      Promise.resolve(enterPromise).then(() => {
         setIsFullscreen(true);
         // Force Landscape screen orientation lock on mobile devices (YouTube style)
         if (window.screen && window.screen.orientation && typeof (window.screen.orientation as any).lock === 'function') {
           (window.screen.orientation as any).lock('landscape').catch(() => {
-            // Fallback for browsers with strict orientation policies
+            // Orientation lock may require user authorization or standalone mode
           });
         }
       }).catch(console.error);
     } else {
-      document.exitFullscreen().then(() => {
+      const exitPromise = document.exitFullscreen
+        ? document.exitFullscreen()
+        : (document as any).webkitExitFullscreen
+        ? (document as any).webkitExitFullscreen()
+        : Promise.resolve();
+
+      Promise.resolve(exitPromise).then(() => {
         setIsFullscreen(false);
         if (window.screen && window.screen.orientation && typeof window.screen.orientation.unlock === 'function') {
           try {
@@ -804,10 +817,22 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       if (singleClickTimeoutRef.current) {
         clearTimeout(singleClickTimeoutRef.current);
       }
+      const isTouch = e.pointerType === 'touch';
       singleClickTimeoutRef.current = setTimeout(() => {
-        togglePlay();
+        if (isTouch) {
+          // On mobile touch: tap toggles controls visibility like YouTube mobile
+          setShowControls(prev => {
+            const next = !prev;
+            if (next && isPlaying) {
+              handleMouseMove();
+            }
+            return next;
+          });
+        } else {
+          togglePlay();
+        }
         singleClickTimeoutRef.current = null;
-      }, 260);
+      }, 240);
     }
   };
 
@@ -816,6 +841,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
+      onTouchStart={handleMouseMove}
+      onTouchMove={handleMouseMove}
       className={`relative w-full group select-none transition-all ${
         isFullscreen 
           ? 'h-screen w-screen bg-black overflow-hidden flex items-center justify-center' 
@@ -1038,19 +1065,17 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           >
             {/* Left: Channel Avatar & Title */}
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div 
+              <UserAvatar 
+                uid={video.creatorId}
+                fallbackPhotoURL={video.creatorPhotoURL}
+                fallbackDisplayName={video.creatorDisplayName || video.creatorUsername}
+                size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
                   navigate('creator', video.creatorUsername);
                 }}
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-extrabold text-xs cursor-pointer border border-white/20 shadow-xs hover:scale-105 transition-transform shrink-0"
-              >
-                {video.creatorPhotoURL ? (
-                  <img src={video.creatorPhotoURL} alt={video.creatorUsername} className="w-full h-full object-cover rounded-full" />
-                ) : (
-                  <span>{getInitials(video.creatorDisplayName)}</span>
-                )}
-              </div>
+                className="w-8 h-8 sm:w-9 sm:h-9 cursor-pointer border border-white/20 shadow-xs hover:scale-105 transition-transform shrink-0 text-xs"
+              />
               <div className="min-w-0">
                 <h3 className="text-xs sm:text-sm font-extrabold text-white truncate max-w-[200px] sm:max-w-md drop-shadow-md">
                   {video.title}
@@ -1233,7 +1258,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     step={0.05}
                     value={isMuted ? 0 : volume}
                     onChange={handleVolumeChange}
-                    className="w-14 sm:w-16 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-[#2563eb]"
+                    className="hidden sm:block w-14 sm:w-16 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-[#2563eb]"
                   />
                 </div>
 
@@ -1252,7 +1277,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   onClick={() => setIsCaptionsOn(!isCaptionsOn)}
                   className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold border transition-colors cursor-pointer ${
                     isCaptionsOn 
-                      ? 'bg-white text-black border-white' 
+                      ? 'bg-white text-black border-white shadow-xs' 
                       : 'border-white/50 text-white/80 hover:border-white hover:text-white'
                   }`}
                   title="Subtitles / CC"
@@ -1260,10 +1285,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   CC
                 </button>
 
-                {/* Ambient Mode Quick Toggle (Enhanced YouTube Ambient Light) */}
+                {/* Ambient Mode Quick Toggle (Enhanced YouTube Ambient Light) - Desktop only, on mobile it is in Settings menu */}
                 <button
                   onClick={toggleAmbientMode}
-                  className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center justify-center ${
+                  className={`hidden sm:flex p-1.5 rounded-lg transition-colors cursor-pointer items-center justify-center ${
                     isAmbientMode 
                       ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/50 shadow-sm shadow-amber-500/20' 
                       : 'hover:bg-white/20 text-slate-300'
@@ -1289,11 +1314,11 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   </span>
                 </button>
 
-                {/* Theater Mode Button */}
+                {/* Theater Mode Button - Hidden on mobile screens */}
                 {onToggleTheaterMode && (
                   <button
                     onClick={onToggleTheaterMode}
-                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    className={`hidden sm:flex p-1.5 rounded-lg transition-colors cursor-pointer ${
                       isTheaterMode ? 'bg-[#2563eb] text-white' : 'hover:bg-white/20 text-slate-200'
                     }`}
                     title={isTheaterMode ? "Default View (t)" : "Theater Mode (t)"}
@@ -1302,10 +1327,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   </button>
                 )}
 
-                {/* Fullscreen Button */}
+                {/* Fullscreen Button - Always clearly visible on mobile and desktop */}
                 <button
                   onClick={toggleFullscreen}
-                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white shrink-0"
                   title="Toggle Fullscreen (f)"
                 >
                   {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
@@ -1316,25 +1341,47 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         )}
       </AnimatePresence>
 
-      {/* COMPACT DROPDOWN POPUP MENU (BOTH MOBILE & DESKTOP - NO SWIPE DRAWER) */}
+      {/* LIVE CAPTIONS / SUBTITLES OVERLAY (YouTube Style with Timestamps) */}
+      {isCaptionsOn && (
+        <div className="absolute bottom-16 sm:bottom-20 inset-x-0 z-25 flex items-center justify-center pointer-events-none px-4">
+          {(() => {
+            const cue = (video.captions || []).find(
+              (c) => currentTime >= c.start && currentTime <= c.end
+            );
+            if (cue) {
+              return (
+                <div className="bg-black/85 text-white text-xs sm:text-sm font-semibold px-3 py-1 rounded shadow-lg backdrop-blur-xs text-center max-w-lg border border-white/10 animate-in fade-in">
+                  {cue.text}
+                </div>
+              );
+            }
+            return null;
+          })()}
+        </div>
+      )}
+
+      {/* COMPACT POPUP MENU (MOBILE IN-BOUNDS CARD & DESKTOP ANCHORED DROPDOWN) */}
       <AnimatePresence>
         {showPlayerMenu && (
           <>
             {/* Click-away backdrop */}
             <div 
               onClick={() => setShowPlayerMenu(false)}
-              className="absolute inset-0 z-45 cursor-default bg-black/20 backdrop-blur-[0.5px]"
+              className="absolute inset-0 z-45 cursor-default bg-black/40 backdrop-blur-[1px]"
             />
 
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              initial={{ opacity: 0, scale: 0.95, y: playerMenuAnchor === 'top' ? -6 : 6 }}
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: playerMenuAnchor === 'top' ? -6 : 6 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className={`absolute ${
-                playerMenuAnchor === 'top' ? 'top-12 right-3' : 'bottom-12 right-3'
-              } w-52 sm:w-60 max-w-[calc(100%-1.5rem)] bg-[#18181c]/95 backdrop-blur-md border border-white/20 rounded-2xl p-2 shadow-2xl text-white select-none z-50 text-xs overflow-hidden`}
+              className={`absolute z-50 bg-[#18181c]/95 backdrop-blur-md border border-white/20 text-white select-none text-xs shadow-2xl overflow-y-auto max-h-[85%] ${
+                isFullscreen
+                  ? 'bottom-14 right-4 w-60 rounded-2xl p-2.5'
+                  : 'inset-x-2 bottom-2 sm:inset-auto sm:w-60 sm:rounded-2xl rounded-2xl p-2.5 ' +
+                    (playerMenuAnchor === 'top' ? 'sm:top-12 sm:right-3 sm:bottom-auto' : 'sm:bottom-12 sm:right-3 sm:top-auto')
+              }`}
             >
               {playerSubMenu === 'main' && (
                 <div className="space-y-0.5">

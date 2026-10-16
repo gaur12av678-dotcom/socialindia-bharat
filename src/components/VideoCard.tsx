@@ -45,6 +45,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
 
   useEffect(() => {
     if (!video.creatorId) return;
+
+    // Pre-cache creator profile info for instant loading across channels, avatars and names
+    if (video.creatorDisplayName || video.creatorPhotoURL || video.creatorUsername) {
+      userService.cacheUserProfile({
+        uid: video.creatorId,
+        displayName: video.creatorDisplayName,
+        username: video.creatorUsername,
+        photoURL: video.creatorPhotoURL
+      });
+    }
     
     const now = Date.now();
     const cached = creatorVerificationCache[video.creatorId];
@@ -67,7 +77,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
       };
       setIsVerified(false);
     });
-  }, [video.creatorId]);
+  }, [video.creatorId, video.creatorDisplayName, video.creatorPhotoURL, video.creatorUsername]);
 
   const handleCardClick = () => {
     videoService.cacheVideo(video);

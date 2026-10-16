@@ -4,7 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Royal Blue Brand Background -->
     <path
-        android:fillColor="#065FD4"
+        android:fillColor="#2563EB"
         android:pathData="M0,0h108v108h-108z" />
 </vector>

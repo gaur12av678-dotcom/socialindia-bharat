@@ -4,6 +4,7 @@ import { useRouter } from '../hooks/useRouter';
 import { userService } from '../services/userService';
 import { videoService } from '../services/videoService';
 import { getInitials, formatDuration, formatTimeAgo, formatViews } from '../utils/videoUtils';
+import { UserAvatar } from '../components/UserAvatar';
 import { 
   ArrowLeft,
   Settings as SettingsIcon,
@@ -1021,9 +1022,13 @@ export const Settings: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-6 border border-slate-200 dark:border-slate-700 rounded-2xl text-center space-y-4">
-                  <div className="w-24 h-24 rounded-full bg-[#2563EB] text-white flex items-center justify-center font-bold text-3xl mx-auto overflow-hidden">
-                    {photoURL ? <img src={photoURL} alt="" className="w-full h-full object-cover" /> : getInitials(displayName || username || 'U')}
-                  </div>
+                  <UserAvatar 
+                    uid={currentUser?.uid}
+                    fallbackPhotoURL={photoURL}
+                    fallbackDisplayName={displayName || username || 'User'}
+                    size="xl"
+                    className="w-24 h-24 min-w-[96px] min-h-[96px] text-3xl mx-auto shadow-md"
+                  />
                   <button
                     onClick={() => avatarInputRef.current?.click()}
                     className="px-6 py-2.5 bg-[#2563EB] text-white text-xs font-bold rounded-full"

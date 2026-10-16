@@ -89,8 +89,18 @@ export interface Video {
   paidSalesCount?: number;
   paidEarnings?: number;
 
+  // Captions & Subtitles with timestamps (YouTube Studio Style)
+  captions?: CaptionCue[];
+
   createdAt: any;
   updatedAt: any;
+}
+
+export interface CaptionCue {
+  id: string;
+  start: number; // in seconds (e.g. 5.5)
+  end: number;   // in seconds (e.g. 10.2)
+  text: string;  // Subtitle text
 }
 
 export interface VideoPurchase {

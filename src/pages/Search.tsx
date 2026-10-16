@@ -8,6 +8,7 @@ import { userService } from '../services/userService';
 import { getInitials, formatSubscribers } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
+import { UserAvatar } from '../components/UserAvatar';
 
 export const Search: React.FC = () => {
   const { route, navigate } = useRouter();
@@ -161,13 +162,13 @@ export const Search: React.FC = () => {
                   onClick={() => navigate('creator', user.username)}
                   className="flex items-center gap-5 p-5 bg-white dark:bg-[#111827] border border-slate-100 dark:border-slate-800 rounded-[2rem] hover:shadow-xl hover:border-blue-300 dark:hover:border-blue-700 transition-all cursor-pointer group"
                 >
-                  <div className="w-20 h-20 rounded-full bg-blue-600 shrink-0 overflow-hidden border-4 border-slate-50 dark:border-slate-800 shadow-lg group-hover:scale-110 transition-transform">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-white font-black text-2xl bg-gradient-to-br from-blue-600 to-indigo-700">{getInitials(user.displayName)}</div>
-                    )}
-                  </div>
+                  <UserAvatar 
+                    uid={user.uid}
+                    fallbackPhotoURL={user.photoURL}
+                    fallbackDisplayName={user.displayName}
+                    size="xl"
+                    className="w-20 h-20 min-w-[80px] min-h-[80px] text-2xl border-4 border-slate-50 dark:border-slate-800 shadow-lg group-hover:scale-110 transition-transform"
+                  />
                   <div className="min-w-0">
                     <h4 className="text-base font-black text-slate-900 dark:text-white truncate group-hover:text-blue-600 transition-colors">{user.displayName}</h4>
                     <p className="text-[11px] text-slate-500 font-bold mt-0.5">@{user.username}</p>

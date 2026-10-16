@@ -72,11 +72,13 @@ import {
   FolderTree,
   Globe,
   Smartphone,
-  Map as MapIcon
+  Map as MapIcon,
+  Subtitles
 } from 'lucide-react';
 import { formatViews, formatTimeAgo, getInitials } from '../utils/videoUtils';
 import { AdminExtraTabs } from '../components/AdminExtraTabs';
 import { AdminQuickTools } from '../components/AdminQuickTools';
+import { CaptionEditorModal } from '../components/CaptionEditorModal';
 
 type AdminSection = 
   | 'dashboard' 
@@ -124,6 +126,7 @@ export const AdminPanel: React.FC = () => {
   const [withdrawalFilter, setWithdrawalFilter] = useState<'all' | 'pending' | 'completed' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
+  const [captionEditorVideo, setCaptionEditorVideo] = useState<Video | null>(null);
   const [isDeletingVideo, setIsDeletingVideo] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
@@ -1392,6 +1395,13 @@ export const AdminPanel: React.FC = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
+                          <button 
+                            onClick={() => setCaptionEditorVideo(v)}
+                            className="p-2 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg text-purple-500 transition-colors cursor-pointer"
+                            title="Manage Video Captions & Subtitles (सबटाइटल्स जोड़ें)"
+                          >
+                            <Subtitles className="w-4 h-4" />
+                          </button>
                           <button 
                             onClick={() => handleUpdateVideoStatus(v.videoId, v.status)}
                             className="p-2 hover:bg-slate-50 dark:hover:bg-[#272727] rounded-lg text-amber-500"
@@ -3836,6 +3846,19 @@ export const AdminPanel: React.FC = () => {
               </form>
             </div>
           </div>
+        )}
+
+        {/* Subtitles & Captions Editor Modal (Admin Tool) */}
+        {captionEditorVideo && (
+          <CaptionEditorModal
+            video={captionEditorVideo}
+            isOpen={!!captionEditorVideo}
+            onClose={() => setCaptionEditorVideo(null)}
+            onSaved={(updatedCues) => {
+              setVideos(prev => prev.map(item => item.videoId === captionEditorVideo.videoId ? { ...item, captions: updatedCues } : item));
+              addToast('Subtitles updated successfully by Admin!', 'success');
+            }}
+          />
         )}
       </main>
     </div>

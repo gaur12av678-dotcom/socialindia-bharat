@@ -58,6 +58,7 @@ import {
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
+import { UserAvatar } from './UserAvatar';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -536,15 +537,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <div ref={profileRef} className="relative">
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-[#2563eb] flex items-center justify-center text-white ring-2 ring-transparent hover:ring-[#2563eb]/40 focus:ring-[#2563eb]/50 transition-all duration-200 shadow-xs cursor-pointer select-none active:scale-95"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center ring-2 ring-transparent hover:ring-[#2563eb]/40 focus:ring-[#2563eb]/50 transition-all duration-200 shadow-xs cursor-pointer select-none active:scale-95"
                 aria-label="User account menu"
                 aria-expanded={profileDropdownOpen}
               >
-                {currentUserProfile?.photoURL ? (
-                  <img src={currentUserProfile.photoURL} alt={currentUserProfile.username} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xs font-black tracking-tight">{getInitials(currentUserProfile?.displayName || 'User')}</span>
-                )}
+                <UserAvatar 
+                  uid={currentUser.uid}
+                  fallbackPhotoURL={currentUserProfile?.photoURL}
+                  fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
+                  size="sm"
+                  className="w-full h-full text-xs"
+                />
               </button>
 
               {profileDropdownOpen && (
@@ -559,12 +562,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     className="p-3.5 bg-slate-50/90 dark:bg-zinc-900/60 border-b border-slate-100 dark:border-zinc-800/80 hover:bg-slate-100/90 dark:hover:bg-zinc-900/90 transition-colors cursor-pointer group flex items-center gap-3"
                     title="View your channel"
                   >
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-[#2563eb] text-white flex items-center justify-center shrink-0 border border-slate-200/80 dark:border-zinc-700 shadow-xs">
-                      {currentUserProfile?.photoURL ? (
-                        <img src={currentUserProfile.photoURL} alt={currentUserProfile.username} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-xs font-black">{getInitials(currentUserProfile?.displayName || 'User')}</span>
-                      )}
+                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-200/80 dark:border-zinc-700 shadow-xs">
+                      <UserAvatar 
+                        uid={currentUser.uid}
+                        fallbackPhotoURL={currentUserProfile?.photoURL}
+                        fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
+                        size="md"
+                        className="w-full h-full text-xs"
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">

@@ -1169,138 +1169,173 @@ export const Watch: React.FC = () => {
             </div>
 
             {/* Video Social controls (Likes/Dislike Split Pill, Share, Download, Save, 3-Dots) */}
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 max-w-full relative">
-              {/* Like / Dislike Split Pill */}
-              <div className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full flex items-center text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors shadow-xs">
+            <div className="relative">
+              <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pb-1 max-w-full">
+                {/* Like / Dislike Split Pill */}
+                <div className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full flex items-center text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors shadow-xs shrink-0">
+                  <button
+                    onClick={handleLikeToggle}
+                    className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-l-full cursor-pointer transition-colors"
+                    title={t('action_like', 'Like')}
+                  >
+                    <ThumbsUp className={`w-4 h-4 ${liked ? 'fill-[#2563eb] text-[#2563eb]' : ''}`} />
+                    <span>{formatViews(video.likesCount || 0)}</span>
+                  </button>
+
+                  <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
+
+                  <button
+                    onClick={() => {
+                      setDisliked(!disliked);
+                      if (liked) {
+                        setLiked(false);
+                        setVideo(prev => prev ? { ...prev, likesCount: Math.max(0, prev.likesCount - 1) } : null);
+                      }
+                    }}
+                    className="px-3 sm:px-3.5 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-r-full cursor-pointer transition-colors"
+                    title={t('action_dislike', 'Dislike')}
+                  >
+                    <ThumbsDown className={`w-4 h-4 ${disliked ? 'fill-slate-700 text-slate-700 dark:fill-white dark:text-white' : ''}`} />
+                  </button>
+                </div>
+
+                {/* Share Pill */}
                 <button
-                  onClick={handleLikeToggle}
-                  className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-l-full cursor-pointer transition-colors"
-                  title={t('action_like', 'Like')}
+                  onClick={handleShare}
+                  className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors cursor-pointer shadow-xs shrink-0"
+                  title={t('action_share', 'Share')}
                 >
-                  <ThumbsUp className={`w-4 h-4 ${liked ? 'fill-[#2563eb] text-[#2563eb]' : ''}`} />
-                  <span>{formatViews(video.likesCount || 0)}</span>
+                  <Share2 className="w-4 h-4" />
+                  <span>{t('action_share', 'Share')}</span>
                 </button>
 
-                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
-
+                {/* Download Pill */}
                 <button
-                  onClick={() => {
-                    setDisliked(!disliked);
-                    if (liked) {
-                      setLiked(false);
-                      setVideo(prev => prev ? { ...prev, likesCount: Math.max(0, prev.likesCount - 1) } : null);
-                    }
-                  }}
-                  className="px-3 sm:px-3.5 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-r-full cursor-pointer transition-colors"
-                  title={t('action_dislike', 'Dislike')}
+                  onClick={handleDownloadToggle}
+                  disabled={downloadProgress !== null}
+                  className={`rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
+                    isDownloaded
+                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
+                  }`}
+                  title={isDownloaded ? t('action_downloaded', 'Downloaded') : t('action_download', 'Download')}
                 >
-                  <ThumbsDown className={`w-4 h-4 ${disliked ? 'fill-slate-700 text-slate-700 dark:fill-white dark:text-white' : ''}`} />
+                  {downloadProgress !== null ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      <span>{downloadProgress}%</span>
+                    </>
+                  ) : isDownloaded ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <span>{t('action_downloaded', 'Downloaded')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDownToLine className="w-4 h-4" />
+                      <span>{t('action_download', 'Download')}</span>
+                    </>
+                  )}
                 </button>
+
+                {/* Save Pill */}
+                <button
+                  onClick={() => setPlaylistModalOpen(true)}
+                  className={`rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
+                    saved
+                      ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                      : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
+                  }`}
+                  title={isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}
+                >
+                  <Bookmark className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
+                  <span>{saved ? t('action_saved', 'Saved') : t('action_save', 'Save')}</span>
+                </button>
+
+                {/* 3-Dots More Button (YouTube Style) */}
+                <div className="relative shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowMoreActions(!showMoreActions);
+                    }}
+                    className={`rounded-full w-9 h-9 flex items-center justify-center transition-colors cursor-pointer shadow-xs ${
+                      showMoreActions 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
+                    }`}
+                    title={isHindi ? 'अधिक विकल्प' : 'More actions'}
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              {/* Share Pill */}
-              <button
-                onClick={handleShare}
-                className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors cursor-pointer shadow-xs shrink-0"
-                title={t('action_share', 'Share')}
-              >
-                <Share2 className="w-4 h-4" />
-                <span>{t('action_share', 'Share')}</span>
-              </button>
-
-              {/* Download Pill */}
-              <button
-                onClick={handleDownloadToggle}
-                disabled={downloadProgress !== null}
-                className={`rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
-                  isDownloaded
-                    ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                    : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
-                }`}
-                title={isDownloaded ? t('action_downloaded', 'Downloaded') : t('action_download', 'Download')}
-              >
-                {downloadProgress !== null ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                    <span>{downloadProgress}%</span>
-                  </>
-                ) : isDownloaded ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>{t('action_downloaded', 'Downloaded')}</span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowDownToLine className="w-4 h-4" />
-                    <span>{t('action_download', 'Download')}</span>
-                  </>
-                )}
-              </button>
-
-              {/* Save Pill */}
-              <button
-                onClick={() => setPlaylistModalOpen(true)}
-                className={`rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
-                  saved
-                    ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
-                    : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
-                }`}
-                title={isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}
-              >
-                <Bookmark className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
-                <span>{saved ? t('action_saved', 'Saved') : t('action_save', 'Save')}</span>
-              </button>
-
-              {/* 3-Dots More Button */}
-              <div className="relative shrink-0">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMoreActions(!showMoreActions);
-                  }}
-                  className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full w-9 h-9 flex items-center justify-center text-slate-800 dark:text-slate-100 transition-colors cursor-pointer shadow-xs"
-                  title={isHindi ? 'अधिक विकल्प' : 'More actions'}
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-
-                {/* More Actions Dropdown Menu */}
-                {showMoreActions && (
+              {/* YouTube-Style Floating 3-Dots Dropdown Menu (Screenshot 3 Matching) */}
+              {showMoreActions && (
+                <>
+                  <div 
+                    onClick={() => setShowMoreActions(false)}
+                    className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[0.5px]"
+                  />
                   <div 
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute right-0 top-11 w-48 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-2 z-50 text-xs animate-in fade-in"
+                    className="absolute right-0 top-12 w-60 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl py-2 z-50 text-xs animate-in fade-in space-y-0.5"
                   >
+                    {/* 1. Watch Ad-free / Premium (YouTube style) */}
                     <button
                       onClick={() => {
-                        handleShare();
                         setShowMoreActions(false);
+                        navigate('pro');
                       }}
-                      className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                      className="w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 text-left text-slate-800 dark:text-slate-100 font-bold cursor-pointer transition-colors"
                     >
-                      <Share2 className="w-3.5 h-3.5 text-blue-500" />
-                      <span>{t('action_share', 'Share Video')}</span>
+                      <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                      <div>
+                        <div className="font-bold text-xs">{isHindi ? 'विज्ञापन-मुक्त देखें' : 'Watch ad-free'}</div>
+                        <div className="text-[10px] text-slate-400 font-normal">{isHindi ? 'SocialIndia Pro आजमाएं' : 'Try Premium for ₹0'}</div>
+                      </div>
                     </button>
+
+                    {/* 2. Download */}
                     <button
                       onClick={() => {
                         handleDownloadToggle();
                         setShowMoreActions(false);
                       }}
-                      className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                      className="w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 text-left text-slate-800 dark:text-slate-100 font-bold cursor-pointer transition-colors"
                     >
-                      <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>{t('action_download', 'Download Video')}</span>
+                      <ArrowDownToLine className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>{t('action_download', 'Download')}</span>
                     </button>
+
+                    {/* 3. Save to Playlist */}
                     <button
                       onClick={() => {
                         setPlaylistModalOpen(true);
                         setShowMoreActions(false);
                       }}
-                      className="w-full px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                      className="w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 text-left text-slate-800 dark:text-slate-100 font-bold cursor-pointer transition-colors"
                     >
-                      <Bookmark className="w-3.5 h-3.5 text-purple-500" />
+                      <Bookmark className="w-4 h-4 text-purple-500 shrink-0" />
                       <span>{isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}</span>
                     </button>
-                    <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
+
+                    {/* 4. Copy Link */}
+                    <button
+                      onClick={() => {
+                        handleShare();
+                        setShowMoreActions(false);
+                      }}
+                      className="w-full px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-3 text-left text-slate-800 dark:text-slate-100 font-bold cursor-pointer transition-colors"
+                    >
+                      <Share2 className="w-4 h-4 text-blue-500 shrink-0" />
+                      <span>{isHindi ? 'वीडियो लिंक कॉपी करें' : 'Copy video link'}</span>
+                    </button>
+
+                    <div className="h-px bg-slate-100 dark:bg-slate-700/60 my-1" />
+
+                    {/* 5. Report */}
                     <button
                       onClick={() => {
                         setReportType('video');
@@ -1308,14 +1343,14 @@ export const Watch: React.FC = () => {
                         setReportModalOpen(true);
                         setShowMoreActions(false);
                       }}
-                      className="w-full px-4 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2.5 text-left text-rose-600 font-bold cursor-pointer"
+                      className="w-full px-4 py-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-3 text-left text-rose-600 dark:text-rose-400 font-bold cursor-pointer transition-colors"
                     >
-                      <Flag className="w-3.5 h-3.5" />
-                      <span>{t('action_report', 'Report Video')}</span>
+                      <Flag className="w-4 h-4 shrink-0" />
+                      <span>{t('action_report', 'Report')}</span>
                     </button>
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1415,9 +1450,13 @@ export const Watch: React.FC = () => {
             <>
               {/* Form to submit comment */}
               <form onSubmit={handlePostComment} className="flex gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-600 shrink-0 flex items-center justify-center text-white font-bold text-xs select-none border border-slate-200 dark:border-slate-700">
-              {currentUserProfile ? getInitials(currentUserProfile.displayName) : 'SI'}
-            </div>
+            <UserAvatar 
+              uid={currentUser?.uid}
+              fallbackPhotoURL={currentUserProfile?.photoURL}
+              fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
+              size="sm"
+              className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700"
+            />
             <div className="flex-1 flex gap-2">
               <input
                 type="text"

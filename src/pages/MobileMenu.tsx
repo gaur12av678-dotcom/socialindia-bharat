@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
+import { UserAvatar } from '../components/UserAvatar';
 
 export const MobileMenu: React.FC = () => {
   const { currentUser, currentUserProfile, theme, setTheme, addToast } = useApp();
@@ -81,13 +82,13 @@ export const MobileMenu: React.FC = () => {
         {/* 1. TOP VIEW YOUR PROFILE HEADER CARD */}
         <div className="bg-slate-50 dark:bg-[#161616] border border-slate-100 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xl border-2 border-white dark:border-slate-800 shadow-md overflow-hidden shrink-0">
-              {currentUserProfile.photoURL ? (
-                <img src={currentUserProfile.photoURL} alt="" className="w-full h-full object-cover" />
-              ) : (
-                getInitials(currentUserProfile.displayName)
-              )}
-            </div>
+            <UserAvatar 
+              uid={currentUserProfile.uid}
+              fallbackPhotoURL={currentUserProfile.photoURL}
+              fallbackDisplayName={currentUserProfile.displayName || currentUserProfile.username}
+              size="xl"
+              className="w-16 h-16 min-w-[64px] min-h-[64px] text-xl border-2 border-white dark:border-slate-800 shadow-md"
+            />
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-black tracking-tight text-slate-900 dark:text-white truncate">
                 {currentUserProfile.displayName}
