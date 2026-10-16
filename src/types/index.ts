@@ -401,3 +401,49 @@ export interface WithdrawalRequest {
   createdAt: string;
   updatedAt: string;
 }
+
+export type PostType = 'text' | 'image' | 'poll';
+
+export interface PollOption {
+  id: string;
+  text: string;
+  votesCount: number;
+}
+
+export interface PostPoll {
+  options: PollOption[];
+  totalVotes: number;
+  voters?: Record<string, string>; // uid -> optionId
+}
+
+export interface CommunityPost {
+  postId: string;
+  authorId: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  authorPhotoURL?: string;
+  authorRole?: string;
+  content: string;
+  postType: PostType;
+  images?: string[];
+  poll?: PostPoll;
+  likesCount: number;
+  dislikesCount: number;
+  commentsCount: number;
+  sharesCount: number;
+  isPinned?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PostComment {
+  commentId: string;
+  postId: string;
+  uid: string;
+  username: string;
+  displayName: string;
+  photoURL?: string;
+  text: string;
+  likesCount: number;
+  createdAt: string;
+}

@@ -30,6 +30,7 @@ import { GoProPage } from './pages/GoPro';
 import { SignInPage } from './pages/SignIn';
 import { ChatPage } from './pages/Chat';
 import { MobileMenu } from './pages/MobileMenu';
+import { CommunityPage } from './pages/Community';
 
 // Import standalone policy components
 import { PrivacyPolicyPage } from './pages/PrivacyPolicy';
@@ -180,6 +181,9 @@ function MainAppContent() {
       case 'chat':
       case 'messages':
         return <ChatPage />;
+      case 'community':
+      case 'posts':
+        return <CommunityPage />;
       case 'advertising':
         return <AdvertisingPage />;
       case 'ad-info':

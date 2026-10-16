@@ -6,8 +6,11 @@ import { videoService } from '../services/videoService';
 import { subscriptionService } from '../services/subscriptionService';
 import { playlistService } from '../services/playlistService';
 import { reportService } from '../services/reportService';
-import { User, Video, Playlist, ReportCategory } from '../types';
+import { postService } from '../services/postService';
+import { User, Video, Playlist, ReportCategory, CommunityPost } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
+import { PostCard } from '../components/community/PostCard';
+import { CreatePostBox } from '../components/community/CreatePostBox';
 import { getInitials, formatSubscribers } from '../utils/videoUtils';
 import { compressBanner, compressAvatar } from '../utils/imageUtils';
 import { UserAvatar, updateUserAvatarCache } from '../components/UserAvatar';
@@ -77,8 +80,9 @@ export const CreatorProfile: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [shorts, setShorts] = useState<Video[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(!creator);
-  const [activeTab, setActiveTab] = useState<'videos' | 'shorts' | 'playlists' | 'about'>('videos');
+  const [activeTab, setActiveTab] = useState<'videos' | 'shorts' | 'playlists' | 'posts' | 'about'>('videos');
   const [subscribed, setSubscribed] = useState(() => {
     if (currentUser && creator) {
       return subscriptionService.isSubscribedSync(currentUser.uid, creator.uid);
@@ -155,11 +159,12 @@ export const CreatorProfile: React.FC = () => {
         setCreator(uProfile);
         setBannerPreview(uProfile.bannerURL || '');
 
-        // Fetch subscriptions, videos, and playlists in PARALLEL (No waterfall!)
-        const [subResult, vidsResult, plsResult] = await Promise.allSettled([
+        // Fetch subscriptions, videos, playlists, and community posts in PARALLEL (No waterfall!)
+        const [subResult, vidsResult, plsResult, postsResult] = await Promise.allSettled([
           currentUser ? subscriptionService.isSubscribed(currentUser.uid, uProfile.uid) : Promise.resolve(false),
           videoService.getCreatorVideos(uProfile.uid),
-          playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName)
+          playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName),
+          postService.getPosts({ authorId: uProfile.uid })
         ]);
 
         if (isMounted) {
@@ -173,6 +178,9 @@ export const CreatorProfile: React.FC = () => {
           }
           if (plsResult.status === 'fulfilled') {
             setPlaylists(plsResult.value);
+          }
+          if (postsResult.status === 'fulfilled') {
+            setPosts(postsResult.value);
           }
         }
 
@@ -649,6 +657,14 @@ export const CreatorProfile: React.FC = () => {
           {activeTab === 'playlists' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
         </button>
         <button
+          onClick={() => setActiveTab('posts')}
+          className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'posts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span>{isHindi ? 'पोस्ट' : 'Posts'} ({posts.length})</span>
+          {activeTab === 'posts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
+        </button>
+        <button
           onClick={() => setActiveTab('about')}
           className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'about' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
         >
@@ -718,6 +734,45 @@ export const CreatorProfile: React.FC = () => {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {activeTab === 'posts' && (
+          <div className="max-w-2xl mx-auto space-y-5">
+            {/* If owner of this channel, show Create Post box */}
+            {isOwner && (
+              <CreatePostBox 
+                onPostCreated={() => {
+                  postService.getPosts({ authorId: creator.uid }).then(setPosts);
+                }} 
+              />
+            )}
+
+            {posts.length === 0 ? (
+              <div className="py-16 text-center text-slate-400 space-y-2">
+                <MessageSquare className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
+                <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  {isHindi ? 'अभी कोई कम्युनिटी पोस्ट नहीं है' : 'No community posts yet'}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  {isOwner 
+                    ? (isHindi ? 'ऊपर दिए गए बॉक्स से अपनी पहली पोस्ट, पोल या फ़ोटो साझा करें!' : 'Publish your first post, interactive poll or photo above!')
+                    : (isHindi ? 'इस क्रिएटर ने अभी तक कोई पोस्ट साझा नहीं की है।' : 'This creator hasn’t published any community posts yet.')}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {posts.map(p => (
+                  <PostCard 
+                    key={p.postId} 
+                    post={p} 
+                    onPostDeleted={(deletedId) => {
+                      setPosts(prev => prev.filter(item => item.postId !== deletedId));
+                    }} 
+                  />
+                ))}
+              </div>
             )}
           </div>
         )}

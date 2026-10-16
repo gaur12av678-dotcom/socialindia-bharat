@@ -38,8 +38,13 @@ import {
   Lightbulb,
   Video,
   Info,
-  HelpCircle
+  HelpCircle,
+  BarChart2
 } from 'lucide-react';
+import { CreatePostBox } from '../components/community/CreatePostBox';
+import { PostCard } from '../components/community/PostCard';
+import { postService } from '../services/postService';
+import { CommunityPost } from '../types';
 
 export const UploadPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
@@ -48,7 +53,9 @@ export const UploadPage: React.FC = () => {
 
   // Multi-step Wizard Step (1: Upload, 2: Details, 3: Video Elements, 4: Visibility)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
-  const [uploadMode, setUploadMode] = useState<'video' | 'short'>('video');
+  const [uploadMode, setUploadMode] = useState<'video' | 'short' | 'post'>('video');
+  const [userRecentPosts, setUserRecentPosts] = useState<CommunityPost[]>([]);
+  const [loadingUserPosts, setLoadingUserPosts] = useState(false);
 
   // Form Fields
   const [title, setTitle] = useState('');
@@ -87,7 +94,9 @@ export const UploadPage: React.FC = () => {
 
   // Auto-detect mode from query params
   useEffect(() => {
-    if (route.searchParams?.mode === 'short' || route.searchParams?.type === 'short') {
+    if (route.searchParams?.mode === 'post' || route.searchParams?.tab === 'post' || route.searchParams?.type === 'post') {
+      setUploadMode('post');
+    } else if (route.searchParams?.mode === 'short' || route.searchParams?.type === 'short') {
       setUploadMode('short');
       setIsShort(true);
     }
@@ -101,6 +110,28 @@ export const UploadPage: React.FC = () => {
       }).catch(console.warn);
     }
   }, [route.searchParams]);
+
+  const loadUserPosts = async () => {
+    if (!currentUser) return;
+    setLoadingUserPosts(true);
+    try {
+      const list = await postService.getPosts({ 
+        authorId: currentUser.uid, 
+        authorUsername: currentUserProfile?.username 
+      });
+      setUserRecentPosts(list);
+    } catch (err) {
+      console.error('Failed to load user community posts:', err);
+    } finally {
+      setLoadingUserPosts(false);
+    }
+  };
+
+  useEffect(() => {
+    if (uploadMode === 'post') {
+      loadUserPosts();
+    }
+  }, [uploadMode, currentUser?.uid]);
 
   // Prevent accidental page reload or closing while upload is actively running
   useEffect(() => {

@@ -279,6 +279,27 @@ match /adminSettings/{docId} {
       allow write: if isSignedIn();
     }
 
+    // --- COMMUNITY POSTS & POLLS COLLECTION ---
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid || 
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() && (
+          resource.data.uid == request.auth.uid || 
+          isAdmin()
+        );
+      }
+    }
+
     // --- NOTIFICATIONS COLLECTION ---
     match /notifications/{notifId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
