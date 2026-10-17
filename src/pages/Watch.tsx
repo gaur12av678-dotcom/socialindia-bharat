@@ -901,6 +901,7 @@ export const Watch: React.FC = () => {
 
     // Instant optimistic render (0ms!)
     setComments(prev => [...prev, tempReply]);
+    setExpandedReplies(prev => ({ ...prev, [parentCommentId]: true }));
     setEditingCommentId(null);
     setEditingCommentText('');
     setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
@@ -1153,8 +1154,18 @@ export const Watch: React.FC = () => {
                 </p>
               </div>
 
-              {currentUser?.uid !== video.creatorId && (
+              {currentUser?.uid === video.creatorId ? (
                 <button
+                  type="button"
+                  onClick={() => navigate('studio')}
+                  className="ml-3 px-4 py-2 text-xs font-bold rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-[#1E293B] dark:hover:bg-slate-800 text-slate-800 dark:text-[#F8FAFC] border border-slate-300 dark:border-slate-700 transition-all cursor-pointer shadow-xs active:scale-95"
+                  title={t('nav_studio', 'Creator Studio')}
+                >
+                  {t('nav_studio', 'Creator Studio')}
+                </button>
+              ) : (
+                <button
+                  type="button"
                   onClick={handleSubscribeToggle}
                   disabled={isSubscribing}
                   className={`ml-3 px-5 py-2 text-xs font-extrabold rounded-full transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-60 ${
@@ -1162,6 +1173,7 @@ export const Watch: React.FC = () => {
                       ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-300' 
                       : 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/85 dark:hover:bg-slate-200'
                   }`}
+                  title={subscribed ? 'Subscribed' : 'Subscribe'}
                 >
                   {subscribed ? t('action_subscribed', 'Subscribed') : t('action_subscribe', 'Subscribe')}
                 </button>
@@ -1635,17 +1647,29 @@ export const Watch: React.FC = () => {
                             placeholder="Write a reply..."
                             value={editingCommentText}
                             onChange={(e) => setEditingCommentText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey && editingCommentText.trim()) {
+                                e.preventDefault();
+                                handlePostReply(comm.commentId);
+                              }
+                            }}
                             className="flex-1 px-4 py-2 text-xs border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] rounded-xl font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                           <button
+                            type="button"
                             onClick={() => handlePostReply(comm.commentId)}
-                            className="px-4 py-2 bg-blue-600 text-white text-[10px] font-black uppercase rounded-xl"
+                            disabled={!editingCommentText.trim()}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-[10px] font-black uppercase rounded-xl cursor-pointer transition-colors shadow-xs"
                           >
                             Reply
                           </button>
                           <button
-                            onClick={() => setEditingCommentId(null)}
-                            className="px-4 py-2 bg-slate-100 text-slate-700 text-[10px] font-black uppercase rounded-xl"
+                            type="button"
+                            onClick={() => {
+                              setEditingCommentId(null);
+                              setEditingCommentText('');
+                            }}
+                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-black uppercase rounded-xl cursor-pointer"
                           >
                             Cancel
                           </button>

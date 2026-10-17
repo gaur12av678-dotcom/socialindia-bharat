@@ -54,7 +54,6 @@ jobs:
           echo "{\"projects\":{\"default\":\"$PROJECT_ID\"}}" > .firebaserc
           echo '{
             "hosting": {
-              "site": "socialindia",
               "public": "dist",
               "ignore": [
                 "firebase.json",
@@ -81,17 +80,6 @@ jobs:
           export GOOGLE_APPLICATION_CREDENTIALS=serviceAccount.json
           PROJECT_ID=$(node -e "try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log(sa.project_id || 'socialindia-96fa1'); } catch(e) { console.log('socialindia-96fa1'); }")
           echo "Deploying to Firebase project: $PROJECT_ID"
-          if firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive; then
-            echo "Successfully deployed to site socialindia on project $PROJECT_ID"
-          else
-            echo "Target site socialindia not found or errored; falling back to default hosting on $PROJECT_ID..."
-            node -e "
-              const fs = require('fs');
-              const f = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
-              if (f.hosting) delete f.hosting.site;
-              fs.writeFileSync('firebase.json', JSON.stringify(f, null, 2));
-            "
-            firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
-          fi
+          firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

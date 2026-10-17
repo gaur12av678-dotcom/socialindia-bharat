@@ -959,21 +959,46 @@ export const Shorts: React.FC = () => {
 
   const handlePostReply = async (parentCommentId: string) => {
     if (!currentUser || !currentUserProfile || !replyText.trim()) return;
+    const currentReplyText = replyText.trim();
+    const tempReplyId = `temp-reply-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    const tempReply: Comment = {
+      commentId: tempReplyId,
+      videoId: activeShort.videoId,
+      uid: currentUser.uid,
+      username: currentUserProfile.username,
+      displayName: currentUserProfile.displayName,
+      photoURL: currentUserProfile.photoURL || '',
+      text: currentReplyText,
+      likesCount: 0,
+      parentCommentId,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    // 100% INSTANT OPTIMISTIC UPDATE (0ms latency!)
+    setComments(prev => [...prev, tempReply]);
+    setCommentsCount(prev => prev + 1);
+    setReplyText('');
+    setReplyingTo(null);
+    addToast('Reply posted!', 'success');
+
     try {
       const created = await commentService.addComment(activeShort.videoId, {
         uid: currentUser.uid,
         username: currentUserProfile.username,
         displayName: currentUserProfile.displayName,
-        photoURL: currentUserProfile.photoURL,
-        text: replyText.trim(),
+        photoURL: currentUserProfile.photoURL || '',
+        text: currentReplyText,
         parentCommentId
       });
-      setComments(prev => [...prev, created]);
-      setCommentsCount(prev => prev + 1);
-      setReplyText('');
-      setReplyingTo(null);
-      addToast('Reply posted!', 'success');
+      setComments(prev => prev.map(c => c.commentId === tempReplyId ? created : c));
     } catch (err) {
+      setComments(prev => prev.filter(c => c.commentId !== tempReplyId));
+      setCommentsCount(prev => Math.max(0, prev - 1));
+      setReplyText(currentReplyText);
+      setReplyingTo(parentCommentId);
       addToast('Failed to post reply', 'error');
     }
   };
@@ -1367,17 +1392,19 @@ export const Shorts: React.FC = () => {
                   )}
                 </button>
 
-                <button
-                  onClick={() => {
-                    setOptionsMenuOpen(false);
-                    downloadService.exportToDevice(activeShort);
-                    addToast('Saving MP4 to device...', 'success');
-                  }}
-                  className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
-                >
-                  <Save className="w-4 h-4 text-amber-400" />
-                  <span>Save to Phone / PC</span>
-                </button>
+                {currentUser?.uid && (currentUser.uid === activeShort.creatorId || currentUser.uid === (activeShort as any).userId) && (
+                  <button
+                    onClick={() => {
+                      setOptionsMenuOpen(false);
+                      downloadService.exportToDevice(activeShort);
+                      addToast('Saving MP4 to device...', 'success');
+                    }}
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <Save className="w-4 h-4 text-amber-400" />
+                    <span>Save to Phone / PC</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
@@ -1734,19 +1761,31 @@ export const Shorts: React.FC = () => {
                               placeholder="Write a reply..."
                               value={replyText}
                               onChange={(e) => setReplyText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey && replyText.trim()) {
+                                  e.preventDefault();
+                                  handlePostReply(c.commentId);
+                                }
+                              }}
                               className="flex-1 px-4 py-2 text-xs border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 rounded-xl font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                             <button
+                              type="button"
                               onClick={() => handlePostReply(c.commentId)}
-                              className="px-4 py-2 bg-blue-600 text-white text-[10px] font-black uppercase rounded-xl cursor-pointer"
+                              disabled={!replyText.trim()}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-[10px] font-black uppercase rounded-xl cursor-pointer transition-colors"
                             >
                               Send
                             </button>
                             <button
-                              onClick={() => setReplyingTo(null)}
-                              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 text-[10px] font-black uppercase rounded-xl cursor-pointer"
+                              type="button"
+                              onClick={() => {
+                                setReplyingTo(null);
+                                setReplyText('');
+                              }}
+                              className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-white text-[10px] font-black uppercase rounded-xl cursor-pointer transition-colors"
                             >
-                              X
+                              ✕
                             </button>
                           </div>
                         )}

@@ -367,7 +367,13 @@ export const CreatorStudio: React.FC = () => {
       return;
     }
 
-    setSubmittingReplyId(comment.commentId);
+    setReplyTextMap(prev => ({ ...prev, [comment.commentId]: '' }));
+    setActiveReplyBoxId(null);
+    addToast('Reply sent successfully!', 'success');
+
+    // Optimistically update local comment reply indicator
+    setStudioComments(prev => prev.map(c => c.commentId === comment.commentId ? { ...c, repliesCount: ((c as any).repliesCount || 0) + 1 } : c));
+
     try {
       await commentService.addComment(comment.videoId, {
         parentCommentId: comment.commentId,
@@ -377,15 +383,9 @@ export const CreatorStudio: React.FC = () => {
         photoURL: currentUserProfile.photoURL || '',
         text: text
       });
-      addToast('Reply sent successfully!', 'success');
-      setReplyTextMap(prev => ({ ...prev, [comment.commentId]: '' }));
-      setActiveReplyBoxId(null);
-      loadStudioComments();
     } catch (err) {
       console.error(err);
       addToast('Failed to post reply.', 'error');
-    } finally {
-      setSubmittingReplyId(null);
     }
   };
 
@@ -1753,7 +1753,13 @@ export const CreatorStudio: React.FC = () => {
                             <textarea
                               value={replyTextMap[comment.commentId] || ''}
                               onChange={(e) => setReplyTextMap(prev => ({ ...prev, [comment.commentId]: e.target.value }))}
-                              placeholder="Write a helpful reply to your viewer..."
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey && (replyTextMap[comment.commentId] || '').trim()) {
+                                  e.preventDefault();
+                                  handleSendReply(comment);
+                                }
+                              }}
+                              placeholder="Write a helpful reply to your viewer... (Press Enter to send)"
                               rows={2}
                               className="w-full px-3 py-2 text-xs bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-xl focus:outline-none focus:border-blue-500 text-slate-900 dark:text-white resize-none"
                             />

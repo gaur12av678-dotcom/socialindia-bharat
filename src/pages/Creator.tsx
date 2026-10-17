@@ -41,8 +41,47 @@ const BANNER_PRESETS = [
   { name: 'Himalayan Sunrise', url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1600&q=80' },
   { name: 'Mumbai Tech Matrix', url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1600&q=80' },
   { name: 'Vibrant Festival Beats', url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1600&q=80' },
-  { name: 'Minimal Dark Studio', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1600&q=80' },
 ];
+
+const COUNTRY_FLAGS: Record<string, string> = {
+  'India': '🇮🇳',
+  'United States': '🇺🇸',
+  'United States of America': '🇺🇸',
+  'USA': '🇺🇸',
+  'United Kingdom': '🇬🇧',
+  'UK': '🇬🇧',
+  'Canada': '🇨🇦',
+  'Australia': '🇦🇺',
+  'United Arab Emirates': '🇦🇪',
+  'UAE': '🇦🇪',
+  'Singapore': '🇸🇬',
+  'Germany': '🇩🇪',
+  'France': '🇫🇷',
+  'Japan': '🇯🇵',
+  'Brazil': '🇧🇷',
+  'Nepal': '🇳🇵',
+  'Bangladesh': '🇧🇩',
+  'Saudi Arabia': '🇸🇦',
+  'South Africa': '🇿🇦',
+  'Indonesia': '🇮🇩',
+  'Malaysia': '🇲🇾',
+  'Pakistan': '🇵🇰',
+  'Sri Lanka': '🇱🇰',
+  'Russia': '🇷🇺',
+  'New Zealand': '🇳🇿',
+  'Netherlands': '🇳🇱',
+  'Italy': '🇮🇹',
+  'Spain': '🇪🇸'
+};
+
+const formatCountryDisplay = (raw?: string) => {
+  if (!raw || !raw.trim()) return 'India 🇮🇳';
+  const c = raw.trim();
+  if (/[\uD83C-\uDBFF\uDC00-\uDFFF]/.test(c)) return c;
+  const clean = c.replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim();
+  const flag = COUNTRY_FLAGS[clean] || COUNTRY_FLAGS[Object.keys(COUNTRY_FLAGS).find(k => k.toLowerCase() === clean.toLowerCase()) || ''] || '🇮🇳';
+  return `${clean} ${flag}`;
+};
 
 export const CreatorProfile: React.FC = () => {
   const { route, navigate } = useRouter();
@@ -103,6 +142,48 @@ export const CreatorProfile: React.FC = () => {
   const [reportReason, setReportReason] = useState<ReportCategory>('harassment');
   const [reportDetails, setReportDetails] = useState('');
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  // Channel Country State & Synchronization
+  const [isEditingCountry, setIsEditingCountry] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<string>(() => creator?.country || currentUserProfile?.country || 'India');
+  const [isSavingCountry, setIsSavingCountry] = useState(false);
+
+  useEffect(() => {
+    if (creator?.country) {
+      setSelectedCountry(creator.country.replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim());
+    } else if (currentUserProfile?.country) {
+      setSelectedCountry(currentUserProfile.country.replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim());
+    }
+  }, [creator?.country, currentUserProfile?.country]);
+
+  // Public playlists created by this channel (exclude internal private 'Saved Videos')
+  const publicPlaylists = playlists.filter(p => !p.isPrivate && p.title.toLowerCase() !== 'saved videos');
+
+  // Tab safety: If active tab count drops to 0, switch back to videos
+  useEffect(() => {
+    if (activeTab === 'shorts' && shorts.length === 0) setActiveTab('videos');
+    if (activeTab === 'playlists' && publicPlaylists.length === 0) setActiveTab('videos');
+    if (activeTab === 'posts' && posts.length === 0) setActiveTab('videos');
+  }, [shorts.length, publicPlaylists.length, posts.length, activeTab]);
+
+  const handleSaveCountry = async () => {
+    if (!creator || !currentUser) return;
+    setIsSavingCountry(true);
+    try {
+      const targetUid = currentUser.uid;
+      const cleanCountry = selectedCountry.replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim() || 'India';
+      updateUserProfileState({ country: cleanCountry });
+      setCreator(prev => prev ? { ...prev, country: cleanCountry } : null);
+      await userService.updateProfile(targetUid, { country: cleanCountry });
+      await refreshProfile();
+      setIsEditingCountry(false);
+      addToast(isHindi ? 'देश सफलतापूर्वक अपडेट हो गया!' : 'Country updated successfully!', 'success');
+    } catch (err) {
+      addToast(isHindi ? 'देश अपडेट करने में विफल।' : 'Failed to update country.', 'error');
+    } finally {
+      setIsSavingCountry(false);
+    }
+  };
 
   useEffect(() => {
     if (!targetUsername) {
@@ -430,243 +511,384 @@ export const CreatorProfile: React.FC = () => {
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
       
-      {/* YOUTUBE-STYLE CHANNEL HEADER CONTAINER */}
-      <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs">
-        
-        {/* 1. CHANNEL BANNER (YouTube 16:9 / 6:1 Responsive Panoramic Aspect) */}
-        <div 
-          style={{
-            backgroundColor: '#0f172a',
-            backgroundImage: 'linear-gradient(135deg, #1e3a8a 0%, #312e81 40%, #0f172a 100%)'
-          }}
-          className="relative w-full h-44 sm:h-56 md:h-64 overflow-hidden flex items-center justify-center group/banner"
-        >
-          
-          {/* Mobile Back Button */}
-          <button
-            onClick={() => navigate('home')}
-            style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', color: '#ffffff' }}
-            className="absolute top-3 left-3 md:hidden p-2 text-white rounded-xl flex items-center justify-center transition-all border border-white/20 cursor-pointer shadow-md z-30"
-            title="Back to Home"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+      {/* YOUTUBE-STYLE CHANNEL HEADER */}
+      {creator.bannerURL ? (
+        /* 1. CHANNEL WITH CUSTOM BANNER */
+        <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs">
+          <div className="relative w-full h-40 sm:h-52 md:h-64 overflow-hidden flex items-center justify-center group/banner bg-slate-900">
+            {/* Mobile Back Button */}
+            <button
+              onClick={() => navigate('home')}
+              style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', color: '#ffffff' }}
+              className="absolute top-3 left-3 md:hidden p-2 text-white rounded-xl flex items-center justify-center transition-all border border-white/20 cursor-pointer shadow-md z-30"
+              title="Back to Home"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
 
-          {creator.bannerURL ? (
             <img 
               src={creator.bannerURL} 
               alt={`${creator.displayName} Banner`} 
               className="w-full h-full object-cover group-hover/banner:scale-101 transition-transform duration-500"
             />
-          ) : (
-            <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-              {/* Subtle aesthetic pattern */}
-              <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#93c5fd_1px,transparent_1px)] [background-size:16px_16px]" />
-              <div className="relative text-center px-6">
-                <span className="text-white/90 font-black text-xl sm:text-3xl md:text-4xl tracking-wider uppercase drop-shadow-md">
-                  {creator.displayName}
-                </span>
-                <p className="text-[11px] text-cyan-300 font-bold mt-1 tracking-widest uppercase">
-                  SocialIndia Official Channel
-                </p>
-              </div>
-            </div>
-          )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
 
-          {/* Gradient shadow overlay at banner bottom for contrast */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 pointer-events-none" />
-
-          {/* Quick YouTube-Style Customize Banner Button for Channel Owner */}
-          {isOwner && (
-            <button
-              type="button"
-              onClick={() => {
-                setBannerPreview(creator.bannerURL || '');
-                setBannerModalOpen(true);
-              }}
-              style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                color: '#ffffff'
-              }}
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 px-3.5 py-2 hover:bg-black text-white text-xs font-black rounded-xl flex items-center gap-2 transition-all border border-white/40 cursor-pointer shadow-xl active:scale-95 z-30 ring-1 ring-white/20"
-              title={isHindi ? 'चैनल बैनर बदलें' : 'Change Channel Banner'}
-            >
-              <Camera className="w-4 h-4 text-cyan-400 shrink-0" />
-              <span className="font-black text-white whitespace-nowrap text-xs">
-                {isHindi ? 'बैनर बदलें' : 'Change Banner'}
-              </span>
-            </button>
-          )}
-        </div>
-
-        {/* 2. CHANNEL DETAILS ROW */}
-        <div className="p-4 sm:p-6 pt-0 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left relative">
-          
-          {/* Compact YouTube-Style Avatar Overlapping Banner */}
-          <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full border-4 border-white dark:border-[#111827] shadow-xl overflow-hidden shrink-0 -mt-10 sm:-mt-12 z-10 relative group">
-            <UserAvatar 
-              uid={creator.uid}
-              fallbackPhotoURL={creator.photoURL}
-              fallbackDisplayName={creator.displayName}
-              size="xl"
-              className="w-full h-full text-2xl sm:text-3xl"
-            />
             {isOwner && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => avatarFileInputRef.current?.click()}
-                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity cursor-pointer rounded-full"
-                  title="Change Avatar"
-                >
-                  <Camera className="w-5 h-5" />
-                  <span className="text-[9px] font-bold mt-0.5">Edit</span>
-                </button>
-                <input
-                  ref={avatarFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarFileSelect}
-                  className="hidden"
-                />
-              </>
+              <button
+                type="button"
+                onClick={() => {
+                  setBannerPreview(creator.bannerURL || '');
+                  setBannerModalOpen(true);
+                }}
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 px-3.5 py-2 bg-slate-900/90 hover:bg-black text-white text-xs font-bold rounded-xl flex items-center gap-2 transition-all border border-white/40 cursor-pointer shadow-xl active:scale-95 z-30"
+                title={isHindi ? 'चैनल बैनर बदलें' : 'Change Channel Banner'}
+              >
+                <Camera className="w-4 h-4 text-cyan-400 shrink-0" />
+                <span>{isHindi ? 'बैनर बदलें' : 'Change Banner'}</span>
+              </button>
             )}
           </div>
 
-          {/* Details & Metadata */}
-          <div className="flex-1 min-w-0 space-y-1.5 pt-1">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="p-4 sm:p-6 pt-0 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left relative">
+            {/* Overlapping Avatar */}
+            <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full border-4 border-white dark:border-[#111827] shadow-xl overflow-hidden shrink-0 -mt-10 sm:-mt-12 z-10 relative group bg-slate-100 dark:bg-slate-800">
+              <UserAvatar 
+                uid={creator.uid}
+                fallbackPhotoURL={creator.photoURL}
+                fallbackDisplayName={creator.displayName}
+                size="xl"
+                className="w-full h-full text-2xl sm:text-3xl"
+              />
+              {isOwner && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => avatarFileInputRef.current?.click()}
+                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity cursor-pointer rounded-full"
+                    title="Change Avatar"
+                  >
+                    <Camera className="w-5 h-5" />
+                    <span className="text-[9px] font-bold mt-0.5">Edit</span>
+                  </button>
+                  <input
+                    ref={avatarFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarFileSelect}
+                    className="hidden"
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Channel Details */}
+            <div className="flex-1 min-w-0 space-y-1.5 pt-1">
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-[#F8FAFC] flex items-center justify-center sm:justify-start gap-1.5">
                 <span>{creator.displayName}</span>
                 {(creator.role === 'creator' || creator.role === 'admin') && (
                   <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[10px] w-4.5 h-4.5 rounded-full font-black shrink-0 shadow-sm" title="Verified Channel">✓</span>
                 )}
               </h1>
-            </div>
-
-            <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-bold">
-              @{creator.username}
-            </p>
-
-            <div className="flex items-center gap-3 justify-center sm:justify-start text-xs font-bold text-slate-600 dark:text-[#94A3B8]">
-              <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/subscribers/i, '').trim()} सब्सक्राइबर्स` : formatSubscribers(creator.followersCount)}</span>
-              <span>•</span>
-              <span>{creator.videosCount} {isHindi ? 'वीडियो' : (creator.videosCount === 1 ? 'video' : 'videos')}</span>
-            </div>
-
-            <p className="text-xs text-slate-700 dark:text-slate-300 max-w-2xl font-medium line-clamp-2 pt-1">
-              {creator.bio || (isHindi ? "SocialIndia पर मेरे आधिकारिक चैनल में आपका स्वागत है! बेहतरीन वीडियो के लिए जुड़े रहें।" : "Welcome to my SocialIndia official channel! Stay tuned for awesome videos.")}
-            </p>
-          </div>
-
-          {/* Action Buttons: Subscribe OR Edit Settings / Banner */}
-          <div className="shrink-0 pt-2 sm:pt-4 flex items-center gap-2">
-            {isOwner ? (
-              <>
-                <button
-                  onClick={() => {
-                    setBannerPreview(creator.bannerURL || '');
-                    setBannerModalOpen(true);
-                  }}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-2 cursor-pointer shadow-md shadow-blue-500/20 transition-all active:scale-95"
-                >
-                  <Camera className="w-4 h-4" />
-                  <span>{isHindi ? 'बैनर बदलें' : 'Change Banner'}</span>
-                </button>
-                <button
-                  onClick={() => navigate('studio')}
-                  className="px-4 py-2.5 bg-slate-100 dark:bg-[#1E293B] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-[#F8FAFC] font-extrabold text-xs rounded-xl flex items-center gap-2 border border-slate-200 dark:border-[#334155] cursor-pointer shadow-xs transition-all"
-                >
-                  <SettingsIcon className="w-4 h-4 text-blue-500" />
-                  <span>{t('nav_studio', 'Creator Studio')}</span>
-                </button>
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => navigate('chat', creator.uid)}
-                  className="px-4 py-2.5 bg-slate-100 dark:bg-[#1E293B] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-[#F8FAFC] font-extrabold text-xs rounded-xl flex items-center gap-1.5 border border-slate-200 dark:border-[#334155] cursor-pointer shadow-xs transition-all"
-                  title={`Message ${creator.displayName}`}
-                >
-                  <MessageSquare className="w-4 h-4 text-blue-500" />
-                  <span>{isHindi ? 'मैसेज' : 'Message'}</span>
-                </button>
-                <button
-                  onClick={handleShareChannel}
-                  className="px-4 py-2.5 bg-slate-100 dark:bg-[#1E293B] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-800 dark:text-[#F8FAFC] font-extrabold text-xs rounded-xl flex items-center gap-1.5 border border-slate-200 dark:border-[#334155] cursor-pointer shadow-xs transition-all"
-                  title={isHindi ? 'चैनल शेयर करें' : 'Share Channel'}
-                >
-                  <Share2 className="w-4 h-4 text-blue-500" />
-                  <span>{isHindi ? 'शेयर' : 'Share'}</span>
-                </button>
-                <button
-                  onClick={handleSubscribeToggle}
-                  disabled={subscribing}
-                  className={`px-6 py-2.5 rounded-xl font-extrabold text-xs tracking-wide transition-all cursor-pointer shadow-xs disabled:opacity-60 flex items-center gap-2 ${
-                    subscribed 
-                      ? 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-[#F8FAFC] border border-slate-200 dark:border-[#334155] hover:bg-slate-200' 
-                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/20'
-                  }`}
-                >
-                  {subscribed ? (
-                    <>
-                      <Check className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                      <span>{t('action_subscribed', 'Subscribed')}</span>
-                    </>
-                  ) : (
-                    <span>{t('action_subscribe', 'Subscribe')}</span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setReportModalOpen(true)}
-                  className="p-2.5 bg-slate-100 dark:bg-[#1E293B] hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-500 rounded-xl transition-colors cursor-pointer border border-slate-200 dark:border-[#334155]"
-                  title={isHindi ? 'चैनल रिपोर्ट करें' : 'Report Channel'}
-                >
-                  <Flag className="w-4 h-4" />
-                </button>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs font-semibold text-slate-500 dark:text-[#94A3B8]">
+                <span className="font-bold text-slate-800 dark:text-slate-200">@{creator.username}</span>
+                <span>•</span>
+                <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/subscribers/i, '').trim()} सब्सक्राइबर्स` : formatSubscribers(creator.followersCount)}</span>
+                <span>•</span>
+                <span>{creator.videosCount} {isHindi ? 'वीडियो' : (creator.videosCount === 1 ? 'video' : 'videos')}</span>
               </div>
-            )}
+              <p className="text-xs text-slate-700 dark:text-slate-300 max-w-2xl font-medium line-clamp-2 pt-1">
+                {creator.bio || (isHindi ? "SocialIndia पर मेरे आधिकारिक चैनल में आपका स्वागत है! बेहतरीन वीडियो के लिए जुड़े रहें।" : "Welcome to my SocialIndia official channel! Stay tuned for awesome videos.")}
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="shrink-0 pt-2 sm:pt-4 flex flex-wrap items-center justify-center gap-2">
+              {isOwner ? (
+                <>
+                  {/* YouTube Signature Subscribe Button */}
+                  <button
+                    type="button"
+                    onClick={() => addToast(isHindi ? 'यह आपका अपना चैनल है!' : 'This is your own channel!', 'info')}
+                    className="px-6 py-2.5 rounded-full font-black text-xs sm:text-sm tracking-wide bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/90 dark:hover:bg-slate-100 transition-all cursor-pointer shadow-sm active:scale-95 flex items-center gap-2 shrink-0"
+                    title={isHindi ? 'यह आपका अपना चैनल है' : 'Your channel'}
+                  >
+                    <span>{isHindi ? 'सब्सक्राइब' : 'Subscribe'}</span>
+                  </button>
+                  <button
+                    onClick={() => navigate('studio')}
+                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
+                  >
+                    <SettingsIcon className="w-4 h-4 text-blue-500" />
+                    <span>{t('nav_studio', 'Creator Studio')}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setBannerPreview(creator.bannerURL || '');
+                      setBannerModalOpen(true);
+                    }}
+                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
+                  >
+                    <Camera className="w-4 h-4 text-blue-500" />
+                    <span>{isHindi ? 'बैनर बदलें' : 'Change Banner'}</span>
+                  </button>
+                  <button
+                    onClick={handleShareChannel}
+                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-1.5 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
+                  >
+                    <Share2 className="w-4 h-4 text-blue-500" />
+                    <span>{isHindi ? 'शेयर' : 'Share'}</span>
+                  </button>
+                </>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    onClick={handleSubscribeToggle}
+                    disabled={subscribing}
+                    className={`px-6 py-2.5 rounded-full font-extrabold text-xs sm:text-sm tracking-wide transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-60 flex items-center gap-2 shrink-0 ${
+                      subscribed 
+                        ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 hover:bg-slate-300' 
+                        : 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/90 dark:hover:bg-slate-100'
+                    }`}
+                  >
+                    {subscribed ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+                        <span>{t('action_subscribed', 'Subscribed')}</span>
+                      </>
+                    ) : (
+                      <span>{t('action_subscribe', 'Subscribe')}</span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => navigate('chat', creator.uid)}
+                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-xs transition-all"
+                  >
+                    <MessageSquare className="w-4 h-4 text-blue-500" />
+                    <span>{isHindi ? 'मैसेज' : 'Message'}</span>
+                  </button>
+                  <button
+                    onClick={handleShareChannel}
+                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-xs transition-all"
+                  >
+                    <Share2 className="w-4 h-4 text-blue-500" />
+                    <span>{isHindi ? 'शेयर' : 'Share'}</span>
+                  </button>
+                  <button
+                    onClick={() => setReportModalOpen(true)}
+                    className="p-2 sm:p-2.5 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/30 text-slate-500 hover:text-rose-500 rounded-full transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                    title={isHindi ? 'चैनल रिपोर्ट करें' : 'Report Channel'}
+                  >
+                    <Flag className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* 2. CHANNEL WITHOUT BANNER — EXACT YOUTUBE STYLE */
+        <div className="pt-2 pb-4">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8 text-center sm:text-left">
+            {/* Circular Avatar on Left */}
+            <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full overflow-hidden shrink-0 border-2 border-slate-200 dark:border-slate-700 shadow-md relative group bg-slate-100 dark:bg-slate-800">
+              <UserAvatar 
+                uid={creator.uid}
+                fallbackPhotoURL={creator.photoURL}
+                fallbackDisplayName={creator.displayName}
+                size="xl"
+                className="w-full h-full text-3xl sm:text-5xl"
+              />
+              {isOwner && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => avatarFileInputRef.current?.click()}
+                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity cursor-pointer rounded-full"
+                    title="Change Avatar"
+                  >
+                    <Camera className="w-6 h-6" />
+                    <span className="text-[10px] font-bold mt-1">Edit</span>
+                  </button>
+                  <input
+                    ref={avatarFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarFileSelect}
+                    className="hidden"
+                  />
+                </>
+              )}
+            </div>
 
-      {/* Profile Sections navigation tab */}
-      <div className="flex border-b border-slate-200 dark:border-[#334155] gap-6">
+            {/* Details on Right */}
+            <div className="flex-1 min-w-0 space-y-2 pt-1">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-center sm:justify-start">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center justify-center sm:justify-start gap-2">
+                  <span>{creator.displayName}</span>
+                  {(creator.role === 'creator' || creator.role === 'admin') && (
+                    <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[11px] w-5 h-5 rounded-full font-black shrink-0 shadow-xs" title="Verified Channel">✓</span>
+                  )}
+                </h1>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400">
+                <span className="font-bold text-slate-800 dark:text-slate-200">@{creator.username}</span>
+                <span>•</span>
+                <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/subscribers/i, '').trim()} सब्सक्राइबर्स` : formatSubscribers(creator.followersCount)}</span>
+                <span>•</span>
+                <span>{creator.videosCount} {isHindi ? 'वीडियो' : (creator.videosCount === 1 ? 'video' : 'videos')}</span>
+              </div>
+
+              <p 
+                onClick={() => setActiveTab('about')}
+                className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl font-normal line-clamp-2 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors"
+                title={isHindi ? "चैनल के बारे में और जानें" : "More about this channel"}
+              >
+                {creator.bio || (isHindi ? "SocialIndia पर मेरे आधिकारिक चैनल में आपका स्वागत है! बेहतरीन वीडियो के लिए जुड़े रहें।" : "Welcome to my SocialIndia official channel! Stay tuned for awesome videos.")}
+                <span className="text-blue-600 dark:text-blue-400 font-semibold ml-1">...more</span>
+              </p>
+
+              {/* Action Buttons Row */}
+              <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                {isOwner ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => navigate('studio')}
+                      className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
+                    >
+                      <SettingsIcon className="w-4 h-4 text-blue-500" />
+                      <span>{t('nav_studio', 'Creator Studio')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBannerPreview(creator.bannerURL || '');
+                        setBannerModalOpen(true);
+                      }}
+                      className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
+                    >
+                      <Camera className="w-4 h-4 text-blue-500" />
+                      <span>{isHindi ? 'बैनर जोड़ें' : 'Add Banner'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleShareChannel}
+                      className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
+                    >
+                      <Share2 className="w-4 h-4 text-blue-500" />
+                      <span>{isHindi ? 'शेयर' : 'Share'}</span>
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* YouTube Black/White Subscribe Button */}
+                    <button
+                      type="button"
+                      onClick={handleSubscribeToggle}
+                      disabled={subscribing}
+                      className={`px-6 py-2.5 rounded-full font-extrabold text-xs sm:text-sm tracking-wide transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-60 flex items-center gap-2 shrink-0 ${
+                        subscribed 
+                          ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 hover:bg-slate-300' 
+                          : 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/90 dark:hover:bg-slate-100'
+                      }`}
+                    >
+                      {subscribed ? (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+                          <span>{t('action_subscribed', 'Subscribed')}</span>
+                        </>
+                      ) : (
+                        <span>{t('action_subscribe', 'Subscribe')}</span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => navigate('chat', creator.uid)}
+                      className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-xs transition-all"
+                    >
+                      <MessageSquare className="w-4 h-4 text-blue-500" />
+                      <span>{isHindi ? 'मैसेज' : 'Message'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleShareChannel}
+                      className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-xs transition-all"
+                    >
+                      <Share2 className="w-4 h-4 text-blue-500" />
+                      <span>{isHindi ? 'शेयर' : 'Share'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setReportModalOpen(true)}
+                      className="p-2 sm:p-2.5 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/30 text-slate-500 hover:text-rose-500 rounded-full transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                      title={isHindi ? 'चैनल रिपोर्ट करें' : 'Report Channel'}
+                    >
+                      <Flag className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DYNAMIC PROFILE NAVIGATION TABS (Hides empty sections: Shorts, Playlists, Posts) */}
+      <div className="flex border-b border-slate-200 dark:border-[#334155] gap-4 sm:gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {/* Videos Tab: Always available */}
         <button
           onClick={() => setActiveTab('videos')}
-          className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'videos' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
+          className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'videos' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
         >
           <VideoIcon className="w-4 h-4" />
           <span>{t('tab_videos', 'Videos')} ({videos.length})</span>
           {activeTab === 'videos' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
         </button>
-        <button
-          onClick={() => setActiveTab('shorts')}
-          className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'shorts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
-        >
-          <Zap className="w-4 h-4" />
-          <span>{t('tab_shorts', 'Shorts')} ({shorts.length})</span>
-          {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
-        </button>
-        <button
-          onClick={() => setActiveTab('playlists')}
-          className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'playlists' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
-        >
-          <Bookmark className="w-4 h-4" />
-          <span>{t('tab_playlists', 'Playlists')} ({playlists.length})</span>
-          {activeTab === 'playlists' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
-        </button>
-        <button
-          onClick={() => setActiveTab('posts')}
-          className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'posts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
-        >
-          <MessageSquare className="w-4 h-4" />
-          <span>{isHindi ? 'पोस्ट' : 'Posts'} ({posts.length})</span>
-          {activeTab === 'posts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
-        </button>
+
+        {/* Shorts Tab: Only show if creator has shorts */}
+        {shorts.length > 0 && (
+          <button
+            onClick={() => setActiveTab('shorts')}
+            className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'shorts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
+          >
+            <Zap className="w-4 h-4" />
+            <span>{t('tab_shorts', 'Shorts')} ({shorts.length})</span>
+            {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
+          </button>
+        )}
+
+        {/* Playlists Tab: Only show if creator has public playlists */}
+        {publicPlaylists.length > 0 && (
+          <button
+            onClick={() => setActiveTab('playlists')}
+            className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'playlists' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
+          >
+            <Bookmark className="w-4 h-4" />
+            <span>{t('tab_playlists', 'Playlists')} ({publicPlaylists.length})</span>
+            {activeTab === 'playlists' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
+          </button>
+        )}
+
+        {/* Posts Tab: Only show if creator has posts */}
+        {posts.length > 0 && (
+          <button
+            onClick={() => setActiveTab('posts')}
+            className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'posts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>{isHindi ? 'पोस्ट' : 'Posts'} ({posts.length})</span>
+            {activeTab === 'posts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
+          </button>
+        )}
+
+        {/* About Tab: Always available */}
         <button
           onClick={() => setActiveTab('about')}
-          className={`pb-3 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer relative ${activeTab === 'about' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
+          className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'about' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
         >
           <Info className="w-4 h-4" />
           <span>{t('tab_about', 'About')}</span>
@@ -696,12 +918,12 @@ export const CreatorProfile: React.FC = () => {
 
         {activeTab === 'playlists' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {playlists.length === 0 ? (
+            {publicPlaylists.length === 0 ? (
               <div className="col-span-full py-16 text-center text-slate-400 font-bold">
                 {isHindi ? "इस चैनल द्वारा अभी तक कोई प्लेलिस्ट नहीं बनाई गई है।" : "No public playlists created by this channel yet."}
               </div>
             ) : (
-              playlists.map(pl => (
+              publicPlaylists.map(pl => (
                 <div 
                   key={pl.playlistId}
                   onClick={() => {
@@ -740,7 +962,6 @@ export const CreatorProfile: React.FC = () => {
 
         {activeTab === 'posts' && (
           <div className="max-w-2xl mx-auto space-y-5">
-            {/* If owner of this channel, show Create Post box */}
             {isOwner && (
               <CreatePostBox 
                 onPostCreated={() => {
@@ -778,18 +999,86 @@ export const CreatorProfile: React.FC = () => {
         )}
 
         {activeTab === 'about' && (
-          <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 max-w-xl shadow-xs">
+          <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-5 max-w-xl shadow-xs">
             <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
               {isHindi ? "चैनल के बारे में" : "About this Channel"}
             </h3>
             <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
               {creator.bio || (isHindi ? "इस क्रिएटर ने अभी तक चैनल का कोई अतिरिक्त विवरण नहीं दिया है।" : "This creator has not provided any additional channel biography.")}
             </p>
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2 text-xs font-semibold text-slate-500 dark:text-[#94A3B8]">
-              <div className="flex justify-between">
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3 text-xs font-semibold text-slate-500 dark:text-[#94A3B8]">
+              {/* Country Details Row with In-Place Channel Owner Editor */}
+              <div className="flex items-center justify-between">
                 <span>{isHindi ? "देश" : "Country"}</span>
-                <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{creator.country || 'India 🇮🇳'}</span>
+                {isOwner && isEditingCountry ? (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={(selectedCountry || 'India').replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim()}
+                      onChange={(e) => setSelectedCountry(e.target.value)}
+                      className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="India">India 🇮🇳</option>
+                      <option value="United States">United States 🇺🇸</option>
+                      <option value="United Kingdom">United Kingdom 🇬🇧</option>
+                      <option value="Canada">Canada 🇨🇦</option>
+                      <option value="Australia">Australia 🇦🇺</option>
+                      <option value="United Arab Emirates">United Arab Emirates 🇦🇪</option>
+                      <option value="Singapore">Singapore 🇸🇬</option>
+                      <option value="Germany">Germany 🇩🇪</option>
+                      <option value="France">France 🇫🇷</option>
+                      <option value="Japan">Japan 🇯🇵</option>
+                      <option value="Brazil">Brazil 🇧🇷</option>
+                      <option value="Nepal">Nepal 🇳🇵</option>
+                      <option value="Bangladesh">Bangladesh 🇧🇩</option>
+                      <option value="Saudi Arabia">Saudi Arabia 🇸🇦</option>
+                      <option value="South Africa">South Africa 🇿🇦</option>
+                      <option value="Indonesia">Indonesia 🇮🇩</option>
+                      <option value="Malaysia">Malaysia 🇲🇾</option>
+                      <option value="Pakistan">Pakistan 🇵🇰</option>
+                      <option value="Sri Lanka">Sri Lanka 🇱🇰</option>
+                      <option value="Russia">Russia 🇷🇺</option>
+                      <option value="New Zealand">New Zealand 🇳🇿</option>
+                      <option value="Netherlands">Netherlands 🇳🇱</option>
+                      <option value="Italy">Italy 🇮🇹</option>
+                      <option value="Spain">Spain 🇪🇸</option>
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isSavingCountry}
+                      onClick={handleSaveCountry}
+                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
+                    >
+                      {isSavingCountry ? '...' : (isHindi ? 'सेव' : 'Save')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingCountry(false)}
+                      className="px-2 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">
+                      {formatCountryDisplay(creator.country || (isOwner ? currentUserProfile?.country : '') || 'India')}
+                    </span>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCountry((creator.country || currentUserProfile?.country || 'India').replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim());
+                          setIsEditingCountry(true);
+                        }}
+                        className="text-blue-600 dark:text-blue-400 hover:underline text-[11px] font-bold cursor-pointer"
+                      >
+                        {isHindi ? 'बदलें' : 'Edit'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
+
               <div className="flex justify-between">
                 <span>{isHindi ? "SocialIndia से जुड़े" : "Joined SocialIndia"}</span>
                 <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{new Date(creator.createdAt).toLocaleDateString(isHindi ? 'hi-IN' : 'en-US')}</span>

@@ -23,8 +23,16 @@ export function parseHash(hash: string): Route {
   }
 
   const parts = routePart.split('/');
-  const path = parts[0] || 'home';
-  const param = parts[1] || undefined;
+  let path = parts[0] || 'home';
+  let param = parts[1] || undefined;
+
+  // Handle YouTube-style @handle and channel routes
+  if (path.startsWith('@')) {
+    param = path.substring(1);
+    path = 'creator';
+  } else if (path === 'channel' || path === 'user' || path === 'profile' || path === 'c') {
+    path = 'creator';
+  }
 
   return { path, param, searchParams };
 }

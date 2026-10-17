@@ -171,6 +171,10 @@ function MainAppContent() {
       case 'playlist':
         return <PlaylistsPage />;
       case 'creator':
+      case 'channel':
+      case 'user':
+      case 'profile':
+      case 'c':
         return <CreatorProfile />;
       case 'studio':
         return <CreatorStudio />;

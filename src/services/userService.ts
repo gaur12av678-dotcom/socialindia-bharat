@@ -46,7 +46,8 @@ function saveToLocalUserCache(user: Partial<User> & { uid: string }) {
             displayName: merged.displayName || merged.username || 'User',
             username: merged.username || '',
             photoURL: merged.photoURL || '',
-            followersCount: merged.followersCount || 0
+            followersCount: merged.followersCount || 0,
+            country: merged.country || 'India'
           };
           const keys = Object.keys(dir);
           if (keys.length > 250) {
@@ -100,6 +101,7 @@ function getFromLocalUserCache(uid: string): User | null {
               status: 'active',
               points: 0,
               walletBalance: 0,
+              country: entry.country || 'India',
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             };
@@ -274,7 +276,7 @@ export const userService = {
       points: 10, // Welcome points
       walletBalance: 0.00,
       gender: 'Male',
-      country: '',
+      country: profile.country || 'India',
       age: '',
       paypalEmail: profile.email || '',
       // Admin assignment must be done manually in the Firebase console or Firestore editor for maximum security.
@@ -318,6 +320,8 @@ export const userService = {
         ...sanitizedUpdates,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
+
+      saveToLocalUserCache({ uid, ...sanitizedUpdates });
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
     }

@@ -165,8 +165,8 @@ export const Settings: React.FC = () => {
       setBio(currentUserProfile.bio || '');
       setPhotoURL(currentUserProfile.photoURL || '');
       setBannerURL(currentUserProfile.bannerURL || '');
-      setGender(currentUserProfile.gender || 'Male');
-      setCountry(currentUserProfile.country || 'India');
+      const cleanC = (currentUserProfile.country || 'India').replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim() || 'India';
+      setCountry(cleanC);
       setAge(currentUserProfile.age || 'Not selected');
       setPoints(currentUserProfile.points ?? 118);
       setWalletBalance(currentUserProfile.walletBalance ?? 0.00);
@@ -211,12 +211,14 @@ export const Settings: React.FC = () => {
     setSavingStatus('saving');
     setSaveMsg('');
     try {
-      await userService.updateProfile(currentUser.uid, {
+      const updates = {
         username: username.trim().toLowerCase(),
         gender,
         country,
         age,
-      });
+      };
+      updateUserProfileState(updates);
+      await userService.updateProfile(currentUser.uid, updates);
       await refreshProfile();
       setSavingStatus('saved');
       setSaveMsg('Settings saved successfully.');
@@ -843,11 +845,30 @@ export const Settings: React.FC = () => {
                         onChange={(e) => setCountry(e.target.value)}
                         className="w-full h-12 pl-11 pr-10 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-[#2563EB] appearance-none"
                       >
-                        <option value="India">India</option>
-                        <option value="United States">United States</option>
-                        <option value="United Kingdom">United Kingdom</option>
-                        <option value="Canada">Canada</option>
-                        <option value="Australia">Australia</option>
+                        <option value="India">India 🇮🇳</option>
+                        <option value="United States">United States 🇺🇸</option>
+                        <option value="United Kingdom">United Kingdom 🇬🇧</option>
+                        <option value="Canada">Canada 🇨🇦</option>
+                        <option value="Australia">Australia 🇦🇺</option>
+                        <option value="United Arab Emirates">United Arab Emirates 🇦🇪</option>
+                        <option value="Singapore">Singapore 🇸🇬</option>
+                        <option value="Germany">Germany 🇩🇪</option>
+                        <option value="France">France 🇫🇷</option>
+                        <option value="Japan">Japan 🇯🇵</option>
+                        <option value="Brazil">Brazil 🇧🇷</option>
+                        <option value="Nepal">Nepal 🇳🇵</option>
+                        <option value="Bangladesh">Bangladesh 🇧🇩</option>
+                        <option value="Saudi Arabia">Saudi Arabia 🇸🇦</option>
+                        <option value="South Africa">South Africa 🇿🇦</option>
+                        <option value="Indonesia">Indonesia 🇮🇩</option>
+                        <option value="Malaysia">Malaysia 🇲🇾</option>
+                        <option value="Pakistan">Pakistan 🇵🇰</option>
+                        <option value="Sri Lanka">Sri Lanka 🇱🇰</option>
+                        <option value="Russia">Russia 🇷🇺</option>
+                        <option value="New Zealand">New Zealand 🇳🇿</option>
+                        <option value="Netherlands">Netherlands 🇳🇱</option>
+                        <option value="Italy">Italy 🇮🇹</option>
+                        <option value="Spain">Spain 🇪🇸</option>
                       </select>
                       <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none" />
                     </div>
