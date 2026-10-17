@@ -175,23 +175,41 @@ export const commentService = {
       throw err;
     }
   },
-  // Get comments on a video with synchronized, latest user avatars
+  // Get comments on a video with instant 0ms return and background avatar hydration
   async getComments(videoId: string): Promise<Comment[]> {
     const colRef = collection(db, 'videos', videoId, 'comments');
     try {
       const snap = await getDocs(colRef);
       const comments = snap.docs.map((d: any) => d.data() as Comment);
 
-      // Hydrate with latest avatars for all authors so changed avatars update across all old comments!
+      // Apply any already cached author avatars immediately
+      const initialComments = comments.map(c => {
+        const cached = commentUserCache.get(c.uid) || (c.uid ? userService.getCachedUserProfile(c.uid) : null);
+        if (cached) {
+          return {
+            ...c,
+            photoURL: cached.photoURL || c.photoURL,
+            displayName: cached.displayName || c.displayName,
+            username: cached.username || c.username
+          };
+        }
+        return c;
+      });
+
+      // Sort comments: Pinned comment first, then newest first
+      const sorted = initialComments.sort((a: Comment, b: Comment) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      // Background non-blocking hydration to refresh any changed avatars without blocking the UI
       const uniqueUids = Array.from(new Set(comments.map(c => c.uid).filter(Boolean)));
       const now = Date.now();
-
-      await Promise.all(
+      Promise.all(
         uniqueUids.map(async (uid) => {
           const cached = commentUserCache.get(uid);
-          if (cached && now - cached.fetchedAt < 60000) {
-            return;
-          }
+          if (cached && now - cached.fetchedAt < 60000) return;
           try {
             const userProfile = await userService.getUserProfile(uid);
             if (userProfile) {
@@ -207,28 +225,9 @@ export const commentService = {
             }
           } catch (_) {}
         })
-      );
+      ).catch(() => {});
 
-      // Apply latest author details to comments
-      const hydratedComments = comments.map(c => {
-        const freshUser = commentUserCache.get(c.uid);
-        if (freshUser) {
-          return {
-            ...c,
-            photoURL: freshUser.photoURL || c.photoURL,
-            displayName: freshUser.displayName || c.displayName,
-            username: freshUser.username || c.username
-          };
-        }
-        return c;
-      });
-
-      // Sort comments: Pinned comment first, then newest first
-      return hydratedComments.sort((a: Comment, b: Comment) => {
-        if (a.isPinned && !b.isPinned) return -1;
-        if (!a.isPinned && b.isPinned) return 1;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
+      return sorted;
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, `videos/${videoId}/comments`);
       return [];

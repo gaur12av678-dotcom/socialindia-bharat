@@ -238,18 +238,47 @@ export const subscriptionService = {
         deduplicated.push(item);
       }
 
-      // Sync local subs set
+      // Sync local subs set and persistent list
       const subs = getStoredSubs(subscriberId);
-      deduplicated.forEach(d => subs.add(d.creatorId));
+      deduplicated.forEach(d => {
+        subs.add(d.creatorId);
+        // Pre-cache creator avatar and details
+        userService.cacheUserProfile({
+          uid: d.creatorId,
+          username: d.creatorUsername || '',
+          displayName: d.creatorDisplayName || '',
+          photoURL: d.creatorPhotoURL || '',
+          role: 'creator',
+          status: 'active'
+        });
+      });
       if (subs.has('socialindia') && seenIds.has('RTUVtjrw5sPWaiq10OIMiloF8HQ2')) {
         subs.delete('socialindia');
       }
       saveStoredSubs(subscriberId, subs);
 
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem(`si_subs_list_${subscriberId}`, JSON.stringify(deduplicated));
+        }
+      } catch (_) {}
+
       return deduplicated;
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, `users/${subscriberId}/subscriptions`);
-      return [];
+      return this.getCachedSubscriptions(subscriberId);
     }
+  },
+
+  // Synchronous 0ms retrieval of cached subscribed channels for instant Subscriptions page boot
+  getCachedSubscriptions(subscriberId: string): Subscription[] {
+    if (!subscriberId || typeof window === 'undefined') return [];
+    try {
+      const raw = localStorage.getItem(`si_subs_list_${subscriberId}`);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch (_) {}
+    return [];
   }
 };

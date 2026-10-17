@@ -531,9 +531,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             )}
           </div>
 
-          {/* User Account / Profile Area */}
+          {/* User Account / Profile Area (Hidden on mobile top bar, accessible via YouTube-style 'You' bottom tab) */}
           {currentUser ? (
-            <div ref={profileRef} className="relative">
+            <div ref={profileRef} className="hidden md:block relative">
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center ring-2 ring-transparent hover:ring-[#2563eb]/40 focus:ring-[#2563eb]/50 transition-all duration-200 shadow-xs cursor-pointer select-none active:scale-95"
@@ -764,7 +764,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               )}
             </div>
           ) : (
-            <div ref={guestRef} className="flex items-center gap-2 relative">
+            <div ref={guestRef} className="hidden md:flex items-center gap-2 relative">
               <button
                 onClick={() => setGuestMenuOpen(!guestMenuOpen)}
                 className="p-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer text-slate-700 dark:text-slate-300"
@@ -1198,16 +1198,39 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <span className="text-[10px]">{t('nav_subscriptions', 'Subscriptions')}</span>
           </button>
 
+          {/* YouTube-style 'You' Tab */}
           <button 
-            onClick={() => triggerProtectedAction(() => navigate('profile-menu'))}
+            onClick={() => {
+              if (currentUser) {
+                navigate('profile-menu');
+              } else {
+                navigate('login');
+              }
+            }}
             className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
               isShortsPage 
                 ? 'text-white/60 hover:text-white' 
-                : (route.path === 'profile-menu' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
+                : (route.path === 'profile-menu' || route.path === 'creator' || route.path === 'channel' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
             }`}
           >
-            <UserIcon className="w-5 h-5" />
-            <span className="text-[10px]">{isHindi ? 'प्रोफ़ाइल' : 'Profile'}</span>
+            {currentUser ? (
+              <div className={`w-6 h-6 rounded-full overflow-hidden transition-all flex items-center justify-center ${
+                route.path === 'profile-menu' || (route.path === 'creator' && (!route.param || route.param === currentUserProfile?.username))
+                  ? 'ring-2 ring-[#2563eb] scale-105' 
+                  : 'ring-1 ring-slate-300 dark:ring-slate-700'
+              }`}>
+                <UserAvatar 
+                  uid={currentUser.uid}
+                  fallbackPhotoURL={currentUserProfile?.photoURL}
+                  fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
+                  size="xs"
+                  className="w-full h-full text-[10px]"
+                />
+              </div>
+            ) : (
+              <UserIcon className="w-5 h-5" />
+            )}
+            <span className="text-[10px]">{isHindi ? 'आप' : 'You'}</span>
           </button>
 
         </div>

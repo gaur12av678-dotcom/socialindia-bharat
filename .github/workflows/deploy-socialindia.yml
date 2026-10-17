@@ -1,0 +1,84 @@
+name: Deploy SocialIndia Web App
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    name: Build & Deploy to Firebase Hosting
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci || npm install
+          else
+            npm install
+          fi
+
+      - name: Build Production Bundle
+        run: npm run build
+        env:
+          CI: false
+          NODE_ENV: production
+
+      - name: Verify Build Output
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "::error::Build failed - dist directory not found"
+            exit 1
+          fi
+          echo "Build completed successfully. Found $(find dist -type f | wc -l) files in dist/."
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Generate Firebase Hosting Config
+        run: |
+          PROJECT_ID=$(node -e "try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log(sa.project_id || 'socialindia-cf742'); } catch(e) { console.log('socialindia-cf742'); }")
+          echo "{\"projects\":{\"default\":\"$PROJECT_ID\"}}" > .firebaserc
+          echo '{
+            "hosting": {
+              "site": "socialindia",
+              "public": "dist",
+              "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+              ],
+              "rewrites": [
+                {
+                  "source": "**",
+                  "destination": "/index.html"
+                }
+              ]
+            }
+          }' > firebase.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Firebase Hosting
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > sa_key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=sa_key.json
+          PROJECT_ID=$(node -e "try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log(sa.project_id || 'socialindia-cf742'); } catch(e) { console.log('socialindia-cf742'); }")
+          echo "Deploying to Firebase project: $PROJECT_ID (target site: socialindia)..."
+          
+          # Deploy exclusively to site 'socialindia' (https://socialindia.web.app)
+          firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive
+          
+          rm -f sa_key.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

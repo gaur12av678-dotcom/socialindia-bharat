@@ -81,12 +81,33 @@ const sessionViewedSet = new Set<string>();
 const memoryVideoCache = new Map<string, { data: Video[]; timestamp: number }>();
 const memoryVideoDetailCache = new Map<string, { data: Video; timestamp: number }>();
 const memorySearchCache = new Map<string, { data: Video[]; timestamp: number }>();
-const CACHE_TTL_MS = 30000; // 30 seconds instant memory cache
+const inFlightVideoQueryPromises = new Map<string, Promise<Video[]>>();
+const CACHE_TTL_MS = 60000; // 60 seconds memory cache
+
+function getPersistedVideos(): Video[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('si_cached_public_videos');
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (_) {}
+  return [];
+}
+
+function savePersistedVideos(videos: Video[]) {
+  if (typeof window === 'undefined' || !videos || videos.length === 0) return;
+  try {
+    const slice = videos.slice(0, 60);
+    localStorage.setItem('si_cached_public_videos', JSON.stringify(slice));
+  } catch (_) {}
+}
 
 export const clearVideoCache = () => {
   memoryVideoCache.clear();
   memoryVideoDetailCache.clear();
   memorySearchCache.clear();
+  inFlightVideoQueryPromises.clear();
 };
 
 export const videoService = {
@@ -689,7 +710,29 @@ export const videoService = {
     }
   },
 
-  // Get public videos with instant memory cache
+  // Synchronous 0ms retrieval of cached videos for instant page boot
+  getCachedVideos(filters?: { category?: string; creatorId?: string; isShort?: boolean }): Video[] {
+    const cacheKey = `${filters?.category || 'All'}_${filters?.creatorId || 'all'}_${filters?.isShort !== undefined ? filters.isShort : 'all'}`;
+    const mem = memoryVideoCache.get(cacheKey);
+    if (mem && mem.data.length > 0) return mem.data;
+
+    const all = getPersistedVideos();
+    if (!all || all.length === 0) return [];
+
+    let filtered = all;
+    if (filters?.category && filters.category !== 'All') {
+      filtered = filtered.filter(v => v.category === filters.category);
+    }
+    if (filters?.creatorId) {
+      filtered = filtered.filter(v => v.creatorId === filters.creatorId);
+    }
+    if (filters?.isShort !== undefined) {
+      filtered = filtered.filter(v => Boolean(v.isShort) === filters.isShort);
+    }
+    return filtered;
+  },
+
+  // Get public videos with instant memory cache, persistent disk storage & query deduplication
   async getVideos(filters?: { category?: string; creatorId?: string; isShort?: boolean }): Promise<Video[]> {
     const cacheKey = `${filters?.category || 'All'}_${filters?.creatorId || 'all'}_${filters?.isShort !== undefined ? filters.isShort : 'all'}`;
     const cached = memoryVideoCache.get(cacheKey);
@@ -697,39 +740,57 @@ export const videoService = {
       return cached.data;
     }
 
-    let q = query(collection(db, 'videos'), where('visibility', '==', 'public'));
-
-    if (filters?.category && filters.category !== 'All') {
-      q = query(q, where('category', '==', filters.category));
-    }
-    if (filters?.creatorId) {
-      q = query(q, where('creatorId', '==', filters.creatorId));
-    }
-    if (filters?.isShort !== undefined) {
-      q = query(q, where('isShort', '==', filters.isShort));
+    // Deduplicate in-flight queries
+    if (inFlightVideoQueryPromises.has(cacheKey)) {
+      return inFlightVideoQueryPromises.get(cacheKey)!;
     }
 
-    try {
-      const snap = await getDocs(q);
-      const videos = snap.docs.map((d: any) => d.data() as Video);
-      
-      // Sort newest first in memory to avoid needing complex composite Firestore indexes
-      const sorted = videos.sort((a: Video, b: Video) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      
-      // Store in memory cache
-      memoryVideoCache.set(cacheKey, { data: sorted, timestamp: Date.now() });
-      // Also cache individual videos and creator profiles for 0ms instant watch navigation
-      sorted.forEach(v => {
-        if (v.videoId) {
-          this.cacheVideo(v);
+    const queryPromise = (async () => {
+      let q = query(collection(db, 'videos'), where('visibility', '==', 'public'));
+
+      if (filters?.category && filters.category !== 'All') {
+        q = query(q, where('category', '==', filters.category));
+      }
+      if (filters?.creatorId) {
+        q = query(q, where('creatorId', '==', filters.creatorId));
+      }
+      if (filters?.isShort !== undefined) {
+        q = query(q, where('isShort', '==', filters.isShort));
+      }
+
+      try {
+        const snap = await getDocs(q);
+        const videos = snap.docs.map((d: any) => d.data() as Video);
+        
+        // Sort newest first in memory
+        const sorted = videos.sort((a: Video, b: Video) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
+        // Store in memory cache
+        memoryVideoCache.set(cacheKey, { data: sorted, timestamp: Date.now() });
+
+        // Save general public feed to persistent storage for instant future loads
+        if (!filters?.creatorId && (!filters?.category || filters.category === 'All')) {
+          savePersistedVideos(sorted);
         }
-      });
 
-      return sorted;
-    } catch (err) {
-      handleFirestoreError(err, OperationType.LIST, 'videos');
-      return [];
-    }
+        // Pre-populate individual video caches and creator user profiles
+        sorted.forEach(v => {
+          if (v.videoId) {
+            this.cacheVideo(v);
+          }
+        });
+
+        return sorted;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.LIST, 'videos');
+        return this.getCachedVideos(filters);
+      } finally {
+        inFlightVideoQueryPromises.delete(cacheKey);
+      }
+    })();
+
+    inFlightVideoQueryPromises.set(cacheKey, queryPromise);
+    return queryPromise;
   },
 
   // Search videos across titles, description, creators, tags, category with instant query cache

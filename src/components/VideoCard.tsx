@@ -34,7 +34,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   const { navigate } = useRouter();
   const { currentUser, addToast } = useApp();
   const { t, isHindi, formatTime } = useTranslation();
-  const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [isVerified, setIsVerified] = useState<boolean>(() => {
+    if (!video.creatorId) return false;
+    const cached = creatorVerificationCache[video.creatorId];
+    return cached ? cached.verified : false;
+  });
   const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {

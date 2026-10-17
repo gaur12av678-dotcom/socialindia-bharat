@@ -203,6 +203,13 @@ export const CreatorProfile: React.FC = () => {
         if (currentUser) {
           setSubscribed(subscriptionService.isSubscribedSync(currentUser.uid, cached.uid));
         }
+        // Instantly seed creator videos from local cache (0ms render!)
+        const cachedCreatorVids = videoService.getCachedVideos({ creatorId: cached.uid });
+        if (cachedCreatorVids.length > 0) {
+          const publicVids = cachedCreatorVids.filter(v => v.visibility === 'public');
+          setVideos(publicVids.filter(v => !v.isShort));
+          setShorts(publicVids.filter(v => v.isShort));
+        }
       } else if (!creator) {
         setLoading(true);
       }
@@ -216,16 +223,16 @@ export const CreatorProfile: React.FC = () => {
         );
 
         if (isCurrentMatch && currentUserProfile) {
-          uProfile = await userService.getUserProfile(currentUserProfile.uid, true);
+          uProfile = await userService.getUserProfile(currentUserProfile.uid, !cached);
           if (uProfile) {
             updateUserProfileState(uProfile);
           } else {
             uProfile = currentUserProfile;
           }
         } else {
-          uProfile = await userService.getUserByUsername(targetUsername, true);
+          uProfile = await userService.getUserByUsername(targetUsername, !cached);
           if (!uProfile && rawParam) {
-            uProfile = await userService.getUserProfile(rawParam, true);
+            uProfile = await userService.getUserProfile(rawParam, !cached);
           }
         }
 

@@ -105,10 +105,40 @@ export const Home: React.FC = () => {
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || 'All');
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [shorts, setShorts] = useState<Video[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingShorts, setLoadingShorts] = useState(true);
+  
+  // Instant synchronous cache resolution (0ms initial render)
+  const initialCategory = (route.searchParams?.category || 'All') === 'All' ? undefined : route.searchParams?.category;
+  const initialCachedVideos = videoService.getCachedVideos({
+    category: initialCategory,
+    isShort: false
+  });
+  const initialCachedShorts = videoService.getCachedVideos({ isShort: true });
+
+  const [videos, setVideos] = useState<Video[]>(() => {
+    if (initialCachedVideos.length > 0) {
+      return recommendationService.rankAndFilterVideos(initialCachedVideos, {
+        userUid: currentUser?.uid
+      });
+    }
+    return [];
+  });
+
+  const [shorts, setShorts] = useState<Video[]>(() => {
+    if (initialCachedShorts.length > 0) {
+      const ranked = recommendationService.rankAndFilterVideos(initialCachedShorts, {
+        isShortsOnly: true,
+        userUid: currentUser?.uid
+      });
+      if (ranked.length < 5) {
+        return [...ranked, ...DEFAULT_CURATED_SHORTS.slice(ranked.length) as Video[]];
+      }
+      return ranked;
+    }
+    return DEFAULT_CURATED_SHORTS as Video[];
+  });
+
+  const [loading, setLoading] = useState(() => initialCachedVideos.length === 0);
+  const [loadingShorts, setLoadingShorts] = useState(false);
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
   const [adDismissed, setAdDismissed] = useState(false);
 
@@ -124,7 +154,10 @@ export const Home: React.FC = () => {
   }, []);
 
   const fetchHomeVideos = async () => {
-    setLoading(true);
+    // Only show skeleton if we have zero videos in cache
+    if (videos.length === 0) {
+      setLoading(true);
+    }
     try {
       const data = await videoService.getVideos({
         category: selectedCategory === 'All' ? undefined : selectedCategory,
@@ -139,14 +172,15 @@ export const Home: React.FC = () => {
       setVideos(ranked);
     } catch (err) {
       console.error(err);
-      addToast('Failed to load videos.', 'error');
+      if (videos.length === 0) {
+        addToast('Failed to load videos.', 'error');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const fetchHomeShorts = async () => {
-    setLoadingShorts(true);
     try {
       const shortsData = await videoService.getVideos({
         isShort: true
@@ -165,7 +199,9 @@ export const Home: React.FC = () => {
       }
     } catch (err) {
       console.error(err);
-      setShorts(DEFAULT_CURATED_SHORTS as Video[]);
+      if (shorts.length === 0) {
+        setShorts(DEFAULT_CURATED_SHORTS as Video[]);
+      }
     } finally {
       setLoadingShorts(false);
     }

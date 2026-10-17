@@ -103,8 +103,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     (uidLower && currentUsernameLower && currentUsernameLower === uidLower)
   );
 
-  // Dynamic user data states
-  const [livePhoto, setLivePhoto] = useState<string>(() => {
+  const initialPhoto = (() => {
     if (isCurrentLoggedInUser && currentUserProfile?.photoURL) return currentUserProfile.photoURL;
     if (uid) {
       const persisted = getPersistedAvatar(uid);
@@ -113,7 +112,9 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       if (u?.photoURL) return u.photoURL;
     }
     return (fallbackPhotoURL || '').trim();
-  });
+  })();
+
+  const [livePhoto, setLivePhoto] = useState<string>(initialPhoto);
 
   const [liveDisplayName, setLiveDisplayName] = useState<string>(() => {
     if (isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username)) {
@@ -129,7 +130,15 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   });
 
   const [imgError, setImgError] = useState(false);
-  const [isImgLoaded, setIsImgLoaded] = useState(false);
+  // Default to true if we already have a photo URL, eliminating avatar flicker/delay!
+  const [isImgLoaded, setIsImgLoaded] = useState<boolean>(() => Boolean(initialPhoto));
+
+  // Pre-seed cache if valid fallback photo is passed
+  useEffect(() => {
+    if (uid && fallbackPhotoURL && fallbackPhotoURL.trim()) {
+      updateUserAvatarCache(uid, fallbackPhotoURL.trim(), fallbackDisplayName || '');
+    }
+  }, [uid, fallbackPhotoURL, fallbackDisplayName]);
 
   // Synchronize when current user profile updates
   useEffect(() => {
@@ -137,6 +146,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       if (currentUserProfile.photoURL) {
         setLivePhoto(currentUserProfile.photoURL);
         setImgError(false);
+        setIsImgLoaded(true);
         if (currentUser?.uid) {
           updateUserAvatarCache(
             currentUser.uid,
@@ -157,6 +167,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       if (fallbackPhotoURL && fallbackPhotoURL.trim()) {
         setLivePhoto(fallbackPhotoURL.trim());
         setImgError(false);
+        setIsImgLoaded(true);
       }
       if (fallbackDisplayName && fallbackDisplayName.trim()) {
         setLiveDisplayName(fallbackDisplayName.trim());
@@ -173,6 +184,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
         if (detail.photoURL) {
           setLivePhoto(detail.photoURL);
           setImgError(false);
+          setIsImgLoaded(true);
         }
         if (detail.displayName) {
           setLiveDisplayName(detail.displayName);
@@ -186,28 +198,35 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     };
   }, [uid]);
 
-  // Background fetch for remote profiles
+  // Background fetch for remote profiles only if no photo or name is available
   useEffect(() => {
     if (isCurrentLoggedInUser) return;
 
     if (uid) {
       const persisted = getPersistedAvatar(uid);
-      if (persisted?.photoURL) setLivePhoto(persisted.photoURL);
+      if (persisted?.photoURL) {
+        setLivePhoto(persisted.photoURL);
+        setIsImgLoaded(true);
+      }
       if (persisted?.displayName) setLiveDisplayName(persisted.displayName);
 
-      userService.getUserProfile(uid).then(profile => {
-        if (profile) {
-          if (profile.photoURL) {
-            updateUserAvatarCache(uid, profile.photoURL, profile.displayName || profile.username || '');
-            setLivePhoto(profile.photoURL);
-            setImgError(false);
+      // If we already have a valid photo from props or persisted cache, DO NOT flood Firestore!
+      if (!persisted?.photoURL && !fallbackPhotoURL) {
+        userService.getUserProfile(uid).then(profile => {
+          if (profile) {
+            if (profile.photoURL) {
+              updateUserAvatarCache(uid, profile.photoURL, profile.displayName || profile.username || '');
+              setLivePhoto(profile.photoURL);
+              setImgError(false);
+              setIsImgLoaded(true);
+            }
+            if (profile.displayName || profile.username) {
+              setLiveDisplayName(profile.displayName || profile.username);
+            }
           }
-          if (profile.displayName || profile.username) {
-            setLiveDisplayName(profile.displayName || profile.username);
-          }
-        }
-      }).catch(() => {});
-    } else if (fallbackDisplayName) {
+        }).catch(() => {});
+      }
+    } else if (fallbackDisplayName && !fallbackPhotoURL) {
       userService.getUserByUsername(fallbackDisplayName).then(uProfile => {
         if (uProfile) {
           if (uProfile.photoURL) {
@@ -216,6 +235,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
             }
             setLivePhoto(uProfile.photoURL);
             setImgError(false);
+            setIsImgLoaded(true);
           }
           if (uProfile.displayName || uProfile.username) {
             setLiveDisplayName(uProfile.displayName || uProfile.username);
@@ -223,7 +243,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
         }
       }).catch(() => {});
     }
-  }, [uid, fallbackDisplayName, isCurrentLoggedInUser]);
+  }, [uid, fallbackDisplayName, fallbackPhotoURL, isCurrentLoggedInUser]);
 
   // Compute final effective photo & name
   const effectivePhoto = useMemo(() => {

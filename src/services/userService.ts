@@ -146,6 +146,10 @@ function getFromLocalUsernameCache(username: string): User | null {
   return null;
 }
 
+// In-flight request deduplication maps
+const inFlightUserPromises = new Map<string, Promise<User | null>>();
+const inFlightUsernamePromises = new Map<string, Promise<User | null>>();
+
 export const userService = {
   // Expose cache manually for prefetching from video/comment payloads
   cacheUserProfile(user: Partial<User> & { uid: string }) {
@@ -178,33 +182,53 @@ export const userService = {
     }
   },
 
-  // Get user profile by UID (Fast cache + real Firestore fetch to prevent 0 subscribers bug)
+  // Get user profile by UID (Fast cache + real Firestore fetch + in-flight deduplication)
   async getUserProfile(uid: string, forceFresh: boolean = false): Promise<User | null> {
     if (!uid) return null;
     const cached = userProfileMemoryCache.get(uid);
     const now = Date.now();
 
-    // If fresh in memory cache, has positive subscribers, and not forced, return immediately
-    if (!forceFresh && cached && now - cached.timestamp < USER_CACHE_TTL_MS && (cached.data.followersCount !== undefined && cached.data.followersCount > 0)) {
+    // Fast return if valid in memory cache
+    if (!forceFresh && cached && now - cached.timestamp < USER_CACHE_TTL_MS) {
       return cached.data;
     }
 
-    try {
-      const docRef = doc(db, 'users', uid);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const freshData = snap.data() as User;
-        saveToLocalUserCache(freshData);
-        return freshData;
+    // Fast return from local disk cache if available
+    if (!forceFresh) {
+      const local = getFromLocalUserCache(uid);
+      if (local) {
+        return local;
       }
-      return null;
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, `users/${uid}`);
-      return getFromLocalUserCache(uid);
     }
+
+    // Deduplicate concurrent in-flight requests for the same UID
+    if (inFlightUserPromises.has(uid)) {
+      return inFlightUserPromises.get(uid)!;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const docRef = doc(db, 'users', uid);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const freshData = snap.data() as User;
+          saveToLocalUserCache(freshData);
+          return freshData;
+        }
+        return getFromLocalUserCache(uid);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `users/${uid}`);
+        return getFromLocalUserCache(uid);
+      } finally {
+        inFlightUserPromises.delete(uid);
+      }
+    })();
+
+    inFlightUserPromises.set(uid, fetchPromise);
+    return fetchPromise;
   },
 
-  // Get user profile by username (Fast cache + real Firestore fetch)
+  // Get user profile by username (Fast cache + real Firestore fetch + in-flight deduplication)
   async getUserByUsername(username: string, forceFresh: boolean = false): Promise<User | null> {
     if (!username) return null;
     const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
@@ -213,28 +237,40 @@ export const userService = {
 
     if (!forceFresh && cached) {
       const mem = userProfileMemoryCache.get(cached.uid);
-      if (mem && now - mem.timestamp < USER_CACHE_TTL_MS && (cached.followersCount !== undefined && cached.followersCount > 0)) {
+      if (mem && now - mem.timestamp < USER_CACHE_TTL_MS) {
         return cached;
       }
-    }
-
-    try {
-      const q = query(
-        collection(db, 'users'),
-        where('username', '==', cleanUsername),
-        limit(1)
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const freshData = snap.docs[0].data() as User;
-        saveToLocalUserCache(freshData);
-        return freshData;
-      }
-      return null;
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, 'users');
       return cached;
     }
+
+    if (inFlightUsernamePromises.has(cleanUsername)) {
+      return inFlightUsernamePromises.get(cleanUsername)!;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const q = query(
+          collection(db, 'users'),
+          where('username', '==', cleanUsername),
+          limit(1)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const freshData = snap.docs[0].data() as User;
+          saveToLocalUserCache(freshData);
+          return freshData;
+        }
+        return cached || null;
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, 'users');
+        return cached;
+      } finally {
+        inFlightUsernamePromises.delete(cleanUsername);
+      }
+    })();
+
+    inFlightUsernamePromises.set(cleanUsername, fetchPromise);
+    return fetchPromise;
   },
 
   // Get user profile by email

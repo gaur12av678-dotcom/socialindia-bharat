@@ -14,18 +14,31 @@ export const Subscriptions: React.FC = () => {
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [followedCreators, setFollowedCreators] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [subscribingCount, setSubscribingCount] = useState(0);
+  // Instant synchronous cache initialization (0ms initial render)
+  const cachedSubs = currentUser ? subscriptionService.getCachedSubscriptions(currentUser.uid) : [];
+  const cachedCreatorIds = new Set(cachedSubs.map(s => s.creatorId));
+  const cachedSubsVideos = cachedCreatorIds.size > 0 
+    ? videoService.getCachedVideos().filter(v => cachedCreatorIds.has(v.creatorId))
+    : [];
+
+  const [videos, setVideos] = useState<Video[]>(() => cachedSubsVideos);
+  const [followedCreators, setFollowedCreators] = useState<any[]>(() => cachedSubs);
+  const [loading, setLoading] = useState<boolean>(() => cachedSubs.length === 0);
+  const [subscribingCount, setSubscribingCount] = useState<number>(() => cachedSubs.length);
 
   useEffect(() => {
     if (!currentUser) return;
 
+    let isMounted = true;
+
     const loadSubscriptionsFeed = async () => {
-      setLoading(true);
+      // Only set loading to true if we have zero cached items
+      if (followedCreators.length === 0) {
+        setLoading(true);
+      }
       try {
         const subs = await subscriptionService.getSubscriptions(currentUser.uid);
+        if (!isMounted) return;
         setSubscribingCount(subs.length);
         setFollowedCreators(subs);
 
@@ -39,18 +52,25 @@ export const Subscriptions: React.FC = () => {
         
         // Fetch all public videos and filter in memory
         const allVideos = await videoService.getVideos();
+        if (!isMounted) return;
         const filtered = allVideos.filter(v => creatorIds.includes(v.creatorId));
         setVideos(filtered);
 
       } catch (err) {
         console.error(err);
-        addToast(isHindi ? 'सब्सक्रिप्शन फ़ीड लोड करने में विफल।' : 'Failed to load subscriptions feed.', 'error');
+        if (videos.length === 0) {
+          addToast(isHindi ? 'सब्सक्रिप्शन फ़ीड लोड करने में विफल।' : 'Failed to load subscriptions feed.', 'error');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     loadSubscriptionsFeed();
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentUser]);
 
   if (!currentUser) {
