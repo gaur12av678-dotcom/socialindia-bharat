@@ -234,7 +234,7 @@ export const postService = {
   },
 
   // Fetch all posts or filtered by author
-  async getPosts(filter?: { authorId?: string }): Promise<CommunityPost[]> {
+  async getPosts(filter?: { authorId?: string; authorUsername?: string }): Promise<CommunityPost[]> {
     let allPosts: CommunityPost[] = [];
 
     try {

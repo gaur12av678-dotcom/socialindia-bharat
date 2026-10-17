@@ -45,7 +45,8 @@ jobs:
 
       - name: Create Firebase config
         run: |
-          echo '{"projects":{"default":"socialindia-cf742"}}' > .firebaserc
+          PROJECT_ID=$(node -e "try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log(sa.project_id || 'socialindia-96fa1'); } catch(e) { console.log('socialindia-96fa1'); }")
+          echo "{\"projects\":{\"default\":\"$PROJECT_ID\"}}" > .firebaserc
           echo '{
             "hosting": {
               "site": "socialindia",
@@ -66,11 +67,26 @@ jobs:
               ]
             }
           }' > firebase.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy to Firebase
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > serviceAccount.json
           export GOOGLE_APPLICATION_CREDENTIALS=serviceAccount.json
-          firebase deploy --only hosting:socialindia --project socialindia-cf742 --non-interactive
+          PROJECT_ID=$(node -e "try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log(sa.project_id || 'socialindia-96fa1'); } catch(e) { console.log('socialindia-96fa1'); }")
+          echo "Deploying to Firebase project: $PROJECT_ID"
+          if firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive; then
+            echo "Successfully deployed to site socialindia on project $PROJECT_ID"
+          else
+            echo "Target site socialindia not found or errored; falling back to default hosting on $PROJECT_ID..."
+            node -e "
+              const fs = require('fs');
+              const f = JSON.parse(fs.readFileSync('firebase.json', 'utf8'));
+              if (f.hosting) delete f.hosting.site;
+              fs.writeFileSync('firebase.json', JSON.stringify(f, null, 2));
+            "
+            firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
+          fi
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
