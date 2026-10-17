@@ -24,12 +24,7 @@ jobs:
         run: node --version
 
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+        run: npm ci
 
       - name: Build project
         run: npm run build
@@ -50,10 +45,10 @@ jobs:
 
       - name: Create Firebase config
         run: |
-          PROJECT_ID=$(node -e "try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log(sa.project_id || 'socialindia-96fa1'); } catch(e) { console.log('socialindia-96fa1'); }")
-          echo "{\"projects\":{\"default\":\"$PROJECT_ID\"}}" > .firebaserc
+          echo '{"projects":{"default":"socialindia-cf742"}}' > .firebaserc
           echo '{
             "hosting": {
+              "site": "socialindia",
               "public": "dist",
               "ignore": [
                 "firebase.json",
@@ -71,15 +66,11 @@ jobs:
               ]
             }
           }' > firebase.json
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy to Firebase
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > serviceAccount.json
           export GOOGLE_APPLICATION_CREDENTIALS=serviceAccount.json
-          PROJECT_ID=$(node -e "try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log(sa.project_id || 'socialindia-96fa1'); } catch(e) { console.log('socialindia-96fa1'); }")
-          echo "Deploying to Firebase project: $PROJECT_ID"
-          firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
+          firebase deploy --only hosting:socialindia --project socialindia-cf742 --non-interactive
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
