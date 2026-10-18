@@ -787,7 +787,7 @@ export const Settings: React.FC = () => {
                         type="text"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        placeholder="e.g. maryxbgamer"
+                        placeholder="e.g. rahul_tech"
                         className="w-full h-12 pl-11 pr-4 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-[#2563EB]"
                       />
                     </div>

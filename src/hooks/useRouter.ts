@@ -7,7 +7,16 @@ export interface Route {
 }
 
 export function parseHash(hash: string): Route {
-  const cleanHash = hash.replace(/^#\/?/, '');
+  let cleanHash = hash.replace(/^#\/?/, '');
+  
+  // If hash is empty, check window.location.pathname for clean URL routing
+  if (!cleanHash && typeof window !== 'undefined' && window.location.pathname) {
+    const cleanPath = window.location.pathname.replace(/^\//, '');
+    if (cleanPath && cleanPath !== 'index.html') {
+      cleanHash = cleanPath + (window.location.search || '');
+    }
+  }
+
   if (!cleanHash) {
     return { path: 'home' };
   }
@@ -38,7 +47,7 @@ export function parseHash(hash: string): Route {
 }
 
 export function useRouter() {
-  const [currentRoute, setCurrentRoute] = useState<Route>(parseHash(window.location.hash));
+  const [currentRoute, setCurrentRoute] = useState<Route>(() => parseHash(window.location.hash));
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -46,8 +55,10 @@ export function useRouter() {
     };
 
     window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleHashChange);
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handleHashChange);
     };
   }, []);
 

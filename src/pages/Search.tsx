@@ -3,12 +3,13 @@ import { useRouter } from '../hooks/useRouter';
 import { videoService } from '../services/videoService';
 import { Video, User } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
-import { Search as SearchIcon, ArrowLeft, Trash2, Users } from 'lucide-react';
+import { Search as SearchIcon, ArrowLeft, Trash2, Users, Clock, X, Flame } from 'lucide-react';
 import { userService } from '../services/userService';
 import { getInitials, formatSubscribers } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { UserAvatar } from '../components/UserAvatar';
+import { searchHistoryService, SearchHistoryEntry, POPULAR_SEARCH_SUGGESTIONS } from '../services/searchHistoryService';
 
 export const Search: React.FC = () => {
   const { route, navigate } = useRouter();
@@ -17,29 +18,18 @@ export const Search: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [matchingUsers, setMatchingUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [recentSearches, setRecentSearches] = useState<SearchHistoryEntry[]>(() => searchHistoryService.getHistory());
 
-  // Load recent searches on mount
+  // Listen for search history updates
   useEffect(() => {
-    const saved = localStorage.getItem('socialindia_recent_searches');
-    if (saved) {
-      setRecentSearches(JSON.parse(saved));
-    }
+    const handleUpdate = () => {
+      setRecentSearches(searchHistoryService.getHistory());
+    };
+    window.addEventListener('socialindia:search_history_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('socialindia:search_history_updated', handleUpdate);
+    };
   }, []);
-
-  const saveSearchTerm = (term: string) => {
-    const clean = term.trim();
-    if (!clean) return;
-    const filtered = recentSearches.filter(s => s !== clean);
-    const updated = [clean, ...filtered].slice(0, 5);
-    setRecentSearches(updated);
-    localStorage.setItem('socialindia_recent_searches', JSON.stringify(updated));
-  };
-
-  const clearRecentSearches = () => {
-    setRecentSearches([]);
-    localStorage.removeItem('socialindia_recent_searches');
-  };
 
   const executeSearch = async (term: string) => {
     setLoading(true);
@@ -50,8 +40,8 @@ export const Search: React.FC = () => {
       ]);
       setVideos(vResults);
       setMatchingUsers(uResults);
-      if (term) {
-        saveSearchTerm(term);
+      if (term.trim()) {
+        searchHistoryService.addQuery(term.trim());
       }
     } catch (err) {
       console.error(err);
@@ -68,16 +58,29 @@ export const Search: React.FC = () => {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('search', undefined, { q: searchTerm.trim() });
+    if (searchTerm.trim()) {
+      searchHistoryService.addQuery(searchTerm.trim());
+      navigate('search', undefined, { q: searchTerm.trim() });
+    }
   };
 
   const handleRecentClick = (term: string) => {
     setSearchTerm(term);
+    searchHistoryService.addQuery(term);
     navigate('search', undefined, { q: term });
   };
 
+  const handleRemoveItem = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    searchHistoryService.removeQuery(id);
+  };
+
+  const handleClearAll = () => {
+    searchHistoryService.clearHistory();
+  };
+
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
       
       {/* Mobile-friendly search form header */}
       <div className="flex items-center gap-3 md:hidden">
@@ -102,31 +105,69 @@ export const Search: React.FC = () => {
         </form>
       </div>
 
-      {/* Recent Searches Panel */}
-      {recentSearches.length > 0 && !route.searchParams?.q && (
-        <div className="bg-white dark:bg-[#111827] p-5 rounded-3xl border border-slate-200/80 dark:border-[#334155] max-w-xl shadow-xs">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-              {isHindi ? 'हाल की खोजें' : 'Recent Searches'}
-            </span>
-            <button 
-              onClick={clearRecentSearches}
-              className="text-xs font-semibold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              {isHindi ? 'साफ़ करें' : 'Clear'}
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {recentSearches.map((term, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleRecentClick(term)}
-                className="px-3.5 py-1.5 bg-slate-50 hover:bg-blue-50 dark:bg-[#1E293B] dark:hover:bg-slate-800 border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-              >
-                {term}
-              </button>
-            ))}
+      {/* YouTube-style Search History Section */}
+      {!route.searchParams?.q && (
+        <div className="space-y-6 max-w-2xl">
+          {recentSearches.length > 0 ? (
+            <div className="bg-white dark:bg-[#16171a] p-5 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                    {isHindi ? 'हाल की खोजें (Search History)' : 'Recent Searches'}
+                  </span>
+                </div>
+                <button 
+                  onClick={handleClearAll}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {isHindi ? 'सभी साफ़ करें' : 'Clear All'}
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2.5">
+                {recentSearches.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleRecentClick(item.query)}
+                    className="group inline-flex items-center gap-2 px-3.5 py-2 bg-slate-50 hover:bg-blue-50 dark:bg-[#202124] dark:hover:bg-[#2b2d31] border border-slate-200/90 dark:border-slate-700/80 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                    <span className="truncate max-w-[200px]">{item.query}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleRemoveItem(item.id, e)}
+                      title={isHindi ? 'हटाएं' : 'Remove'}
+                      className="p-1 rounded-full text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors ml-0.5 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Trending suggestions */}
+          <div className="bg-white dark:bg-[#16171a] p-5 rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800/80">
+              <Flame className="w-4 h-4 text-orange-500" />
+              <span className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                {isHindi ? 'लोकप्रिय खोज सुझाव' : 'Trending Search Suggestions'}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {POPULAR_SEARCH_SUGGESTIONS.map((sug, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleRecentClick(sug)}
+                  className="px-3.5 py-1.5 bg-slate-100/80 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  {sug}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

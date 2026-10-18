@@ -47,9 +47,11 @@ import { SocialIndiaLogo } from './components/SocialIndiaLogo';
 function MainAppContent() {
   const { route, navigate } = useRouter();
 
-  // Scroll to top on every route/param change
+  // Scroll to top on route change, EXCEPT when returning to Home (preserves Home scroll position like YouTube)
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    if (route.path !== 'home') {
+      window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    }
   }, [route.path, route.param]);
 
   // Standalone Admin Panel Workspace with Back to Main Website Header

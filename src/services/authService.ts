@@ -6,6 +6,8 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   User as FirebaseUser 
 } from 'firebase/auth';
@@ -242,14 +244,9 @@ export const authService = {
     }
   },
 
-  // Sign in / Sign up with Google OAuth
-  async signInWithGoogle(): Promise<{ userProfile: User; emailVerified: boolean }> {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    const result = await signInWithPopup(auth, provider);
-    const fbUser = result.user;
+  // Sync or create user profile for Google user
+  async syncGoogleUserProfile(fbUser: FirebaseUser): Promise<{ userProfile: User; emailVerified: boolean }> {
     const uid = fbUser.uid;
-
     let userProfile = await userService.getUserProfile(uid);
 
     if (!userProfile) {
@@ -309,82 +306,34 @@ export const authService = {
     return { userProfile, emailVerified: !!fbUser.emailVerified };
   },
 
-  // Instant Google Sign-In helper when popups are blocked by browser iframe
-  async signInWithGoogleDirect(
-    email: string = 'maryxbgamer@gmail.com',
-    displayName: string = 'Mary Gamer'
-  ): Promise<{ userProfile: User; emailVerified: boolean }> {
-    throw new Error('This login method has been disabled for security. Please use Google Sign-In.');
-    const cleanEmail = email.trim().toLowerCase();
-    const fallbackPassword = `Google_Auth_${cleanEmail.replace(/[^a-z0-9]/g, '')}_2026!`;
-
-    let fbUser: FirebaseUser;
+  // Sign in / Sign up with Google OAuth
+  async signInWithGoogle(): Promise<{ userProfile: User; emailVerified: boolean }> {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
-      const res = await signInWithEmailAndPassword(auth, cleanEmail, fallbackPassword);
-      fbUser = res.user;
-    } catch (err: any) {
-      if (
-        err.code === 'auth/user-not-found' || 
-        err.code === 'auth/invalid-credential' ||
-        err.code === 'auth/wrong-password'
-      ) {
-        try {
-          const res = await createUserWithEmailAndPassword(auth, cleanEmail, fallbackPassword);
-          fbUser = res.user;
-        } catch (createErr: any) {
-          if (createErr.code === 'auth/email-already-in-use') {
-            // Already in use, fallback to existing user in firestore
-            const existingUser = await userService.getUserByEmail(cleanEmail);
-            if (existingUser) {
-              return { userProfile: existingUser, emailVerified: true };
-            }
-          }
-          throw createErr;
-        }
-      } else {
-        throw err;
+      const result = await signInWithPopup(auth, provider);
+      return await this.syncGoogleUserProfile(result.user);
+    } catch (popupErr: any) {
+      // If browser blocked popup window, seamlessly fallback to redirect flow
+      if (popupErr.code === 'auth/popup-blocked') {
+        await signInWithRedirect(auth, provider);
+        return new Promise(() => {});
       }
+      throw popupErr;
     }
+  },
 
-    const uid = fbUser.uid;
-    let userProfile = await userService.getUserProfile(uid);
-
-    if (!userProfile) {
-      let baseUsername = cleanEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 15);
-      if (baseUsername.length < 3) baseUsername = `user_${baseUsername}`;
-      let finalUsername = baseUsername;
-      let counter = 1;
-      while (await userService.isUsernameTaken(finalUsername)) {
-        finalUsername = `${baseUsername.slice(0, 13)}_${counter}`;
-        counter++;
+  // Check if returning from Google OAuth redirect flow
+  async checkRedirectResult(): Promise<{ userProfile: User; emailVerified: boolean } | null> {
+    try {
+      const result = await getRedirectResult(auth);
+      if (result && result.user) {
+        return await this.syncGoogleUserProfile(result.user);
       }
-
-      await userService.createUserProfile(uid, {
-        username: finalUsername,
-        displayName: displayName || finalUsername,
-        email: cleanEmail,
-        emailVerified: true,
-        role: 'user',
-      });
-
-      const privateInfo: PrivateUserInfo = {
-        email: cleanEmail,
-        theme: 'system',
-        allowNotificationLikes: true,
-        allowNotificationComments: true,
-        allowNotificationFollowers: true,
-        allowNotificationUploads: true,
-      };
-      await userService.setPrivateInfo(uid, privateInfo);
-
-      userProfile = await userService.getUserProfile(uid);
+    } catch (err) {
+      console.warn('Redirect result error:', err);
     }
-
-    if (!userProfile) {
-      throw new Error("Could not initialize Google user profile.");
-    }
-
-    return { userProfile, emailVerified: true };
+    return null;
   },
 
   // Listen to Auth State Changes

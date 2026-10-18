@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { videoService } from '../services/videoService';
 import { recommendationService } from '../services/recommendationService';
 import { Video } from '../types';
@@ -7,7 +7,7 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { adService } from '../services/adService';
 import { AdCampaign } from '../types';
-import { Flame, Zap, ArrowRight, Play } from 'lucide-react';
+import { Flame, Zap, ArrowRight, Play, RotateCw, ArrowDown } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 
@@ -100,14 +100,21 @@ export const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
   }
 ];
 
+// Persistent in-memory Home feed state (preserves loaded videos, shorts, category, and scroll position between route transitions like YouTube)
+let persistentHomeVideos: Video[] | null = null;
+let persistentHomeShorts: Video[] | null = null;
+let persistentHomeCategory = 'All';
+let persistentHomeScrollY = 0;
+let hasLoadedHomeOnce = false;
+
 export const Home: React.FC = () => {
   const { currentUser, addToast } = useApp();
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
-  const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || 'All');
+  const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || persistentHomeCategory || 'All');
   
   // Instant synchronous cache resolution (0ms initial render)
-  const initialCategory = (route.searchParams?.category || 'All') === 'All' ? undefined : route.searchParams?.category;
+  const initialCategory = (route.searchParams?.category || selectedCategory) === 'All' ? undefined : (route.searchParams?.category || selectedCategory);
   const initialCachedVideos = videoService.getCachedVideos({
     category: initialCategory,
     isShort: false
@@ -115,6 +122,9 @@ export const Home: React.FC = () => {
   const initialCachedShorts = videoService.getCachedVideos({ isShort: true });
 
   const [videos, setVideos] = useState<Video[]>(() => {
+    if (persistentHomeVideos && persistentHomeVideos.length > 0) {
+      return persistentHomeVideos;
+    }
     if (initialCachedVideos.length > 0) {
       return recommendationService.rankAndFilterVideos(initialCachedVideos, {
         userUid: currentUser?.uid
@@ -124,6 +134,9 @@ export const Home: React.FC = () => {
   });
 
   const [shorts, setShorts] = useState<Video[]>(() => {
+    if (persistentHomeShorts && persistentHomeShorts.length > 0) {
+      return persistentHomeShorts;
+    }
     if (initialCachedShorts.length > 0) {
       const ranked = recommendationService.rankAndFilterVideos(initialCachedShorts, {
         isShortsOnly: true,
@@ -137,10 +150,16 @@ export const Home: React.FC = () => {
     return DEFAULT_CURATED_SHORTS as Video[];
   });
 
-  const [loading, setLoading] = useState(() => initialCachedVideos.length === 0);
+  const [loading, setLoading] = useState(() => !persistentHomeVideos && initialCachedVideos.length === 0);
   const [loadingShorts, setLoadingShorts] = useState(false);
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
   const [adDismissed, setAdDismissed] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Mobile Pull-to-Refresh Gesture States
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const touchStartY = useRef(0);
 
   // Sync category with URL query param if present
   useEffect(() => {
@@ -149,12 +168,33 @@ export const Home: React.FC = () => {
     }
   }, [route.searchParams?.category]);
 
+  // Restore scroll position when returning to Home like YouTube
+  useEffect(() => {
+    if (persistentHomeScrollY > 0) {
+      const raf = requestAnimationFrame(() => {
+        window.scrollTo({ top: persistentHomeScrollY, behavior: 'instant' });
+      });
+      return () => cancelAnimationFrame(raf);
+    }
+  }, []);
+
+  // Track scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      persistentHomeScrollY = window.scrollY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      persistentHomeScrollY = window.scrollY;
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
   useEffect(() => {
     adService.getActiveAds(5).then(setActiveAds).catch(console.warn);
   }, []);
 
-  const fetchHomeVideos = async () => {
-    // Only show skeleton if we have zero videos in cache
+  const fetchHomeVideos = async (_forceFresh = false) => {
     if (videos.length === 0) {
       setLoading(true);
     }
@@ -164,12 +204,13 @@ export const Home: React.FC = () => {
         isShort: false
       });
       
-      // Apply AI Recommendation Engine (Anti-repeat + AI Engagement Ranking + Freshness Shuffle)
       const ranked = recommendationService.rankAndFilterVideos(data, {
         userUid: currentUser?.uid
       });
 
       setVideos(ranked);
+      persistentHomeVideos = ranked;
+      hasLoadedHomeOnce = true;
     } catch (err) {
       console.error(err);
       if (videos.length === 0) {
@@ -190,34 +231,130 @@ export const Home: React.FC = () => {
         userUid: currentUser?.uid
       });
 
-      // If we have fewer than 5 real shorts from db, merge with curated sample shorts
       if (rankedShorts.length < 5) {
         const merged = [...rankedShorts, ...DEFAULT_CURATED_SHORTS.slice(rankedShorts.length) as Video[]];
         setShorts(merged);
+        persistentHomeShorts = merged;
       } else {
         setShorts(rankedShorts);
+        persistentHomeShorts = rankedShorts;
       }
     } catch (err) {
       console.error(err);
       if (shorts.length === 0) {
         setShorts(DEFAULT_CURATED_SHORTS as Video[]);
+        persistentHomeShorts = DEFAULT_CURATED_SHORTS as Video[];
       }
     } finally {
       setLoadingShorts(false);
     }
   };
 
+  // YouTube-style feed refresh handler
+  const handleRefreshFeed = async (showToast = false) => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    persistentHomeScrollY = 0;
+    try {
+      await Promise.allSettled([
+        fetchHomeVideos(true),
+        fetchHomeShorts()
+      ]);
+      if (showToast) {
+        addToast(isHindi ? 'होम फ़ीड रीफ़्रेश हो गया!' : 'Home feed refreshed!', 'success');
+      }
+    } finally {
+      setIsRefreshing(false);
+      setPullDistance(0);
+      setIsPulling(false);
+    }
+  };
+
+  // Listen for Home/Logo click while already on Home to trigger refresh
   useEffect(() => {
+    const onHomeRefreshEvent = () => {
+      handleRefreshFeed(true);
+    };
+    window.addEventListener('socialindia:refresh-home', onHomeRefreshEvent);
+    return () => window.removeEventListener('socialindia:refresh-home', onHomeRefreshEvent);
+  }, [selectedCategory]);
+
+  // Load feed on category change or first initial load only (Never re-fetches when navigating back to home!)
+  useEffect(() => {
+    if (hasLoadedHomeOnce && persistentHomeVideos && persistentHomeVideos.length > 0 && persistentHomeCategory === selectedCategory) {
+      return;
+    }
+    persistentHomeCategory = selectedCategory;
     fetchHomeVideos();
     fetchHomeShorts();
   }, [selectedCategory]);
+
+  // Touch handlers for Mobile Pull-to-Refresh
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY <= 2) {
+      touchStartY.current = e.touches[0].clientY;
+      setIsPulling(true);
+    } else {
+      setIsPulling(false);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling || isRefreshing) return;
+    if (window.scrollY > 2) {
+      setPullDistance(0);
+      return;
+    }
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - touchStartY.current;
+    if (diff > 0) {
+      const damped = Math.min(diff * 0.45, 80);
+      setPullDistance(damped);
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isPulling || isRefreshing) return;
+    if (pullDistance >= 55) {
+      handleRefreshFeed(true);
+    } else {
+      setPullDistance(0);
+    }
+    setIsPulling(false);
+  };
 
   // For the 'All' feed, split videos so the top 4 (Row 1) display above Shorts, matching reference design!
   const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 4) : videos;
   const remainingVideos = selectedCategory === 'All' ? videos.slice(4) : [];
 
   return (
-    <div className="p-4 md:p-6 space-y-7 max-w-7xl mx-auto">
+    <div 
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="p-4 md:p-6 space-y-7 max-w-7xl mx-auto relative"
+    >
+      {/* YouTube-style Pull to Refresh Spinner Indicator */}
+      {(pullDistance > 0 || isRefreshing) && (
+        <div 
+          style={{ transform: `translateY(${pullDistance}px)` }}
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-transform duration-100 ease-out"
+        >
+          <div className="w-10 h-10 rounded-full bg-white dark:bg-[#1f2024] shadow-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[#2563eb]">
+            {isRefreshing ? (
+              <RotateCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <ArrowDown 
+                className="w-5 h-5 transition-transform" 
+                style={{ transform: `rotate(${Math.min(pullDistance * 4, 180)}deg)` }} 
+              />
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Category Horizontal Scrolling Bar */}
       <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none -mx-4 px-4 md:mx-0 md:px-0 sticky top-0 bg-white/95 dark:bg-[#0f0f0f]/95 backdrop-blur-md z-20 pt-1">
@@ -227,11 +364,17 @@ export const Home: React.FC = () => {
             <button
               key={category}
               onClick={() => {
-                setSelectedCategory(category);
-                if (category === 'All') {
-                  navigate('home');
-                } else {
-                  navigate('home', undefined, { category });
+                if (selectedCategory !== category) {
+                  persistentHomeCategory = category;
+                  persistentHomeVideos = null;
+                  persistentHomeScrollY = 0;
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  setSelectedCategory(category);
+                  if (category === 'All') {
+                    navigate('home');
+                  } else {
+                    navigate('home', undefined, { category });
+                  }
                 }
               }}
               className={`px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all shrink-0 cursor-pointer ${

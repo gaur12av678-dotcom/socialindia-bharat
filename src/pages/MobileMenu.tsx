@@ -107,7 +107,7 @@ export const MobileMenu: React.FC = () => {
           </div>
 
           <button
-            onClick={() => navigate('creator', currentUserProfile.username)}
+            onClick={() => navigate('creator', currentUserProfile?.username || currentUser?.uid)}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-blue-500/10 cursor-pointer active:scale-98 transition-all"
           >
             <UserIcon className="w-4 h-4" />

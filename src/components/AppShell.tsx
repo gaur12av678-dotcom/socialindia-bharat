@@ -54,11 +54,17 @@ import {
   ListVideo,
   MessageCircle,
   Globe,
-  ThumbsUp
+  ThumbsUp,
+  Mic,
+  X,
+  ArrowUpLeft,
+  Trash2
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
 import { UserAvatar } from './UserAvatar';
+import { VoiceSearchModal } from './VoiceSearchModal';
+import { searchHistoryService, SearchHistoryEntry, POPULAR_SEARCH_SUGGESTIONS } from '../services/searchHistoryService';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -109,12 +115,66 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [searchSuggestionsOpen, setSearchSuggestionsOpen] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>(() => searchHistoryService.getHistory());
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [guestMenuOpen, setGuestMenuOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authSuccessCallback, setAuthSuccessCallback] = useState<(() => void) | undefined>(undefined);
   const [followedCreators, setFollowedCreators] = useState<any[]>([]);
+
+  // YouTube-style Home Click: If already on home, refresh feed and scroll smoothly to top
+  const handleHomeClick = () => {
+    if (route.path === 'home') {
+      window.dispatchEvent(new CustomEvent('socialindia:refresh-home'));
+    } else {
+      navigate('home');
+    }
+  };
+
+  const executeSearch = (termToSearch: string) => {
+    const trimmed = termToSearch.trim();
+    if (trimmed) {
+      searchHistoryService.addQuery(trimmed);
+      setSearchQuery(trimmed);
+      setSearchSuggestionsOpen(false);
+      setMobileSearchOpen(false);
+      navigate('search', undefined, { q: trimmed });
+    }
+  };
+
+  const handleVoiceSearchTranscript = (transcriptText: string) => {
+    executeSearch(transcriptText);
+  };
+
+  // Sync search history on custom event
+  useEffect(() => {
+    const handleHistoryUpdate = () => {
+      setSearchHistory(searchHistoryService.getHistory());
+    };
+    window.addEventListener('socialindia:search_history_updated', handleHistoryUpdate);
+    return () => {
+      window.removeEventListener('socialindia:search_history_updated', handleHistoryUpdate);
+    };
+  }, []);
+
+  // Handle clicking outside search container to close desktop dropdown
+  useEffect(() => {
+    const handleSearchOutside = (e: MouseEvent | TouchEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchSuggestionsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleSearchOutside);
+    document.addEventListener('touchstart', handleSearchOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleSearchOutside);
+      document.removeEventListener('touchstart', handleSearchOutside);
+    };
+  }, []);
 
   // Close dropdowns on route change
   useEffect(() => {
@@ -122,6 +182,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     setProfileDropdownOpen(false);
     setGuestMenuOpen(false);
     setMobileSearchOpen(false);
+    setSearchSuggestionsOpen(false);
   }, [route.path, route.param]);
 
   // Escape key handler to close all menus
@@ -223,9 +284,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate('search', undefined, { q: searchQuery.trim() });
-    }
+    executeSearch(searchQuery);
   };
 
   const handleSignOut = async () => {
@@ -342,37 +401,169 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             
             {mobileSearchOpen ? (
               /* Mobile expanding full-width search block */
-              <form onSubmit={handleSearchSubmit} className="flex flex-1 items-center gap-2 px-1">
-                <button 
-                  type="button"
-                  onClick={() => setMobileSearchOpen(false)}
-                  className="min-w-10 min-h-10 p-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full flex items-center justify-center cursor-pointer"
-                  title={isHindi ? 'सर्च बंद करें' : 'Close Search'}
-                >
-                  <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
-                </button>
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder={t('search_placeholder', 'Search videos, creators...')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 px-4 py-2.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-950 dark:text-white"
-                />
-                <button 
-                  type="submit"
-                  className="min-w-14 min-h-10 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-xs"
-                >
-                  {isHindi ? 'खोजें' : 'Go'}
-                </button>
-              </form>
+              <div className="flex-1 flex flex-col w-full">
+                <form onSubmit={handleSearchSubmit} className="flex flex-1 items-center gap-2 px-1">
+                  <button 
+                    type="button"
+                    onClick={() => setMobileSearchOpen(false)}
+                    className="min-w-10 min-h-10 p-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full flex items-center justify-center cursor-pointer shrink-0"
+                    title={isHindi ? 'सर्च बंद करें' : 'Close Search'}
+                  >
+                    <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
+                  </button>
+                  <div className="relative flex-1 flex items-center">
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder={t('search_placeholder', 'Search videos, creators...')}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full px-4 py-2.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-950 dark:text-white pr-8"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 text-slate-400 p-1 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceModalOpen(true)}
+                    className="min-w-10 min-h-10 p-2 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
+                    title={isHindi ? 'बोलकर खोजें' : 'Voice Search'}
+                  >
+                    <Mic className="w-5 h-5" />
+                  </button>
+                  <button 
+                    type="submit"
+                    className="min-w-14 min-h-10 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-xs shrink-0"
+                  >
+                    {isHindi ? 'खोजें' : 'Go'}
+                  </button>
+                </form>
+
+                {/* Mobile Search Overlay displaying YouTube-style History & Suggestions */}
+                <div className="fixed inset-x-0 top-14 bottom-0 z-50 bg-white dark:bg-[#0f0f0f] overflow-y-auto p-4 space-y-4">
+                  {(() => {
+                    const queryTrim = searchQuery.trim().toLowerCase();
+                    const matchedHistory = queryTrim
+                      ? searchHistory.filter(h => h.query.toLowerCase().includes(queryTrim))
+                      : searchHistory;
+
+                    const matchedSuggestions = queryTrim
+                      ? POPULAR_SEARCH_SUGGESTIONS.filter(s => s.toLowerCase().includes(queryTrim) && !matchedHistory.some(h => h.query.toLowerCase() === s.toLowerCase()))
+                      : (matchedHistory.length === 0 ? POPULAR_SEARCH_SUGGESTIONS : []);
+
+                    return (
+                      <div className="space-y-4">
+                        {matchedHistory.length > 0 && (
+                          <div className="bg-slate-50 dark:bg-[#16171a] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                              <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                                <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                {isHindi ? 'हाल की खोजें' : 'Search History'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => searchHistoryService.clearHistory()}
+                                className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer"
+                              >
+                                {isHindi ? 'सभी साफ़ करें' : 'Clear All'}
+                              </button>
+                            </div>
+                            <div className="space-y-1">
+                              {matchedHistory.map((item) => (
+                                <div
+                                  key={item.id}
+                                  onClick={() => executeSearch(item.query)}
+                                  className="flex items-center justify-between py-2.5 px-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                    <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm truncate">
+                                      {item.query}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSearchQuery(item.query);
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                      title="Fill search"
+                                    >
+                                      <ArrowUpLeft className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        searchHistoryService.removeQuery(item.id);
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-rose-500"
+                                      title={isHindi ? 'हटाएं' : 'Remove'}
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {matchedSuggestions.length > 0 && (
+                          <div className="bg-slate-50 dark:bg-[#16171a] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+                            <span className="text-xs font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5 uppercase tracking-wider mb-3 pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                              <Flame className="w-3.5 h-3.5 text-orange-500" />
+                              {isHindi ? 'लोकप्रिय खोज सुझाव' : 'Trending Searches'}
+                            </span>
+                            <div className="space-y-1">
+                              {matchedSuggestions.map((term, i) => (
+                                <div
+                                  key={i}
+                                  onClick={() => executeSearch(term)}
+                                  className="flex items-center justify-between py-2.5 px-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm truncate">
+                                      {term}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSearchQuery(term);
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                                  >
+                                    <ArrowUpLeft className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
             ) : (
               <>
                 {/* Left Section */}
                 <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
                   {route.path !== 'home' && (
                     <button 
-                      onClick={() => navigate('home')}
+                      onClick={handleHomeClick}
                       className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer flex items-center justify-center shrink-0 ${
                         isShortsPage
                           ? 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
@@ -394,31 +585,178 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   </button>
                   
                   <SocialIndiaLogo 
-                    onClick={() => navigate('home')}
+                    onClick={handleHomeClick}
                     forceWhiteText={false}
                   />
                 </div>
 
-                {/* Center / Prominent Search bar */}
-                <form onSubmit={handleSearchSubmit} className="hidden md:flex flex-1 max-w-2xl mx-auto relative">
-                  <div className="relative w-full flex items-center">
-                    <input
-                      type="text"
-                      placeholder={t('search_placeholder', 'Search videos, creators, categories...')}
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-4 pr-12 py-2 rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] text-slate-900 dark:text-[#f8fafc] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#2563eb] text-sm font-medium transition-all"
-                    />
-                    <button 
-                      type="submit"
-                      className="absolute right-1 top-1 bottom-1 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center font-semibold text-xs shadow-xs"
-                      aria-label={t('search_button', 'Search')}
-                      title={t('search_button', 'Search')}
-                    >
-                      <Search className="w-4 h-4 text-white" />
-                    </button>
-                  </div>
-                </form>
+                {/* Center / Prominent Search bar with YouTube-style Voice Mic & Search History Dropdown */}
+                <div ref={searchContainerRef} className="hidden md:flex flex-1 max-w-2xl mx-auto items-center gap-2 relative">
+                  <form onSubmit={handleSearchSubmit} className="flex-1 relative">
+                    <div className="relative w-full flex items-center">
+                      <input
+                        type="text"
+                        placeholder={t('search_placeholder', 'Search videos, creators, categories...')}
+                        value={searchQuery}
+                        onFocus={() => setSearchSuggestionsOpen(true)}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setSearchSuggestionsOpen(true);
+                        }}
+                        className="w-full pl-4 pr-12 py-2 rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] text-slate-900 dark:text-[#f8fafc] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#2563eb] text-sm font-medium transition-all"
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearchQuery('');
+                            setSearchSuggestionsOpen(true);
+                          }}
+                          className="absolute right-12 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                          title="Clear text"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button 
+                        type="submit"
+                        className="absolute right-1 top-1 bottom-1 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center font-semibold text-xs shadow-xs"
+                        aria-label={t('search_button', 'Search')}
+                        title={t('search_button', 'Search')}
+                      >
+                        <Search className="w-4 h-4 text-white" />
+                      </button>
+                    </div>
+
+                    {/* YouTube-style Search History & Suggestions Dropdown */}
+                    {searchSuggestionsOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-[#1c1d22] border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-2xl py-2.5 z-50 overflow-hidden text-sm">
+                        {(() => {
+                          const queryTrim = searchQuery.trim().toLowerCase();
+                          const matchedHistory = queryTrim
+                            ? searchHistory.filter(h => h.query.toLowerCase().includes(queryTrim))
+                            : searchHistory;
+
+                          const matchedSuggestions = queryTrim
+                            ? POPULAR_SEARCH_SUGGESTIONS.filter(s => s.toLowerCase().includes(queryTrim) && !matchedHistory.some(h => h.query.toLowerCase() === s.toLowerCase()))
+                            : (matchedHistory.length === 0 ? POPULAR_SEARCH_SUGGESTIONS : []);
+
+                          return (
+                            <>
+                              {matchedHistory.length > 0 && (
+                                <div>
+                                  <div className="flex items-center justify-between px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                                    <span className="flex items-center gap-1.5">
+                                      <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                                      {isHindi ? 'हाल की खोजें' : 'Search History'}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        searchHistoryService.clearHistory();
+                                      }}
+                                      className="text-[10px] font-bold text-rose-500 hover:text-rose-600 hover:underline cursor-pointer"
+                                    >
+                                      {isHindi ? 'साफ़ करें' : 'Clear All'}
+                                    </button>
+                                  </div>
+
+                                  <div className="py-1">
+                                    {matchedHistory.map((item) => (
+                                      <div
+                                        key={item.id}
+                                        onClick={() => executeSearch(item.query)}
+                                        className="flex items-center justify-between px-4 py-2 hover:bg-slate-100 dark:hover:bg-[#282a30] cursor-pointer group transition-colors"
+                                      >
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                          <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                          <span className="font-semibold text-slate-800 dark:text-slate-100 truncate text-xs sm:text-sm">
+                                            {item.query}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSearchQuery(item.query);
+                                            }}
+                                            className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                                            title={isHindi ? 'सर्च बॉक्स में भरें' : 'Fill into search'}
+                                          >
+                                            <ArrowUpLeft className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              searchHistoryService.removeQuery(item.id);
+                                            }}
+                                            className="px-2 py-0.5 text-[11px] font-bold text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer rounded"
+                                            title={isHindi ? 'हटाएं' : 'Remove'}
+                                          >
+                                            {isHindi ? 'हटाएं' : 'Remove'}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {matchedSuggestions.length > 0 && (
+                                <div className={matchedHistory.length > 0 ? 'mt-1 pt-2 border-t border-slate-100 dark:border-slate-800' : ''}>
+                                  <div className="px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                                    <Flame className="w-3.5 h-3.5 text-orange-500" />
+                                    {isHindi ? 'लोकप्रिय खोज सुझाव' : 'Trending Suggestions'}
+                                  </div>
+                                  <div className="py-1">
+                                    {matchedSuggestions.map((term, idx) => (
+                                      <div
+                                        key={idx}
+                                        onClick={() => executeSearch(term)}
+                                        className="flex items-center justify-between px-4 py-2 hover:bg-slate-100 dark:hover:bg-[#282a30] cursor-pointer group transition-colors"
+                                      >
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                                          <span className="font-medium text-slate-700 dark:text-slate-200 truncate text-xs sm:text-sm">
+                                            {term}
+                                          </span>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSearchQuery(term);
+                                          }}
+                                          className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer"
+                                          title={isHindi ? 'सर्च बॉक्स में भरें' : 'Fill into search'}
+                                        >
+                                          <ArrowUpLeft className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </form>
+
+                  <button
+                    type="button"
+                    onClick={() => setVoiceModalOpen(true)}
+                    className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-[#202124] dark:hover:bg-[#2e3034] text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0 transition-colors cursor-pointer active:scale-95 shadow-xs"
+                    aria-label={isHindi ? 'बोलकर खोजें' : 'Search with your voice'}
+                    title={isHindi ? 'बोलकर खोजें' : 'Search with your voice'}
+                  >
+                    <Mic className="w-5 h-5 text-slate-700 dark:text-slate-200" />
+                  </button>
+                </div>
 
                 {/* Right Controls */}
                 <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
@@ -433,6 +771,20 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     aria-label={t('search_button', 'Search')}
                   >
                     <Search className="w-5 h-5" />
+                  </button>
+
+                  {/* Mobile 1-Tap Voice Search Button */}
+                  <button 
+                    onClick={() => setVoiceModalOpen(true)}
+                    className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer flex md:hidden items-center justify-center ${
+                      isShortsPage 
+                        ? 'hover:bg-white/10 text-white' 
+                        : 'hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400'
+                    }`}
+                    aria-label={isHindi ? 'बोलकर खोजें' : 'Voice Search'}
+                    title={isHindi ? 'बोलकर खोजें' : 'Voice Search'}
+                  >
+                    <Mic className="w-5 h-5" />
                   </button>
 
                   {/* Theme Toggle */}
@@ -556,7 +908,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <div 
                     onClick={() => {
                       setProfileDropdownOpen(false);
-                      navigate('creator', currentUserProfile?.username);
+                      navigate('creator', currentUserProfile?.username || currentUser?.uid);
                     }}
                     className="p-3.5 bg-slate-50/90 dark:bg-zinc-900/60 border-b border-slate-100 dark:border-zinc-800/80 hover:bg-slate-100/90 dark:hover:bg-zinc-900/90 transition-colors cursor-pointer group flex items-center gap-3"
                     title="View your channel"
@@ -586,7 +938,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     <button
                       onClick={() => {
                         setProfileDropdownOpen(false);
-                        navigate('creator', currentUserProfile?.username);
+                        navigate('creator', currentUserProfile?.username || currentUser?.uid);
                       }}
                       className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                     >
@@ -860,7 +1212,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
               {/* Home */}
               <button
-                onClick={() => navigate('home')}
+                onClick={handleHomeClick}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
                   route.path === 'home' && !route.searchParams?.category
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1149,7 +1501,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         <div className="h-full flex items-center justify-around px-2">
           
           <button 
-            onClick={() => navigate('home')}
+            onClick={handleHomeClick}
             className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
               isShortsPage 
                 ? 'text-white/60 hover:text-white' 
@@ -1249,6 +1601,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             setAuthSuccessCallback(undefined);
           }
         }}
+      />
+
+      {/* VOICE SEARCH MODAL (YouTube-style Speech Recognition) */}
+      <VoiceSearchModal
+        isOpen={voiceModalOpen}
+        onClose={() => setVoiceModalOpen(false)}
+        onTranscript={handleVoiceSearchTranscript}
       />
     </div>
   );

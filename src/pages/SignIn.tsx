@@ -19,7 +19,6 @@ import {
   Wallet,
   X,
   ExternalLink,
-  ShieldCheck,
   ArrowLeft,
   KeyRound,
   HelpCircle
@@ -100,9 +99,16 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
   const [instantSuccess, setInstantSuccess] = useState(false);
   const [showInstantPass, setShowInstantPass] = useState(false);
 
-  // Google OAuth popup fallback helper modal state
-  const [googleHelperOpen, setGoogleHelperOpen] = useState(false);
-  const [googleDirectLoading, setGoogleDirectLoading] = useState(false);
+  // Check if returning from Google OAuth redirect flow
+  useEffect(() => {
+    authService.checkRedirectResult().then((res) => {
+      if (res?.userProfile) {
+        refreshProfile();
+        addToast(`Welcome to SocialIndia, ${res.userProfile.displayName || res.userProfile.username}!`, 'success');
+        navigate('home');
+      }
+    }).catch(console.warn);
+  }, []);
 
   // Handle resend countdown timer
   useEffect(() => {
@@ -305,38 +311,34 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
       addToast(`Welcome to SocialIndia, ${userProfile.displayName || userProfile.username}!`, 'success');
       navigate('home');
     } catch (err: any) {
-      console.warn('Google sign-in popup notice:', err);
-      // If popup is blocked by iframe or unauthorized domain in dev preview, open helper modal
-      if (
-        err.code === 'auth/popup-blocked' || 
-        err.code === 'auth/unauthorized-domain' ||
-        err.code === 'auth/operation-not-allowed' ||
-        err.code === 'auth/cancelled-popup-request' ||
-        err.message?.includes('popup')
-      ) {
-        setGoogleHelperOpen(true);
+      console.warn('Google sign-in error:', err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        // User voluntarily closed popup window
+        return;
+      }
+      if (err.code === 'auth/unauthorized-domain') {
+        setServerError(
+          isHindi
+            ? 'यह डोमेन Firebase Authentication में अधिकृत (Authorized Domain) नहीं है। Firebase Console में इस डोमेन को जोड़ें।'
+            : 'This domain is not authorized in Firebase Console (Authentication > Settings > Authorized Domains).'
+        );
+      } else if (err.code === 'auth/popup-blocked') {
+        setServerError(
+          isHindi
+            ? 'ब्राउज़र ने पॉपअप विंडो ब्लॉक कर दी। कृपया पॉपअप की अनुमति दें।'
+            : 'Popup was blocked by your browser. Please allow popups for this site and try again.'
+        );
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setServerError(
+          isHindi
+            ? 'Firebase Console में Google Sign-In चालू नहीं है।'
+            : 'Google Sign-In is not enabled in Firebase Console.'
+        );
       } else {
-        setServerError(err.message || 'Google sign-in could not be completed.');
+        setServerError(err.message || (isHindi ? 'Google साइन-इन पूरा नहीं हो सका।' : 'Google sign-in could not be completed.'));
       }
     } finally {
       setGoogleLoading(false);
-    }
-  };
-
-  // Direct Google Sign-In helper (1-click login for preview environment)
-  const handleGoogleDirect = async (emailToUse: string = 'maryxbgamer@gmail.com') => {
-    setGoogleDirectLoading(true);
-    setServerError('');
-    try {
-      const { userProfile } = await authService.signInWithGoogleDirect(emailToUse, emailToUse.split('@')[0]);
-      await refreshProfile();
-      setGoogleHelperOpen(false);
-      addToast(`Signed in successfully as ${userProfile.email}!`, 'success');
-      navigate('home');
-    } catch (err: any) {
-      setServerError(err.message || 'Quick Google Sign-In failed.');
-    } finally {
-      setGoogleDirectLoading(false);
     }
   };
 
@@ -735,7 +737,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                             id="forgot-email-input"
                             type="text"
                             required
-                            placeholder={isHindi ? 'उदा. yourname@gmail.com या rahul_tech' : 'e.g. maryxbgamer@gmail.com or rahul_tech'}
+                            placeholder={isHindi ? 'उदा. yourname@gmail.com या rahul_tech' : 'e.g. yourname@gmail.com or rahul_tech'}
                             value={forgotEmail}
                             onChange={(e) => setForgotEmail(e.target.value)}
                             className="w-full h-[50px] pl-11 pr-4 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
@@ -812,7 +814,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                             id="instant-id"
                             type="text"
                             required
-                            placeholder={isHindi ? 'उदा. rahul_tech या yourname@gmail.com' : 'e.g. rahul_tech or maryxbgamer@gmail.com'}
+                            placeholder={isHindi ? 'उदा. rahul_tech या yourname@gmail.com' : 'e.g. rahul_tech or yourname@gmail.com'}
                             value={instantIdentifier}
                             onChange={(e) => setInstantIdentifier(e.target.value)}
                             className="w-full h-[50px] pl-11 pr-4 bg-[#F8FAFC] border-[1.5px] border-[#CBD5E1] rounded-[14px] text-sm font-semibold text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/15"
@@ -1480,89 +1482,6 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
 
         </div>
       </div>
-
-      {/* ========================================================================= */}
-      {/* GOOGLE SIGN-IN POPUP ASSISTANT MODAL (Handles iframe popup blocking)        */}
-      {/* ========================================================================= */}
-      {googleHelperOpen && (
-        <div 
-          className="fixed inset-0 z-50 bg-[#0B1F5C]/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="w-full max-w-md bg-white rounded-[28px] p-7 shadow-2xl border border-slate-100 space-y-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-                  <ShieldCheck className="w-5 h-5 text-[#2563EB]" />
-                </div>
-                <h3 className="text-lg font-extrabold text-[#0F172A]">
-                  Google Sign-In Preview
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setGoogleHelperOpen(false)}
-                className="p-1.5 text-[#64748B] hover:text-[#0F172A] rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs text-[#475569] leading-relaxed">
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-[14px] text-amber-900">
-                <span className="font-bold">Notice:</span> Browser security restricts external Google OAuth popup windows inside embedded dev preview iframes.
-              </div>
-              <p>
-                You can test Google Sign-In immediately using the quick test account, or open the app in a standalone tab.
-              </p>
-            </div>
-
-            <div className="space-y-2.5 pt-2">
-              {/* Option 1: Instant Google Test Login */}
-              <button
-                type="button"
-                disabled={googleDirectLoading}
-                onClick={() => handleGoogleDirect('maryxbgamer@gmail.com')}
-                className="w-full h-[50px] bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-bold text-xs sm:text-sm rounded-[14px] shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2.5 disabled:opacity-60"
-              >
-                {googleDirectLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <svg className="w-4 h-4 shrink-0 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.665-5.17 3.665-9.12z" />
-                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.03c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.13C3.25 21.36 7.31 24 12 24z" />
-                    <path fill="#FBBC05" d="M5.28 14.29c-.25-.72-.38-1.49-.38-2.29s.13-1.57.38-2.29V6.58H1.26C.46 8.18 0 9.99 0 12s.46 3.82 1.26 5.42l4.02-3.13z" />
-                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.64 1.26 6.58l4.02 3.13c.95-2.83 3.6-4.96 6.72-4.96z" />
-                  </svg>
-                )}
-                <span>Continue as maryxbgamer@gmail.com</span>
-              </button>
-
-              {/* Option 2: Open in Standalone Tab */}
-              <a
-                href={window.location.href}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full h-[46px] bg-[#F8FAFC] hover:bg-slate-100 text-[#0F172A] border-[1.5px] border-[#CBD5E1] font-bold text-xs rounded-[14px] transition-all cursor-pointer flex items-center justify-center gap-2"
-              >
-                <ExternalLink className="w-4 h-4 text-[#475569]" />
-                <span>Open in Standalone Tab (Enables Popups)</span>
-              </a>
-
-              {/* Option 3: Dismiss */}
-              <button
-                type="button"
-                onClick={() => setGoogleHelperOpen(false)}
-                className="w-full py-2 text-xs font-semibold text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer text-center"
-              >
-                Sign in with Username & Password instead
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };

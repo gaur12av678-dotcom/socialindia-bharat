@@ -1146,15 +1146,19 @@ export const CreatorStudio: React.FC = () => {
                   {/* Channel Header Info */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">
-                      <AshokaChakraLogo size="md" />
+                      <UserAvatar 
+                        uid={currentUser?.uid}
+                        fallbackPhotoURL={currentUserProfile?.photoURL || currentUser?.photoURL}
+                        fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username || 'Channel'}
+                        size="md"
+                        className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full shrink-0 ring-2 ring-blue-500/20 shadow-xs"
+                      />
                       <div className="min-w-0">
                         <h4 className="text-sm font-black text-slate-900 dark:text-white truncate">
-                          {currentUserProfile?.displayName && !currentUserProfile.displayName.includes('@')
-                            ? currentUserProfile.displayName
-                            : 'Maryx Bg'}
+                          {currentUserProfile?.displayName || currentUser?.displayName || 'My Channel'}
                         </h4>
-                        <p className="text-[10px] text-slate-400 font-bold">
-                          Create &nbsp;•&nbsp; Share &nbsp;•&nbsp; Grow
+                        <p className="text-[10px] text-slate-400 font-bold truncate">
+                          @{currentUserProfile?.username || 'creator'} &nbsp;•&nbsp; {currentUserProfile?.followersCount || 0} subscribers
                         </p>
                       </div>
                     </div>
