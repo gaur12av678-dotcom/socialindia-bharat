@@ -1272,6 +1272,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <span className="truncate">{t('nav_subscriptions', 'Subscriptions')}</span>
                 </div>
               </button>
+
+              {/* Messages / Direct Chat (Placed immediately below Subscriptions) */}
+              <button
+                onClick={() => triggerProtectedAction(() => navigate('chat'))}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'chat' || route.path === 'messages'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <MessageCircle className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'chat' || route.path === 'messages' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <span className="truncate">{t('nav_chat', 'Messages & Chat')}</span>
+                </div>
+              </button>
             </div>
 
             <div className="h-px bg-slate-200/70 dark:bg-slate-800/70" />
@@ -1396,20 +1411,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 </div>
               </button>
 
-              {/* Messages / Direct Chat */}
-              <button
-                onClick={() => triggerProtectedAction(() => navigate('chat'))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
-                  route.path === 'chat'
-                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <MessageCircle className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'chat' ? 'text-emerald-500' : 'text-emerald-500'}`} />
-                  <span className="truncate">{t('nav_chat', 'Messages & Chat')}</span>
-                </div>
-              </button>
 
               {/* Advertising Hub */}
               <button

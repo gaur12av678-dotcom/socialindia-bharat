@@ -39,72 +39,101 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
       return;
     }
 
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = isHindi ? 'hi-IN' : 'en-IN';
-      recognitionRef.current = recognition;
+    let isMounted = true;
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        setErrorMsg('');
-        setTranscript('');
-      };
+    const startSpeechRecognition = () => {
+      if (!isMounted) return;
 
-      recognition.onresult = (event: any) => {
-        let current = '';
-        for (let i = 0; i < event.results.length; i++) {
-          current += event.results[i][0].transcript;
+      try {
+        if (recognitionRef.current) {
+          try { recognitionRef.current.abort(); } catch {}
         }
-        setTranscript(current);
 
-        if (event.results[0].isFinal) {
-          const finalQuery = current.trim();
-          if (finalQuery) {
-            setTimeout(() => {
-              onTranscript(finalQuery);
-              onClose();
-            }, 600);
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = isHindi ? 'hi-IN' : 'en-IN';
+        recognitionRef.current = recognition;
+
+        recognition.onstart = () => {
+          if (!isMounted) return;
+          setIsListening(true);
+          setErrorMsg('');
+          setTranscript('');
+        };
+
+        recognition.onresult = (event: any) => {
+          if (!isMounted) return;
+          let current = '';
+          for (let i = 0; i < event.results.length; i++) {
+            current += event.results[i][0].transcript;
           }
+          setTranscript(current);
+
+          if (event.results[0].isFinal) {
+            const finalQuery = current.trim();
+            if (finalQuery) {
+              setTimeout(() => {
+                if (isMounted) {
+                  onTranscript(finalQuery);
+                  onClose();
+                }
+              }, 600);
+            }
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn('Speech recognition event error:', event.error);
+          if (!isMounted) return;
+          setIsListening(false);
+          if (event.error === 'not-allowed') {
+            setErrorMsg(
+              isHindi
+                ? 'माइक्रोफ़ोन अनुमति चालू नहीं है। कृपया नीचे "माइक्रोफ़ोन अनुमति दें" बटन दबाएं।'
+                : 'Microphone permission not enabled. Tap "Allow Microphone" below to grant access.'
+            );
+          } else if (event.error === 'no-speech') {
+            setErrorMsg(
+              isHindi
+                ? 'कोई आवाज़ सुनाई नहीं दी। कृपया माइक्रोफ़ोन दबाकर पुनः बोलें।'
+                : 'No speech heard. Please tap the mic button and speak clearly.'
+            );
+          } else {
+            setErrorMsg(
+              isHindi
+                ? 'वॉइस इनपुट में समस्या आई। पुनः प्रयास करें।'
+                : 'Voice recognition error. Please tap the mic to try again.'
+            );
+          }
+        };
+
+        recognition.onend = () => {
+          if (isMounted) {
+            setIsListening(false);
+          }
+        };
+
+        recognition.start();
+      } catch (err: any) {
+        console.warn('Speech recognition start error:', err);
+        if (isMounted) {
+          setIsListening(false);
+          // If starting without user gesture was restricted by browser, prompt user to tap
+          setErrorMsg(
+            isHindi 
+              ? 'बोलने के लिए नीचे माइक्रोफ़ोन बटन दबाएं।' 
+              : 'Tap the microphone button below to start speaking.'
+          );
         }
-      };
+      }
+    };
 
-      recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error:', event.error);
-        setIsListening(false);
-        if (event.error === 'not-allowed') {
-          setErrorMsg(
-            isHindi
-              ? 'माइक्रोफ़ोन अनुमति अस्वीकृत है। कृपया ब्राउज़र सेटिंग्स में माइक्रोफ़ोन की अनुमति दें।'
-              : 'Microphone permission blocked. Please allow microphone access in browser settings.'
-          );
-        } else if (event.error === 'no-speech') {
-          setErrorMsg(
-            isHindi
-              ? 'कोई आवाज़ सुनाई नहीं दी। कृपया पुनः प्रयास करें।'
-              : 'No speech detected. Please tap the mic and speak clearly.'
-          );
-        } else {
-          setErrorMsg(
-            isHindi
-              ? 'वॉइस इनपुट में त्रुटि हुई। कृपया पुनः प्रयास करें।'
-              : 'Voice recognition error. Please try again.'
-          );
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognition.start();
-    } catch (err: any) {
-      console.warn('Speech recognition start error:', err);
-      setErrorMsg(isHindi ? 'माइक्रोफ़ोन प्रारंभ नहीं हो सका।' : 'Could not initialize microphone.');
-    }
+    // Auto-start listening on open
+    startSpeechRecognition();
 
     return () => {
+      isMounted = false;
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
@@ -113,17 +142,80 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
     };
   }, [isOpen, isHindi]);
 
-  const handleRetry = () => {
+  const requestPermissionAndListen = async () => {
     setErrorMsg('');
     setTranscript('');
-    if (recognitionRef.current) {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+      }
+    } catch (e) {
+      console.warn('Explicit getUserMedia request failed:', e);
+    }
+    
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
       try {
-        recognitionRef.current.start();
-      } catch {
-        // re-run effect
-        setIsListening(true);
+        if (recognitionRef.current) {
+          try { recognitionRef.current.abort(); } catch {}
+        }
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = isHindi ? 'hi-IN' : 'en-IN';
+        recognitionRef.current = recognition;
+
+        recognition.onstart = () => {
+          setIsListening(true);
+          setErrorMsg('');
+          setTranscript('');
+        };
+
+        recognition.onresult = (event: any) => {
+          let current = '';
+          for (let i = 0; i < event.results.length; i++) {
+            current += event.results[i][0].transcript;
+          }
+          setTranscript(current);
+
+          if (event.results[0].isFinal) {
+            const finalQuery = current.trim();
+            if (finalQuery) {
+              setTimeout(() => {
+                onTranscript(finalQuery);
+                onClose();
+              }, 600);
+            }
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          setIsListening(false);
+          if (event.error === 'not-allowed') {
+            setErrorMsg(
+              isHindi
+                ? 'माइक्रोफ़ोन अनुमति ब्लॉक है। कृपया ब्राउज़र/ऐप सेटिंग्स में माइक्रोफ़ोन की अनुमति दें।'
+                : 'Microphone permission blocked. Please enable microphone in Android / browser app settings.'
+            );
+          } else {
+            setErrorMsg(isHindi ? 'पुनः प्रयास करें।' : 'Please try again.');
+          }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognition.start();
+      } catch (err) {
+        setErrorMsg(isHindi ? 'माइक्रोफ़ोन शुरू नहीं हो सका।' : 'Could not start microphone.');
       }
     }
+  };
+
+  const handleRetry = () => {
+    requestPermissionAndListen();
   };
 
   if (!isOpen) return null;
@@ -207,9 +299,10 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
           {errorMsg && (
             <button
               onClick={handleRetry}
-              className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              className="w-full py-3 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98"
             >
-              {isHindi ? 'पुनः प्रयास करें' : 'Try Again'}
+              <Mic className="w-4 h-4" />
+              <span>{isHindi ? 'माइक्रोफ़ोन अनुमति दें / पुनः बोलें' : 'Allow Microphone / Speak Again'}</span>
             </button>
           )}
         </div>

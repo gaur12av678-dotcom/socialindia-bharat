@@ -74,6 +74,20 @@ public class MainActivity extends AppCompatActivity {
     // Back press tracker
     private long lastBackPressTime = 0;
 
+    // Permission request launcher for Web Audio/Camera
+    private PermissionRequest pendingWebPermissionRequest;
+    private final ActivityResultLauncher<String> audioPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+                if (pendingWebPermissionRequest != null) {
+                    if (isGranted) {
+                        pendingWebPermissionRequest.grant(pendingWebPermissionRequest.getResources());
+                    } else {
+                        pendingWebPermissionRequest.deny();
+                    }
+                    pendingWebPermissionRequest = null;
+                }
+            });
+
     // Activity Result Launcher for modern file selection
     private final ActivityResultLauncher<Intent> fileChooserLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
@@ -394,8 +408,21 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onPermissionRequest(PermissionRequest request) {
-            // Grant permissions requested by web elements (e.g., video/audio capture)
-            request.grant(request.getResources());
+            String[] resources = request.getResources();
+            boolean needsAudio = false;
+            for (String r : resources) {
+                if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)) {
+                    needsAudio = true;
+                    break;
+                }
+            }
+
+            if (needsAudio && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                pendingWebPermissionRequest = request;
+                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
+            } else {
+                request.grant(resources);
+            }
         }
 
         @Override

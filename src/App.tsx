@@ -177,7 +177,7 @@ function MainAppContent() {
       case 'user':
       case 'profile':
       case 'c':
-        return <CreatorProfile />;
+        return <CreatorProfile key={`creator_${route.param || 'me'}`} />;
       case 'studio':
         return <CreatorStudio />;
       case 'settings':

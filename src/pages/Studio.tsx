@@ -120,8 +120,22 @@ export const CreatorStudio: React.FC = () => {
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
+  // Monetization check: only users with approved/enabled monetization can access Earn tab or paid videos
+  const isUserMonetized = Boolean(
+    currentUserProfile?.isMonetized || 
+    currentUserProfile?.monetizationStatus === 'approved' || 
+    currentUserProfile?.role === 'admin'
+  );
+
   // Navigation tab inside Studio (Active DASHBOARD tab matching reference mockup)
   const [activeTab, setActiveTab] = useState<'dashboard' | 'content' | 'analytics' | 'comments' | 'earn'>('dashboard');
+
+  useEffect(() => {
+    if (!isUserMonetized && activeTab === 'earn') {
+      setActiveTab('dashboard');
+    }
+  }, [isUserMonetized, activeTab]);
+
   const [creatorModeActive, setCreatorModeActive] = useState(true);
   const [perfTimeRange, setPerfTimeRange] = useState('Last 28 days');
   const [showVideoCatalog, setShowVideoCatalog] = useState(false);
@@ -551,8 +565,8 @@ export const CreatorStudio: React.FC = () => {
           duration: finalDuration,
           visibility,
           isShort,
-          isPaid: isPaid && (currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin'),
-          price: isPaid ? Number(price || 0) : 0,
+          isPaid: isPaid && isUserMonetized,
+          price: (isPaid && isUserMonetized) ? Number(price || 0) : 0,
         });
         addToast('Video details updated successfully!', 'success');
       } else {
@@ -572,8 +586,8 @@ export const CreatorStudio: React.FC = () => {
           soundCoverUrl: selectedSoundTrack?.coverUrl,
           soundAudioUrl: selectedSoundTrack?.audioUrl,
           isMonetized,
-          isPaid: isPaid && (currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin'),
-          price: isPaid ? Number(price || 0) : 0,
+          isPaid: isPaid && isUserMonetized,
+          price: (isPaid && isUserMonetized) ? Number(price || 0) : 0,
           paidSalesCount: 0,
           paidEarnings: 0,
           creatorId: currentUser.uid,
@@ -811,18 +825,20 @@ export const CreatorStudio: React.FC = () => {
           <span>{isHindi ? `टिप्पणियाँ (${studioComments.length || 0})` : `COMMENTS (${studioComments.length || 0})`}</span>
         </button>
 
-        {/* EARN & MONETIZATION TAB */}
-        <button
-          onClick={() => setActiveTab('earn')}
-          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
-            activeTab === 'earn'
-              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
-              : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
-          }`}
-        >
-          <DollarSign className={`w-4 h-4 ${activeTab === 'earn' ? 'text-white' : 'text-slate-500'}`} />
-          <span>{isHindi ? 'कमाई व मोनेटाइजेशन' : 'EARN & MONETIZATION'}</span>
-        </button>
+        {/* EARN & MONETIZATION TAB - Only visible to monetized creators */}
+        {isUserMonetized && (
+          <button
+            onClick={() => setActiveTab('earn')}
+            className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+              activeTab === 'earn'
+                ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+                : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+            }`}
+          >
+            <DollarSign className={`w-4 h-4 ${activeTab === 'earn' ? 'text-white' : 'text-slate-500'}`} />
+            <span>{isHindi ? 'कमाई व मोनेटाइजेशन' : 'EARN & MONETIZATION'}</span>
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -1800,7 +1816,7 @@ export const CreatorStudio: React.FC = () => {
           )}
 
           {/* EARN & MONETIZATION TAB VIEW (Only for Monetized Creators) */}
-          {activeTab === 'earn' && (
+          {activeTab === 'earn' && isUserMonetized && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
               {/* Header Banner */}
@@ -2586,7 +2602,7 @@ export const CreatorStudio: React.FC = () => {
                     </div>
 
                     {/* 2. Make Video Paid (Exclusive for Monetized Channels) */}
-                    {(currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin') ? (
+                    {isUserMonetized ? (
                       <div className="p-5 bg-gradient-to-r from-emerald-50/70 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/10 rounded-3xl border border-emerald-300/80 dark:border-emerald-800/60 space-y-4 shadow-xs">
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex items-center gap-3">

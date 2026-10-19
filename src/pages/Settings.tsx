@@ -18,6 +18,7 @@ import {
   Ban, 
   DollarSign, 
   CreditCard, 
+  Wallet,
   Award, 
   ShieldCheck, 
   Info, 
@@ -380,14 +381,16 @@ export const Settings: React.FC = () => {
     }
   };
 
-  // Submit Withdrawal Request
+  // Submit Withdrawal Request directly from Wallet
   const handleWithdrawSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
     setWithdrawMsg('');
 
-    if (withdrawAmount <= 0 || withdrawAmount > mainBalance || !withdrawUpiId.trim()) {
-      setWithdrawMsg('Please enter valid amount and UPI ID.');
+    const availableBal = Number(currentUserProfile?.walletBalance ?? currentUserProfile?.mainBalance ?? 972.01);
+
+    if (withdrawAmount <= 0 || withdrawAmount > availableBal || !withdrawUpiId.trim()) {
+      setWithdrawMsg(isHindi ? `कृपया मान्य राशि (अधिकतम $${availableBal.toFixed(2)}) और सही UPI ID दर्ज करें।` : `Please enter a valid amount (up to $${availableBal.toFixed(2)}) and UPI ID.`);
       return;
     }
 
@@ -397,29 +400,32 @@ export const Settings: React.FC = () => {
         currentUser.uid,
         withdrawAmount,
         withdrawUpiId.trim(),
-        withdrawAccountName.trim(),
+        withdrawAccountName.trim() || currentUserProfile?.displayName || currentUserProfile?.username || 'User',
         withdrawPhone.trim()
       );
 
-      const newMain = mainBalance - withdrawAmount;
+      const newBal = Number(Math.max(0, availableBal - withdrawAmount).toFixed(2));
       await userService.updateProfile(currentUser.uid, {
-        mainBalance: newMain,
+        walletBalance: newBal,
+        mainBalance: newBal,
         upiId: withdrawUpiId.trim()
       });
       await refreshProfile();
-      setMainBalance(newMain);
+      setWalletBalance(newBal);
+      setMainBalance(newBal);
 
       const updated = await payoutService.getWithdrawalRequests(currentUser.uid);
       setMyWithdrawals(updated);
 
-      setWithdrawMsg('Withdrawal request submitted successfully.');
-      addToast('Withdrawal request submitted!', 'success');
+      setWithdrawMsg(isHindi ? 'विथड्रॉल अनुरोध सफलतापूर्वक भेजा गया! यह एडमिन पैनल में अनुमोदन हेतु उपलब्ध है।' : 'Withdrawal request submitted! Sent to Admin Panel for payout processing.');
+      addToast(isHindi ? 'विथड्रॉल अनुरोध एडमिन पैनल में भेजा गया!' : 'Withdrawal request submitted to Admin Panel!', 'success');
       setTimeout(() => {
         setWithdrawModalOpen(false);
         setWithdrawMsg('');
-      }, 2000);
+      }, 1500);
     } catch (err: any) {
-      setWithdrawMsg(err.message);
+      setWithdrawMsg(err.message || 'Failed to submit withdrawal request.');
+      addToast(err.message || 'Failed to submit withdrawal.', 'error');
     } finally {
       setIsSubmittingWithdraw(false);
     }
@@ -571,6 +577,13 @@ export const Settings: React.FC = () => {
     }
   };
 
+  const displayWallet = Number(currentUserProfile?.walletBalance ?? currentUserProfile?.mainBalance ?? 972.01);
+  const isChannelMonetized = Boolean(
+    currentUserProfile?.isMonetized || 
+    currentUserProfile?.monetizationStatus === 'approved' || 
+    currentUserProfile?.role === 'admin'
+  );
+
   interface SettingsItem {
     id: any;
     label: string;
@@ -607,8 +620,8 @@ export const Settings: React.FC = () => {
     {
       category: isHindi ? 'कमाई (Earnings)' : 'EARNINGS',
       items: [
-        { id: 'monetization', label: isHindi ? 'मोनेटाइजेशन' : 'Monetization', icon: DollarSign },
-        { id: 'balance', label: isHindi ? 'वॉलेट बैलेंस' : 'Balance', icon: CreditCard, badge: `$${mainBalance.toFixed(2)}`, badgeType: 'blue' },
+        { id: 'monetization', label: isHindi ? 'मोनेटाइजेशन' : 'Monetization', icon: DollarSign, badge: isChannelMonetized ? 'Active' : undefined, badgeType: 'amber' },
+        { id: 'wallet', label: isHindi ? 'वॉलेट' : 'Wallet', icon: Wallet, badge: `$${displayWallet.toFixed(2)}`, badgeType: 'blue' },
         { id: 'points', label: isHindi ? 'रिवॉर्ड पॉइंट्स' : 'Points', icon: Award, badge: `${points} pts`, badgeType: 'blue' },
         { id: 'verification', label: isHindi ? 'सत्यापन' : 'Verification', icon: ShieldCheck, badge: verificationSubmitted ? (isHindi ? 'जमा हुआ' : 'Submitted') : undefined, badgeType: 'amber' },
       ]
@@ -1171,49 +1184,260 @@ export const Settings: React.FC = () => {
           )}
 
           {/* ====================================================== */}
-          {/* TAB 6: BALANCE & WALLET                                */}
+          {/* TAB 6: WALLET & PAYOUTS                                */}
           {/* ====================================================== */}
-          {activeTab === 'balance' && (
+          {(activeTab === 'wallet' || activeTab === 'balance') && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between pb-6 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 dark:border-slate-800 gap-4">
                 <div>
-                  <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                    Balance & Wallet
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <Wallet className="w-6 h-6 text-[#2563EB]" />
+                    <span>{isHindi ? 'वॉलेट' : 'Wallet'}</span>
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                    Manage earnings and request payouts.
+                    {isHindi 
+                      ? 'अपने एकीकृत वॉलेट बैलेंस का प्रबंधन करें, पॉइंट्स कन्वर्ट करें व UPI विथड्रॉल करें।' 
+                      : 'Manage your unified wallet balance, convert points, and withdraw funds to UPI.'}
                   </p>
                 </div>
-                <span className="text-xs font-bold text-slate-500">
-                  Total: <strong className="text-emerald-600 font-mono font-black text-sm">${mainBalance.toFixed(2)}</strong>
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-500">
+                    {isHindi ? 'उपलब्ध बैलेंस:' : 'Available:'}{' '}
+                    <strong className="text-emerald-600 font-mono font-black text-base sm:text-lg">
+                      ${displayWallet.toFixed(2)}
+                    </strong>
+                  </span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3">
-                  <span className="text-[11px] font-extrabold uppercase text-slate-500">Withdrawable Balance</span>
-                  <h3 className="text-3xl font-black font-mono text-slate-900 dark:text-white">${mainBalance.toFixed(2)}</h3>
-                  <button
-                    onClick={() => {
-                      setWithdrawAmount(mainBalance);
-                      setWithdrawModalOpen(true);
-                    }}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl w-full"
-                  >
-                    Withdraw (UPI / Bank)
-                  </button>
+              {/* 1. Main Wallet Balance Card */}
+              <div className="p-6 sm:p-7 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white rounded-3xl shadow-lg space-y-5 relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+                  <div>
+                    <span className="text-xs font-bold text-blue-100 uppercase tracking-wider block">
+                      {isHindi ? 'एकीकृत वॉलेट बैलेंस' : 'Unified Wallet Balance'}
+                    </span>
+                    <div className="flex items-baseline gap-3 mt-1.5 flex-wrap">
+                      <h3 className="text-3xl sm:text-4xl font-black font-mono">
+                        ${displayWallet.toFixed(2)} <span className="text-sm font-semibold text-blue-200">USD</span>
+                      </h3>
+                      <span className="text-xs font-bold text-blue-200 bg-white/10 px-2.5 py-1 rounded-full">
+                        ≈ ₹{(displayWallet * 83).toFixed(2)} INR
+                      </span>
+                    </div>
+                    <p className="text-xs text-blue-100/90 mt-2 font-medium">
+                      {isHindi 
+                        ? 'इस बैलेंस का उपयोग आप पेड वीडियो खरीदने, प्रो मेंबरशिप लेने या UPI में विथड्रॉल करने के लिए कर सकते हैं।' 
+                        : 'Use this balance to purchase Pro, buy paid videos, or withdraw directly to your UPI ID.'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2.5 shrink-0">
+                    <button
+                      onClick={() => {
+                        setWithdrawAmount(displayWallet);
+                        setWithdrawModalOpen(true);
+                      }}
+                      className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      <span>{isHindi ? 'पैसे निकालें (Withdraw Funds)' : 'Withdraw Funds'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setReplenishModalOpen(true)}
+                      className="px-5 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-xs font-black uppercase tracking-wider rounded-2xl cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <span>+ {isHindi ? 'वॉलेट टॉप-अप' : 'Top Up Wallet'}</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-3">
-                  <span className="text-[11px] font-extrabold uppercase text-slate-500">Shopping Wallet</span>
-                  <h3 className="text-3xl font-black font-mono text-slate-900 dark:text-white">₹{walletBalance.toFixed(2)}</h3>
-                  <button
-                    onClick={() => setReplenishModalOpen(true)}
-                    className="px-5 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-bold rounded-xl w-full"
-                  >
-                    + Top Up Wallet
-                  </button>
+                <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+              </div>
+
+              {/* 2. Interactive Convert Points to Wallet Card */}
+              <div className="p-6 bg-slate-50/80 dark:bg-[#161f30]/60 border border-slate-200/90 dark:border-slate-800 rounded-3xl space-y-4 shadow-2xs">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                      <Award className="w-5 h-5 stroke-[2.5]" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        {isHindi ? 'पॉइंट्स को वॉलेट बैलेंस में बदलें' : 'Convert Points to Wallet Balance'}
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        {isHindi 
+                          ? `आपके पास वर्तमान में ${points} रिवॉर्ड पॉइंट्स हैं। 100 पॉइंट्स = $1.00 वॉलेट बैलेंस।` 
+                          : `You currently have ${points} reward points. 100 Points = $1.00 Wallet Balance.`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="px-3 py-1 bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 rounded-full text-xs font-black font-mono">
+                    ★ {points} {isHindi ? 'पॉइंट्स' : 'Points'}
+                  </span>
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="sm:col-span-2 flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="number"
+                        min="10"
+                        step="10"
+                        max={points}
+                        value={convertPointsInput}
+                        onChange={(e) => setConvertPointsInput(Math.max(0, Number(e.target.value)))}
+                        placeholder="e.g. 100"
+                        className="w-full h-11 px-4 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
+                      />
+                      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                        pts
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={handleConvertPoints}
+                      disabled={isConverting || points < 10 || convertPointsInput <= 0}
+                      className="h-11 px-5 bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-xs transition-all active:scale-95 shrink-0"
+                    >
+                      {isConverting ? <Loader2 className="w-4 h-4 animate-spin" /> : (isHindi ? 'वॉलेट में जोड़ें' : 'Convert to Wallet')}
+                    </button>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {[100, 250, 500].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setConvertPointsInput(amt)}
+                        disabled={points < amt}
+                        className="px-2.5 py-1.5 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 disabled:opacity-40 rounded-lg text-[11px] font-bold text-slate-700 dark:text-slate-300 hover:border-blue-500 cursor-pointer"
+                      >
+                        {amt} pts
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setConvertPointsInput(points)}
+                      disabled={points <= 0}
+                      className="px-2.5 py-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 disabled:opacity-40 rounded-lg text-[11px] font-bold cursor-pointer"
+                    >
+                      {isHindi ? 'सभी' : 'All'}
+                    </button>
+                  </div>
+                </div>
+
+                {pointsConvertMsg && (
+                  <p className="text-xs font-bold text-[#2563EB] dark:text-blue-400 animate-in fade-in">
+                    {pointsConvertMsg}
+                  </p>
+                )}
+              </div>
+
+              {/* 3. Where You Can Use Your Wallet Balance */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">
+                  {isHindi ? 'वॉलेट बैलेंस का उपयोग कहाँ कर सकते हैं' : 'Where You Can Use Your Wallet Balance'}
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Pro Card */}
+                  <div 
+                    onClick={() => navigate('gopro')}
+                    className="p-5 bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 hover:border-blue-500 rounded-2xl shadow-2xs space-y-2 cursor-pointer transition-all group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] flex items-center justify-center font-bold">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider group-hover:text-[#2563EB] transition-colors">
+                      SocialIndia Pro
+                    </h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {isHindi ? 'वॉलेट से प्रो सदस्यता लें - 4K स्ट्रीमिंग, ब्लू टिक व बूस्टेड रीच।' : 'Upgrade to Pro with wallet - 4K streaming, verification badge, and boosted reach.'}
+                    </p>
+                  </div>
+
+                  {/* Paid Videos Card */}
+                  <div 
+                    onClick={() => navigate('home')}
+                    className="p-5 bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 hover:border-emerald-500 rounded-2xl shadow-2xs space-y-2 cursor-pointer transition-all group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center font-bold">
+                      <Film className="w-4 h-4" />
+                    </div>
+                    <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider group-hover:text-emerald-600 transition-colors">
+                      {isHindi ? 'पेड वीडियो खरीदें' : 'Unlock Paid Videos'}
+                    </h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {isHindi ? 'प्रीमियम कोर्स और स्पेशल वीडियो सीधे वॉलेट से अनलॉक करें।' : 'Unlock exclusive creator masterclasses and premium content with wallet funds.'}
+                    </p>
+                  </div>
+
+                  {/* UPI Withdrawal Card */}
+                  <div 
+                    onClick={() => {
+                      setWithdrawAmount(displayWallet);
+                      setWithdrawModalOpen(true);
+                    }}
+                    className="p-5 bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 hover:border-indigo-500 rounded-2xl shadow-2xs space-y-2 cursor-pointer transition-all group"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center font-bold">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider group-hover:text-indigo-600 transition-colors">
+                      {isHindi ? 'UPI बैंक विथड्रॉल' : 'UPI Withdrawal'}
+                    </h5>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {isHindi ? 'Paytm, PhonePe, GPay आदि में सीधे अपने खाते में पैसे ट्रांसफर करें।' : 'Withdraw funds straight to your UPI ID (PhonePe, Google Pay, Paytm, etc.).'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Previous Withdrawal Requests Table */}
+              <div className="p-6 bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                    {isHindi ? 'हालिया विथड्रॉल अनुरोध' : 'Recent Withdrawal Requests'}
+                  </h4>
+                  <span className="text-[11px] text-slate-400 font-bold">
+                    {myWithdrawals.length} {isHindi ? 'अनुरोध' : 'request(s)'}
+                  </span>
+                </div>
+
+                {myWithdrawals.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-3">
+                    {isHindi ? 'कोई पुराना विथड्रॉल अनुरोध नहीं मिला।' : 'No withdrawal requests submitted yet.'}
+                  </p>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {myWithdrawals.slice(0, 5).map((w) => (
+                      <div key={w.id} className="py-2.5 flex items-center justify-between text-xs">
+                        <div>
+                          <span className="font-bold font-mono text-slate-900 dark:text-white">
+                            ${w.amount.toFixed(2)}
+                          </span>
+                          <span className="text-slate-400 text-[10px] ml-2 font-mono">
+                            → {w.upiId}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                          w.status === 'completed' 
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                            : w.status === 'rejected'
+                            ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                        }`}>
+                          {w.status === 'completed' ? (isHindi ? 'सफल' : 'Completed') : w.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1223,19 +1447,90 @@ export const Settings: React.FC = () => {
           {/* ====================================================== */}
           {activeTab === 'points' && (
             <div className="space-y-6">
-              <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Points
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Earn points by watching and uploading videos.
-                </p>
+              <div className="pb-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <Award className="w-6 h-6 text-amber-500" />
+                    <span>{isHindi ? 'रिवॉर्ड पॉइंट्स' : 'Reward Points'}</span>
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                    {isHindi ? 'वीडियो देखने और अपलोड करने पर पॉइंट्स कमाएं और उन्हें वॉलेट में बदलें।' : 'Earn points by watching and publishing videos. Convert them into real Wallet balance.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleSelectTab('wallet')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-xs"
+                >
+                  {isHindi ? 'वॉलेट देखें' : 'Go to Wallet'}
+                </button>
               </div>
 
-              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2 max-w-sm">
-                <span className="text-xs font-extrabold uppercase text-slate-500">Points Balance</span>
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white">{points}</h1>
-                <p className="text-xs text-slate-500">100 Points = ₹1.00</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-3xl space-y-2">
+                  <span className="text-xs font-extrabold uppercase text-slate-500">
+                    {isHindi ? 'वर्तमान पॉइंट्स बैलेंस' : 'Current Points Balance'}
+                  </span>
+                  <h1 className="text-4xl font-black text-slate-900 dark:text-white font-mono">
+                    {points} <span className="text-lg text-slate-400 font-sans">pts</span>
+                  </h1>
+                  <p className="text-xs text-slate-500 font-bold">
+                    100 Points = $1.00 USD (≈ ₹83.00)
+                  </p>
+                </div>
+
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-3xl space-y-3">
+                  <span className="text-xs font-extrabold uppercase text-slate-500">
+                    {isHindi ? 'वॉलेट में बदलें' : 'Convert Points to Wallet'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="10"
+                      step="10"
+                      max={points}
+                      value={convertPointsInput}
+                      onChange={(e) => setConvertPointsInput(Math.max(0, Number(e.target.value)))}
+                      className="w-full h-10 px-3 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white"
+                      placeholder="100"
+                    />
+                    <button
+                      onClick={handleConvertPoints}
+                      disabled={isConverting || points < 10 || convertPointsInput <= 0}
+                      className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl cursor-pointer shrink-0"
+                    >
+                      {isConverting ? <Loader2 className="w-4 h-4 animate-spin" /> : (isHindi ? 'कन्वर्ट करें' : 'Convert')}
+                    </button>
+                  </div>
+                  {pointsConvertMsg && (
+                    <p className="text-xs font-bold text-[#2563EB] dark:text-blue-400">
+                      {pointsConvertMsg}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
+                  {isHindi ? 'पॉइंट्स कैसे कमाएं' : 'How to Earn Points'}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                    <span className="font-semibold">{isHindi ? 'नया वीडियो प्रकाशित करें' : 'Publish a New Video'}</span>
+                    <strong className="text-emerald-600 font-mono">+20 pts</strong>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                    <span className="font-semibold">{isHindi ? 'वीडियो देखें' : 'Watch Videos'}</span>
+                    <strong className="text-emerald-600 font-mono">+2 pts</strong>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                    <span className="font-semibold">{isHindi ? 'वीडियो लाइक करें' : 'Like a Video'}</span>
+                    <strong className="text-emerald-600 font-mono">+1 pt</strong>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-[#1E293B] rounded-xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                    <span className="font-semibold">{isHindi ? 'टिप्पणी लिखें' : 'Write a Comment'}</span>
+                    <strong className="text-emerald-600 font-mono">+1 pt</strong>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1246,7 +1541,7 @@ export const Settings: React.FC = () => {
           {activeTab === 'monetization' && (
             <div className="space-y-6">
               
-              {/* 1. HEADER CARD (Matches Capture.PNG top card) */}
+              {/* 1. HEADER CARD */}
               <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4 sm:gap-5">
                   <div className="w-14 h-14 rounded-full bg-[#2563EB] text-white flex items-center justify-center font-black text-2xl shadow-md shadow-blue-500/25 shrink-0">
@@ -1254,17 +1549,22 @@ export const Settings: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                      Monetization
+                      {isHindi ? 'मोनेटाइजेशन' : 'Monetization'}
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                      Track your eligibility and creator earnings on SocialIndia.
+                      {isHindi ? 'सोशलइंडिया पर अपनी पात्रता और क्रिएटर कमाई को ट्रैक करें।' : 'Track your eligibility and creator earnings on SocialIndia.'}
                     </p>
                   </div>
                 </div>
 
                 {/* Status Badge Pill */}
                 <div className="shrink-0 self-start sm:self-auto">
-                  {monetizationStatusType === 'Eligible' ? (
+                  {isChannelMonetized ? (
+                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 shadow-xs">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>{isHindi ? 'मोनेटाइजेशन चालू है ✓' : 'Monetization Enabled ✓'}</span>
+                    </div>
+                  ) : monetizationStatusType === 'Eligible' ? (
                     <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span>Eligible</span>
@@ -1283,37 +1583,80 @@ export const Settings: React.FC = () => {
                 </div>
               </div>
 
-              {/* 2. ELIGIBILITY PROGRESS CARD (Matches Capture.PNG main card) */}
+              {/* 1.5 PROMINENT ACTIVE BANNER (Monetization Enabled - Start Earning) */}
+              {isChannelMonetized && (
+                <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 text-white shadow-lg space-y-4 animate-in fade-in">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-2">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black tracking-wider uppercase">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
+                        <span>{isHindi ? 'पार्टनर प्रोग्राम एक्टिव' : 'Partner Program Active'}</span>
+                      </div>
+                      <h3 className="text-2xl sm:text-3xl font-black tracking-tight">
+                        {isHindi ? 'मोनेटाइजेशन चालू है - कमाई शुरू करें' : 'Monetization Enabled - Start Earning'}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-white/90 max-w-xl font-medium leading-relaxed">
+                        {isHindi 
+                          ? 'एडमिन द्वारा आपके चैनल का मोनेटाइजेशन सक्रिय कर दिया गया है! अब आप पेड वीडियो, विज्ञापन और व्यूज से सीधे अपने वॉलेट में कमाई शुरू कर सकते हैं।' 
+                          : 'Your channel monetization has been approved and activated! You can now publish paid videos, earn from viewer watch time, and receive revenue directly in your Wallet.'}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 shrink-0">
+                      <button
+                        onClick={() => navigate('studio')}
+                        className="px-5 py-2.5 bg-white text-emerald-800 hover:bg-emerald-50 font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                      >
+                        {isHindi ? 'क्रिएटर स्टूडियो खोलें' : 'Go to Creator Studio'}
+                      </button>
+                      <button
+                        onClick={() => navigate('upload')}
+                        className="px-4 py-2.5 bg-emerald-700/90 hover:bg-emerald-800 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
+                      >
+                        {isHindi ? 'पेड वीडियो अपलोड' : 'Upload Paid Video'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 2. ELIGIBILITY PROGRESS CARD */}
               <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-6">
                 
                 {/* Title and Requirements Banner */}
                 <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
                   <div>
                     <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                      Partner Program Eligibility
+                      {isChannelMonetized 
+                        ? (isHindi ? 'चैनल माइलस्टोन ट्रैकिंग' : 'Channel Milestones & Progress') 
+                        : (isHindi ? 'पार्टनर प्रोग्राम पात्रता' : 'Partner Program Eligibility')}
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2 font-medium">
-                      To become eligible for the SocialIndia Partner Program, you need:
+                      {isChannelMonetized 
+                        ? (isHindi ? 'आपका मोनेटाइजेशन चालू है। नीचे दिए गए माइलस्टोन से आपकी चैनल रीच और बढ़ेगी:' : 'Your monetization is active. Reaching standard milestones unlocks higher tier creator rewards:') 
+                        : (isHindi ? 'सोशलइंडिया पार्टनर प्रोग्राम के लिए पात्रता आवश्यकताएं:' : 'To become eligible for the SocialIndia Partner Program, you need:')}
                     </p>
                     <div className="space-y-2 mt-3">
                       <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
                         <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
-                        <span>500 Subscribers</span>
+                        <span>500 {isHindi ? 'सब्सक्राइबर्स' : 'Subscribers'}</span>
                       </div>
                       <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
                         <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
-                        <span>1,000 Views on at least one video</span>
+                        <span>1,000 {isHindi ? 'व्यूज (कम से कम एक वीडियो पर)' : 'Views on at least one video'}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Info Callout Box (as shown in Capture.PNG) */}
+                  {/* Info Callout Box */}
                   <div className="lg:max-w-md bg-[#eff6ff]/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 rounded-2xl p-4 flex items-start gap-3">
                     <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
                       <Info className="w-3.5 h-3.5" />
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-                      Your video-view requirement is based on your single highest-viewed video, not your total channel views.
+                      {isHindi 
+                        ? 'व्यूज की गणना आपके सबसे अधिक देखे गए एक वीडियो के आधार पर की जाती है।' 
+                        : 'Your video-view requirement is based on your single highest-viewed video, not your total channel views.'}
                     </p>
                   </div>
                 </div>
@@ -1328,7 +1671,7 @@ export const Settings: React.FC = () => {
                         <User className="w-5 h-5 stroke-[2.2]" />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Subscribers</div>
+                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{isHindi ? 'सब्सक्राइबर्स' : 'Subscribers'}</div>
                         <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
                           {currentSubscribers} <span className="text-base font-bold text-slate-400">/ 500</span>
                         </div>
@@ -1348,7 +1691,7 @@ export const Settings: React.FC = () => {
                           <CheckCircle2 className="w-4 h-4" /> 500+ subscribers reached
                         </span>
                       ) : (
-                        <span>{500 - currentSubscribers} more subscribers needed</span>
+                        <span>{500 - currentSubscribers} {isHindi ? 'सब्सक्राइबर्स शेष' : 'more subscribers needed'}</span>
                       )}
                     </div>
                   </div>
@@ -1360,7 +1703,7 @@ export const Settings: React.FC = () => {
                         <Film className="w-5 h-5 stroke-[2.2]" />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">Highest Video Views</div>
+                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{isHindi ? 'शीर्ष वीडियो व्यूज' : 'Highest Video Views'}</div>
                         <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
                           {highestVideoViews} <span className="text-base font-bold text-slate-400">/ 1,000</span>
                         </div>
@@ -1380,7 +1723,7 @@ export const Settings: React.FC = () => {
                           <CheckCircle2 className="w-4 h-4" /> 1,000+ views reached
                         </span>
                       ) : (
-                        <span>{1000 - highestVideoViews} more views needed</span>
+                        <span>{1000 - highestVideoViews} {isHindi ? 'व्यूज शेष' : 'more views needed'}</span>
                       )}
                     </div>
                   </div>
@@ -1388,36 +1731,53 @@ export const Settings: React.FC = () => {
                 </div>
 
                 {/* Success / Status Action Banner */}
-                {isEligibleForMonetization ? (
+                {isChannelMonetized ? (
+                  <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50/70 dark:from-emerald-950/50 dark:to-teal-950/40 border border-emerald-200 dark:border-emerald-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>{isHindi ? 'मोनेटाइजेशन चालू है - कमाई शुरू करें' : 'Monetization Enabled - Start Earning'}</span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                        {isHindi 
+                          ? 'आपका चैनल मोनेटाइज है। वीडियो अपलोड करके और दर्शकों से जुड़कर अपनी कमाई बढ़ाएं।' 
+                          : 'Your channel is approved and active for partner monetization. Start earning now.'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => navigate('studio')}
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-xs cursor-pointer transition-all active:scale-95"
+                      >
+                        {isHindi ? 'क्रिएटर स्टूडियो' : 'Creator Studio'}
+                      </button>
+                    </div>
+                  </div>
+                ) : isEligibleForMonetization ? (
                   <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/70 dark:from-blue-950/50 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-sm font-extrabold text-[#2563EB] dark:text-blue-400">
                         <Sparkles className="w-4 h-4" />
-                        <span>You're eligible for the SocialIndia Partner Program</span>
+                        <span>{isHindi ? 'आप सोशलइंडिया पार्टनर प्रोग्राम के लिए पात्र हैं' : "You're eligible for the SocialIndia Partner Program"}</span>
                       </div>
                       <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                        Both requirements are complete! Continue below to enable channel monetization.
+                        {isHindi ? 'आवश्यकताएं पूरी हो चुकी हैं! आवेदन करने के लिए आगे बढ़ें।' : 'Both requirements are complete! Continue below to enable channel monetization.'}
                       </p>
                     </div>
 
-                    {currentUserProfile?.isMonetized || currentUserProfile?.monetizationStatus === 'approved' ? (
-                      <div className="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shrink-0 shadow-xs">
-                        <CheckCircle2 className="w-4 h-4" /> Partner Monetization Active
-                      </div>
-                    ) : (
-                      <button
-                        onClick={handleRequestMonetization}
-                        disabled={isRequestingMonetization}
-                        className="px-6 py-2.5 bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md flex items-center gap-2 shrink-0 transition-all active:scale-98"
-                      >
-                        {isRequestingMonetization ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
-                        <span>Continue to Apply</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={handleRequestMonetization}
+                      disabled={isRequestingMonetization}
+                      className="px-6 py-2.5 bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md flex items-center gap-2 shrink-0 transition-all active:scale-98"
+                    >
+                      {isRequestingMonetization ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                      <span>{isHindi ? 'आवेदन करें' : 'Continue to Apply'}</span>
+                    </button>
                   </div>
                 ) : (
                   (subscriberRequirementMet || videoRequirementMet) && (
@@ -1425,8 +1785,8 @@ export const Settings: React.FC = () => {
                       <Clock className="w-4 h-4 text-[#2563EB] dark:text-blue-400 shrink-0" />
                       <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                         {subscriberRequirementMet
-                          ? "You have reached the subscriber requirement. Get 1,000 views on one video to become eligible."
-                          : "Your video has reached 1,000 views. Reach 500 subscribers to become eligible."}
+                          ? (isHindi ? "सब्सक्राइबर आवश्यकता पूरी हो चुकी है। एक वीडियो पर 1,000 व्यूज प्राप्त करें।" : "You have reached the subscriber requirement. Get 1,000 views on one video to become eligible.")
+                          : (isHindi ? "वीडियो व्यूज आवश्यकता पूरी हो चुकी है। 500 सब्सक्राइबर्स तक पहुंचें।" : "Your video has reached 1,000 views. Reach 500 subscribers to become eligible.")}
                       </p>
                     </div>
                   )

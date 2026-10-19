@@ -197,7 +197,14 @@ export const CreatorProfile: React.FC = () => {
     let isMounted = true;
 
     const loadCreatorProfile = async () => {
-      // Check cache first so no loading flash occurs
+      // ALWAYS clear previous creator's videos, playlists, shorts, and posts immediately on navigation
+      setVideos([]);
+      setShorts([]);
+      setPlaylists([]);
+      setPosts([]);
+      setActiveTab('videos');
+
+      // Check cache first so no loading flash occurs for already cached user
       const cached = userService.getCachedUserByUsername(targetUsername) || (rawParam ? userService.getCachedUserProfile(rawParam) : null);
       if (cached) {
         setCreator(cached);
@@ -206,14 +213,16 @@ export const CreatorProfile: React.FC = () => {
         if (currentUser) {
           setSubscribed(subscriptionService.isSubscribedSync(currentUser.uid, cached.uid));
         }
-        // Instantly seed creator videos from local cache (0ms render!)
+        // Instantly seed creator videos from local cache for THIS specific user
         const cachedCreatorVids = videoService.getCachedVideos({ creatorId: cached.uid });
         if (cachedCreatorVids.length > 0) {
           const publicVids = cachedCreatorVids.filter(v => v.visibility === 'public');
           setVideos(publicVids.filter(v => !v.isShort));
           setShorts(publicVids.filter(v => v.isShort));
         }
-      } else if (!creator) {
+      } else {
+        // Critical: Clear previous creator data so old user's profile is not shown while loading
+        setCreator(null);
         setLoading(true);
       }
 

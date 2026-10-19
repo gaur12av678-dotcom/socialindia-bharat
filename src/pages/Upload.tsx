@@ -74,6 +74,13 @@ export const UploadPage: React.FC = () => {
   const [price, setPrice] = useState<number>(10);
   const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>('allow');
 
+  // Only monetized creators can publish paid videos
+  const isUserMonetized = Boolean(
+    currentUserProfile?.isMonetized || 
+    currentUserProfile?.monetizationStatus === 'approved' || 
+    currentUserProfile?.role === 'admin'
+  );
+
   // File Upload & Preview States
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
   const [selectedThumbFile, setSelectedThumbFile] = useState<File | null>(null);
@@ -335,8 +342,8 @@ export const UploadPage: React.FC = () => {
         soundCoverUrl: selectedSoundTrack?.coverUrl,
         soundAudioUrl: selectedSoundTrack?.audioUrl,
         isMonetized,
-        isPaid: isPaid && (currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin'),
-        price: isPaid ? Number(price || 0) : 0,
+        isPaid: isPaid && isUserMonetized,
+        price: (isPaid && isUserMonetized) ? Number(price || 0) : 0,
         paidSalesCount: 0,
         paidEarnings: 0,
         creatorId: currentUser.uid,
@@ -974,8 +981,8 @@ export const UploadPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* 2. Monetized Paywall (For Monetized Channels) */}
-              {(currentUserProfile?.isMonetized || currentUserProfile?.role === 'admin') && (
+              {/* 2. Monetized Paywall (Only for Monetized Channels) */}
+              {isUserMonetized && (
                 <div className="p-5 bg-gradient-to-r from-emerald-50/70 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/10 rounded-2xl border border-emerald-300/80 dark:border-emerald-800/60 space-y-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">

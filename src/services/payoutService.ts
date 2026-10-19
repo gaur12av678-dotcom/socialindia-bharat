@@ -39,27 +39,29 @@ export const payoutService = {
     const user = await userService.getUserProfile(userId);
     if (!user) throw new Error('User account not found.');
 
-    // Balance available for withdrawal (mainBalance or walletBalance fallback if mainBalance is not yet set)
-    const currentBalance = Number(user.mainBalance ?? 0);
+    // Balance available for withdrawal (unified walletBalance, with mainBalance fallback)
+    const currentBalance = Number(user.walletBalance ?? user.mainBalance ?? 0);
     if (currentBalance < withdrawAmount) {
       throw new Error(
-        `Insufficient Balance. You have ₹${currentBalance.toFixed(2)} in your Balance, but requested ₹${withdrawAmount.toFixed(2)}.`
+        `Insufficient Wallet Balance. You have ₹${currentBalance.toFixed(2)} in your Wallet, but requested ₹${withdrawAmount.toFixed(2)}.`
       );
     }
 
     const now = new Date().toISOString();
     const newBalance = Number(Math.max(0, currentBalance - withdrawAmount).toFixed(2));
 
-    // Deduct immediately from Balance to prevent double withdrawal
+    // Deduct immediately from Wallet Balance to prevent double withdrawal
     const userRef = doc(db, 'users', userId);
     try {
       await updateDoc(userRef, {
+        walletBalance: newBalance,
         mainBalance: newBalance,
         upiId: cleanUpi,
         updatedAt: now
       });
     } catch (e) {
       await setDoc(userRef, {
+        walletBalance: newBalance,
         mainBalance: newBalance,
         upiId: cleanUpi,
         updatedAt: now
@@ -256,19 +258,21 @@ export const payoutService = {
 
     const now = new Date().toISOString();
 
-    // 1. Refund amount back to user's mainBalance
+    // 1. Refund amount back to user's walletBalance
     const user = await userService.getUserProfile(reqData.userId);
     if (user) {
-      const currentBal = Number(user.mainBalance ?? 0);
+      const currentBal = Number(user.walletBalance ?? user.mainBalance ?? 0);
       const refundedBal = Number((currentBal + reqData.amount).toFixed(2));
       const userRef = doc(db, 'users', reqData.userId);
       try {
         await updateDoc(userRef, {
+          walletBalance: refundedBal,
           mainBalance: refundedBal,
           updatedAt: now
         });
       } catch (e) {
         await setDoc(userRef, {
+          walletBalance: refundedBal,
           mainBalance: refundedBal,
           updatedAt: now
         }, { merge: true });
