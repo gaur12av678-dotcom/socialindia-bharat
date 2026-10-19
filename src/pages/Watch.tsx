@@ -156,15 +156,24 @@ export const Watch: React.FC = () => {
     }
   }, [currentUser?.uid]);
 
-  // Active Playlist Queue State (YouTube Style)
+  // Active Playlist Queue State (YouTube Style) with 0ms instant cache display
   const playlistId = route.searchParams?.list;
-  const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(null);
-  const [playlistVideos, setPlaylistVideos] = useState<Video[]>([]);
+  const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(() => {
+    return playlistId ? playlistService.getCachedPlaylist(playlistId) : null;
+  });
+  const [playlistVideos, setPlaylistVideos] = useState<Video[]>(() => {
+    if (!playlistId) return [];
+    const cached = playlistService.getCachedPlaylist(playlistId);
+    if (!cached || !cached.videoIds) return [];
+    return cached.videoIds
+      .map(id => videoService.getCachedVideo(id))
+      .filter((v): v is Video => v !== null && v !== undefined);
+  });
   const [isPlaylistLoop, setIsPlaylistLoop] = useState(false);
   const [isPlaylistShuffle, setIsPlaylistShuffle] = useState(false);
   const [isPlaylistPanelOpen, setIsPlaylistPanelOpen] = useState(true);
 
-  // Load Playlist details & videos if playlistId is present
+  // Load Playlist details & videos if playlistId is present (parallel non-blocking)
   useEffect(() => {
     if (!playlistId) {
       setActivePlaylist(null);
@@ -172,10 +181,44 @@ export const Watch: React.FC = () => {
       return;
     }
     let isMounted = true;
+    
+    // Fast initial check: if cache exists, hydrate immediately
+    const cachedPl = playlistService.getCachedPlaylist(playlistId);
+    if (cachedPl && isMounted) {
+      setActivePlaylist(cachedPl);
+      if (cachedPl.videoIds) {
+        const cachedVids = cachedPl.videoIds
+          .map(id => videoService.getCachedVideo(id))
+          .filter((v): v is Video => v !== null && v !== undefined);
+        if (cachedVids.length > 0) {
+          setPlaylistVideos(cachedVids);
+        }
+      }
+    }
+
     playlistService.getPlaylistWithVideos(playlistId).then(({ playlist, videos }) => {
       if (isMounted) {
-        if (playlist) setActivePlaylist(playlist);
-        setPlaylistVideos(videos);
+        if (playlist) {
+          setActivePlaylist(playlist);
+        } else if (videos.length > 0) {
+          setActivePlaylist({
+            playlistId,
+            title: 'Playlist Queue',
+            description: '',
+            creatorId: '',
+            creatorUsername: 'playlist',
+            creatorDisplayName: 'SocialIndia',
+            creatorPhotoURL: '',
+            videoIds: videos.map(v => v.videoId),
+            isPrivate: false,
+            thumbnailUrl: videos[0]?.thumbnailUrl || '',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        if (videos && videos.length > 0) {
+          setPlaylistVideos(videos);
+        }
       }
     }).catch(err => {
       console.warn('Failed to load playlist queue:', err);
@@ -1058,15 +1101,15 @@ export const Watch: React.FC = () => {
           <div className="block lg:hidden px-3.5 sm:px-0">
             <div 
               onClick={() => setIsPlaylistPanelOpen(!isPlaylistPanelOpen)}
-              className="bg-slate-900 text-white p-3 rounded-2xl border border-white/10 flex items-center justify-between cursor-pointer shadow-md"
+              className="bg-white dark:bg-[#111827] text-slate-900 dark:text-white p-3 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between cursor-pointer shadow-sm"
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <ListVideo className="w-4 h-4 text-blue-400 shrink-0" />
+                <ListVideo className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs font-bold truncate">
+                  <p className="text-xs font-black truncate text-slate-900 dark:text-white">
                     Playlist: {activePlaylist.title}
                   </p>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                     Video {currentPlaylistIndex >= 0 ? currentPlaylistIndex + 1 : 1} of {playlistVideos.length} • @{activePlaylist.creatorUsername}
                   </p>
                 </div>
@@ -1089,7 +1132,7 @@ export const Watch: React.FC = () => {
             </div>
 
             {isPlaylistPanelOpen && (
-              <div className="mt-2 bg-slate-900/95 text-white p-2.5 rounded-2xl border border-white/10 max-h-64 overflow-y-auto space-y-1.5 scrollbar-thin">
+              <div className="mt-2 bg-white dark:bg-[#111827] text-slate-900 dark:text-white p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 max-h-64 overflow-y-auto space-y-1.5 scrollbar-thin">
                 {playlistVideos.map((pVid, pIdx) => {
                   const isCurrent = pVid.videoId === videoId;
                   return (
@@ -1098,23 +1141,23 @@ export const Watch: React.FC = () => {
                       onClick={() => navigate('watch', pVid.videoId, { list: activePlaylist.playlistId })}
                       className={`flex items-center gap-2.5 p-2 rounded-xl transition-all cursor-pointer ${
                         isCurrent
-                          ? 'bg-blue-600/30 border border-blue-500/50 text-white font-bold'
-                          : 'hover:bg-white/10 text-slate-300'
+                          ? 'bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/80 font-bold'
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-900 dark:text-slate-100'
                       }`}
                     >
                       <div className="w-5 text-center shrink-0">
                         {isCurrent ? (
-                          <PlayIcon className="w-3.5 h-3.5 text-blue-400 fill-current mx-auto animate-pulse" />
+                          <PlayIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 fill-current mx-auto animate-pulse" />
                         ) : (
-                          <span className="text-[11px] font-bold text-slate-400">{pIdx + 1}</span>
+                          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">{pIdx + 1}</span>
                         )}
                       </div>
-                      <img src={pVid.thumbnailUrl} alt={pVid.title} className="w-16 aspect-video rounded-lg object-cover shrink-0 border border-white/10" />
+                      <img src={pVid.thumbnailUrl} alt={pVid.title} className="w-16 aspect-video rounded-lg object-cover shrink-0 border border-slate-200 dark:border-slate-800" />
                       <div className="min-w-0 flex-1">
-                        <p className={`text-xs truncate ${isCurrent ? 'text-blue-300 font-bold' : 'text-slate-200'}`}>
+                        <p className={`text-xs truncate ${isCurrent ? 'text-blue-600 dark:text-blue-400 font-black' : 'text-slate-900 dark:text-slate-100 font-bold'}`}>
                           {pVid.title}
                         </p>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">{pVid.creatorDisplayName}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{pVid.creatorDisplayName}</p>
                       </div>
                     </div>
                   );
@@ -1878,30 +1921,32 @@ export const Watch: React.FC = () => {
         
         {/* YOUTUBE-STYLE PLAYLIST QUEUE CARD (Desktop) */}
         {activePlaylist && (
-          <div className="hidden lg:block bg-slate-900 text-white rounded-3xl p-4 shadow-xl border border-white/10 space-y-3 overflow-hidden">
+          <div className="hidden lg:block bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
             {/* Playlist Header */}
-            <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-3">
+            <div className="p-3.5 sm:p-4 bg-slate-50 dark:bg-[#1a2234] border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <ListVideo className="w-4 h-4 text-blue-400" />
-                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-400">
-                    Now Playing Playlist
+                <div className="flex items-center gap-1.5 mb-1 text-[#2563eb] dark:text-[#38bdf8]">
+                  <ListVideo className="w-4 h-4 shrink-0" />
+                  <span className="text-[10px] font-black uppercase tracking-wider">
+                    {isHindi ? 'प्लेलिस्ट' : 'Now Playing Playlist'}
                   </span>
                 </div>
-                <h3 className="text-sm font-black text-white truncate" title={activePlaylist.title}>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white truncate" title={activePlaylist.title}>
                   {activePlaylist.title}
                 </h3>
-                <p className="text-[11px] text-slate-400 font-medium mt-0.5 truncate">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5 truncate">
                   @{activePlaylist.creatorUsername} • {currentPlaylistIndex >= 0 ? currentPlaylistIndex + 1 : 1} / {playlistVideos.length}
                 </p>
               </div>
 
               {/* Action Buttons: Loop, Shuffle, Collapse */}
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1 shrink-0 pt-0.5">
                 <button
                   onClick={() => setIsPlaylistLoop(!isPlaylistLoop)}
-                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                    isPlaylistLoop ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white hover:bg-white/10'
+                  className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                    isPlaylistLoop 
+                      ? 'bg-blue-600 text-white shadow-xs' 
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-700/60'
                   }`}
                   title={isPlaylistLoop ? "Loop Playlist (On)" : "Loop Playlist (Off)"}
                 >
@@ -1909,8 +1954,10 @@ export const Watch: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setIsPlaylistShuffle(!isPlaylistShuffle)}
-                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                    isPlaylistShuffle ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white hover:bg-white/10'
+                  className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                    isPlaylistShuffle 
+                      ? 'bg-blue-600 text-white shadow-xs' 
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-700/60'
                   }`}
                   title={isPlaylistShuffle ? "Shuffle (On)" : "Shuffle (Off)"}
                 >
@@ -1918,7 +1965,7 @@ export const Watch: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setIsPlaylistPanelOpen(!isPlaylistPanelOpen)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
                   title={isPlaylistPanelOpen ? "Collapse Queue" : "Expand Queue"}
                 >
                   {isPlaylistPanelOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1928,7 +1975,7 @@ export const Watch: React.FC = () => {
 
             {/* Scrollable Playlist Video Queue */}
             {isPlaylistPanelOpen && (
-              <div className="max-h-96 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+              <div className="max-h-96 overflow-y-auto p-2 space-y-1 scrollbar-thin">
                 {playlistVideos.map((pVid, pIdx) => {
                   const isCurrent = pVid.videoId === videoId;
                   return (
@@ -1937,21 +1984,21 @@ export const Watch: React.FC = () => {
                       onClick={() => navigate('watch', pVid.videoId, { list: activePlaylist.playlistId })}
                       className={`flex items-center gap-2.5 p-2 rounded-2xl transition-all cursor-pointer ${
                         isCurrent
-                          ? 'bg-blue-600/30 border border-blue-500/50 text-white font-bold shadow-xs'
-                          : 'hover:bg-white/10 text-slate-300'
+                          ? 'bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/80 shadow-xs'
+                          : 'hover:bg-slate-100/80 dark:hover:bg-slate-800/60 border border-transparent'
                       }`}
                     >
                       {/* Track index / Playing indicator */}
                       <div className="w-5 text-center shrink-0">
                         {isCurrent ? (
-                          <PlayIcon className="w-3.5 h-3.5 text-blue-400 fill-current mx-auto animate-pulse" />
+                          <PlayIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 fill-current mx-auto animate-pulse" />
                         ) : (
-                          <span className="text-[11px] font-bold text-slate-400">{pIdx + 1}</span>
+                          <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">{pIdx + 1}</span>
                         )}
                       </div>
 
                       {/* Thumbnail */}
-                      <div className="relative w-20 aspect-video rounded-lg overflow-hidden bg-black shrink-0 border border-white/10">
+                      <div className="relative w-20 aspect-video rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-200 dark:border-slate-800">
                         <img src={pVid.thumbnailUrl} alt={pVid.title} className="w-full h-full object-cover" />
                         {pVid.duration ? (
                           <span className="absolute bottom-0.5 right-0.5 px-1 py-0.2 bg-black/80 text-[8px] font-bold rounded text-white">
@@ -1962,10 +2009,14 @@ export const Watch: React.FC = () => {
 
                       {/* Info */}
                       <div className="min-w-0 flex-1">
-                        <h4 className={`text-xs font-bold line-clamp-1 ${isCurrent ? 'text-blue-300' : 'text-slate-200'}`}>
+                        <h4 className={`text-xs line-clamp-2 leading-snug ${
+                          isCurrent 
+                            ? 'font-extrabold text-blue-600 dark:text-blue-400' 
+                            : 'font-bold text-slate-900 dark:text-slate-100'
+                        }`}>
                           {pVid.title}
                         </h4>
-                        <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
                           {pVid.creatorDisplayName}
                         </p>
                       </div>

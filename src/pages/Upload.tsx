@@ -252,9 +252,15 @@ export const UploadPage: React.FC = () => {
     setIsAutoCapturedThumb(false);
   };
 
-  // Publish Handler
-  const handlePublish = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Publish Handler - strictly requires user to be on Step 4 (Visibility) and explicitly click Publish
+  const handlePublish = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    if (isPublishing) return;
+    if (currentStep !== 4) {
+      return;
+    }
     if (!currentUser || !currentUserProfile) {
       addToast('Please sign in to publish video.', 'error');
       return;
@@ -584,7 +590,17 @@ export const UploadPage: React.FC = () => {
           </svg>
         </div>
 
-        <form onSubmit={handlePublish} className="space-y-6 relative z-10">
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+          }} 
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+              e.preventDefault();
+            }
+          }}
+          className="space-y-6 relative z-10"
+        >
 
           {/* STEP 1: MAIN UPLOAD CARD (Exact Match to Capture.PNG) */}
           {currentStep === 1 && (
@@ -1288,7 +1304,8 @@ export const UploadPage: React.FC = () => {
                 </button>
               ) : (
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handlePublish}
                   disabled={isPublishing || !title.trim()}
                   className="px-7 py-3 bg-gradient-to-r from-[#065fd4] to-[#2563eb] hover:from-[#054fb1] hover:to-[#1d4ed8] text-white font-extrabold text-xs sm:text-sm rounded-full shadow-lg shadow-blue-600/30 flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50 active:scale-95"
                 >

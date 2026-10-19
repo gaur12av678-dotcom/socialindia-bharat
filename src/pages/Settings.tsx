@@ -69,6 +69,7 @@ export const Settings: React.FC = () => {
     | 'blocked_users'
     | 'monetization'
     | 'balance'
+    | 'wallet'
     | 'points'
     | 'verification'
     | 'my_info'

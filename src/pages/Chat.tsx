@@ -20,7 +20,9 @@ import {
   Video as VideoIcon,
   X,
   Maximize2,
-  Download
+  Download,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
@@ -59,11 +61,84 @@ export const ChatPage: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
+  // Voice input state
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+  const voiceRecognitionRef = useRef<any>(null);
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Voice recording toggle handler
+  const toggleVoiceRecording = () => {
+    if (isVoiceRecording) {
+      if (voiceRecognitionRef.current) {
+        try { voiceRecognitionRef.current.stop(); } catch {}
+      }
+      setIsVoiceRecording(false);
+      return;
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      addToast(
+        isHindi
+          ? 'आपके ब्राउज़र में वॉइस टाइपिंग समर्थित नहीं है। कृपया Chrome का उपयोग करें।'
+          : 'Voice input is not supported in this browser. Please use Chrome.',
+        'error'
+      );
+      return;
+    }
+
+    try {
+      if (voiceRecognitionRef.current) {
+        try { voiceRecognitionRef.current.abort(); } catch {}
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = isHindi ? 'hi-IN' : 'en-IN';
+      voiceRecognitionRef.current = recognition;
+
+      recognition.onstart = () => {
+        setIsVoiceRecording(true);
+        addToast(isHindi ? 'बोलना शुरू करें...' : 'Listening... Speak now', 'info');
+      };
+
+      recognition.onresult = (event: any) => {
+        let accumulated = '';
+        for (let i = 0; i < event.results.length; i++) {
+          accumulated += event.results[i][0].transcript;
+        }
+        if (accumulated.trim()) {
+          setMessageText(accumulated.trim());
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Chat voice recognition error:', event.error);
+        setIsVoiceRecording(false);
+        if (event.error === 'not-allowed') {
+          addToast(
+            isHindi ? 'माइक्रोफ़ोन अनुमति बंद है।' : 'Microphone permission blocked.',
+            'error'
+          );
+        }
+      };
+
+      recognition.onend = () => {
+        setIsVoiceRecording(false);
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.warn('Failed to start chat voice recognition:', err);
+      setIsVoiceRecording(false);
+    }
+  };
 
   // Load chat sessions on mount & refresh dynamically in background
   useEffect(() => {
@@ -767,6 +842,21 @@ export const ChatPage: React.FC = () => {
                   onPaste={handlePaste}
                   className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-[#222] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-600 placeholder-slate-400 dark:placeholder-slate-500"
                 />
+
+                {/* Voice Input Mic Button */}
+                <button
+                  type="button"
+                  onClick={toggleVoiceRecording}
+                  className={`p-2.5 rounded-xl cursor-pointer transition-all ${
+                    isVoiceRecording
+                      ? 'bg-rose-600 text-white shadow-md shadow-rose-500/30 ring-2 ring-rose-400 animate-pulse'
+                      : 'hover:bg-slate-100 dark:hover:bg-[#1e1e1e] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                  title={isVoiceRecording ? (isHindi ? 'रिकॉर्डिंग रोकें' : 'Stop voice recording') : (isHindi ? 'बोलकर टाइप करें' : 'Voice Typing')}
+                  aria-label={isHindi ? 'बोलकर टाइप करें' : 'Voice Typing'}
+                >
+                  {isVoiceRecording ? <Mic className="w-4 h-4 animate-bounce" /> : <Mic className="w-4 h-4" />}
+                </button>
 
                 {/* Send Button */}
                 <button

@@ -301,8 +301,11 @@ export const PlaylistsPage: React.FC = () => {
           
           {/* Left Column: Playlist Card & Info */}
           <div className="lg:col-span-1 space-y-4">
-            <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 text-white p-5 rounded-3xl shadow-lg space-y-4 relative overflow-hidden">
-              <div className="aspect-video w-full rounded-2xl bg-black/30 overflow-hidden relative border border-white/20 shadow-md">
+            <div 
+              className="p-5 rounded-3xl shadow-xl space-y-4 relative overflow-hidden text-white"
+              style={{ background: 'linear-gradient(135deg, #1d4ed8 0%, #4338ca 50%, #6d28d9 100%)' }}
+            >
+              <div className="aspect-video w-full rounded-2xl bg-black/40 overflow-hidden relative border border-white/20 shadow-md">
                 {playlistVideos[0]?.thumbnailUrl || selectedPlaylist.thumbnailUrl ? (
                   <img
                     src={playlistVideos[0]?.thumbnailUrl || selectedPlaylist.thumbnailUrl}
@@ -315,25 +318,25 @@ export const PlaylistsPage: React.FC = () => {
                     <span className="text-xs font-bold">Empty Playlist</span>
                   </div>
                 )}
-                <div className="absolute bottom-2 right-2 px-2.5 py-1 bg-black/75 backdrop-blur-md rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border border-white/10">
+                <div className="absolute bottom-2 right-2 px-2.5 py-1 bg-black/80 backdrop-blur-md rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border border-white/10 text-white">
                   <ListVideo className="w-3.5 h-3.5" />
                   <span>{selectedPlaylist.videoIds.length} Videos</span>
                 </div>
               </div>
 
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] uppercase font-black tracking-widest px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md border border-white/20">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-[10px] uppercase font-black tracking-widest px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md border border-white/25 text-white">
                     {selectedPlaylist.isPrivate ? 'Private Playlist' : 'Public Playlist'}
                   </span>
                 </div>
-                <h2 className="text-lg font-black leading-tight">{selectedPlaylist.title}</h2>
+                <h2 className="text-xl font-black leading-tight text-white drop-shadow-sm">{selectedPlaylist.title}</h2>
                 {selectedPlaylist.description && (
-                  <p className="text-xs text-white/80 font-medium mt-1 leading-relaxed line-clamp-3">
+                  <p className="text-xs text-white/90 font-medium mt-1 leading-relaxed line-clamp-3">
                     {selectedPlaylist.description}
                   </p>
                 )}
-                <p className="text-[11px] text-white/60 font-medium mt-2">
+                <p className="text-[11px] text-white/75 font-semibold mt-2">
                   Created by @{selectedPlaylist.creatorUsername} • Updated {formatTimeAgo(selectedPlaylist.updatedAt)}
                 </p>
               </div>
@@ -343,15 +346,15 @@ export const PlaylistsPage: React.FC = () => {
                 <button
                   onClick={handlePlayAll}
                   disabled={playlistVideos.length === 0}
-                  className="flex-1 py-2.5 bg-white text-slate-900 font-black text-xs rounded-xl shadow-md hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="flex-1 py-2.5 bg-white hover:bg-slate-100 text-slate-900 font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
                 >
-                  <Play className="w-4 h-4 fill-current" />
+                  <Play className="w-4 h-4 fill-current text-blue-600" />
                   <span>Play All</span>
                 </button>
 
                 <button
                   onClick={() => handleSharePlaylist(selectedPlaylist)}
-                  className="p-2.5 bg-white/15 hover:bg-white/25 rounded-xl transition-colors cursor-pointer text-white"
+                  className="p-2.5 bg-white/20 hover:bg-white/30 rounded-xl transition-all cursor-pointer text-white border border-white/20 active:scale-95"
                   title="Share Playlist"
                 >
                   <Share2 className="w-4 h-4" />
@@ -359,7 +362,7 @@ export const PlaylistsPage: React.FC = () => {
 
                 <button
                   onClick={() => handleDeletePlaylist(selectedPlaylist.playlistId, selectedPlaylist.title)}
-                  className="p-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 rounded-xl transition-colors cursor-pointer border border-rose-300/20"
+                  className="p-2.5 bg-rose-600/30 hover:bg-rose-600/50 text-white rounded-xl transition-all cursor-pointer border border-rose-400/30 active:scale-95"
                   title="Delete Playlist"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -492,7 +495,10 @@ export const PlaylistsPage: React.FC = () => {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-white/50 bg-gradient-to-br from-slate-800 to-indigo-950">
+                      <div 
+                        className="w-full h-full flex flex-col items-center justify-center text-white/70"
+                        style={{ background: 'linear-gradient(135deg, #1e293b 0%, #312e81 100%)' }}
+                      >
                         <ListVideo className="w-10 h-10 mb-1 opacity-70 group-hover:scale-110 transition-transform" />
                         <span className="text-[11px] font-bold">Playlist</span>
                       </div>

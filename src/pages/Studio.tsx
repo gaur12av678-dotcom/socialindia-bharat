@@ -485,9 +485,13 @@ export const CreatorStudio: React.FC = () => {
     setIsAutoCapturedThumb(false);
   };
 
-  // Publish or Edit Handler with real-time percentage progress
-  const handlePublishOrEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Publish or Edit Handler with real-time percentage progress - strictly requires Step 4
+  const handlePublishOrEdit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    if (isPublishing) return;
+    if (currentStep !== 4) return;
     if (!currentUser || !currentUserProfile) return;
 
     if (!title.trim() || title.length < 3 || title.length > 100) {
@@ -2187,7 +2191,17 @@ export const CreatorStudio: React.FC = () => {
             </div>
 
             {/* Step Body (Form Content with No Page Scroll) */}
-            <form onSubmit={handlePublishOrEdit} className="flex flex-col flex-1 overflow-hidden">
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+              }} 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+                  e.preventDefault();
+                }
+              }}
+              className="flex flex-col flex-1 overflow-hidden"
+            >
               
               <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6">
 
@@ -2924,7 +2938,8 @@ export const CreatorStudio: React.FC = () => {
                     </button>
                   ) : (
                     <button
-                      type="submit"
+                      type="button"
+                      onClick={handlePublishOrEdit}
                       disabled={isPublishing || (!videoUrl && !selectedVideoFile) || !title.trim()}
                       className="px-9 py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-black rounded-full cursor-pointer shadow-lg shadow-blue-600/30 transition-all active:scale-95 uppercase text-xs tracking-wider disabled:opacity-50 flex items-center gap-2"
                     >

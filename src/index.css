@@ -7,14 +7,14 @@
    (bg-linear-to-r, shadow-xs jaise v4-only
    classes ko dono versions mein chalao)
    ============================================ */
-.bg-linear-to-r  { background-image: linear-gradient(to right,  var(--tw-gradient-stops)); }
-.bg-linear-to-l  { background-image: linear-gradient(to left,   var(--tw-gradient-stops)); }
-.bg-linear-to-t  { background-image: linear-gradient(to top,    var(--tw-gradient-stops)); }
-.bg-linear-to-b  { background-image: linear-gradient(to bottom, var(--tw-gradient-stops)); }
-.bg-linear-to-tr { background-image: linear-gradient(to top right,    var(--tw-gradient-stops)); }
-.bg-linear-to-tl { background-image: linear-gradient(to top left,     var(--tw-gradient-stops)); }
-.bg-linear-to-br { background-image: linear-gradient(to bottom right, var(--tw-gradient-stops)); }
-.bg-linear-to-bl { background-image: linear-gradient(to bottom left,  var(--tw-gradient-stops)); }
+.bg-linear-to-r,  .bg-gradient-to-r  { background-image: linear-gradient(to right,  var(--tw-gradient-stops)); }
+.bg-linear-to-l,  .bg-gradient-to-l  { background-image: linear-gradient(to left,   var(--tw-gradient-stops)); }
+.bg-linear-to-t,  .bg-gradient-to-t  { background-image: linear-gradient(to top,    var(--tw-gradient-stops)); }
+.bg-linear-to-b,  .bg-gradient-to-b  { background-image: linear-gradient(to bottom, var(--tw-gradient-stops)); }
+.bg-linear-to-tr, .bg-gradient-to-tr { background-image: linear-gradient(to top right,    var(--tw-gradient-stops)); }
+.bg-linear-to-tl, .bg-gradient-to-tl { background-image: linear-gradient(to top left,     var(--tw-gradient-stops)); }
+.bg-linear-to-br, .bg-gradient-to-br { background-image: linear-gradient(to bottom right, var(--tw-gradient-stops)); }
+.bg-linear-to-bl, .bg-gradient-to-bl { background-image: linear-gradient(to bottom left,  var(--tw-gradient-stops)); }
 
 .shadow-xs {
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);

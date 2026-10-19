@@ -81,9 +81,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [isAmbientMode, setIsAmbientMode] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('socialindia_ambient_mode');
-      return saved !== null ? saved === 'true' : true;
+      return saved === 'true';
     } catch {
-      return true;
+      return false;
     }
   });
 
