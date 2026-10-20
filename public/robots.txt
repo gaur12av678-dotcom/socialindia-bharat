@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://socialindia.web.app/sitemap.xml
+Sitemap: https://socialindia.web.app/video-sitemap.xml

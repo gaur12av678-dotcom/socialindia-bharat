@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+  <url>
+    <loc>https://socialindia.web.app/watch/sample-short-1</loc>
+    <lastmod>2026-10-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <video:video>
+      <video:thumbnail_loc>https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&amp;auto=format&amp;fit=crop&amp;q=80</video:thumbnail_loc>
+      <video:title>Vande Bharat Express Travel Highlights</video:title>
+      <video:description>Watch Indian high-speed railway highlights and scenic travels across India on SocialIndia.</video:description>
+      <video:content_loc>https://res.cloudinary.com/wgk5kuxe/video/upload/v1790959177/socialindia_videos/snhqik26jkpwje0hbbrh.mp4</video:content_loc>
+      <video:player_loc>https://socialindia.web.app/watch/sample-short-1</video:player_loc>
+      <video:duration>48</video:duration>
+      <video:publication_date>2026-10-10</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+    </video:video>
+  </url>
+  <url>
+    <loc>https://socialindia.web.app/watch/sample-short-2</loc>
+    <lastmod>2026-10-20</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <video:video>
+      <video:thumbnail_loc>https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&amp;auto=format&amp;fit=crop&amp;q=80</video:thumbnail_loc>
+      <video:title>Aviation Emergency Response and Courage</video:title>
+      <video:description>Heroic aviation moment inspiring millions on SocialIndia video platform.</video:description>
+      <video:content_loc>https://res.cloudinary.com/wgk5kuxe/video/upload/v1791199131/socialindia_videos/b9toykpxtfctrgewy3je.mp4</video:content_loc>
+      <video:player_loc>https://socialindia.web.app/watch/sample-short-2</video:player_loc>
+      <video:duration>32</video:duration>
+      <video:publication_date>2026-10-10</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+    </video:video>
+  </url>
+</urlset>

@@ -54,6 +54,31 @@ function MainAppContent() {
     }
   }, [route.path, route.param]);
 
+  // Dynamically sync Canonical link and OpenGraph URL for Googlebot and SEO crawlers
+  useEffect(() => {
+    try {
+      const canonicalHref = route.path === 'home'
+        ? 'https://socialindia.web.app/'
+        : `https://socialindia.web.app/${route.path}${route.param ? `/${route.param}` : ''}`;
+      
+      let linkCanonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+      if (!linkCanonical) {
+        linkCanonical = document.createElement('link');
+        linkCanonical.setAttribute('rel', 'canonical');
+        document.head.appendChild(linkCanonical);
+      }
+      linkCanonical.setAttribute('href', canonicalHref);
+
+      let ogUrl = document.querySelector('meta[property="og:url"]') as HTMLMetaElement | null;
+      if (!ogUrl) {
+        ogUrl = document.createElement('meta');
+        ogUrl.setAttribute('property', 'og:url');
+        document.head.appendChild(ogUrl);
+      }
+      ogUrl.setAttribute('content', canonicalHref);
+    } catch {}
+  }, [route.path, route.param]);
+
   // Standalone Admin Panel Workspace with Back to Main Website Header
   if (route.path === 'admin') {
     return (
