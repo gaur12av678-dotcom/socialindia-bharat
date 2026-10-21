@@ -121,28 +121,45 @@ export const videoService = {
     file: File, 
     onProgress?: (progress: number, stage?: string) => void
   ): Promise<{ videoUrl: string; duration?: number }> {
-    const { cloudName, preset } = await getCloudinaryConfigAsync();
-    
-    if (!cloudName || !preset) {
-      throw new Error('CLOUDINARY_CONFIG_REQUIRED');
+    try {
+      const { cloudName, preset } = await getCloudinaryConfigAsync();
+      
+      if (cloudName && preset) {
+        // Cloudinary Free Account strictly limits video files to 100MB (104,857,600 bytes)
+        if (file.size > 104857600) {
+          const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+          throw new Error(`File size too large (${sizeMB}MB). Cloudinary Free accounts strictly limit video files to 100MB (104,857,600 bytes). For larger videos, please use the "Paste Video Link" tab (supports Google Drive & YouTube with unlimited size).`);
+        }
+
+        console.log(`Starting high-speed video upload to Cloudinary (${cloudName}): ${file.name} (${file.size} bytes)`);
+
+        // 25MB chunks for high-speed streaming with minimal HTTP roundtrips
+        const CHUNK_SIZE = 25 * 1024 * 1024;
+
+        if (file.size <= CHUNK_SIZE) {
+          return await this.uploadSingleVideo(file, cloudName, preset, onProgress);
+        }
+
+        return await this.uploadChunkedVideo(file, cloudName, preset, CHUNK_SIZE, onProgress);
+      }
+    } catch (cldErr: any) {
+      console.warn('Cloudinary upload unavailable or failed, falling back to Firebase Storage:', cldErr);
+      if (cldErr.message?.includes('File size too large')) {
+        throw cldErr;
+      }
     }
 
-    // Cloudinary Free Account strictly limits video files to 100MB (104,857,600 bytes)
-    if (file.size > 104857600) {
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      throw new Error(`File size too large (${sizeMB}MB). Cloudinary Free accounts strictly limit video files to 100MB (104,857,600 bytes). For larger videos, please use the "Paste Video Link" tab (supports Google Drive & YouTube with unlimited size).`);
+    // Direct Firebase Storage Fallback
+    try {
+      if (onProgress) onProgress(10, 'Uploading video to secure storage...');
+      const url = await this.uploadToFirebase(file, 'videos', (pct) => {
+        if (onProgress) onProgress(pct, `Uploading video... ${pct}%`);
+      });
+      return { videoUrl: url };
+    } catch (fbErr: any) {
+      console.error('Firebase storage upload failed:', fbErr);
+      throw new Error(fbErr.message || 'Failed to upload video to media storage.');
     }
-
-    console.log(`Starting high-speed video upload to Cloudinary (${cloudName}): ${file.name} (${file.size} bytes)`);
-
-    // 25MB chunks for high-speed streaming with minimal HTTP roundtrips
-    const CHUNK_SIZE = 25 * 1024 * 1024;
-
-    if (file.size <= CHUNK_SIZE) {
-      return this.uploadSingleVideo(file, cloudName, preset, onProgress);
-    }
-
-    return this.uploadChunkedVideo(file, cloudName, preset, CHUNK_SIZE, onProgress);
   },
 
   // Direct single-request upload for small video clips

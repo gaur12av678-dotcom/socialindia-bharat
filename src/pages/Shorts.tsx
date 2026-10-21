@@ -1314,8 +1314,20 @@ export const Shorts: React.FC = () => {
             </div>
           )}
 
-          {/* TOP BAR: Single Sound / Volume Button & YouTube-style 3-Dot More Options Menu */}
+          {/* TOP BAR: Create Short Shortcut, Sound / Volume Button & YouTube-style 3-Dot More Options Menu */}
           <div className="absolute top-4 right-4 z-35 flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('socialindia:open-shorts-studio'));
+              }}
+              className="w-8.5 h-8.5 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/15 hover:bg-black/65 transition-all cursor-pointer shadow-lg active:scale-95"
+              title={isHindi ? 'नया शॉर्ट बनाएं' : 'Create a Short'}
+              aria-label="Create a Short"
+            >
+              <Zap className="w-4 h-4 text-rose-400 fill-rose-400" />
+            </button>
+
             <div className="group/vol relative flex items-center">
               <button
                 onClick={(e) => {

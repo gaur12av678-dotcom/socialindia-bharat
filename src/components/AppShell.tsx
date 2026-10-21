@@ -65,6 +65,8 @@ import { authService } from '../services/authService';
 import { UserAvatar } from './UserAvatar';
 import { VoiceSearchModal } from './VoiceSearchModal';
 import { searchHistoryService, SearchHistoryEntry, POPULAR_SEARCH_SUGGESTIONS } from '../services/searchHistoryService';
+import { CreateActionSheet } from './shorts/CreateActionSheet';
+import { MobileShortsStudio } from './shorts/MobileShortsStudio';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -125,6 +127,26 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authSuccessCallback, setAuthSuccessCallback] = useState<(() => void) | undefined>(undefined);
   const [followedCreators, setFollowedCreators] = useState<any[]>([]);
+  const [createActionSheetOpen, setCreateActionSheetOpen] = useState(false);
+  const [mobileShortsStudioOpen, setMobileShortsStudioOpen] = useState(false);
+
+  // Global listener to trigger mobile shorts studio from anywhere in the app
+  useEffect(() => {
+    const handleOpenStudio = () => {
+      setMobileShortsStudioOpen(true);
+    };
+    window.addEventListener('socialindia:open-shorts-studio', handleOpenStudio);
+    return () => {
+      window.removeEventListener('socialindia:open-shorts-studio', handleOpenStudio);
+    };
+  }, []);
+
+  // Automatically open shorts camera studio if navigated to create-short
+  useEffect(() => {
+    if (route.path === 'create-short') {
+      setMobileShortsStudioOpen(true);
+    }
+  }, [route.path]);
 
   // YouTube-style Home Click: If already on home, refresh feed and scroll smoothly to top
   const handleHomeClick = () => {
@@ -1526,10 +1548,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </button>
 
           <button 
-            onClick={() => triggerProtectedAction(() => navigate('upload'))}
+            onClick={() => triggerProtectedAction(() => setCreateActionSheetOpen(true))}
             className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
               isShortsPage ? 'text-white' : 'text-[#2563eb] dark:text-[#3b82f6]'
             }`}
+            aria-label={t('create_video', 'Create')}
+            title={t('create_video', 'Create')}
           >
             <div className={`w-7 h-7 rounded-lg flex items-center justify-center shadow-xs transition-colors ${
               isShortsPage ? 'bg-white text-black' : 'bg-[#2563eb] text-white'
@@ -1609,6 +1633,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         isOpen={voiceModalOpen}
         onClose={() => setVoiceModalOpen(false)}
         onTranscript={handleVoiceSearchTranscript}
+      />
+
+      {/* MOBILE CREATE ACTION SHEET (YouTube-style: Create Short vs Upload Video vs Post) */}
+      <CreateActionSheet 
+        isOpen={createActionSheetOpen}
+        onClose={() => setCreateActionSheetOpen(false)}
+        onCreateShort={() => setMobileShortsStudioOpen(true)}
+        onUploadVideo={() => navigate('upload', undefined, { mode: 'video' })}
+        onCreatePost={() => navigate('upload', undefined, { mode: 'post' })}
+      />
+
+      {/* MOBILE DEDICATED YOUTUBE SHORTS CREATION STUDIO */}
+      <MobileShortsStudio
+        isOpen={mobileShortsStudioOpen}
+        onClose={() => setMobileShortsStudioOpen(false)}
       />
     </div>
   );

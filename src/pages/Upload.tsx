@@ -616,6 +616,30 @@ export const UploadPage: React.FC = () => {
                 className="hidden" 
               />
 
+              {/* Mobile Shorts Quick Camera Studio Banner */}
+              <div className="md:hidden flex items-center justify-between p-3.5 bg-gradient-to-r from-rose-500/15 via-red-500/10 to-transparent border border-rose-500/25 rounded-2xl shadow-xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-rose-500/30">
+                    <Zap className="w-5 h-5 fill-current" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-slate-900 dark:text-white truncate">
+                      {isHindi ? 'कैमरे से लाइव शॉर्ट रिकॉर्ड करें' : 'Record Short with Camera'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                      {isHindi ? 'फ़िल्टर, टाइमर, ट्रिम और बैकग्राउंड संगीत' : 'Camera effects, timer, trim & sound mix'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('socialindia:open-shorts-studio'))}
+                  className="px-3.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-black shrink-0 shadow-sm cursor-pointer active:scale-95 transition-all ml-2"
+                >
+                  {isHindi ? 'कैमरा खोलें' : 'Open Camera'}
+                </button>
+              </div>
+
               {videoPreviewUrl ? (
                 /* Video Selected Preview Block */
                 <div className="space-y-5 max-w-2xl mx-auto">
