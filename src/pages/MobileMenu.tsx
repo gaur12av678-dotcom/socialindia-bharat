@@ -36,24 +36,56 @@ export const MobileMenu: React.FC = () => {
 
   if (!currentUser || !currentUserProfile) {
     return (
-      <div className="min-h-screen bg-white dark:bg-[#0f0f0f] flex flex-col items-center justify-center p-6 text-center">
-        <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-full text-blue-600 mb-4">
-          <Lock className="w-8 h-8" />
+      <div className="min-h-screen bg-white dark:bg-[#0f0f0f] flex flex-col justify-between p-6 pb-28 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center py-12">
+          <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-full text-blue-600 mb-4">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h2 className="text-lg font-black text-slate-900 dark:text-white">
+            {isHindi ? 'प्रोफ़ाइल एवं टूल्स कार्यक्षेत्र' : 'Profile & Tools Workspace'}
+          </h2>
+          <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
+            {isHindi 
+              ? 'अपनी प्रोफ़ाइल, प्लेलिस्ट, सेटिंग्स और क्रिएटर टूल्स तक पहुँचने के लिए कृपया साइन इन करें।' 
+              : 'Please sign in to access your direct profile hub, watch playlists, settings, and advanced creator tools.'}
+          </p>
+          <button 
+            onClick={() => navigate('login')} 
+            className="mt-5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer"
+          >
+            {isHindi ? 'अभी साइन इन करें' : 'Sign In Now'}
+          </button>
         </div>
-        <h2 className="text-lg font-black text-slate-900 dark:text-white">
-          {isHindi ? 'प्रोफ़ाइल एवं टूल्स कार्यक्षेत्र' : 'Profile & Tools Workspace'}
-        </h2>
-        <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
-          {isHindi 
-            ? 'अपनी प्रोफ़ाइल, प्लेलिस्ट, सेटिंग्स और क्रिएटर टूल्स तक पहुँचने के लिए कृपया साइन इन करें।' 
-            : 'Please sign in to access your direct profile hub, watch playlists, settings, and advanced creator tools.'}
-        </p>
-        <button 
-          onClick={() => navigate('login')} 
-          className="mt-5 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer"
-        >
-          {isHindi ? 'अभी साइन इन करें' : 'Sign In Now'}
-        </button>
+
+        {/* Platform Footer & Copyright for Logged Out View */}
+        <div className="pt-6 border-t border-slate-100 dark:border-slate-800/80 px-2 space-y-4 text-center">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+            <button onClick={() => navigate('about')} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">
+              {isHindi ? 'हमारे बारे में' : 'About Us'}
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">·</span>
+            <button onClick={() => navigate('help')} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">
+              {isHindi ? 'सहायता' : 'Help'}
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">·</span>
+            <button onClick={() => navigate('privacy')} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">
+              {isHindi ? 'गोपनीयता नीति' : 'Privacy'}
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">·</span>
+            <button onClick={() => navigate('terms')} className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">
+              {isHindi ? 'नियम व शर्तें' : 'Terms'}
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+              © {new Date().getFullYear()} SocialIndia. All rights reserved.
+            </p>
+            <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+              {isHindi ? 'भारत का अपना वीडियो मंच 🇮🇳' : 'Made with ❤️ for Bharat 🇮🇳'}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -395,6 +427,48 @@ export const MobileMenu: React.FC = () => {
               <LogOut className="w-4 h-4" />
               <span>{t('sign_out', 'Sign Out Workspace')}</span>
             </button>
+          </div>
+        </div>
+
+        {/* 6. PLATFORM FOOTER & COPYRIGHT */}
+        <div className="pt-6 pb-2 border-t border-slate-100 dark:border-slate-800/80 px-2 space-y-4 text-center">
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+            <button 
+              onClick={() => navigate('about')} 
+              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            >
+              {isHindi ? 'हमारे बारे में' : 'About Us'}
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">·</span>
+            <button 
+              onClick={() => navigate('help')} 
+              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            >
+              {isHindi ? 'सहायता' : 'Help'}
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">·</span>
+            <button 
+              onClick={() => navigate('privacy')} 
+              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            >
+              {isHindi ? 'गोपनीयता नीति' : 'Privacy'}
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">·</span>
+            <button 
+              onClick={() => navigate('terms')} 
+              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            >
+              {isHindi ? 'नियम व शर्तें' : 'Terms'}
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs font-extrabold text-slate-700 dark:text-slate-300">
+              © {new Date().getFullYear()} SocialIndia. All rights reserved.
+            </p>
+            <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+              {isHindi ? 'भारत का अपना वीडियो मंच 🇮🇳' : 'Made with ❤️ for Bharat 🇮🇳'}
+            </p>
           </div>
         </div>
 

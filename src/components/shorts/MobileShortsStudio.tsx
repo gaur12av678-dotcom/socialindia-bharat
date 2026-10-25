@@ -29,7 +29,8 @@ import {
   Lock,
   EyeOff,
   ChevronRight,
-  Plus
+  Plus,
+  Search
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useRouter } from '../../hooks/useRouter';
@@ -114,6 +115,8 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   const [selectedSound, setSelectedSound] = useState<SoundTrack | null>(initialSound || null);
   const [soundModalOpen, setSoundModalOpen] = useState(false);
   const [playingPreviewSoundId, setPlayingPreviewSoundId] = useState<string | null>(null);
+  const [soundCategory, setSoundCategory] = useState<string>('All');
+  const [soundSearchQuery, setSoundSearchQuery] = useState<string>('');
   const soundAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // DOM Refs
@@ -1661,69 +1664,153 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
               </button>
             </div>
 
-            {/* List of Sounds */}
-            <div className="overflow-y-auto space-y-2.5 flex-1 pr-1">
-              {DEFAULT_SOUNDS.map((sound) => {
-                const isSelected = selectedSound?.soundId === sound.soundId;
-                const isPlaying = playingPreviewSoundId === sound.soundId;
+            {/* Search Box */}
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={soundSearchQuery}
+                onChange={(e) => setSoundSearchQuery(e.target.value)}
+                placeholder={isHindi ? 'म्यूजिक, फनी मीम, वायरल बीट्स खोजें...' : 'Search music, funny memes, viral beats...'}
+                className="w-full pl-9 pr-8 py-2 bg-slate-800/80 border border-slate-700/80 rounded-xl text-xs font-semibold text-white placeholder-slate-400 focus:outline-none focus:border-rose-500 transition-colors"
+              />
+              {soundSearchQuery && (
+                <button
+                  onClick={() => setSoundSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
+            {/* Category Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-1">
+              {[
+                { key: 'All', label: isHindi ? 'सभी' : 'All' },
+                { key: 'Popular', label: isHindi ? 'पॉपुलर 🔥' : 'Popular 🔥' },
+                { key: 'Funny', label: isHindi ? 'फनी 🎭' : 'Funny 🎭' },
+                { key: 'Latest', label: isHindi ? 'लेटेस्ट ⚡' : 'Latest ⚡' },
+                { key: 'Lo-Fi', label: isHindi ? 'लो-फ़ाई ☕' : 'Lo-Fi ☕' },
+                { key: 'Punjabi & Bollywood', label: isHindi ? 'पंजाबी व बॉलीवुड' : 'Punjabi & Bollywood' },
+                { key: 'Romantic', label: isHindi ? 'रोमांटिक 💖' : 'Romantic 💖' },
+                { key: 'Gaming & Tech', label: isHindi ? 'गेमिंग 🎮' : 'Gaming 🎮' }
+              ].map((cat) => {
+                const isActive = soundCategory === cat.key && !soundSearchQuery;
                 return (
-                  <div
-                    key={sound.soundId}
-                    className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
-                      isSelected 
-                        ? 'bg-rose-500/20 border-rose-500' 
-                        : 'bg-slate-800/80 border-slate-700/80 hover:bg-slate-800'
+                  <button
+                    key={cat.key}
+                    onClick={() => {
+                      setSoundCategory(cat.key);
+                      setSoundSearchQuery('');
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap cursor-pointer transition-all ${
+                      isActive
+                        ? 'bg-rose-500 text-white shadow-sm'
+                        : 'bg-slate-800 text-slate-300 border border-slate-700/70 hover:border-slate-600'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 group">
-                        <img src={sound.coverUrl} alt="" className="w-full h-full object-cover" />
-                        
-                        {/* Play/Stop Preview Button */}
-                        <button
-                          onClick={() => {
-                            if (isPlaying) {
-                              soundAudioRef.current?.pause();
-                              setPlayingPreviewSoundId(null);
-                            } else {
-                              if (!soundAudioRef.current) soundAudioRef.current = new Audio();
-                              soundAudioRef.current.src = sound.audioUrl;
-                              soundAudioRef.current.play().catch(console.warn);
-                              setPlayingPreviewSoundId(sound.soundId);
-                            }
-                          }}
-                          className="absolute inset-0 bg-black/40 flex items-center justify-center text-white cursor-pointer"
-                        >
-                          {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
-                        </button>
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-white truncate">{sound.title}</p>
-                        <p className="text-[10px] text-slate-400 truncate">{sound.artist} · {sound.duration}s</p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setSelectedSound(sound);
-                        soundAudioRef.current?.pause();
-                        setPlayingPreviewSoundId(null);
-                        setSoundModalOpen(false);
-                        addToast(`Selected: ${sound.title}`, 'success');
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer active:scale-95 transition-all ${
-                        isSelected 
-                          ? 'bg-rose-500 text-white' 
-                          : 'bg-white/10 hover:bg-white/20 text-white'
-                      }`}
-                    >
-                      {isSelected ? (isHindi ? 'चुना गया' : 'Selected') : (isHindi ? 'चुनें' : 'Use')}
-                    </button>
-                  </div>
+                    {cat.label}
+                  </button>
                 );
               })}
+            </div>
+
+            {/* List of Sounds */}
+            <div className="overflow-y-auto space-y-2.5 flex-1 pr-1">
+              {DEFAULT_SOUNDS
+                .filter((sound) => {
+                  if (soundSearchQuery.trim()) {
+                    const q = soundSearchQuery.toLowerCase();
+                    const matchText = 
+                      sound.title.toLowerCase().includes(q) || 
+                      sound.artist.toLowerCase().includes(q) || 
+                      (sound.category || '').toLowerCase().includes(q);
+                    if (!matchText) return false;
+                  }
+                  if (soundCategory !== 'All') {
+                    const catLower = soundCategory.toLowerCase().trim();
+                    const sCat = (sound.category || '').toLowerCase();
+                    if (catLower === 'popular') {
+                      return sCat.includes('popular') || sCat.includes('trending') || sCat.includes('viral');
+                    }
+                    if (catLower === 'funny') {
+                      return sCat.includes('funny') || sCat.includes('comedy') || sCat.includes('meme');
+                    }
+                    if (catLower === 'latest') {
+                      return sCat.includes('latest') || sCat.includes('new');
+                    }
+                    if (catLower === 'lo-fi' || catLower === 'lofi') {
+                      return sCat.includes('lo-fi') || sCat.includes('lofi') || sCat.includes('chill');
+                    }
+                    if (catLower === 'romantic') {
+                      return sCat.includes('romantic') || sCat.includes('acoustic');
+                    }
+                    return sCat.includes(catLower);
+                  }
+                  return true;
+                })
+                .map((sound) => {
+                  const isSelected = selectedSound?.soundId === sound.soundId;
+                  const isPlaying = playingPreviewSoundId === sound.soundId;
+
+                  return (
+                    <div
+                      key={sound.soundId}
+                      className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                        isSelected 
+                          ? 'bg-rose-500/20 border-rose-500' 
+                          : 'bg-slate-800/80 border-slate-700/80 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="relative w-11 h-11 rounded-xl overflow-hidden shrink-0 group">
+                          <img src={sound.coverUrl} alt="" className="w-full h-full object-cover" />
+                          
+                          {/* Play/Stop Preview Button */}
+                          <button
+                            onClick={() => {
+                              if (isPlaying) {
+                                soundAudioRef.current?.pause();
+                                setPlayingPreviewSoundId(null);
+                              } else {
+                                if (!soundAudioRef.current) soundAudioRef.current = new Audio();
+                                soundAudioRef.current.src = sound.audioUrl;
+                                soundAudioRef.current.play().catch(console.warn);
+                                setPlayingPreviewSoundId(sound.soundId);
+                              }
+                            }}
+                            className="absolute inset-0 bg-black/40 flex items-center justify-center text-white cursor-pointer"
+                          >
+                            {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white ml-0.5" />}
+                          </button>
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{sound.title}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{sound.artist} · {sound.duration}s</p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setSelectedSound(sound);
+                          soundAudioRef.current?.pause();
+                          setPlayingPreviewSoundId(null);
+                          setSoundModalOpen(false);
+                          addToast(`Selected: ${sound.title}`, 'success');
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer active:scale-95 transition-all ${
+                          isSelected 
+                            ? 'bg-rose-500 text-white' 
+                            : 'bg-white/10 hover:bg-white/20 text-white'
+                        }`}
+                      >
+                        {isSelected ? (isHindi ? 'चुना गया' : 'Selected') : (isHindi ? 'चुनें' : 'Use')}
+                      </button>
+                    </div>
+                  );
+                })}
             </div>
 
           </div>

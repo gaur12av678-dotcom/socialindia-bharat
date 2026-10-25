@@ -228,6 +228,60 @@ export const DEFAULT_SOUNDS: SoundTrack[] = [
     coverUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=300&q=80',
     audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
     duration: 29,
+  },
+  {
+    soundId: 'sound_25',
+    title: 'Desi Meme Funny Laugh & Horn',
+    artist: 'Comedy Club India',
+    category: 'Funny & Comedy',
+    coverUrl: 'https://images.unsplash.com/photo-1514306191717-452ec28c7814?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3',
+    duration: 15,
+  },
+  {
+    soundId: 'sound_26',
+    title: 'Crazy Cartoon Funny Bounce',
+    artist: 'Meme Mania Beats',
+    category: 'Funny & Comedy',
+    coverUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3',
+    duration: 18,
+  },
+  {
+    soundId: 'sound_27',
+    title: 'Latest 2026 Club Pop Anthem',
+    artist: 'Metro Sound Wave',
+    category: 'Latest Releases',
+    coverUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3',
+    duration: 30,
+  },
+  {
+    soundId: 'sound_28',
+    title: 'Latest Desi Flow & Hype Bass',
+    artist: 'NextGen Desi Hits',
+    category: 'Latest Releases',
+    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3',
+    duration: 28,
+  },
+  {
+    soundId: 'sound_29',
+    title: 'Funny Whistle & Goofy Stumble',
+    artist: 'Shorts Comedy FX',
+    category: 'Funny & Comedy',
+    coverUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3',
+    duration: 12,
+  },
+  {
+    soundId: 'sound_30',
+    title: 'Sunset Balcony Lo-Fi Guitar',
+    artist: 'Chai Sutta Chill',
+    category: 'Lo-Fi & Chill',
+    coverUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3',
+    duration: 32,
   }
 ];
 
@@ -279,9 +333,28 @@ export const soundService = {
         }
       }
 
-      // Filter by category if specified
+      // Filter by category if specified with smart synonyms (Popular, Funny, Latest, Lo-Fi, etc.)
       if (category && category !== 'All') {
-        tracks = tracks.filter(t => t.category.toLowerCase().includes(category.toLowerCase()));
+        const catLower = category.toLowerCase().trim();
+        tracks = tracks.filter(t => {
+          const tCat = (t.category || '').toLowerCase();
+          if (catLower === 'popular') {
+            return tCat.includes('popular') || tCat.includes('trending') || tCat.includes('viral');
+          }
+          if (catLower === 'funny') {
+            return tCat.includes('funny') || tCat.includes('comedy') || tCat.includes('meme');
+          }
+          if (catLower === 'latest') {
+            return tCat.includes('latest') || tCat.includes('new');
+          }
+          if (catLower === 'lo-fi' || catLower === 'lofi') {
+            return tCat.includes('lo-fi') || tCat.includes('lofi') || tCat.includes('chill');
+          }
+          if (catLower === 'romantic') {
+            return tCat.includes('romantic') || tCat.includes('acoustic');
+          }
+          return tCat.includes(catLower);
+        });
       }
 
       // Compute REAL uses count for each sound dynamically!

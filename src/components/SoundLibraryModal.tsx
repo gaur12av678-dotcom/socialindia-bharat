@@ -27,11 +27,13 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
 
   const categories = [
     { key: 'All', label: isHindi ? 'सभी' : 'All' },
+    { key: 'Popular', label: isHindi ? 'पॉपुलर 🔥' : 'Popular 🔥' },
+    { key: 'Funny', label: isHindi ? 'फनी 🎭' : 'Funny 🎭' },
+    { key: 'Latest', label: isHindi ? 'लेटेस्ट ⚡' : 'Latest ⚡' },
+    { key: 'Lo-Fi', label: isHindi ? 'लो-फ़ाई ☕' : 'Lo-Fi ☕' },
     { key: 'Punjabi & Bollywood', label: isHindi ? 'पंजाबी व बॉलीवुड' : 'Punjabi & Bollywood' },
-    { key: 'Lo-Fi & Chill', label: isHindi ? 'लो-फ़ाई और चिल' : 'Lo-Fi & Chill' },
-    { key: 'Gaming & Tech', label: isHindi ? 'गेमिंग और टेक' : 'Gaming & Tech' },
-    { key: 'Trending Viral', label: isHindi ? 'वायरल ट्रेंडिंग' : 'Trending Viral' },
-    { key: 'Romantic & Acoustic', label: isHindi ? 'रोमांटिक और ध्वनिक' : 'Romantic & Acoustic' }
+    { key: 'Romantic', label: isHindi ? 'रोमांटिक 💖' : 'Romantic 💖' },
+    { key: 'Gaming & Tech', label: isHindi ? 'गेमिंग और टेक 🎮' : 'Gaming & Tech 🎮' }
   ];
 
   useEffect(() => {
