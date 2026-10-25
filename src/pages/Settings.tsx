@@ -110,8 +110,6 @@ export const Settings: React.FC = () => {
   const [mainBalance, setMainBalance] = useState(0.00);
   const [bonusBalance, setBonusBalance] = useState(0.00);
   const [isConvertingBonus, setIsConvertingBonus] = useState(false);
-  const [replenishAmount, setReplenishAmount] = useState(100);
-  const [replenishModalOpen, setReplenishModalOpen] = useState(false);
   const [walletMsg, setWalletMsg] = useState('');
 
   // Withdrawal States
@@ -304,32 +302,15 @@ export const Settings: React.FC = () => {
       setPoints(res.newPoints);
       setWalletBalance(res.newWalletBalance);
       await refreshProfile();
-      const addedAmount = (convertPointsInput * 0.01).toFixed(2);
-      setPointsConvertMsg(`Converted ${convertPointsInput} points to ₹${addedAmount} balance!`);
-      addToast(`Converted ${convertPointsInput} points to ₹${addedAmount}!`, 'success');
+      setPointsConvertMsg(
+        isHindi 
+          ? `सफलतापूर्वक ${convertPointsInput} पॉइंट्स कन्वर्ट किए गए और वॉलेट में ₹${res.addedAmount.toFixed(2)} जुड़े!` 
+          : `Converted ${convertPointsInput} points into ₹${res.addedAmount.toFixed(2)} wallet balance!`
+      );
     } catch (err: any) {
       setPointsConvertMsg(err.message || 'Failed to convert points.');
     } finally {
       setIsConverting(false);
-    }
-  };
-
-  // Top Up Wallet Handler
-  const handleReplenishWallet = async () => {
-    if (!currentUser) return;
-    setWalletMsg('');
-    if (replenishAmount <= 0) return;
-
-    try {
-      const newBal = (currentUserProfile?.walletBalance || 0) + replenishAmount;
-      await userService.updateProfile(currentUser.uid, { walletBalance: newBal });
-      await refreshProfile();
-      setWalletBalance(newBal);
-      setReplenishModalOpen(false);
-      setWalletMsg(`Topped up ₹${replenishAmount.toFixed(2)} to wallet.`);
-      addToast(`Topped up ₹${replenishAmount.toFixed(2)}!`, 'success');
-    } catch (err: any) {
-      setWalletMsg(err.message);
     }
   };
 
@@ -391,7 +372,7 @@ export const Settings: React.FC = () => {
     const availableBal = Number(currentUserProfile?.walletBalance ?? currentUserProfile?.mainBalance ?? 972.01);
 
     if (withdrawAmount <= 0 || withdrawAmount > availableBal || !withdrawUpiId.trim()) {
-      setWithdrawMsg(isHindi ? `कृपया मान्य राशि (अधिकतम $${availableBal.toFixed(2)}) और सही UPI ID दर्ज करें।` : `Please enter a valid amount (up to $${availableBal.toFixed(2)}) and UPI ID.`);
+      setWithdrawMsg(isHindi ? `कृपया मान्य राशि (अधिकतम ₹${availableBal.toFixed(2)}) और सही UPI ID दर्ज करें।` : `Please enter a valid amount (up to ₹${availableBal.toFixed(2)}) and UPI ID.`);
       return;
     }
 
@@ -622,7 +603,7 @@ export const Settings: React.FC = () => {
       category: isHindi ? 'कमाई (Earnings)' : 'EARNINGS',
       items: [
         { id: 'monetization', label: isHindi ? 'मोनेटाइजेशन' : 'Monetization', icon: DollarSign, badge: isChannelMonetized ? 'Active' : undefined, badgeType: 'amber' },
-        { id: 'wallet', label: isHindi ? 'वॉलेट' : 'Wallet', icon: Wallet, badge: `$${displayWallet.toFixed(2)}`, badgeType: 'blue' },
+        { id: 'wallet', label: isHindi ? 'वॉलेट' : 'Wallet', icon: Wallet, badge: `₹${displayWallet.toFixed(2)}`, badgeType: 'blue' },
         { id: 'points', label: isHindi ? 'रिवॉर्ड पॉइंट्स' : 'Points', icon: Award, badge: `${points} pts`, badgeType: 'blue' },
         { id: 'verification', label: isHindi ? 'सत्यापन' : 'Verification', icon: ShieldCheck, badge: verificationSubmitted ? (isHindi ? 'जमा हुआ' : 'Submitted') : undefined, badgeType: 'amber' },
       ]
@@ -1205,7 +1186,7 @@ export const Settings: React.FC = () => {
                   <span className="text-xs font-bold text-slate-500">
                     {isHindi ? 'उपलब्ध बैलेंस:' : 'Available:'}{' '}
                     <strong className="text-emerald-600 font-mono font-black text-base sm:text-lg">
-                      ${displayWallet.toFixed(2)}
+                      ₹{displayWallet.toFixed(2)}
                     </strong>
                   </span>
                 </div>
@@ -1220,11 +1201,8 @@ export const Settings: React.FC = () => {
                     </span>
                     <div className="flex items-baseline gap-3 mt-1.5 flex-wrap">
                       <h3 className="text-3xl sm:text-4xl font-black font-mono">
-                        ${displayWallet.toFixed(2)} <span className="text-sm font-semibold text-blue-200">USD</span>
+                        ₹{displayWallet.toFixed(2)} <span className="text-sm font-semibold text-blue-200">INR</span>
                       </h3>
-                      <span className="text-xs font-bold text-blue-200 bg-white/10 px-2.5 py-1 rounded-full">
-                        ≈ ₹{(displayWallet * 83).toFixed(2)} INR
-                      </span>
                     </div>
                     <p className="text-xs text-blue-100/90 mt-2 font-medium">
                       {isHindi 
@@ -1243,13 +1221,6 @@ export const Settings: React.FC = () => {
                     >
                       <CreditCard className="w-4 h-4" />
                       <span>{isHindi ? 'पैसे निकालें (Withdraw Funds)' : 'Withdraw Funds'}</span>
-                    </button>
-
-                    <button
-                      onClick={() => setReplenishModalOpen(true)}
-                      className="px-5 py-3 bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-xs font-black uppercase tracking-wider rounded-2xl cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2"
-                    >
-                      <span>+ {isHindi ? 'वॉलेट टॉप-अप' : 'Top Up Wallet'}</span>
                     </button>
                   </div>
                 </div>
@@ -1270,8 +1241,8 @@ export const Settings: React.FC = () => {
                       </h4>
                       <p className="text-xs text-slate-500">
                         {isHindi 
-                          ? `आपके पास वर्तमान में ${points} रिवॉर्ड पॉइंट्स हैं। 100 पॉइंट्स = $1.00 वॉलेट बैलेंस।` 
-                          : `You currently have ${points} reward points. 100 Points = $1.00 Wallet Balance.`}
+                          ? `आपके पास वर्तमान में ${points} रिवॉर्ड पॉइंट्स हैं। अपने पॉइंट्स को सीधे वॉलेट बैलेंस में बदलें।` 
+                          : `You currently have ${points} reward points. Convert your points directly to wallet balance.`}
                       </p>
                     </div>
                   </div>
@@ -1420,7 +1391,7 @@ export const Settings: React.FC = () => {
                       <div key={w.id} className="py-2.5 flex items-center justify-between text-xs">
                         <div>
                           <span className="font-bold font-mono text-slate-900 dark:text-white">
-                            ${w.amount.toFixed(2)}
+                            ₹{w.amount.toFixed(2)}
                           </span>
                           <span className="text-slate-400 text-[10px] ml-2 font-mono">
                             → {w.upiId}
@@ -1475,7 +1446,7 @@ export const Settings: React.FC = () => {
                     {points} <span className="text-lg text-slate-400 font-sans">pts</span>
                   </h1>
                   <p className="text-xs text-slate-500 font-bold">
-                    100 Points = $1.00 USD (≈ ₹83.00)
+                    {isHindi ? 'पॉइंट्स को वॉलेट बैलेंस में आसानी से बदलें' : 'Convert points easily into wallet balance'}
                   </p>
                 </div>
 
@@ -1546,7 +1517,7 @@ export const Settings: React.FC = () => {
               <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4 sm:gap-5">
                   <div className="w-14 h-14 rounded-full bg-[#2563EB] text-white flex items-center justify-center font-black text-2xl shadow-md shadow-blue-500/25 shrink-0">
-                    $
+                    ₹
                   </div>
                   <div>
                     <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -2113,7 +2084,7 @@ export const Settings: React.FC = () => {
             </div>
             <form onSubmit={handleWithdrawSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-bold block mb-1">Amount ($)</label>
+                <label className="text-xs font-bold block mb-1">Amount (₹)</label>
                 <input
                   type="number"
                   value={withdrawAmount}
@@ -2139,33 +2110,6 @@ export const Settings: React.FC = () => {
                 Confirm Payout
               </button>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Replenish Modal */}
-      {replenishModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-3xl p-6 max-w-sm w-full space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-base">Top Up Wallet</h3>
-              <button onClick={() => setReplenishModalOpen(false)} className="text-slate-400 font-bold">✕</button>
-            </div>
-            <div>
-              <label className="text-xs font-bold block mb-1">Amount (₹)</label>
-              <input
-                type="number"
-                value={replenishAmount}
-                onChange={(e) => setReplenishAmount(Number(e.target.value))}
-                className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-bold"
-              />
-            </div>
-            <button
-              onClick={handleReplenishWallet}
-              className="w-full py-2.5 bg-[#2563EB] text-white text-xs font-bold rounded-xl"
-            >
-              Add ₹{replenishAmount}
-            </button>
           </div>
         </div>
       )}

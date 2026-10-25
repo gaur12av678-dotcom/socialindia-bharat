@@ -1306,7 +1306,7 @@ export const Shorts: React.FC = () => {
                       className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       <Wallet className="w-4 h-4" />
-                      <span>Top Up Wallet (Need ₹{((activeShort.price || 0) - viewerTotalBalance).toFixed(2)})</span>
+                      <span>Go to Wallet (Need ₹{((activeShort.price || 0) - viewerTotalBalance).toFixed(2)})</span>
                     </button>
                   )}
                 </div>

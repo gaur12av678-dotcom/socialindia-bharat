@@ -15,6 +15,8 @@ export interface User {
   
   // PlayTube Extended Settings & Rewards Fields
   points?: number;
+  dailyPointsDate?: string;
+  dailyPointsEarned?: number;
   walletBalance?: number; // Used for shopping / website purchases
   mainBalance?: number;   // Balance available for withdraw (formerly withdrawable / earnings)
   bonusBalance?: number;

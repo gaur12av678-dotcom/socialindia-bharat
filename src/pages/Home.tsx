@@ -261,9 +261,6 @@ export const Home: React.FC = () => {
         fetchHomeVideos(true),
         fetchHomeShorts()
       ]);
-      if (showToast) {
-        addToast(isHindi ? 'होम फ़ीड रीफ़्रेश हो गया!' : 'Home feed refreshed!', 'success');
-      }
     } finally {
       setIsRefreshing(false);
       setPullDistance(0);
@@ -274,7 +271,7 @@ export const Home: React.FC = () => {
   // Listen for Home/Logo click while already on Home to trigger refresh
   useEffect(() => {
     const onHomeRefreshEvent = () => {
-      handleRefreshFeed(true);
+      handleRefreshFeed(false);
     };
     window.addEventListener('socialindia:refresh-home', onHomeRefreshEvent);
     return () => window.removeEventListener('socialindia:refresh-home', onHomeRefreshEvent);

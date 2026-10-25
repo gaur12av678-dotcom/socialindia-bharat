@@ -100,7 +100,7 @@ export const MobileMenu: React.FC = () => {
                   ★ {isHindi ? 'पॉइंट्स' : 'Points'}: {currentUserProfile.points || 0}
                 </span>
                 <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100/30 dark:border-emerald-900/40 rounded-full">
-                  $ {isHindi ? 'वॉलेट' : 'Wallet'}: ${Number(currentUserProfile.walletBalance || 0).toFixed(2)}
+                  ₹ {isHindi ? 'वॉलेट' : 'Wallet'}: ₹{Number(currentUserProfile.walletBalance || 0).toFixed(2)}
                 </span>
               </div>
             </div>

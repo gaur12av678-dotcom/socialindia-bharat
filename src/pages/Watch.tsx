@@ -1059,7 +1059,7 @@ export const Watch: React.FC = () => {
                       className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       <Wallet className="w-4 h-4" />
-                      <span>Top Up Wallet Now</span>
+                      <span>Go to Wallet</span>
                     </button>
                   </div>
                 )}

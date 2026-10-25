@@ -128,7 +128,7 @@ export const AdminExtraTabs: React.FC<ExtraTabsProps> = ({
 
   // --- FAQ & DOCS ---
   const [faqs, setFaqs] = useState([
-    { q: 'How do I request a wallet payment withdrawal?', a: 'You need at least a $10.00 wallet balance. Go to Settings -> Withdrawals.' },
+    { q: 'How do I request a wallet payment withdrawal?', a: 'You need at least a ₹10.00 wallet balance. Go to Settings -> Withdrawals.' },
     { q: 'What are GoPro creator perks?', a: 'Double points speed multiplier and verified check badge!' },
   ]);
   const [newFaqQ, setNewFaqQ] = useState('');

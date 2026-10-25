@@ -3367,17 +3367,17 @@ export const AdminPanel: React.FC = () => {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{walletModalUser.displayName}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">@{walletModalUser.username} • Current Balance: ${(walletModalUser.walletBalance || 0).toFixed(2)} USD</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">@{walletModalUser.username} • Current Balance: ₹{(walletModalUser.walletBalance || 0).toFixed(2)} INR</p>
                 </div>
               </div>
 
               <form onSubmit={handleAdminCreditWallet} className="space-y-4">
                 <div>
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">
-                    Amount to Add ($ USD)
+                    Amount to Add (₹ INR)
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₹</span>
                     <input
                       type="number"
                       step="0.01"

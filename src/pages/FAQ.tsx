@@ -53,12 +53,12 @@ export const FAQPage: React.FC = () => {
 
           <div className="bg-slate-50 dark:bg-[#161616] border border-slate-100 dark:border-slate-800 p-6 rounded-3xl space-y-2">
             <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white">
-              {isHindi ? 'प्र: पॉइंट्स को पैसों में बदलने का क्या नियम है?' : 'Q: What is the point token conversion formula?'}
+              {isHindi ? 'प्र: पॉइंट्स को वॉलेट में कैसे बदलें?' : 'Q: How do I convert points into wallet balance?'}
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
               {isHindi 
-                ? 'उ: 100 पॉइंट्स का मूल्य $1.00 USD होता है। आप अपने पॉइंट्स को सीधे सेटिंग्स में "वॉलेट बैलेंस" टैब से कंवर्ट कर सकते हैं।' 
-                : 'A: 100 points converted represent $1.00 USD. You can convert points directly to USD wallet balances from the Settings page under the "Balance" tab.'}
+                ? 'उ: आप सेटिंग्स में "वॉलेट" या "रिवॉर्ड पॉइंट्स" टैब से अपने पॉइंट्स को आसानी से वॉलेट बैलेंस (₹) में बदल सकते हैं।' 
+                : 'A: You can convert your reward points directly into your INR (₹) wallet balance from the Settings page under the Wallet tab.'}
             </p>
           </div>
 

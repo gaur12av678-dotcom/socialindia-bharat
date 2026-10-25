@@ -80,27 +80,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
-  // Add Toast with limit check (cap at 5 toasts) and timer tracking
-  const addToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    
-    setToasts((prev) => {
-      const next = [...prev, { id, message, type }];
-      if (next.length > 5) {
-        const oldest = next.shift();
-        if (oldest && toastTimeoutsRef.current[oldest.id]) {
-          clearTimeout(toastTimeoutsRef.current[oldest.id]);
-          delete toastTimeoutsRef.current[oldest.id];
-        }
-      }
-      return next;
-    });
-
-    const timeout = setTimeout(() => {
-      removeToast(id);
-    }, 4000);
-    toastTimeoutsRef.current[id] = timeout;
-  }, [removeToast]);
+  // Add Toast - Silenced per user preference to prevent popups on like, refresh, signin, or any action
+  const addToast = useCallback((_message: string, _type: 'success' | 'error' | 'info' = 'info') => {
+    // Intentionally suppressed: actions perform silently without popup notifications
+  }, []);
 
   // Clean up timeouts on unmount
   useEffect(() => {

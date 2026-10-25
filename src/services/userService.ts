@@ -377,21 +377,79 @@ export const userService = {
   },
 
   // Award points to user
+  // Award points to user with silent daily limit of 1000 points (completely invisible to user)
   async awardPoints(uid: string, amount: number): Promise<void> {
     if (!uid || amount <= 0) return;
+
+    // Daily key: YYYY-MM-DD
+    const today = new Date().toISOString().slice(0, 10);
+    const localDailyKey = `si_daily_pts_${uid}_${today}`;
+
+    // Fast local guard to prevent unnecessary network traffic if user hit 1000 today
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const cachedDaily = Number(localStorage.getItem(localDailyKey) || 0);
+        if (cachedDaily >= 1000) {
+          return; // Silently cap without showing anything to user
+        }
+      } catch (_) {}
+    }
+
     const docRef = doc(db, 'users', uid);
     try {
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) return;
+      const data = snap.data() as User;
+
+      const userDate = data.dailyPointsDate || '';
+      const currentEarnedToday = userDate === today ? Number(data.dailyPointsEarned || 0) : 0;
+
+      // Silently enforce 1000 points daily limit
+      if (currentEarnedToday >= 1000) {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          try {
+            localStorage.setItem(localDailyKey, '1000');
+          } catch (_) {}
+        }
+        return;
+      }
+
+      const pointsToAward = Math.min(amount, 1000 - currentEarnedToday);
+      if (pointsToAward <= 0) return;
+
+      const newEarnedToday = currentEarnedToday + pointsToAward;
+
       await setDoc(docRef, {
-        points: increment(amount),
+        points: increment(pointsToAward),
+        dailyPointsDate: today,
+        dailyPointsEarned: newEarnedToday,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
+
+      // Update local storage tracking
+      if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          localStorage.setItem(localDailyKey, String(newEarnedToday));
+        } catch (_) {}
+      }
+
+      // Update memory cache
+      const cached = getFromLocalUserCache(uid);
+      if (cached) {
+        cached.points = (cached.points || 0) + pointsToAward;
+        cached.dailyPointsDate = today;
+        cached.dailyPointsEarned = newEarnedToday;
+        saveToLocalUserCache(cached);
+      }
     } catch (err) {
       console.warn('Award points failed:', err);
     }
   },
 
-  // Convert points to wallet balance (100 points = ₹1.00 / $1.00 balance)
-  async convertPointsToWallet(uid: string, pointsToConvert: number): Promise<{ newPoints: number; newWalletBalance: number }> {
+  // Convert points to wallet balance in Indian Rupees (₹)
+  // Dynamic random conversion rate (~₹0.08 - ₹0.10 per 100 points, max ₹0.10 per 100 points)
+  // User cannot guess the exact formula, but gets ~0.1 Rupee per 100 points
+  async convertPointsToWallet(uid: string, pointsToConvert: number): Promise<{ newPoints: number; newWalletBalance: number; addedAmount: number }> {
     if (!uid) throw new Error('User UID is missing');
     const user = await this.getUserProfile(uid);
     if (!user) throw new Error('User profile not found');
@@ -403,11 +461,19 @@ export const userService = {
       throw new Error('Please enter a positive number of points to convert.');
     }
     if (currentPoints < requestedPoints) {
-      throw new Error(`Insufficient points balance. You have ${currentPoints} points, but requested ${requestedPoints}.`);
+      throw new Error(`Insufficient points balance. You have ${currentPoints} points.`);
     }
 
-    // Rate: 100 points = 1.00 unit (0.01 per point)
-    const addedAmount = Number((requestedPoints * 0.01).toFixed(2));
+    // Dynamic random reward: around ~₹0.10 per 100 points (randomly 0.08 to 0.10 rupees per 100 pts)
+    // Ensures user cannot predict exact formula and it never exceeds ~0.10 rupees per 100 points
+    const randomRatePer100 = 0.08 + (Math.random() * 0.02); // between 0.08 and 0.10
+    let calculatedAmount = (requestedPoints / 100) * randomRatePer100;
+    
+    // Ensure at least 0.01 rupee if points >= 10
+    if (calculatedAmount < 0.01 && requestedPoints >= 10) {
+      calculatedAmount = 0.01;
+    }
+    const addedAmount = Number(calculatedAmount.toFixed(2));
     const newPoints = Math.max(0, currentPoints - requestedPoints);
     const newWalletBalance = Number(((Number(user.walletBalance) || 0) + addedAmount).toFixed(2));
 
@@ -426,7 +492,14 @@ export const userService = {
       }, { merge: true });
     }
 
-    // Record in wallet_transactions ledger safely
+    // Update local cache
+    saveToLocalUserCache({
+      uid,
+      points: newPoints,
+      walletBalance: newWalletBalance
+    });
+
+    // Record in wallet_transactions ledger
     try {
       const txRef = doc(collection(db, 'wallet_transactions'));
       await setDoc(txRef, {
@@ -443,7 +516,7 @@ export const userService = {
       console.warn('Could not record points conversion transaction:', e);
     }
 
-    return { newPoints, newWalletBalance };
+    return { newPoints, newWalletBalance, addedAmount };
   },
 
   // Top up / replenish wallet balance

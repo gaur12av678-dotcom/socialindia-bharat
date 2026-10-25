@@ -15,7 +15,7 @@ export const adService = {
     const totalAvailable = Number((wallet + bonus).toFixed(2));
 
     if (totalAvailable < totalCost) {
-      throw new Error(`Insufficient Balance. Total cost is $${totalCost.toFixed(2)}, but you have $${totalAvailable.toFixed(2)} (Wallet: $${wallet.toFixed(2)}, Bonus: $${bonus.toFixed(2)}).`);
+      throw new Error(`Insufficient Balance. Total cost is ₹${totalCost.toFixed(2)}, but you have ₹${totalAvailable.toFixed(2)} (Wallet: ₹${wallet.toFixed(2)}, Bonus: ₹${bonus.toFixed(2)}).`);
     }
 
     // Deduct bonus first, then wallet
