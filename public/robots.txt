@@ -1,5 +1,11 @@
 User-agent: *
 Allow: /
 
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
 Sitemap: https://socialindia.web.app/sitemap.xml
 Sitemap: https://socialindia.web.app/video-sitemap.xml

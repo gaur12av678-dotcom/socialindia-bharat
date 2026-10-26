@@ -3,7 +3,7 @@
         xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
   <url>
     <loc>https://socialindia.web.app/watch/sample-short-1</loc>
-    <lastmod>2026-10-20</lastmod>
+    <lastmod>2026-10-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <video:video>
@@ -19,7 +19,7 @@
   </url>
   <url>
     <loc>https://socialindia.web.app/watch/sample-short-2</loc>
-    <lastmod>2026-10-20</lastmod>
+    <lastmod>2026-10-26</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
     <video:video>

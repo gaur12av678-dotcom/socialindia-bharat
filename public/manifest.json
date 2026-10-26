@@ -10,6 +10,11 @@
   "theme_color": "#2563eb",
   "icons": [
     {
+      "src": "/favicon-48x48.png",
+      "sizes": "48x48",
+      "type": "image/png"
+    },
+    {
       "src": "/favicon.ico",
       "sizes": "16x16 32x32 48x48",
       "type": "image/x-icon"
