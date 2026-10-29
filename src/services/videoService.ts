@@ -87,10 +87,10 @@ const CACHE_TTL_MS = 60000; // 60 seconds memory cache
 function getPersistedVideos(): Video[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem('si_cached_public_videos');
+    const raw = sessionStorage.getItem('si_cached_public_videos') || localStorage.getItem('si_cached_public_videos');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         return parsed.filter((v: any) => v && typeof v.videoId === 'string' && !v.videoId.startsWith('sample-'));
       }
     }
@@ -102,7 +102,9 @@ function savePersistedVideos(videos: Video[]) {
   if (typeof window === 'undefined' || !videos || videos.length === 0) return;
   try {
     const slice = videos.slice(0, 60);
-    localStorage.setItem('si_cached_public_videos', JSON.stringify(slice));
+    const serialized = JSON.stringify(slice);
+    sessionStorage.setItem('si_cached_public_videos', serialized);
+    localStorage.setItem('si_cached_public_videos', serialized);
   } catch (_) {}
 }
 
@@ -753,7 +755,7 @@ export const videoService = {
   },
 
   // Get public videos with instant memory cache, persistent disk storage & query deduplication
-  async getVideos(filters?: { category?: string; creatorId?: string; isShort?: boolean }): Promise<Video[]> {
+  async getVideos(filters?: { category?: string; creatorId?: string; isShort?: boolean; limit?: number }): Promise<Video[]> {
     const cacheKey = `${filters?.category || 'All'}_${filters?.creatorId || 'all'}_${filters?.isShort !== undefined ? filters.isShort : 'all'}`;
     const cached = memoryVideoCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -777,6 +779,10 @@ export const videoService = {
       if (filters?.isShort !== undefined) {
         q = query(q, where('isShort', '==', filters.isShort));
       }
+
+      // Add sensible limit to prevent downloading hundreds of items upfront
+      const queryLimit = filters?.limit || (filters?.isShort ? 25 : 60);
+      q = query(q, limit(queryLimit));
 
       try {
         const snap = await getDocs(q);

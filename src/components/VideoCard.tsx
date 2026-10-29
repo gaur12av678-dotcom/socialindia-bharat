@@ -37,7 +37,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   const [isVerified, setIsVerified] = useState<boolean>(() => {
     if (!video.creatorId) return false;
     const cached = creatorVerificationCache[video.creatorId];
-    return cached ? cached.verified : false;
+    if (cached) return cached.verified;
+    const profile = userService.getCachedUserProfile(video.creatorId);
+    if (profile) return profile.role === 'creator' || profile.role === 'admin';
+    return false;
   });
   const [showMenu, setShowMenu] = useState(false);
 
@@ -67,20 +70,37 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
       return;
     }
 
-    userService.getUserProfile(video.creatorId).then(profile => {
-      const verified = profile?.role === 'creator' || profile?.role === 'admin';
+    // Check memory profile cache before initiating network request
+    const existing = userService.getCachedUserProfile(video.creatorId);
+    if (existing) {
+      const verified = existing.role === 'creator' || existing.role === 'admin';
       creatorVerificationCache[video.creatorId] = {
         verified,
-        expiry: Date.now() + 5 * 60 * 1000 // 5 minutes TTL
+        expiry: Date.now() + 10 * 60 * 1000
       };
       setIsVerified(verified);
-    }).catch(() => {
-      creatorVerificationCache[video.creatorId] = {
-        verified: false,
-        expiry: Date.now() + 5 * 60 * 1000
-      };
-      setIsVerified(false);
-    });
+      return;
+    }
+
+    // Defer network fetch by 1s so initial feed rendering & image downloads are never blocked
+    const timer = setTimeout(() => {
+      userService.getUserProfile(video.creatorId).then(profile => {
+        const verified = profile?.role === 'creator' || profile?.role === 'admin';
+        creatorVerificationCache[video.creatorId] = {
+          verified,
+          expiry: Date.now() + 10 * 60 * 1000
+        };
+        setIsVerified(verified);
+      }).catch(() => {
+        creatorVerificationCache[video.creatorId] = {
+          verified: false,
+          expiry: Date.now() + 10 * 60 * 1000
+        };
+        setIsVerified(false);
+      });
+    }, 1000);
+
+    return () => clearTimeout(timer);
   }, [video.creatorId, video.creatorDisplayName, video.creatorPhotoURL, video.creatorUsername]);
 
   const handleCardClick = () => {

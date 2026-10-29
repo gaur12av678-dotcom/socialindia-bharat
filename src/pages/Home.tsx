@@ -52,12 +52,19 @@ let persistentHomeCategory = 'All';
 let persistentHomeScrollY = 0;
 let hasLoadedHomeOnce = false;
 
+const INITIAL_BATCH_COUNT = 12;
+const BATCH_INCREMENT = 12;
+
 export const Home: React.FC = () => {
   const { currentUser, addToast } = useApp();
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || persistentHomeCategory || 'All');
   
+  // Incremental batch rendering to prevent UI lag and avoid rendering 50+ videos upfront
+  const [visibleCount, setVisibleCount] = useState<number>(INITIAL_BATCH_COUNT);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
   // Master in-memory video repository for instant 0ms filtering
   const initialAllCached = videoService.getCachedVideos({ isShort: false });
   const masterVideosRef = useRef<Video[]>(
@@ -164,6 +171,7 @@ export const Home: React.FC = () => {
     if (selectedCategory === cat) return;
     setSelectedCategory(cat);
     persistentHomeCategory = cat;
+    setVisibleCount(INITIAL_BATCH_COUNT);
 
     // Scroll to top of main container or window
     const mainEl = document.querySelector('main');
@@ -187,9 +195,10 @@ export const Home: React.FC = () => {
       setLoading(true);
     }
     try {
-      // Always fetch all public videos for master repository so all categories filter in 0ms
+      // Fetch public videos with limit 60 for ultra-fast response
       const data = await videoService.getVideos({
-        isShort: false
+        isShort: false,
+        limit: 60
       });
       
       masterVideosRef.current = data;
@@ -241,6 +250,7 @@ export const Home: React.FC = () => {
   const handleRefreshFeed = async (_showToast = false) => {
     if (isRefreshing) return;
     setIsRefreshing(true);
+    setVisibleCount(INITIAL_BATCH_COUNT);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     persistentHomeScrollY = 0;
     try {
@@ -267,6 +277,7 @@ export const Home: React.FC = () => {
   // Synchronize category change instantly (0ms) without refetching from network
   useEffect(() => {
     persistentHomeCategory = selectedCategory;
+    setVisibleCount(INITIAL_BATCH_COUNT);
 
     // 0ms instant filter from in-memory videos
     if (masterVideosRef.current.length > 0) {
@@ -288,6 +299,55 @@ export const Home: React.FC = () => {
       fetchHomeShorts();
     }
   }, [selectedCategory]);
+
+  // Failsafe: dismiss skeleton quickly if videos or cached data exist (<700ms)
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => {
+      if (masterVideosRef.current.length > 0 || videos.length > 0) {
+        setLoading(false);
+      }
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [loading, videos.length]);
+
+  // Infinite Scroll IntersectionObserver & Scroll Listener:
+  // Dynamically increments visibleCount as user scrolls near bottom
+  useEffect(() => {
+    if (visibleCount >= videos.length) return;
+
+    let observer: IntersectionObserver | null = null;
+    const currentSentinel = sentinelRef.current;
+
+    if (typeof IntersectionObserver !== 'undefined' && currentSentinel) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) {
+            setVisibleCount((prev) => Math.min(prev + BATCH_INCREMENT, videos.length));
+          }
+        },
+        { rootMargin: '600px', threshold: 0.05 }
+      );
+      observer.observe(currentSentinel);
+    }
+
+    const onScroll = () => {
+      const scrollY = window.scrollY;
+      const windowHeight = window.innerHeight;
+      const docHeight = document.documentElement.scrollHeight;
+      if (scrollY + windowHeight >= docHeight - 750) {
+        setVisibleCount((prev) => Math.min(prev + BATCH_INCREMENT, videos.length));
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    return () => {
+      if (observer && currentSentinel) {
+        observer.unobserve(currentSentinel);
+      }
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, [visibleCount, videos.length]);
 
   // Touch handlers for Mobile Pull-to-Refresh
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -325,9 +385,12 @@ export const Home: React.FC = () => {
     setIsPulling(false);
   };
 
-  // For the 'All' feed, split videos so the top 4 (Row 1) display above Shorts, matching reference design!
-  const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 4) : videos;
-  const remainingVideos = selectedCategory === 'All' ? videos.slice(4) : [];
+  // YouTube-style Incremental Batch Rendering:
+  // For 'All': Top 4 in Row 1 above Shorts, then remainingVideos slices up to visibleCount (starts at 12 -> 8 remaining)
+  // For specific category: slices up to visibleCount (starts with 12)
+  const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 4) : videos.slice(0, visibleCount);
+  const remainingVideos = selectedCategory === 'All' ? videos.slice(4, visibleCount) : [];
+  const hasMoreVideos = visibleCount < videos.length;
 
   return (
     <div 
@@ -563,6 +626,18 @@ export const Home: React.FC = () => {
             emptyHeading={isHindi ? 'कोई और वीडियो नहीं' : 'No more videos'}
             emptyMessage={isHindi ? 'अधिक वीडियो प्रकाशित होने पर यहां दिखाई देंगे।' : 'More videos will appear here.'}
           />
+        </div>
+      )}
+
+      {/* Infinite Scroll Sentinel element & Smooth Bottom Loading Indicator */}
+      <div ref={sentinelRef} className="h-6 w-full pointer-events-none" />
+
+      {hasMoreVideos && (
+        <div className="flex flex-col items-center justify-center py-6 gap-2 select-none">
+          <div className="w-6 h-6 border-2 border-slate-300 dark:border-slate-700 border-t-[#2563eb] dark:border-t-[#3b82f6] rounded-full animate-spin" />
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            {isHindi ? 'अधिक वीडियो लोड हो रहे हैं...' : 'Loading more videos...'}
+          </span>
         </div>
       )}
 
