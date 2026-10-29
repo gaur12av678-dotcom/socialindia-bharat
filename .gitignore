@@ -7,3 +7,6 @@ coverage/
 .env*
 !.env.example
 *serviceAccount*.json
+sa_key.json
+firebase.json
+.firebaserc

@@ -43,12 +43,27 @@ jobs:
           echo "Build completed successfully. Found $(find dist -type f | wc -l) files in dist/."
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools
+        run: npm install -g firebase-tools@13.30.0
 
       - name: Generate Firebase Hosting Config
         run: |
-          PROJECT_ID=$(node -e "try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log(sa.project_id || 'socialindia-cf742'); } catch(e) { console.log('socialindia-cf742'); }")
-          echo "{\"projects\":{\"default\":\"$PROJECT_ID\"}}" > .firebaserc
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT secret is empty or not set in GitHub Secrets!"
+          fi
+
+          PROJECT_ID=$(node -e "
+            try {
+              const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+              if (sa.project_id) { console.log(sa.project_id); process.exit(0); }
+            } catch(e) {}
+            try {
+              const cfg = require('./firebase-applet-config.json');
+              if (cfg.projectId) { console.log(cfg.projectId); process.exit(0); }
+            } catch(e) {}
+            console.log('socialindia-cf742');
+          ")
+          echo "Selected Project ID: $PROJECT_ID"
+          echo "{\"projects\":{\"default\":\"$PROJECT_ID\"},\"targets\":{\"$PROJECT_ID\":{\"hosting\":{\"socialindia\":[\"socialindia\"]}}}}" > .firebaserc
           echo '{
             "hosting": {
               "site": "socialindia",
@@ -88,13 +103,31 @@ jobs:
 
       - name: Deploy to Firebase Hosting
         run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT secret is missing or empty in GitHub Secrets!"
+            echo "Please ensure the FIREBASE_SERVICE_ACCOUNT secret is populated in your repository settings (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > sa_key.json
           export GOOGLE_APPLICATION_CREDENTIALS=sa_key.json
-          PROJECT_ID=$(node -e "try { const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); console.log(sa.project_id || 'socialindia-cf742'); } catch(e) { console.log('socialindia-cf742'); }")
+
+          PROJECT_ID=$(node -e "
+            try {
+              const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+              if (sa.project_id) { console.log(sa.project_id); process.exit(0); }
+            } catch(e) {}
+            try {
+              const cfg = require('./firebase-applet-config.json');
+              if (cfg.projectId) { console.log(cfg.projectId); process.exit(0); }
+            } catch(e) {}
+            console.log('socialindia-cf742');
+          ")
           echo "Deploying to Firebase project: $PROJECT_ID (target site: socialindia)..."
           
-          # Deploy exclusively to site 'socialindia' (https://socialindia.web.app)
-          firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive
+          # Map target and deploy exclusively to site 'socialindia'
+          firebase target:apply hosting socialindia socialindia --project "$PROJECT_ID" || true
+          firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
           
           rm -f sa_key.json
         env:
