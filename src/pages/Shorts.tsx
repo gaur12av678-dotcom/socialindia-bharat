@@ -49,7 +49,6 @@ import { paidVideoService } from '../services/paidVideoService';
 import { SoundLibraryModal } from '../components/SoundLibraryModal';
 import { SoundDetailsModal } from '../components/SoundDetailsModal';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
-import { DEFAULT_CURATED_SHORTS } from './Home';
 
 declare global {
   interface Window {
@@ -540,17 +539,10 @@ export const Shorts: React.FC = () => {
     setLoading(true);
     try {
       const data = await videoService.getVideos({ isShort: true });
-      let allShorts = data;
-      if (allShorts.length < 5) {
-        const curated = DEFAULT_CURATED_SHORTS as Video[];
-        const existingIds = new Set(data.map(v => v.videoId));
-        const filteredCurated = curated.filter(c => !existingIds.has(c.videoId));
-        allShorts = [...data, ...filteredCurated];
-      }
 
-      if (allShorts.length > 0) {
+      if (data.length > 0) {
         // AI Recommendation Ranking & Anti-Repeat Filter
-        const ranked = recommendationService.rankAndFilterVideos(allShorts, {
+        const ranked = recommendationService.rankAndFilterVideos(data, {
           isShortsOnly: true,
           userUid: currentUser?.uid
         });
@@ -562,19 +554,13 @@ export const Shorts: React.FC = () => {
             setShorts(ranked);
             setCurrentIndex(idx);
           } else {
-            const matchedCurated = (DEFAULT_CURATED_SHORTS as Video[]).find(s => s.videoId === targetShortId);
-            if (matchedCurated) {
-              setShorts([matchedCurated, ...ranked]);
+            const singleShort = await videoService.getVideo(targetShortId);
+            if (singleShort && singleShort.isShort) {
+              setShorts([singleShort, ...ranked.filter(s => s.videoId !== singleShort.videoId)]);
               setCurrentIndex(0);
             } else {
-              const singleShort = await videoService.getVideo(targetShortId);
-              if (singleShort && singleShort.isShort) {
-                setShorts([singleShort, ...ranked]);
-                setCurrentIndex(0);
-              } else {
-                setShorts(ranked);
-                setCurrentIndex(0);
-              }
+              setShorts(ranked);
+              setCurrentIndex(0);
             }
           }
         } else {
@@ -582,12 +568,12 @@ export const Shorts: React.FC = () => {
           setCurrentIndex(0);
         }
       } else {
-        setShorts(DEFAULT_CURATED_SHORTS as Video[]);
+        setShorts([]);
         setCurrentIndex(0);
       }
     } catch (err) {
       console.error(err);
-      setShorts(DEFAULT_CURATED_SHORTS as Video[]);
+      setShorts([]);
       setCurrentIndex(0);
     } finally {
       setLoading(false);

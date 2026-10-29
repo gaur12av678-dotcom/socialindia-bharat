@@ -89,7 +89,10 @@ function getPersistedVideos(): Video[] {
   try {
     const raw = localStorage.getItem('si_cached_public_videos');
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((v: any) => v && typeof v.videoId === 'string' && !v.videoId.startsWith('sample-'));
+      }
     }
   } catch (_) {}
   return [];

@@ -31,74 +31,6 @@ export const categoryHindiMap: Record<string, string> = {
   'Comedy': 'कॉमेडी'
 };
 
-// Fallback curated Shorts to ensure all 5 vertical slots are always populated beautifully with working Cloud CDN streams
-export const DEFAULT_CURATED_SHORTS: Partial<Video>[] = [
-  {
-    videoId: 'sample-short-1',
-    title: 'Vande Bharat or Orange Snake 😮 A stunning video of Vande Bharat Express',
-    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1790959177/socialindia_videos/snhqik26jkpwje0hbbrh.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=600&auto=format&fit=crop&q=80',
-    duration: 48,
-    viewsCount: 14200,
-    isShort: true,
-    creatorId: 'c_nature_india',
-    creatorDisplayName: 'Nature Explorer',
-    creatorUsername: 'nature_india',
-    creatorPhotoURL: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200&auto=format&fit=crop&q=80'
-  },
-  {
-    videoId: 'sample-short-2',
-    title: 'Co-pilot Smit Machhar’s courage saved 180+ lives during cockpit emergency ✈️',
-    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1791199131/socialindia_videos/b9toykpxtfctrgewy3je.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
-    duration: 32,
-    viewsCount: 28900,
-    isShort: true,
-    creatorId: 'c_gaurav_saini',
-    creatorDisplayName: 'Gaurav Saini',
-    creatorUsername: 'gaurav_saini',
-    creatorPhotoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80'
-  },
-  {
-    videoId: 'sample-short-3',
-    title: 'Minecraft Horror Is Very Creepy... #shorts 🎮',
-    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1791129740/socialindia_videos/n4ulzx1ar4xrwilc8x4g.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600&auto=format&fit=crop&q=80',
-    duration: 59,
-    viewsCount: 56300,
-    isShort: true,
-    creatorId: 'c_progamer',
-    creatorDisplayName: 'Pro Gamer India',
-    creatorUsername: 'progamer',
-    creatorPhotoURL: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=200&auto=format&fit=crop&q=80'
-  },
-  {
-    videoId: 'sample-short-4',
-    title: 'What a reply 🥶🔥 SocialIndia Trending Shorts',
-    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1791729664/socialindia_videos/kstfqksi9zckb7hdw78d.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1587474260584-136574528ed5?w=600&auto=format&fit=crop&q=80',
-    duration: 41,
-    viewsCount: 39100,
-    isShort: true,
-    creatorId: 'c_delhivlogs',
-    creatorDisplayName: 'Delhi Vlogs',
-    creatorUsername: 'delhivlogs',
-    creatorPhotoURL: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80'
-  },
-  {
-    videoId: 'sample-short-5',
-    title: 'AVOID these places — unless you’re ready for an unforgettable India! #shorts 📱',
-    videoUrl: 'https://res.cloudinary.com/wgk5kuxe/video/upload/v1791612442/socialindia_videos/skktxp6ft9gkbu1rzctn.mp4',
-    thumbnailUrl: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80',
-    duration: 37,
-    viewsCount: 47800,
-    isShort: true,
-    creatorId: 'c_techguru',
-    creatorDisplayName: 'Tech Guru India',
-    creatorUsername: 'techguru',
-    creatorPhotoURL: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80'
-  }
-];
 
 // Persistent in-memory Home feed state (preserves loaded videos, shorts, category, and scroll position between route transitions like YouTube)
 let persistentHomeVideos: Video[] | null = null;
@@ -137,21 +69,11 @@ export const Home: React.FC = () => {
     if (persistentHomeShorts && persistentHomeShorts.length > 0) {
       return persistentHomeShorts;
     }
-    if (initialCachedShorts.length > 0) {
-      const ranked = recommendationService.rankAndFilterVideos(initialCachedShorts, {
-        isShortsOnly: true,
-        userUid: currentUser?.uid
-      });
-      if (ranked.length < 5) {
-        return [...ranked, ...DEFAULT_CURATED_SHORTS.slice(ranked.length) as Video[]];
-      }
-      return ranked;
-    }
-    return DEFAULT_CURATED_SHORTS as Video[];
+    return [];
   });
 
-  const [loading, setLoading] = useState(() => !persistentHomeVideos && initialCachedVideos.length === 0);
-  const [loadingShorts, setLoadingShorts] = useState(false);
+  const [loading, setLoading] = useState(() => !(persistentHomeVideos && persistentHomeVideos.length > 0));
+  const [loadingShorts, setLoadingShorts] = useState(() => !(persistentHomeShorts && persistentHomeShorts.length > 0));
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
   const [adDismissed, setAdDismissed] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -221,7 +143,10 @@ export const Home: React.FC = () => {
     }
   };
 
-  const fetchHomeShorts = async () => {
+  const fetchHomeShorts = async (forceFresh = false) => {
+    if (shorts.length === 0 || forceFresh) {
+      setLoadingShorts(true);
+    }
     try {
       const shortsData = await videoService.getVideos({
         isShort: true
@@ -230,20 +155,13 @@ export const Home: React.FC = () => {
         isShortsOnly: true,
         userUid: currentUser?.uid
       });
-
-      if (rankedShorts.length < 5) {
-        const merged = [...rankedShorts, ...DEFAULT_CURATED_SHORTS.slice(rankedShorts.length) as Video[]];
-        setShorts(merged);
-        persistentHomeShorts = merged;
-      } else {
-        setShorts(rankedShorts);
-        persistentHomeShorts = rankedShorts;
-      }
+      setShorts(rankedShorts);
+      persistentHomeShorts = rankedShorts;
     } catch (err) {
       console.error(err);
       if (shorts.length === 0) {
-        setShorts(DEFAULT_CURATED_SHORTS as Video[]);
-        persistentHomeShorts = DEFAULT_CURATED_SHORTS as Video[];
+        setShorts([]);
+        persistentHomeShorts = [];
       }
     } finally {
       setLoadingShorts(false);
@@ -251,7 +169,7 @@ export const Home: React.FC = () => {
   };
 
   // YouTube-style feed refresh handler
-  const handleRefreshFeed = async (showToast = false) => {
+  const handleRefreshFeed = async (_showToast = false) => {
     if (isRefreshing) return;
     setIsRefreshing(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -259,7 +177,7 @@ export const Home: React.FC = () => {
     try {
       await Promise.allSettled([
         fetchHomeVideos(true),
-        fetchHomeShorts()
+        fetchHomeShorts(true)
       ]);
     } finally {
       setIsRefreshing(false);
@@ -387,8 +305,8 @@ export const Home: React.FC = () => {
         />
       </div>
 
-      {/* 2. Shorts Section (Positioned right after Row 1 - Exact Capture.PNG placement!) */}
-      {selectedCategory === 'All' && (
+      {/* 2. Shorts Section (Only shown if loading or if real shorts exist) */}
+      {selectedCategory === 'All' && (loadingShorts || shorts.length > 0) && (
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -412,7 +330,15 @@ export const Home: React.FC = () => {
           {loadingShorts ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="aspect-[9/16] rounded-2xl bg-slate-100 dark:bg-[#1f1f23] animate-pulse" />
+                <div key={i} className="flex flex-col space-y-2 animate-pulse">
+                  <div className="aspect-[9/16] w-full rounded-2xl bg-[#dbe2ee] dark:bg-slate-800 relative overflow-hidden shadow-xs">
+                    <div className="absolute bottom-2.5 right-2.5 h-4 w-8 bg-[#bcc8dc] dark:bg-slate-700 rounded-md" />
+                  </div>
+                  <div className="space-y-1.5 px-0.5 pt-1">
+                    <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[85%]" />
+                    <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[50%]" />
+                  </div>
+                </div>
               ))}
             </div>
           ) : (
