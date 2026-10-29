@@ -1,18 +1,10 @@
 import { Video } from '../types';
 
 const WATCHED_STORAGE_KEY = 'socialindia_watched_ids';
-
-// ---------------------------------------------------------------------------
-// FAIR & NEUTRAL RECOMMENDATION ENGINE (YouTube-style)
-// 1. Engagement RATE scoring -> small creators can compete
-// 2. Time-decay freshness -> new videos get a fair chance
-// 3. Per-creator diversity cap -> no single channel hogs the feed
-// 4. 12% exploration shuffle -> fresh content surfaces regularly
-// 5. Watched videos sink to bottom -> anti-repeat
-// ---------------------------------------------------------------------------
+let lastHeroVideoId = '';
 
 export const recommendationService = {
-  recordVideoWatch(videoId: string, uid?: string) {
+  recordVideoWatch(videoId: string, _uid?: string) {
     if (!videoId) return;
     try {
       const existingStr = localStorage.getItem(WATCHED_STORAGE_KEY);
@@ -36,73 +28,70 @@ export const recommendationService = {
     }
   },
 
-  calculateFairScore(video: Video): number {
-    const views = Math.max(video.viewsCount || 0, 1);
-    const likes = video.likesCount || 0;
-    const comments = video.commentsCount || 0;
-    const shares = video.sharesCount || 0;
-
-    const likeRate = likes / views;
-    const commentRate = comments / views;
-    const shareRate = shares / views;
-    const engagementRate =
-      Math.min(likeRate * 8, 1) * 0.5 +
-      Math.min(commentRate * 20, 1) * 0.3 +
-      Math.min(shareRate * 30, 1) * 0.2;
-
-    // Bayesian confidence: low-view videos pulled toward neutral
-    const confidence = views / (views + 50);
-    const adjustedRate = 0.5 * (1 - confidence) + engagementRate * confidence;
-
-    const popularityBoost = Math.min(Math.log10(views + 1) / 4, 0.25);
-
-    const ageHours = Math.max(
-      (Date.now() - new Date(video.createdAt || Date.now()).getTime()) / 36e5, 0
-    );
-    const freshness = Math.exp(-ageHours / 168) * 0.4;
-
-    return adjustedRate * 2.2 + popularityBoost + freshness;
+  /**
+   * Shuffles an array using Fisher-Yates algorithm
+   */
+  shuffleArray<T>(array: T[]): T[] {
+    const copy = [...array];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
   },
 
+  /**
+   * TOP-20 VIEWS ROTATING RECOMMENDATION ENGINE
+   * 1. Filters only the videos with highest views (viewsCount descending).
+   * 2. Takes strictly the top 20 highest-viewed videos ("top ki 20 ko hi gumneh dena").
+   * 3. Dynamically changes/rotates their positions on each refresh ("positing bhi badlana bar bar").
+   * 4. Ensures the exact same video doesn't appear at position #0 repeatedly ("same bar bar mat dikhna").
+   * 5. Keeps remaining videos (ranked 21+) after the top 20.
+   */
   rankAndFilterVideos(videos: Video[], options?: { isShortsOnly?: boolean; userUid?: string }): Video[] {
     if (!videos || videos.length === 0) return [];
 
-    const watchedSet = this.getWatchedVideoIds();
     let pool = [...videos];
-    if (options?.isShortsOnly) pool = pool.filter(v => v.isShort);
-
-    const unwatched: Video[] = [];
-    const watched: Video[] = [];
-    pool.forEach(v => (watchedSet.has(v.videoId) ? watched : unwatched).push(v));
-
-    unwatched.sort((a, b) => this.calculateFairScore(b) - this.calculateFairScore(a));
-    watched.sort((a, b) => this.calculateFairScore(b) - this.calculateFairScore(a));
-
-    // 12% exploration shuffle
-    const exploreCount = Math.floor(unwatched.length * 0.12);
-    if (exploreCount > 1) {
-      const explore = unwatched.splice(-exploreCount);
-      for (let i = explore.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [explore[i], explore[j]] = [explore[j], explore[i]];
-      }
-      const mid = Math.floor(unwatched.length / 2);
-      unwatched.splice(mid, 0, ...explore);
+    if (options?.isShortsOnly) {
+      pool = pool.filter(v => v.isShort);
     }
 
-    // Per-creator cap: max 2 videos per creator in top 20
-    const result: Video[] = [];
-    const creatorCount: Record<string, number> = {};
-    const overflow: Video[] = [];
-    for (const v of unwatched) {
-      const c = v.creatorId || v.creatorUsername || 'unknown';
-      if ((creatorCount[c] || 0) < 2 || result.length >= 20) {
-        creatorCount[c] = (creatorCount[c] || 0) + 1;
-        result.push(v);
-      } else {
-        overflow.push(v);
+    if (pool.length === 0) return [];
+
+    // 1. Sort strictly by highest views (highest views first, likesCount as tiebreaker)
+    pool.sort((a, b) => {
+      const viewsA = Number(a.viewsCount) || 0;
+      const viewsB = Number(b.viewsCount) || 0;
+      if (viewsB !== viewsA) {
+        return viewsB - viewsA;
       }
+      const likesA = Number(a.likesCount) || 0;
+      const likesB = Number(b.likesCount) || 0;
+      if (likesB !== likesA) {
+        return likesB - likesA;
+      }
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
+
+    // 2. Select strictly the TOP 20 highest-viewed videos
+    const TOP_LIMIT = 20;
+    const top20Pool = pool.slice(0, TOP_LIMIT);
+    const restPool = pool.slice(TOP_LIMIT);
+
+    // 3. Rotate & change positions among these top 20 so they are not static
+    const rotatedTop20 = this.shuffleArray(top20Pool);
+
+    // 4. Anti-repeat hero check: if first video was the exact hero video in the previous view, swap with another item
+    if (rotatedTop20.length > 1 && rotatedTop20[0].videoId === lastHeroVideoId) {
+      const swapIdx = Math.floor(Math.random() * (rotatedTop20.length - 1)) + 1;
+      [rotatedTop20[0], rotatedTop20[swapIdx]] = [rotatedTop20[swapIdx], rotatedTop20[0]];
     }
-    return [...result, ...overflow, ...watched];
+
+    if (rotatedTop20[0]?.videoId) {
+      lastHeroVideoId = rotatedTop20[0].videoId;
+    }
+
+    // 5. Return rotated top 20 first, followed by the rest
+    return [...rotatedTop20, ...restPool];
   }
 };

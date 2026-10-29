@@ -78,7 +78,10 @@ export const Home: React.FC = () => {
 
   const [videos, setVideos] = useState<Video[]>(() => {
     if (masterVideosRef.current.length > 0) {
-      return getFilteredVideosForCategory(selectedCategory, masterVideosRef.current);
+      return recommendationService.rankAndFilterVideos(
+        getFilteredVideosForCategory(selectedCategory, masterVideosRef.current),
+        { userUid: currentUser?.uid }
+      );
     }
     if (initialAllCached.length > 0) {
       return recommendationService.rankAndFilterVideos(
