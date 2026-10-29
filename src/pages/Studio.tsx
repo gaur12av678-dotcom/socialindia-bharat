@@ -724,56 +724,7 @@ export const CreatorStudio: React.FC = () => {
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto pb-20">
       
-      {/* 1. CREATOR STUDIO HERO BANNER (Matches reference mockup with Ashoka Chakra & Indian Monuments) */}
-      <div 
-        style={{
-          background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 45%, #f3e8ff 75%, #ffffff 100%)'
-        }}
-        className="relative overflow-hidden rounded-3xl border border-blue-200/90 dark:border-slate-800 shadow-md p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 dark:!bg-gradient-to-r dark:from-[#0b1120] dark:via-[#17153a] dark:to-[#1e1b4b]"
-      >
-        {/* Left Side: Ashoka Chakra Studio Logo, Heading, Subtitle */}
-        <div className="flex items-center gap-4 sm:gap-5 z-10 max-w-xl">
-          <AshokaChakraLogo size="lg" />
 
-          <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-[#0f172a] dark:text-white tracking-tight flex items-center gap-2">
-              <span>Creator</span>{' '}
-              <span 
-                style={{
-                  background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 55%, #9333ea 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent'
-                }}
-              >
-                Studio
-              </span>
-            </h1>
-            <p className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300">
-              Analyze &nbsp;•&nbsp; Engage &nbsp;•&nbsp; Grow
-            </p>
-          </div>
-        </div>
-
-        {/* Top Right: Glass Status Badge */}
-        <div className="absolute top-4 sm:top-6 right-4 sm:right-6 z-20 px-3.5 sm:px-4 py-1.5 sm:py-2 bg-white/95 dark:bg-[#1e293b]/95 backdrop-blur-md border border-blue-100/90 dark:border-slate-700/80 rounded-full shadow-xs flex items-center gap-2 text-xs font-bold text-[#1d4ed8] dark:text-[#60a5fa]">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-extrabold text-slate-800 dark:text-slate-200">Live Channel</span>
-          <span className="text-[10px] text-slate-400 font-semibold hidden sm:inline">• ID: #SI-94821</span>
-        </div>
-
-        {/* Right Side: Indian Monuments Skyline (Ashoka Lion Capital, Ashoka Chakra, India Gate, Taj Mahal, Qutub Minar & Tricolor Ribbon) */}
-        <div className="absolute inset-y-0 right-0 w-full sm:w-4/5 md:w-3/4 lg:w-2/3 pointer-events-none overflow-hidden flex items-center justify-end">
-          <img 
-            src={creatorStudioHeroImg} 
-            alt="Creator Studio Indian Heritage Skyline" 
-            className="h-full w-full object-cover object-right opacity-95 dark:opacity-85"
-            style={{
-              maskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.2) 15%, black 45%)',
-              WebkitMaskImage: 'linear-gradient(to right, transparent 0%, rgba(0,0,0,0.2) 15%, black 45%)'
-            }}
-          />
-        </div>
-      </div>
 
       {/* 2. MAIN CREATOR NAVIGATION TABS (5 TABS MATCHING EXACT SPECIFICATION) */}
       <div className="flex items-center gap-2.5 sm:gap-3 overflow-x-auto pb-1 scrollbar-none">
@@ -1062,100 +1013,14 @@ export const CreatorStudio: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Bottom Creator CTA Banner: "Your content matters" */}
-                <div 
-                  style={{
-                    background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 50%, #fdf4ff 100%)'
-                  }}
-                  className="p-5 sm:p-6 rounded-3xl border border-blue-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative overflow-hidden dark:!bg-gradient-to-r dark:from-[#0b1120] dark:via-[#1e1b4b] dark:to-[#172554]"
-                >
-                  {/* Left: Target Icon & Text */}
-                  <div className="flex items-center gap-3.5 z-10">
-                    <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] flex items-center justify-center shrink-0 border border-blue-200 shadow-xs">
-                      <Target className="w-6 h-6 text-[#2563eb]" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm sm:text-base font-black text-[#0f172a] dark:text-white">
-                        Your content matters
-                      </h4>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                        Keep creating. Your audience is waiting!
-                      </p>
-                    </div>
-                  </div>
 
-                  {/* Right: Create New Video Button */}
-                  <button
-                    onClick={() => navigate('upload')}
-                    style={{
-                      background: 'linear-gradient(90deg, #2563eb 0%, #4f46e5 100%)'
-                    }}
-                    className="z-10 px-6 py-2.5 text-white font-extrabold text-xs sm:text-sm rounded-full shadow-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shrink-0"
-                  >
-                    <span>Create New Video</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-
-                  {/* Delicate Indian Monuments Skyline & Tricolor Ribbon in Background */}
-                  <div className="absolute right-0 bottom-0 top-0 w-3/5 pointer-events-none opacity-40 overflow-hidden flex items-end justify-end">
-                    <img 
-                      src={bottomBannerSkylineImg} 
-                      alt="" 
-                      className="h-full w-full object-cover object-right"
-                      style={{
-                        maskImage: 'linear-gradient(to right, transparent 0%, black 40%)',
-                        WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 40%)'
-                      }}
-                    />
-                  </div>
-                </div>
 
               </div>
 
               {/* Right Column (1 Col): Creator Mode, Your Channel, Top Content Ranking */}
               <div className="space-y-6">
                 
-                {/* 1. Creator Mode Card (Royal Blue to Deep Indigo Gradient matching reference mockup) */}
-                <div 
-                  style={{
-                    background: 'linear-gradient(135deg, #1e3a8a 0%, #312e81 50%, #4338ca 100%)'
-                  }}
-                  className="rounded-2xl p-5 text-white shadow-lg space-y-3 relative overflow-hidden border border-indigo-400/40"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 text-white">
-                        <Crown className="w-4 h-4 fill-white text-white" />
-                      </div>
-                      <span className="text-sm font-extrabold tracking-wide">Creator Mode</span>
-                    </div>
 
-                    {/* iOS-Style Toggle Switch */}
-                    <button
-                      onClick={() => setCreatorModeActive(!creatorModeActive)}
-                      className={`w-12 h-6.5 rounded-full p-0.5 transition-colors relative cursor-pointer ${
-                        creatorModeActive ? 'bg-[#3b82f6]' : 'bg-slate-600'
-                      }`}
-                    >
-                      <div 
-                        className={`w-5.5 h-5.5 rounded-full bg-white shadow-md transition-transform duration-200 ${
-                          creatorModeActive ? 'translate-x-5.5' : 'translate-x-0'
-                        }`} 
-                      />
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-indigo-100 font-medium">
-                    Unlock more features and grow faster.
-                  </p>
-                  
-                  <div 
-                    onClick={() => navigate('gopro')}
-                    className="pt-1 flex items-center justify-end text-xs font-bold text-indigo-200 hover:text-white cursor-pointer"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                  </div>
-                </div>
 
                 {/* 2. Your Channel Card */}
                 <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 shadow-xs space-y-4">
@@ -1823,23 +1688,6 @@ export const CreatorStudio: React.FC = () => {
           {activeTab === 'earn' && isUserMonetized && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
-              {/* Header Banner */}
-              <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 text-white p-6 sm:p-8 rounded-3xl shadow-lg relative overflow-hidden">
-                <div className="relative z-10 space-y-2 max-w-2xl">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black tracking-wider uppercase">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Channel Monetization Active</span>
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-                    Creator Revenue & Paid Videos Hub
-                  </h2>
-                  <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-medium">
-                    Set access prices on your videos. When viewers unlock your paid content, 100% of their payment is credited directly from their SocialIndia Wallet into your account balance.
-                  </p>
-                </div>
-                <div className="absolute -right-8 -bottom-8 w-44 h-44 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-              </div>
-
               {/* Earnings & Wallet Metrics 5-Column Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs space-y-2">
@@ -1883,13 +1731,6 @@ export const CreatorStudio: React.FC = () => {
                   <p className="text-2xl font-black text-slate-900 dark:text-white">
                     ₹{(currentUserProfile?.walletBalance || 0).toFixed(2)}
                   </p>
-                  <button
-                    onClick={() => navigate('settings')}
-                    className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <span>Manage & Withdraw</span>
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
                 </div>
 
                 <div className="bg-white dark:bg-[#111827] border border-amber-500/30 p-5 rounded-2xl shadow-xs space-y-2 relative overflow-hidden">
@@ -1903,13 +1744,6 @@ export const CreatorStudio: React.FC = () => {
                   <p className="text-2xl font-black text-slate-900 dark:text-white font-mono">
                     ₹{(currentUserProfile?.bonusBalance || 0).toFixed(2)}
                   </p>
-                  <button
-                    onClick={() => navigate('settings')}
-                    className="text-[10px] font-black text-amber-600 dark:text-amber-400 hover:underline cursor-pointer flex items-center gap-1"
-                  >
-                    <span>Transfer in Settings</span>
-                    <ChevronRight className="w-3 h-3" />
-                  </button>
                 </div>
               </div>
 

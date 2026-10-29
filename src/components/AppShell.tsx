@@ -598,13 +598,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     </button>
                   )}
 
-                  <button 
-                    onClick={() => setSidebarOpen(!sidebarOpen)}
-                    className="hidden md:flex min-w-10 min-h-10 p-2 hover:bg-[#f2f2f2] dark:hover:bg-[#272727] rounded-full transition-colors cursor-pointer text-[#0f0f0f] dark:text-[#f1f1f1] items-center justify-center"
-                    aria-label={isHindi ? 'साइडबार दिखाएं / छुपाएं' : 'Toggle sidebar'}
-                  >
-                    <Menu className="w-5 h-5" />
-                  </button>
                   
                   <SocialIndiaLogo 
                     onClick={handleHomeClick}
@@ -1395,62 +1388,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </button>
             </div>
 
-            <div className="h-px bg-slate-200/70 dark:bg-slate-800/70" />
-
-            {/* 3. Creator & Community Tools Section */}
-            <div className="space-y-1">
-              <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
-                {isHindi ? 'क्रिएटर टूल्स' : 'CREATOR TOOLS'}
-              </span>
-
-              {/* Creator Studio */}
-              <button
-                onClick={() => triggerProtectedAction(() => navigate('studio'))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
-                  route.path === 'studio'
-                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <LayoutDashboard className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'studio' ? 'text-[#2563eb]' : 'text-blue-500'}`} />
-                  <span className="truncate">{t('menu_creator_studio', 'Creator Studio')}</span>
-                </div>
-              </button>
-
-              {/* Upload Video Tool */}
-              <button
-                onClick={() => triggerProtectedAction(() => navigate('upload'))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
-                  route.path === 'upload'
-                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Upload className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'upload' ? 'text-indigo-600' : 'text-indigo-500'}`} />
-                  <span className="truncate">{isHindi ? 'वीडियो अपलोड करें' : 'Upload Video'}</span>
-                </div>
-              </button>
-
-
-              {/* Advertising Hub */}
-              <button
-                onClick={() => navigate('advertising')}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
-                  route.path === 'advertising' || route.path === 'ad-info'
-                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Megaphone className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'advertising' ? 'text-amber-500' : 'text-amber-500'}`} />
-                  <span className="truncate">{isHindi ? 'विज्ञापन केंद्र' : 'Advertise'}</span>
-                </div>
-              </button>
-
-              {/* Super Admin (If authorized) */}
-              {currentUserProfile?.role === 'admin' && (
+            {/* Super Admin (If authorized) */}
+            {currentUserProfile?.role === 'admin' && (
+              <div className="space-y-1">
                 <button
                   onClick={() => navigate('admin')}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer group ${
@@ -1464,32 +1404,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     <span className="truncate">{t('nav_admin', 'Admin Hub')}</span>
                   </div>
                 </button>
-              )}
-            </div>
-
-            {/* 4. Creator Callout Action Tile */}
-            <div className="p-3 bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-transparent border border-blue-500/20 dark:border-blue-500/30 rounded-2xl">
-              <div className="flex items-center gap-2.5">
-                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                  <Sparkles className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-black text-slate-900 dark:text-white truncate">
-                    {isHindi ? 'सोशलइंडिया क्रिएटर' : 'SocialIndia Creator'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'चैनल बढ़ाएं व कमाएं' : 'Publish & Monetize'}
-                  </p>
-                </div>
               </div>
-              <button
-                onClick={() => triggerProtectedAction(() => navigate('upload'))}
-                className="mt-2.5 w-full py-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-[11px] font-bold rounded-xl transition-all shadow-xs cursor-pointer active:scale-98 flex items-center justify-center gap-1.5"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>{isHindi ? 'नया वीडियो अपलोड' : 'Upload Video'}</span>
-              </button>
-            </div>
+            )}
 
             {/* 5. Minimalist Platform Footer */}
             <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 px-2 space-y-1.5 select-none">
