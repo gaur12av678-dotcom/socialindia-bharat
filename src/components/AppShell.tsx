@@ -148,6 +148,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     }
   }, [route.path]);
 
+  // Close sidebar on mobile navigation
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  }, [route.path, route.param]);
+
   // YouTube-style Home Click: If already on home, refresh feed and scroll smoothly to top
   const handleHomeClick = () => {
     if (route.path === 'home') {
@@ -582,23 +589,16 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             ) : (
               <>
                 {/* Left Section */}
-                <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
-                  {route.path !== 'home' && (
-                    <button 
-                      onClick={handleHomeClick}
-                      className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer flex items-center justify-center shrink-0 ${
-                        isShortsPage
-                          ? 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
-                          : 'bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] text-slate-900 dark:text-white'
-                      }`}
-                      aria-label={isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}
-                      title={isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}
-                    >
-                      <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
-                    </button>
-                  )}
-
-                  
+                <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setSidebarOpen(prev => !prev)}
+                    className="hidden md:flex p-2 -ml-1 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer items-center justify-center shrink-0 active:scale-95"
+                    aria-label={sidebarOpen ? (isHindi ? 'मेनू बंद करें' : 'Close Menu') : (isHindi ? 'मेनू खोलें' : 'Open Menu')}
+                    title={isHindi ? 'मेनू' : 'Menu'}
+                  >
+                    <Menu className="w-5 h-5 sm:w-5.5 sm:h-5.5 stroke-[2.2]" />
+                  </button>
                   <SocialIndiaLogo 
                     onClick={handleHomeClick}
                     forceWhiteText={false}
@@ -775,10 +775,10 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
                 {/* Right Controls */}
                 <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
-                  {/* Mobile Search Button */}
+                  {/* Mobile Search Button (hidden on web) */}
                   <button 
                     onClick={() => setMobileSearchOpen(true)}
-                    className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer flex items-center justify-center ${
+                    className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer flex md:hidden items-center justify-center ${
                       isShortsPage 
                         ? 'hover:bg-white/10 text-white' 
                         : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
@@ -1213,7 +1213,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       {/* MAIN LAYOUT */}
       <div className="flex flex-1 relative">
         
-        {/* SIDEBAR (Desktop) */}
+        {/* SIDEBAR (Desktop Only) */}
         <aside 
           className={`hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-60' : 'w-0 overflow-hidden border-r-0'}`}
         >
