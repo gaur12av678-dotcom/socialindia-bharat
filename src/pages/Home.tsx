@@ -7,7 +7,7 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { adService } from '../services/adService';
 import { AdCampaign } from '../types';
-import { Flame, Zap, ArrowRight, Play, RotateCw, ArrowDown } from 'lucide-react';
+import { Flame, Zap, ArrowRight, Play, RotateCw, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 
@@ -32,8 +32,21 @@ export const categoryHindiMap: Record<string, string> = {
 };
 
 
-// Persistent in-memory Home feed state (preserves loaded videos, shorts, category, and scroll position between route transitions like YouTube)
-let persistentHomeVideos: Video[] | null = null;
+// Helper to filter videos strictly by category in 0ms (sub-millisecond)
+// 'All' shows all videos. Specific category shows ONLY videos belonging to that exact category!
+export const getFilteredVideosForCategory = (category: string, sourceVideos: Video[]): Video[] => {
+  if (!category || category === 'All') return sourceVideos;
+  const target = category.toLowerCase().trim();
+  const targetHindi = categoryHindiMap[category] ? categoryHindiMap[category].toLowerCase().trim() : '';
+
+  return sourceVideos.filter(v => {
+    const vCat = (v.category || '').toLowerCase().trim();
+    return vCat === target || (Boolean(targetHindi) && vCat === targetHindi);
+  });
+};
+
+// Persistent in-memory Home feed state (preserves master videos, shorts, category, and scroll position like YouTube)
+let persistentMasterVideos: Video[] = [];
 let persistentHomeShorts: Video[] | null = null;
 let persistentHomeCategory = 'All';
 let persistentHomeScrollY = 0;
@@ -45,22 +58,26 @@ export const Home: React.FC = () => {
   const { t, isHindi } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || persistentHomeCategory || 'All');
   
-  // Instant synchronous cache resolution (0ms initial render)
-  const initialCategory = (route.searchParams?.category || selectedCategory) === 'All' ? undefined : (route.searchParams?.category || selectedCategory);
-  const initialCachedVideos = videoService.getCachedVideos({
-    category: initialCategory,
-    isShort: false
-  });
-  const initialCachedShorts = videoService.getCachedVideos({ isShort: true });
+  // Master in-memory video repository for instant 0ms filtering
+  const initialAllCached = videoService.getCachedVideos({ isShort: false });
+  const masterVideosRef = useRef<Video[]>(
+    persistentMasterVideos.length > 0 
+      ? persistentMasterVideos 
+      : (initialAllCached.length > 0 ? initialAllCached : [])
+  );
+  if (persistentMasterVideos.length === 0 && initialAllCached.length > 0) {
+    persistentMasterVideos = initialAllCached;
+  }
 
   const [videos, setVideos] = useState<Video[]>(() => {
-    if (persistentHomeVideos && persistentHomeVideos.length > 0) {
-      return persistentHomeVideos;
+    if (masterVideosRef.current.length > 0) {
+      return getFilteredVideosForCategory(selectedCategory, masterVideosRef.current);
     }
-    if (initialCachedVideos.length > 0) {
-      return recommendationService.rankAndFilterVideos(initialCachedVideos, {
-        userUid: currentUser?.uid
-      });
+    if (initialAllCached.length > 0) {
+      return recommendationService.rankAndFilterVideos(
+        getFilteredVideosForCategory(selectedCategory, initialAllCached), 
+        { userUid: currentUser?.uid }
+      );
     }
     return [];
   });
@@ -72,7 +89,7 @@ export const Home: React.FC = () => {
     return [];
   });
 
-  const [loading, setLoading] = useState(() => !(persistentHomeVideos && persistentHomeVideos.length > 0));
+  const [loading, setLoading] = useState(() => !(masterVideosRef.current.length > 0 || initialAllCached.length > 0));
   const [loadingShorts, setLoadingShorts] = useState(() => !(persistentHomeShorts && persistentHomeShorts.length > 0));
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
   const [adDismissed, setAdDismissed] = useState(false);
@@ -82,6 +99,33 @@ export const Home: React.FC = () => {
   const [pullDistance, setPullDistance] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const touchStartY = useRef(0);
+
+  // Category Filter Chips Horizontal Scroll State (YouTube Style)
+  const filterScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkFilterScroll = () => {
+    if (filterScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = filterScrollRef.current;
+      setCanScrollLeft(scrollLeft > 6);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 6);
+    }
+  };
+
+  const scrollFilter = (direction: 'left' | 'right') => {
+    if (filterScrollRef.current) {
+      const scrollAmount = direction === 'left' ? -260 : 260;
+      filterScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      setTimeout(checkFilterScroll, 220);
+    }
+  };
+
+  useEffect(() => {
+    checkFilterScroll();
+    window.addEventListener('resize', checkFilterScroll);
+    return () => window.removeEventListener('resize', checkFilterScroll);
+  }, []);
 
   // Sync category with URL query param if present
   useEffect(() => {
@@ -116,26 +160,51 @@ export const Home: React.FC = () => {
     adService.getActiveAds(5).then(setActiveAds).catch(console.warn);
   }, []);
 
-  const fetchHomeVideos = async (_forceFresh = false) => {
-    if (videos.length === 0) {
+  const handleCategorySelect = (cat: string) => {
+    if (selectedCategory === cat) return;
+    setSelectedCategory(cat);
+    persistentHomeCategory = cat;
+
+    // Scroll to top of main container or window
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' });
+
+    // 100% INSTANT 0ms filter from masterVideos in memory
+    const instantFiltered = getFilteredVideosForCategory(cat, masterVideosRef.current);
+    const ranked = recommendationService.rankAndFilterVideos(instantFiltered, {
+      userUid: currentUser?.uid
+    });
+    setVideos(ranked);
+    setLoading(false);
+  };
+
+  const fetchHomeVideos = async (forceFresh = false) => {
+    // Only show loading skeleton if no videos are loaded at all
+    if (masterVideosRef.current.length === 0 || forceFresh) {
       setLoading(true);
     }
     try {
+      // Always fetch all public videos for master repository so all categories filter in 0ms
       const data = await videoService.getVideos({
-        category: selectedCategory === 'All' ? undefined : selectedCategory,
         isShort: false
       });
       
-      const ranked = recommendationService.rankAndFilterVideos(data, {
+      masterVideosRef.current = data;
+      persistentMasterVideos = data;
+
+      const filtered = getFilteredVideosForCategory(selectedCategory, data);
+      const ranked = recommendationService.rankAndFilterVideos(filtered, {
         userUid: currentUser?.uid
       });
 
       setVideos(ranked);
-      persistentHomeVideos = ranked;
       hasLoadedHomeOnce = true;
     } catch (err) {
       console.error(err);
-      if (videos.length === 0) {
+      if (videos.length === 0 && masterVideosRef.current.length === 0) {
         addToast('Failed to load videos.', 'error');
       }
     } finally {
@@ -195,14 +264,29 @@ export const Home: React.FC = () => {
     return () => window.removeEventListener('socialindia:refresh-home', onHomeRefreshEvent);
   }, [selectedCategory]);
 
-  // Load feed on category change or first initial load only (Never re-fetches when navigating back to home!)
+  // Synchronize category change instantly (0ms) without refetching from network
   useEffect(() => {
-    if (hasLoadedHomeOnce && persistentHomeVideos && persistentHomeVideos.length > 0 && persistentHomeCategory === selectedCategory) {
-      return;
-    }
     persistentHomeCategory = selectedCategory;
-    fetchHomeVideos();
-    fetchHomeShorts();
+
+    // 0ms instant filter from in-memory videos
+    if (masterVideosRef.current.length > 0) {
+      const instant = getFilteredVideosForCategory(selectedCategory, masterVideosRef.current);
+      const ranked = recommendationService.rankAndFilterVideos(instant, {
+        userUid: currentUser?.uid
+      });
+      setVideos(ranked);
+      setLoading(false);
+    }
+
+    // Only initiate network fetch if master videos haven't loaded yet
+    if (!hasLoadedHomeOnce || masterVideosRef.current.length === 0) {
+      fetchHomeVideos();
+    }
+
+    // Only load shorts on initial load
+    if (!persistentHomeShorts || persistentHomeShorts.length === 0) {
+      fetchHomeShorts();
+    }
   }, [selectedCategory]);
 
   // Touch handlers for Mobile Pull-to-Refresh
@@ -250,7 +334,7 @@ export const Home: React.FC = () => {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className="p-4 md:p-6 space-y-7 max-w-7xl mx-auto relative"
+      className="relative min-h-screen"
     >
       {/* YouTube-style Pull to Refresh Spinner Indicator */}
       {(pullDistance > 0 || isRefreshing) && (
@@ -270,11 +354,73 @@ export const Home: React.FC = () => {
           </div>
         </div>
       )}
-      
 
+      {/* YouTube-style Category Filter Chips Bar (Directly below header with ZERO GAP) */}
+      <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f0f0f]/95 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/80 transition-colors shadow-2xs">
+        <div className="relative max-w-7xl mx-auto px-3 sm:px-6">
+          {/* Left Scroll Button with Gradient Fade */}
+          {canScrollLeft && (
+            <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center pr-3 pl-2 bg-gradient-to-r from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]/95">
+              <button
+                type="button"
+                onClick={() => scrollFilter('left')}
+                className="w-8 h-8 rounded-full bg-white dark:bg-[#272727] hover:bg-slate-100 dark:hover:bg-[#3f3f3f] shadow-md border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 cursor-pointer transition-all active:scale-95"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
+          )}
 
-      {/* 1. Recommended Videos Section (Row 1) */}
-      <div className="space-y-4">
+          {/* Category Chips Container */}
+          <div 
+            ref={filterScrollRef}
+            onScroll={checkFilterScroll}
+            data-no-scrollbar="true"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            className="flex items-center gap-2 overflow-x-auto scrollbar-none no-scrollbar py-2.5 px-0.5 scroll-smooth select-none"
+          >
+            {categoriesList.map((cat) => {
+              const isSelected = selectedCategory === cat;
+              const label = isHindi ? (categoryHindiMap[cat] || cat) : cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => handleCategorySelect(cat)}
+                  className={`h-8 px-3.5 rounded-lg text-xs whitespace-nowrap transition-all duration-150 cursor-pointer select-none active:scale-95 shrink-0 flex items-center justify-center border ${
+                    isSelected
+                      ? 'yt-chip-active shadow-xs'
+                      : 'yt-chip-inactive'
+                  }`}
+                  aria-pressed={isSelected}
+                >
+                  <span className="truncate">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right Scroll Button with Gradient Fade */}
+          {canScrollRight && (
+            <div className="absolute right-0 top-0 bottom-0 z-10 flex items-center pl-3 pr-2 bg-gradient-to-l from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]/95">
+              <button
+                type="button"
+                onClick={() => scrollFilter('right')}
+                className="w-8 h-8 rounded-full bg-white dark:bg-[#272727] hover:bg-slate-100 dark:hover:bg-[#3f3f3f] shadow-md border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 cursor-pointer transition-all active:scale-95"
+                aria-label="Scroll right"
+              >
+                <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Main Home Feed Content */}
+      <div className="p-4 md:p-6 space-y-7 max-w-7xl mx-auto">
+        {/* 1. Recommended Videos Section (Row 1) */}
+        <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Flame className="w-5 h-5 text-red-500 fill-red-500 shrink-0" />
@@ -420,6 +566,7 @@ export const Home: React.FC = () => {
         </div>
       )}
 
+      </div>
     </div>
   );
 };

@@ -114,6 +114,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   };
 
   const [isMediaReady, setIsMediaReady] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(video.duration || 0);
@@ -121,6 +122,20 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+
+  // Monitor network connectivity for automatic buffering indication
+  useEffect(() => {
+    const handleOffline = () => setIsBuffering(true);
+    const handleOnline = () => {
+      if (isPlaying) setIsBuffering(false);
+    };
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [isPlaying]);
 
   // Dynamic ambient glow spread, blur, and opacity settings based on user-chosen intensity
   const ambientConfig = React.useMemo(() => {
@@ -337,6 +352,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           onReady: (event: any) => {
             if (!isMounted) return;
             setIsMediaReady(true);
+            setIsBuffering(false);
             const d = event.target.getDuration();
             if (d) setDuration(d);
             
@@ -360,19 +376,24 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           },
           onStateChange: (event: any) => {
             if (!isMounted) return;
-            if (event.data === 1) {
+            if (event.data === 1) { // PLAYING
               setIsMediaReady(true);
               setIsPlaying(true);
+              setIsBuffering(false);
               try {
                 ytAmbientPlayerRef.current?.playVideo();
               } catch (_) {}
-            } else if (event.data === 2) {
+            } else if (event.data === 2) { // PAUSED
               setIsPlaying(false);
+              setIsBuffering(false);
               try {
                 ytAmbientPlayerRef.current?.pauseVideo();
               } catch (_) {}
-            } else if (event.data === 0) {
+            } else if (event.data === 3) { // BUFFERING (Network slow or video stalling)
+              setIsBuffering(true);
+            } else if (event.data === 0) { // ENDED
               setIsPlaying(false);
+              setIsBuffering(false);
               try {
                 ytAmbientPlayerRef.current?.pauseVideo();
               } catch (_) {}
@@ -895,42 +916,18 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             : 'rounded-none sm:rounded-2xl border-none sm:border border-slate-200 dark:border-[#334155]'
         }`}
       >
-      {/* SKELETON LOADING OVERLAY (Displayed until media stream is ready) */}
+      {/* YOUTUBE-STYLE CENTER CIRCULAR BUFFER SPINNER */}
       <AnimatePresence>
-        {!isMediaReady && (
+        {(isBuffering || !isMediaReady) && (
           <motion.div 
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="absolute inset-0 z-40 bg-slate-900 flex flex-col items-center justify-center overflow-hidden"
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 z-35 flex items-center justify-center pointer-events-none"
           >
-            {/* Background thumbnail blur preview */}
-            {video.thumbnailUrl && (
-              <img 
-                src={video.thumbnailUrl} 
-                alt={video.title} 
-                className="absolute inset-0 w-full h-full object-cover filter blur-md opacity-40 scale-105"
-              />
-            )}
-
-            {/* Shimmer pulse line */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-pulse" />
-
-            {/* Center Spinner */}
-            <div className="relative z-10 flex flex-col items-center gap-3 p-6 text-center">
-              <div className="relative">
-                <div className="w-14 h-14 rounded-full border-4 border-[#2563eb]/30 border-t-[#2563eb] animate-spin" />
-                <Play className="w-5 h-5 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 fill-current ml-0.5" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-black tracking-wider text-white uppercase">
-                  Loading SocialIndia Stream...
-                </p>
-                <p className="text-[11px] text-slate-300 font-medium truncate max-w-xs">
-                  {video.title}
-                </p>
-              </div>
-            </div>
+            {/* Authentic YouTube circular buffering ring */}
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-[3.5px] border-white/20 border-t-[#2563eb] animate-spin drop-shadow-xl" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -956,7 +953,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             title={video.title}
             frameBorder="0"
             allow="autoplay; encrypted-media"
-            onLoad={() => setIsMediaReady(true)}
+            onLoad={() => {
+              setIsMediaReady(true);
+              setIsBuffering(false);
+            }}
             className="w-full h-full"
           />
         ) : (
@@ -966,8 +966,18 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             autoPlay
             playsInline
             preload="auto"
+            onWaiting={() => setIsBuffering(true)}
+            onStalled={() => setIsBuffering(true)}
+            onSeeking={() => setIsBuffering(true)}
+            onSeeked={() => setIsBuffering(false)}
+            onPlaying={() => {
+              setIsBuffering(false);
+              setIsPlaying(true);
+              setIsMediaReady(true);
+            }}
             onCanPlay={() => {
               setIsMediaReady(true);
+              setIsBuffering(false);
               if (videoRef.current) {
                 videoRef.current.play().then(() => {
                   setIsPlaying(true);
@@ -983,6 +993,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             }}
             onTimeUpdate={handleDirectTimeUpdate}
             onEnded={() => {
+              setIsBuffering(false);
               if (isLooping) {
                 if (videoRef.current) {
                   videoRef.current.currentTime = 0;
@@ -1139,7 +1150,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
       {/* CENTER PLAY/PAUSE BUTTON WITH MOTION */}
       <AnimatePresence>
-        {(showControls || !isPlaying) && isMediaReady && (
+        {(showControls || !isPlaying) && isMediaReady && !isBuffering && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.75 }}
             animate={{ opacity: 1, scale: 1 }}

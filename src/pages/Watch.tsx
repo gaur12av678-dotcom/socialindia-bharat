@@ -400,11 +400,8 @@ export const Watch: React.FC = () => {
     return (
       <div className="p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
         <div className="lg:col-span-2 space-y-4">
-          <div className="aspect-video bg-slate-200 dark:bg-[#111827] rounded-[2rem] w-full flex flex-col items-center justify-center p-6 text-center shadow-xl relative overflow-hidden animate-pulse border border-slate-100 dark:border-slate-800">
-            <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mb-3">
-              <div className="w-8 h-8 rounded-full border-4 border-blue-600/30 border-t-blue-600 animate-spin" />
-            </div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Loading Experience</p>
+          <div className="aspect-video bg-black rounded-2xl w-full flex items-center justify-center p-6 text-center shadow-xl relative overflow-hidden border border-slate-800">
+            <div className="w-14 h-14 rounded-full border-[3.5px] border-white/20 border-t-[#2563eb] animate-spin shadow-lg" />
           </div>
           <div className="space-y-3 pt-4">
             <div className="h-8 bg-slate-100 dark:bg-[#1e293b] rounded-2xl w-3/4 animate-pulse" />
