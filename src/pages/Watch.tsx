@@ -14,6 +14,7 @@ import { downloadService } from '../services/downloadService';
 import { paidVideoService } from '../services/paidVideoService';
 import { adService } from '../services/adService';
 import { playlistService } from '../services/playlistService';
+import { recommendationService } from '../services/recommendationService';
 import { Video, Comment, User, AdCampaign, Playlist } from '../types';
 import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
@@ -73,7 +74,12 @@ export const Watch: React.FC = () => {
   });
   const [comments, setComments] = useState<Comment[]>([]);
   const [newCommentText, setNewCommentText] = useState('');
-  const [relatedVideos, setRelatedVideos] = useState<Video[]>([]);
+  const [candidateVideoPool, setCandidateVideoPool] = useState<Video[]>(() => {
+    return videoService.getCachedVideos({ isShort: false });
+  });
+  const [sidebarDisplayCount, setSidebarDisplayCount] = useState<number>(8);
+  const [isLoadingMoreSidebar, setIsLoadingMoreSidebar] = useState<boolean>(false);
+  const sidebarSentinelRef = useRef<HTMLDivElement>(null);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   
   // Status states - instantly ready if video was in cache
@@ -92,6 +98,95 @@ export const Watch: React.FC = () => {
   const [activeRelatedMenuId, setActiveRelatedMenuId] = useState<string | null>(null);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
   const [savedWatchLaterMap, setSavedWatchLaterMap] = useState<Record<string, boolean>>({});
+
+  // YouTube-style smart recommendation algorithm for Watch sidebar
+  const recommendedSidebarVideos = React.useMemo(() => {
+    if (!video || candidateVideoPool.length === 0) return [];
+    return recommendationService.getWatchSidebarRecommendations({
+      currentVideo: video,
+      allVideos: candidateVideoPool,
+      selectedCategory: selectedCategoryFilter,
+      userUid: currentUser?.uid,
+    });
+  }, [video, candidateVideoPool, selectedCategoryFilter, currentUser?.uid]);
+
+  const displayedSidebarVideos = React.useMemo(() => {
+    return recommendedSidebarVideos.slice(0, sidebarDisplayCount);
+  }, [recommendedSidebarVideos, sidebarDisplayCount]);
+
+  const hasMoreSidebarVideos = sidebarDisplayCount < recommendedSidebarVideos.length;
+
+  // Infinite scroll trigger for Watch sidebar videos
+  useEffect(() => {
+    if (!hasMoreSidebarVideos || isLoadingMoreSidebar) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0] && entries[0].isIntersecting) {
+        setIsLoadingMoreSidebar(true);
+        setTimeout(() => {
+          setSidebarDisplayCount(prev => prev + 8);
+          setIsLoadingMoreSidebar(false);
+        }, 180);
+      }
+    }, { rootMargin: '300px' });
+
+    const el = sidebarSentinelRef.current;
+    if (el) {
+      observer.observe(el);
+    }
+    return () => {
+      if (el) observer.unobserve(el);
+      observer.disconnect();
+    };
+  }, [hasMoreSidebarVideos, isLoadingMoreSidebar, recommendedSidebarVideos.length]);
+
+  // Dynamic category pills list for Watch page sidebar
+  const categoryPills = React.useMemo(() => {
+    const pills: { id: string; label: string }[] = [
+      { id: 'All', label: isHindi ? 'सभी' : 'All' }
+    ];
+
+    if (video?.category && video.category !== 'All' && video.category !== 'Other') {
+      pills.push({
+        id: video.category,
+        label: video.category
+      });
+    }
+
+    if (video?.creatorDisplayName) {
+      const creatorFirstName = video.creatorDisplayName.split(' ')[0] || 'Creator';
+      pills.push({
+        id: `From ${video.creatorDisplayName}`,
+        label: isHindi ? `${creatorFirstName} से` : `From ${creatorFirstName}`
+      });
+    }
+
+    // Add popular categories from candidate video pool that have videos
+    const popularCats = ['Music', 'Gaming', 'Technology', 'Education', 'Entertainment', 'News', 'Comedy', 'Sports', 'Science'];
+    const presentCats = new Set(
+      candidateVideoPool
+        .map(v => v.category?.trim())
+        .filter((c): c is string => !!c && c !== 'All' && c !== 'Other' && c !== video?.category)
+    );
+
+    for (const cat of popularCats) {
+      if (presentCats.has(cat) && !pills.some(p => p.id.toLowerCase() === cat.toLowerCase())) {
+        pills.push({ id: cat, label: cat });
+      }
+      if (pills.length >= 7) break;
+    }
+
+    // Always include 'Related' as fallback
+    if (!pills.some(p => p.id === 'Related')) {
+      pills.push({ id: 'Related', label: isHindi ? 'संबंधित' : 'Related' });
+    }
+
+    return pills;
+  }, [video?.category, video?.creatorDisplayName, candidateVideoPool, isHindi]);
+
+  const handleCategoryFilterChange = (newCat: string) => {
+    setSelectedCategoryFilter(newCat);
+    setSidebarDisplayCount(8);
+  };
   
   // Reporting state
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -321,6 +416,7 @@ export const Watch: React.FC = () => {
 
         // Secondary background fetches (Non-blocking)
         videoService.incrementViewCount(videoId).catch(console.error);
+        recommendationService.recordVideoWatch(videoId, currentUser?.uid);
         
         // Fetch last watched time
         if (currentUser) {
@@ -358,8 +454,11 @@ export const Watch: React.FC = () => {
           if (isMounted) setComments(commList);
         }).catch(console.error);
 
-        videoService.getVideos({ category: vid.category }).then(rel => {
-          if (isMounted) setRelatedVideos(rel.filter(v => v.videoId !== videoId).slice(0, 8));
+        // Fetch full library of public videos for sidebar recommendation algorithm
+        videoService.getVideos({ isShort: false, limit: 120 }).then(pool => {
+          if (isMounted && pool.length > 0) {
+            setCandidateVideoPool(pool);
+          }
         }).catch(console.error);
 
       } catch (err) {
@@ -2029,49 +2128,53 @@ export const Watch: React.FC = () => {
           <SponsoredAdCard ad={activeAds[0]} layout="sidebar" />
         )}
 
-        {/* Category Filter Pills (Matches Reference) */}
+        {/* Category Filter Pills (YouTube Style) */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {[
-            { id: 'All', label: isHindi ? 'सभी' : 'All' },
-            { id: 'FromCreator', label: isHindi ? `${video.creatorDisplayName?.split(' ')[0] || 'क्रिएटर'} से` : `From ${video.creatorDisplayName?.split(' ')[0] || 'Creator'}` },
-            { id: 'Politics', label: isHindi ? 'राजनीति' : 'Politics' },
-            { id: 'Related', label: isHindi ? 'संबंधित' : 'Related' }
-          ].map((pill) => (
-            <button
-              key={pill.id}
-              onClick={() => setSelectedCategoryFilter(pill.id === 'FromCreator' ? `From ${video.creatorDisplayName}` : pill.id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-colors cursor-pointer shadow-xs ${
-                (selectedCategoryFilter === pill.id || (pill.id === 'FromCreator' && selectedCategoryFilter.startsWith('From')))
-                  ? 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black font-black'
-                  : 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
-              }`}
-            >
-              {pill.label}
-            </button>
-          ))}
+          {categoryPills.map((pill) => {
+            const isActive = selectedCategoryFilter === pill.id;
+            return (
+              <button
+                key={pill.id}
+                onClick={() => handleCategoryFilterChange(pill.id)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-colors cursor-pointer shadow-xs ${
+                  isActive
+                    ? 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black font-black'
+                    : 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
+                }`}
+              >
+                {pill.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* External Native / Iframe Ad Banner (YouTube Style, rotating sidebar position) */}
         <ExternalAdBanner type="random" locationTag="watch-sidebar" />
         
-        {/* Related Videos List */}
+        {/* Related Videos List with YouTube-style Dynamic Algorithm & Infinite Scroll */}
         <div className="space-y-3">
-          {(() => {
-            const displayList = relatedVideos.filter(v => {
-              if (selectedCategoryFilter === 'All') return true;
-              if (selectedCategoryFilter.startsWith('From')) return v.creatorId === video.creatorId;
-              if (selectedCategoryFilter === 'Related') return true;
-              return v.category?.toLowerCase() === selectedCategoryFilter.toLowerCase();
-            });
-
-            if (displayList.length === 0) {
-              return <p className="text-xs text-slate-400 font-medium py-4 text-center">{isHindi ? 'इस श्रेणी में कोई संबंधित वीडियो नहीं है।' : 'No related videos in this category.'}</p>;
-            }
-
-            return displayList.map((v) => (
+          {displayedSidebarVideos.length === 0 ? (
+            <div className="py-8 px-4 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+              <p className="text-xs text-slate-500 font-medium">
+                {isHindi ? 'इस श्रेणी में कोई संबंधित वीडियो नहीं है।' : 'No related videos in this category.'}
+              </p>
+              {selectedCategoryFilter !== 'All' && (
+                <button
+                  onClick={() => handleCategoryFilterChange('All')}
+                  className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
+                >
+                  {isHindi ? 'सभी वीडियो देखें' : 'View all videos'}
+                </button>
+              )}
+            </div>
+          ) : (
+            displayedSidebarVideos.map((v) => (
               <div 
                 key={v.videoId}
-                onClick={() => navigate('watch', v.videoId)}
+                onClick={() => {
+                  navigate('watch', v.videoId);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 className="flex items-start gap-3 bg-white dark:bg-[#111827] border border-slate-200/70 dark:border-[#334155] p-2.5 rounded-2xl cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 transition-all group relative"
               >
                 {/* 16:9 Thumbnail with Duration Badge */}
@@ -2204,8 +2307,25 @@ export const Watch: React.FC = () => {
                   )}
                 </div>
               </div>
-            ));
-          })()}
+            ))
+          )}
+
+          {/* Infinite Scroll Sentinel & Loader */}
+          {hasMoreSidebarVideos && (
+            <div ref={sidebarSentinelRef} className="py-4 flex flex-col items-center justify-center gap-2 text-slate-400">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                <span>{isHindi ? 'और वीडियो लोड हो रहे हैं...' : 'Loading more videos...'}</span>
+              </div>
+            </div>
+          )}
+
+          {!hasMoreSidebarVideos && displayedSidebarVideos.length >= 8 && (
+            <div className="py-4 text-center text-[11px] font-semibold text-slate-400 dark:text-slate-500 flex items-center justify-center gap-1.5">
+              <Check className="w-3.5 h-3.5 text-blue-500" />
+              <span>{isHindi ? 'सभी संबंधित वीडियो लोड हो चुके हैं' : 'You are all caught up'}</span>
+            </div>
+          )}
         </div>
       </div>
 

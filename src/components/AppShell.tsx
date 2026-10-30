@@ -788,19 +788,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     <Search className="w-5 h-5" />
                   </button>
 
-                  {/* Mobile 1-Tap Voice Search Button */}
-                  <button 
-                    onClick={() => setVoiceModalOpen(true)}
-                    className={`min-w-10 min-h-10 p-1.5 sm:p-2 rounded-xl transition-colors cursor-pointer flex md:hidden items-center justify-center ${
-                      isShortsPage 
-                        ? 'hover:bg-white/10 text-white' 
-                        : 'hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400'
-                    }`}
-                    aria-label={isHindi ? 'बोलकर खोजें' : 'Voice Search'}
-                    title={isHindi ? 'बोलकर खोजें' : 'Voice Search'}
-                  >
-                    <Mic className="w-5 h-5" />
-                  </button>
+                  {/* Mobile 1-Tap Voice Search Button - Hidden on mobile header per user request (Voice search is already available inside the mobile search bar overlay) */}
+                  {/* Kept hidden so it does not clutter mobile header */}
+
 
                   {/* Theme Toggle */}
                   <button
@@ -1253,9 +1243,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <Zap className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'text-amber-500 fill-amber-500' : 'text-amber-500/80'}`} />
                   <span className="truncate">{t('nav_shorts', 'Shorts')}</span>
                 </div>
-                <span className="text-[9px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  Reels
-                </span>
               </button>
 
               {/* Trending */}
@@ -1283,7 +1270,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <Tv className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'subscriptions' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                  <svg 
+                    viewBox="0 0 24 24" 
+                    fill="currentColor" 
+                    className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
+                      route.path === 'subscriptions' 
+                        ? 'text-[#2563eb] dark:text-blue-400' 
+                        : 'text-slate-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {route.path === 'subscriptions' ? (
+                      <path d="M20 8H4V6h16v2zm-2-6H6v2h12V2zm4 10v8c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2v-8c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2zm-12 7l6-3.5L10 12v7z" />
+                    ) : (
+                      <path d="M18.7 8.7H5.3V7h13.4v1.7zm-1.7-5H7v1.7h10V3.7zm3.3 8.3v8c0 .9-.8 1.7-1.7 1.7H5.7c-.9 0-1.7-.8-1.7-1.7v-8c0-.9.8-1.7 1.7-1.7h12.9c1 0 1.7.8 1.7 1.7zm-1.7 0H5.7v8h12.9v-8zm-7.6 1.7l4.5 2.3-4.5 2.3v-4.6z" />
+                    )}
+                  </svg>
                   <span className="truncate">{t('nav_subscriptions', 'Subscriptions')}</span>
                 </div>
               </button>
@@ -1487,7 +1488,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 : (route.path === 'subscriptions' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
             }`}
           >
-            <Users className="w-5 h-5" />
+            <svg 
+              viewBox="0 0 24 24" 
+              fill="currentColor" 
+              className={`w-5 h-5 transition-transform ${route.path === 'subscriptions' ? 'text-[#2563eb] dark:text-[#3b82f6]' : isShortsPage ? 'text-white/60' : 'text-slate-500 dark:text-slate-400'}`}
+            >
+              {route.path === 'subscriptions' ? (
+                <path d="M20 8H4V6h16v2zm-2-6H6v2h12V2zm4 10v8c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2v-8c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2zm-12 7l6-3.5L10 12v7z" />
+              ) : (
+                <path d="M18.7 8.7H5.3V7h13.4v1.7zm-1.7-5H7v1.7h10V3.7zm3.3 8.3v8c0 .9-.8 1.7-1.7 1.7H5.7c-.9 0-1.7-.8-1.7-1.7v-8c0-.9.8-1.7 1.7-1.7h12.9c1 0 1.7.8 1.7 1.7zm-1.7 0H5.7v8h12.9v-8zm-7.6 1.7l4.5 2.3-4.5 2.3v-4.6z" />
+              )}
+            </svg>
             <span className="text-[10px]">{t('nav_subscriptions', 'Subscriptions')}</span>
           </button>
 
