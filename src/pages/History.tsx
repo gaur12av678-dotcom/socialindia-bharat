@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { historyService } from '../services/historyService';
+import { playbackProgressService } from '../services/playbackProgressService';
 import { HistoryItem } from '../types';
 import { History, Trash2, X } from 'lucide-react';
 import { useTranslation } from '../i18n';
@@ -21,6 +22,7 @@ export const WatchHistory: React.FC = () => {
     try {
       const items = await historyService.getHistory(currentUser.uid);
       setHistory(items);
+      playbackProgressService.syncFromHistoryItems(items);
     } catch (err) {
       console.error(err);
     } finally {

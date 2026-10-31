@@ -3,6 +3,14 @@ import { Video } from '../types';
 const WATCHED_STORAGE_KEY = 'socialindia_watched_ids';
 let lastHeroVideoId = '';
 let lastWatchSidebarFirstVideoId = '';
+let lastMoreVideosFirstId = '';
+
+export interface HomeMoreVideosOptions {
+  allVideos: Video[];
+  firstRowIds?: string[];
+  userUid?: string;
+  category?: string;
+}
 
 export interface WatchSidebarOptions {
   currentVideo: Video;
@@ -102,6 +110,109 @@ export const recommendationService = {
 
     // 5. Return rotated top 20 first, followed by the rest
     return [...rotatedTop20, ...restPool];
+  },
+
+  /**
+   * YOUTUBE-STYLE "MORE VIDEOS FOR YOU" RECOMMENDATION ALGORITHM (Homepage feed)
+   * 1. Multi-factor scoring:
+   *    - Views & Likes engagement (log scaled).
+   *    - Freshness boost (new uploads within 24h / 3d / 7d get elevated).
+   * 2. Watched Videos intelligent decay:
+   *    - Watched videos are decayed (0.45x) so fresh unseen content naturally surfaces,
+   *      without completely omitting classic high-engagement videos ("or dekh hi vedio mat dikho bar bar or yeh bhi mat karo ki ak bar hi dikho algruhtim bano").
+   * 3. Dynamic Positional Jitter & Anti-Freeze:
+   *    - Dynamic score randomization ensures videos do not stay frozen in the same slot ("same positing per hi ak vedio mat dikho").
+   *    - First card position rotation prevents back-to-back #0 repetition.
+   * 4. Creator Diversity Interleaving:
+   *    - Prevents 3+ consecutive videos from the same creator in the feed.
+   */
+  getHomeMoreVideosRecommendations(options: HomeMoreVideosOptions): Video[] {
+    const { allVideos, firstRowIds = [], category = 'All' } = options;
+    if (!allVideos || allVideos.length === 0) return [];
+
+    const firstRowSet = new Set(firstRowIds);
+    // Exclude shorts and row-1 videos
+    let pool = allVideos.filter(v => !v.isShort && !firstRowSet.has(v.videoId));
+
+    if (category && category !== 'All') {
+      const targetCat = category.trim().toLowerCase();
+      pool = pool.filter(v => v.category?.trim().toLowerCase() === targetCat);
+    }
+
+    if (pool.length === 0) return [];
+
+    const watchedIds = this.getWatchedVideoIds();
+    const now = Date.now();
+
+    const scored = pool.map(v => {
+      const views = Number(v.viewsCount) || 0;
+      const likes = Number(v.likesCount) || 0;
+
+      // Base engagement score (logarithmic)
+      const engagement = (Math.log10(Math.max(1, views) + 1) * 32) + (Math.log10(Math.max(1, likes) + 1) * 18);
+
+      // Freshness bonus (New content discovery)
+      const uploadTime = new Date(v.createdAt || 0).getTime();
+      const ageHours = (now - uploadTime) / (1000 * 60 * 60);
+      let freshness = 0;
+      if (ageHours < 24) {
+        freshness = 110;
+      } else if (ageHours < 72) {
+        freshness = 75;
+      } else if (ageHours < 168) {
+        freshness = 45;
+      } else if (ageHours < 720) {
+        freshness = 20;
+      }
+
+      let totalScore = engagement + freshness;
+
+      // Watched penalty: Decays score so unwatched content surfaces first,
+      // but keeps watched favorites eligible further down
+      if (watchedIds.has(v.videoId)) {
+        totalScore *= 0.45;
+      }
+
+      // Dynamic position jitter ("same positing per hi ak vedio mat dikho")
+      const jitter = Math.random() * 22;
+      totalScore += jitter;
+
+      return {
+        video: v,
+        score: totalScore
+      };
+    });
+
+    // Sort candidates by final recommendation score descending
+    scored.sort((a, b) => b.score - a.score);
+    let sortedVideos = scored.map(s => s.video);
+
+    // Channel diversity pass: don't let 3 consecutive videos be from the exact same creator
+    for (let i = 0; i < sortedVideos.length - 2; i++) {
+      const currentCreator = sortedVideos[i].creatorId || sortedVideos[i].creatorUsername;
+      const nextCreator = sortedVideos[i + 1].creatorId || sortedVideos[i + 1].creatorUsername;
+      const thirdCreator = sortedVideos[i + 2].creatorId || sortedVideos[i + 2].creatorUsername;
+
+      if (currentCreator && nextCreator === currentCreator && thirdCreator === currentCreator) {
+        // Find next video with a different creator to swap
+        const diffIdx = sortedVideos.findIndex((v, idx) => idx > i + 2 && (v.creatorId || v.creatorUsername) !== currentCreator);
+        if (diffIdx !== -1 && diffIdx < i + 6) {
+          [sortedVideos[i + 2], sortedVideos[diffIdx]] = [sortedVideos[diffIdx], sortedVideos[i + 2]];
+        }
+      }
+    }
+
+    // Anti-freeze check: If first item is identical to last session's first item, swap within top 4
+    if (sortedVideos.length > 2 && sortedVideos[0].videoId === lastMoreVideosFirstId) {
+      const swapTarget = Math.min(sortedVideos.length - 1, Math.floor(Math.random() * 3) + 1);
+      [sortedVideos[0], sortedVideos[swapTarget]] = [sortedVideos[swapTarget], sortedVideos[0]];
+    }
+
+    if (sortedVideos[0]?.videoId) {
+      lastMoreVideosFirstId = sortedVideos[0].videoId;
+    }
+
+    return sortedVideos;
   },
 
   /**

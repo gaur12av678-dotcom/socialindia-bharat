@@ -15,6 +15,7 @@ import { paidVideoService } from '../services/paidVideoService';
 import { adService } from '../services/adService';
 import { playlistService } from '../services/playlistService';
 import { recommendationService } from '../services/recommendationService';
+import { playbackProgressService } from '../services/playbackProgressService';
 import { Video, Comment, User, AdCampaign, Playlist } from '../types';
 import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
@@ -200,7 +201,9 @@ export const Watch: React.FC = () => {
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
-  const [seekToTime, setSeekToTime] = useState<number | undefined>(undefined);
+  const [seekToTime, setSeekToTime] = useState<number | undefined>(() => {
+    return videoId ? (playbackProgressService.getProgress(videoId, cachedInitialVid?.duration) || undefined) : undefined;
+  });
 
   // Paid Video Unlock & Paywall states
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -418,14 +421,19 @@ export const Watch: React.FC = () => {
         videoService.incrementViewCount(videoId).catch(console.error);
         recommendationService.recordVideoWatch(videoId, currentUser?.uid);
         
-        // Fetch last watched time
+        // Fetch last watched time (from synchronous local storage cache first, then Firestore history)
+        const localProgress = playbackProgressService.getProgress(videoId, vid.duration);
+        if (localProgress > 5) {
+          setSeekToTime(localProgress);
+        }
         if (currentUser) {
-            historyService.getHistory(currentUser.uid).then(history => {
-                const item = history.find(h => h.videoId === videoId);
-                if (item && item.progressSeconds && item.progressSeconds > 5) {
-                    setSeekToTime(item.progressSeconds);
-                }
-            }).catch(console.error);
+          historyService.getHistory(currentUser.uid).then(history => {
+            playbackProgressService.syncFromHistoryItems(history);
+            const item = history.find(h => h.videoId === videoId);
+            if (item && item.progressSeconds && item.progressSeconds > 5) {
+              setSeekToTime(item.progressSeconds);
+            }
+          }).catch(console.error);
         }
 
         userService.getUserProfile(vid.creatorId, true).then(crProfile => {
@@ -494,6 +502,22 @@ export const Watch: React.FC = () => {
       isMounted = false;
     };
   }, [videoId, currentUser?.uid, video?.creatorId]);
+
+  // Save playback progress on page exit, back button, or tab switch (YouTube Style)
+  useEffect(() => {
+    const handleSaveCurrentProgress = () => {
+      if (video && lastSavedProgressRef.current > 0) {
+        playbackProgressService.saveProgress(video.videoId, lastSavedProgressRef.current, video.duration || 0, currentUser?.uid);
+      }
+    };
+    window.addEventListener('beforeunload', handleSaveCurrentProgress);
+    document.addEventListener('visibilitychange', handleSaveCurrentProgress);
+    return () => {
+      window.removeEventListener('beforeunload', handleSaveCurrentProgress);
+      document.removeEventListener('visibilitychange', handleSaveCurrentProgress);
+      handleSaveCurrentProgress();
+    };
+  }, [video, currentUser?.uid]);
 
   if (loading) {
     return (
@@ -1181,12 +1205,9 @@ export const Watch: React.FC = () => {
               setReportModalOpen(true);
             }}
             onProgress={(seconds) => {
-              if (currentUser && video) {
-                // Throttle: only save progress if at least 15 seconds have passed since last save
-                if (Math.abs(seconds - lastSavedProgressRef.current) >= 15) {
-                  lastSavedProgressRef.current = seconds;
-                  historyService.updatePlaybackProgress(currentUser.uid, video.videoId, seconds).catch(console.warn);
-                }
+              if (video) {
+                lastSavedProgressRef.current = seconds;
+                playbackProgressService.saveProgress(video.videoId, seconds, video.duration || 0, currentUser?.uid);
               }
             }}
           />
@@ -1600,13 +1621,13 @@ export const Watch: React.FC = () => {
           {!commentsCollapsed && (
             <>
               {/* Form to submit comment */}
-              <form onSubmit={handlePostComment} className="flex gap-3">
+              <form onSubmit={handlePostComment} className="flex gap-2 sm:gap-3">
             <UserAvatar 
               uid={currentUser?.uid}
               fallbackPhotoURL={currentUserProfile?.photoURL}
               fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
               size="sm"
-              className="w-9 h-9 border border-slate-200 dark:border-slate-700"
+              className="max-sm:hidden hidden sm:flex w-9 h-9 border border-slate-200 dark:border-slate-700 shrink-0"
             />
             <div className="flex-1 flex gap-2">
               <input
@@ -2190,6 +2211,16 @@ export const Watch: React.FC = () => {
                       {formatDuration(v.duration)}
                     </span>
                   ) : null}
+
+                  {/* YouTube Red Watch Progress Bar */}
+                  {playbackProgressService.getProgressPercent(v.videoId, v.duration) > 0 && (
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25 overflow-hidden z-10">
+                      <div 
+                        className="h-full bg-red-600" 
+                        style={{ width: `${playbackProgressService.getProgressPercent(v.videoId, v.duration)}%` }} 
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Video Info */}

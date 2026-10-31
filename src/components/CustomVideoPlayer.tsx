@@ -4,6 +4,7 @@ import { Video } from '../types';
 import { parseVideoUrl, formatDuration, getInitials } from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
 import { useTranslation } from '../i18n';
+import { playbackProgressService } from '../services/playbackProgressService';
 import { UserAvatar } from './UserAvatar';
 import { 
   Play, 
@@ -122,6 +123,44 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+
+  // Resume Playback from Last Watched Position (YouTube Style)
+  const [showResumeBadge, setShowResumeBadge] = useState(false);
+  const hasAppliedSeekRef = useRef(false);
+
+  // Reset seek applied state when switching videos
+  useEffect(() => {
+    hasAppliedSeekRef.current = false;
+    setShowResumeBadge(false);
+  }, [video.videoId]);
+
+  // Auto-dismiss resume notification badge after 6 seconds
+  useEffect(() => {
+    if (showResumeBadge) {
+      const timer = setTimeout(() => setShowResumeBadge(false), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [showResumeBadge]);
+
+  // Apply initial seek if seekToTime is provided (>5s)
+  useEffect(() => {
+    if (!seekToTime || seekToTime <= 5 || hasAppliedSeekRef.current) return;
+    if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.seekTo) {
+      try {
+        ytPlayerRef.current.seekTo(seekToTime, true);
+        setCurrentTime(seekToTime);
+        hasAppliedSeekRef.current = true;
+        setShowResumeBadge(true);
+      } catch (_) {}
+    } else if (videoRef.current && videoRef.current.readyState >= 1) {
+      try {
+        videoRef.current.currentTime = seekToTime;
+        setCurrentTime(seekToTime);
+        hasAppliedSeekRef.current = true;
+        setShowResumeBadge(true);
+      } catch (_) {}
+    }
+  }, [seekToTime, parsedMedia.type]);
 
   // Monitor network connectivity for automatic buffering indication
   useEffect(() => {
@@ -356,6 +395,16 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             const d = event.target.getDuration();
             if (d) setDuration(d);
             
+            // Resume from last watched position if seekToTime is provided
+            if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
+              try {
+                event.target.seekTo(seekToTime, true);
+                setCurrentTime(seekToTime);
+                hasAppliedSeekRef.current = true;
+                setShowResumeBadge(true);
+              } catch (_) {}
+            }
+
             // Try standard autoplay
             try {
               event.target.playVideo();
@@ -916,6 +965,54 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             : 'rounded-none sm:rounded-2xl border-none sm:border border-slate-200 dark:border-[#334155]'
         }`}
       >
+      {/* YOUTUBE-STYLE RESUME PLAYBACK NOTIFICATION BADGE */}
+      <AnimatePresence>
+        {showResumeBadge && seekToTime && seekToTime > 5 && (
+          <motion.div
+            initial={{ opacity: 0, y: -12, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-4 left-4 z-40 bg-black/90 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-2xl border border-white/20 select-none"
+          >
+            <Clock className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span className="font-semibold text-[11px] sm:text-xs">
+              {isHindi 
+                ? `${formatDuration(seekToTime)} से फिर से शुरू किया गया` 
+                : `Resumed from ${formatDuration(seekToTime)}`}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.seekTo) {
+                  ytPlayerRef.current.seekTo(0, true);
+                } else if (videoRef.current) {
+                  videoRef.current.currentTime = 0;
+                }
+                setCurrentTime(0);
+                setShowResumeBadge(false);
+                playbackProgressService.clearProgress(video.videoId);
+              }}
+              className="ml-1 text-[11px] font-bold text-blue-400 hover:text-blue-300 underline cursor-pointer"
+            >
+              {isHindi ? 'शुरू से चलाएं' : 'Start over'}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowResumeBadge(false);
+              }}
+              className="p-0.5 hover:bg-white/20 rounded-md text-slate-400 hover:text-white cursor-pointer ml-1"
+              aria-label="Dismiss resume notice"
+            >
+              <XIcon className="w-3 h-3" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* YOUTUBE-STYLE CENTER CIRCULAR BUFFER SPINNER */}
       <AnimatePresence>
         {(isBuffering || !isMediaReady) && (
@@ -975,10 +1072,28 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               setIsPlaying(true);
               setIsMediaReady(true);
             }}
+            onLoadedMetadata={() => {
+              if (videoRef.current) {
+                const dur = videoRef.current.duration;
+                if (dur) setDuration(dur);
+                if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
+                  hasAppliedSeekRef.current = true;
+                  videoRef.current.currentTime = seekToTime;
+                  setCurrentTime(seekToTime);
+                  setShowResumeBadge(true);
+                }
+              }
+            }}
             onCanPlay={() => {
               setIsMediaReady(true);
               setIsBuffering(false);
               if (videoRef.current) {
+                if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
+                  hasAppliedSeekRef.current = true;
+                  videoRef.current.currentTime = seekToTime;
+                  setCurrentTime(seekToTime);
+                  setShowResumeBadge(true);
+                }
                 videoRef.current.play().then(() => {
                   setIsPlaying(true);
                 }).catch(() => {

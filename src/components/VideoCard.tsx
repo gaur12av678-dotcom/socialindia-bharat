@@ -8,6 +8,7 @@ import { savedVideoService } from '../services/savedVideoService';
 import { videoService } from '../services/videoService';
 import { UserAvatar } from './UserAvatar';
 import { userService } from '../services/userService';
+import { playbackProgressService } from '../services/playbackProgressService';
 import { useTranslation } from '../i18n';
 import { 
   MoreVertical, 
@@ -43,6 +44,21 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
     return false;
   });
   const [showMenu, setShowMenu] = useState(false);
+
+  // YouTube-style watch progress percentage
+  const [watchProgressPercent, setWatchProgressPercent] = useState<number>(() => {
+    return playbackProgressService.getProgressPercent(video.videoId, video.duration);
+  });
+
+  useEffect(() => {
+    const onProgressUpdated = (e: any) => {
+      if (!e.detail?.videoId || e.detail.videoId === video.videoId) {
+        setWatchProgressPercent(playbackProgressService.getProgressPercent(video.videoId, video.duration));
+      }
+    };
+    window.addEventListener('socialindia:playback-progress-updated', onProgressUpdated);
+    return () => window.removeEventListener('socialindia:playback-progress-updated', onProgressUpdated);
+  }, [video.videoId, video.duration]);
 
   useEffect(() => {
     const handleOutsideClick = () => setShowMenu(false);
@@ -141,6 +157,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
         {video.isShort && (
           <div className="absolute top-2 left-2 px-2 py-0.5 bg-red-600 text-white font-black text-[9px] rounded-md uppercase tracking-widest shadow-sm">
             Shorts
+          </div>
+        )}
+
+        {/* YouTube Red Watch Progress Bar */}
+        {watchProgressPercent > 0 && !video.isShort && (
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25 overflow-hidden z-10">
+            <div 
+              className="h-full bg-red-600 transition-all duration-300"
+              style={{ width: `${watchProgressPercent}%` }}
+            />
           </div>
         )}
       </div>

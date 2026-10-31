@@ -389,11 +389,28 @@ export const Home: React.FC = () => {
   };
 
   // YouTube-style Incremental Batch Rendering:
-  // For 'All': Top 4 in Row 1 above Shorts, then remainingVideos slices up to visibleCount (starts at 12 -> 8 remaining)
+  // For 'All': Top 4 in Row 1 above Shorts, then YouTube-style algorithm recommendations for "More Videos For You"
   // For specific category: slices up to visibleCount (starts with 12)
   const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 4) : videos.slice(0, visibleCount);
-  const remainingVideos = selectedCategory === 'All' ? videos.slice(4, visibleCount) : [];
-  const hasMoreVideos = visibleCount < videos.length;
+
+  // YouTube-style recommendation algorithm for "More Videos For You"
+  const moreVideos = React.useMemo(() => {
+    if (selectedCategory !== 'All' || masterVideosRef.current.length === 0) return [];
+    const firstRowIds = firstRowVideos.map(v => v.videoId);
+    return recommendationService.getHomeMoreVideosRecommendations({
+      allVideos: masterVideosRef.current,
+      firstRowIds,
+      userUid: currentUser?.uid
+    });
+  }, [selectedCategory, firstRowVideos, currentUser?.uid]);
+
+  const displayedMoreVideos = selectedCategory === 'All' 
+    ? moreVideos.slice(0, Math.max(0, visibleCount - 4)) 
+    : [];
+
+  const hasMoreVideos = selectedCategory === 'All'
+    ? (visibleCount - 4 < moreVideos.length)
+    : (visibleCount < videos.length);
 
   return (
     <div 
@@ -612,8 +629,8 @@ export const Home: React.FC = () => {
         <ExternalAdBanner type="random" locationTag="home-feed-middle" />
       </div>
 
-      {/* 3. More Videos Section (If more than 3 videos exist) */}
-      {selectedCategory === 'All' && remainingVideos.length > 0 && (
+      {/* 3. More Videos Section (YouTube Algorithm Recommended Videos) */}
+      {selectedCategory === 'All' && displayedMoreVideos.length > 0 && (
         <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
@@ -622,7 +639,7 @@ export const Home: React.FC = () => {
           </div>
 
           <VideoGrid 
-            videos={remainingVideos} 
+            videos={displayedMoreVideos} 
             loading={false} 
             activeAds={[]}
             gridColsClass="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
