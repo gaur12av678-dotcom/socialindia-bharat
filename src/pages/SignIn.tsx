@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
 import { authService } from '../services/authService';
+import { accountService } from '../services/accountService';
 import { SocialIndiaLogo } from '../components/SocialIndiaLogo';
 import { useTranslation } from '../i18n';
 import { 
@@ -103,6 +104,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
   useEffect(() => {
     authService.checkRedirectResult().then((res) => {
       if (res?.userProfile) {
+        accountService.saveAccount(res.userProfile, undefined, 'google');
         refreshProfile();
         addToast(`Welcome to SocialIndia, ${res.userProfile.displayName || res.userProfile.username}!`, 'success');
         navigate('home');
@@ -218,6 +220,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
       try {
         const cleanIdentifier = username.trim().toLowerCase();
         const { userProfile, emailVerified } = await authService.login(cleanIdentifier, password);
+        accountService.saveAccount(userProfile, password, 'password');
         await refreshProfile();
 
         const userEmail = userProfile.email || authService.getCurrentUserEmail() || '';
@@ -278,7 +281,8 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
         const cleanEmail = email.trim().toLowerCase();
         const cleanUsername = username.trim().toLowerCase();
 
-        await authService.register(cleanEmail, cleanUsername, cleanUsername, password);
+        const { userProfile } = await authService.register(cleanEmail, cleanUsername, cleanUsername, password);
+        accountService.saveAccount(userProfile, password, 'password');
         await refreshProfile();
 
         setVerificationTargetEmail(cleanEmail);
@@ -307,6 +311,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
     setGoogleLoading(true);
     try {
       const { userProfile } = await authService.signInWithGoogle();
+      accountService.saveAccount(userProfile, undefined, 'google');
       await refreshProfile();
       addToast(`Welcome to SocialIndia, ${userProfile.displayName || userProfile.username}!`, 'success');
       navigate('home');

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { authService } from '../services/authService';
+import { accountService } from '../services/accountService';
 import { SocialIndiaLogo } from './SocialIndiaLogo';
 import { X, Lock, User as UserIcon, Mail, AlertCircle, CheckCircle2, RotateCw } from 'lucide-react';
 import { useTranslation } from '../i18n';
@@ -72,7 +73,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setSubmitting(true);
     try {
       if (isLogin) {
-        const { emailVerified } = await authService.login(cleanUsername, password);
+        const { userProfile, emailVerified } = await authService.login(cleanUsername, password);
+        accountService.saveAccount(userProfile, password, 'password');
         if (cleanUsername.includes('@') && !emailVerified) {
           setIsVerifying(true);
           setResendCooldown(30);
@@ -83,7 +85,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           if (onSuccess) onSuccess();
         }
       } else {
-        await authService.register(email.trim().toLowerCase(), cleanUsername, displayName, password);
+        const { userProfile } = await authService.register(email.trim().toLowerCase(), cleanUsername, displayName, password);
+        accountService.saveAccount(userProfile, password, 'password');
         setIsVerifying(true);
         setResendCooldown(60);
         addToast(`Verification email sent to ${email.trim()}!`, 'success');

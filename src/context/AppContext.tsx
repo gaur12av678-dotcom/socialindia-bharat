@@ -6,6 +6,9 @@ import { notificationService } from '../services/notificationService';
 import { User, Notification } from '../types';
 import { translations, LanguageCode, Translations } from '../i18n/translations';
 
+import { accountService } from '../services/accountService';
+import { SwitchAccountModal } from '../components/SwitchAccountModal';
+
 export interface Toast {
   id: string;
   message: string;
@@ -30,6 +33,9 @@ interface AppContextType {
   addToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   removeToast: (id: string) => void;
   markNotificationsAsRead: () => Promise<void>;
+  isSwitchAccountOpen: boolean;
+  openSwitchAccount: () => void;
+  closeSwitchAccount: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -61,6 +67,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [isSwitchAccountOpen, setIsSwitchAccountOpen] = useState(false);
+
+  const openSwitchAccount = useCallback(() => setIsSwitchAccountOpen(true), []);
+  const closeSwitchAccount = useCallback(() => setIsSwitchAccountOpen(false), []);
 
   // Refs for tracking timeouts & theme state across listener closures without stale references
   const toastTimeoutsRef = useRef<Record<string, any>>({});
@@ -182,6 +192,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setCurrentUserProfile(profile);
         try {
           localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
+          accountService.syncCurrentProfile(profile);
         } catch {}
       }
     } else {
@@ -245,6 +256,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (profile) {
             setCurrentUserProfile(profile);
             localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
+            accountService.syncCurrentProfile(profile);
             await userService.ensureDefaultSubscription(user.uid);
           }
         } catch (err) {
@@ -319,9 +331,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addToast,
         removeToast,
         markNotificationsAsRead,
+        isSwitchAccountOpen,
+        openSwitchAccount,
+        closeSwitchAccount,
       }}
     >
       {children}
+      <SwitchAccountModal isOpen={isSwitchAccountOpen} onClose={closeSwitchAccount} />
     </AppContext.Provider>
   );
 };

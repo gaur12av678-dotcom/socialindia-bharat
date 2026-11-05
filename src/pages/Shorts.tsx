@@ -1207,20 +1207,6 @@ export const Shorts: React.FC = () => {
             />
           </div>
 
-          {/* Tap to Unmute Floating Prompt if browser restricted initial audio */}
-          {isMuted && isPlaying && !isShortLocked && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsMuted(false);
-              }}
-              className="absolute top-16 left-1/2 -translate-x-1/2 z-35 px-3.5 py-1.5 rounded-full bg-black/65 hover:bg-black/85 backdrop-blur-md border border-white/20 text-white text-[11px] font-black tracking-wide flex items-center gap-1.5 transition-all shadow-xl cursor-pointer active:scale-95"
-            >
-              <VolumeX className="w-3.5 h-3.5 text-amber-400" />
-              <span>{isHindi ? 'आवाज़ चालू करें' : 'Tap to unmute'}</span>
-            </button>
-          )}
-
           {/* PAID SHORT PAYWALL OVERLAY */}
           {isShortLocked && (
             <div className="absolute inset-0 z-40 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-white">

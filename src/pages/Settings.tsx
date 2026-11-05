@@ -53,7 +53,7 @@ import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 
 export const Settings: React.FC = () => {
-  const { currentUser, currentUserProfile, refreshProfile, updateUserProfileState, addToast } = useApp();
+  const { currentUser, currentUserProfile, refreshProfile, updateUserProfileState, addToast, openSwitchAccount } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
@@ -2000,8 +2000,18 @@ export const Settings: React.FC = () => {
 
           {activeTab === 'sessions' && (
             <div className="space-y-6">
-              <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Manage Sessions</h2>
+              <div className="pb-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{isHindi ? 'लॉगिन सेशन्स एवं खाते' : 'Manage Sessions & Accounts'}</h2>
+                  <p className="text-xs text-slate-500 mt-1">{isHindi ? 'इस डिवाइस पर सक्रिय सेशन्स और सहेजे गए खाते प्रबंधित करें' : 'Manage active sessions and switch saved channels on this device'}</p>
+                </div>
+                <button
+                  onClick={openSwitchAccount}
+                  className="px-4 py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md shadow-blue-500/10 flex items-center justify-center gap-2 self-start sm:self-auto"
+                >
+                  <ArrowRightLeft className="w-4 h-4" />
+                  <span>{isHindi ? 'खाता बदलें' : 'Switch Account'}</span>
+                </button>
               </div>
               <p className="text-xs text-slate-500">Current device: Linux / Web Browser • Active Now</p>
             </div>

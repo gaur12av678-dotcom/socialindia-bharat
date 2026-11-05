@@ -58,10 +58,12 @@ import {
   Mic,
   X,
   ArrowUpLeft,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
+import { accountService, SavedAccount } from '../services/accountService';
 import { UserAvatar } from './UserAvatar';
 import { VoiceSearchModal } from './VoiceSearchModal';
 import { searchHistoryService, SearchHistoryEntry, POPULAR_SEARCH_SUGGESTIONS } from '../services/searchHistoryService';
@@ -84,9 +86,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     notifications, 
     unreadCount, 
     markNotificationsAsRead,
-    addToast
+    addToast,
+    refreshProfile,
+    openSwitchAccount
   } = useApp();
   const isHindi = language === 'hi';
+  const [profileDropdownView, setProfileDropdownView] = useState<'main' | 'accounts'>('main');
+  const [switchingUid, setSwitchingUid] = useState<string | null>(null);
   
   const { route, navigate } = useRouter();
   const isShortsPage = route.path === 'shorts';
@@ -292,6 +298,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       }
       if (profileRef.current && !profileRef.current.contains(target)) {
         setProfileDropdownOpen(false);
+        setProfileDropdownView('main');
       }
       if (guestRef.current && !guestRef.current.contains(target)) {
         setGuestMenuOpen(false);
@@ -907,215 +914,362 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </button>
 
               {profileDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2.5 w-[290px] sm:w-[315px] max-w-[calc(100vw-24px)] bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-[#27272a] rounded-2xl shadow-[0_12px_42px_rgba(0,0,0,0.12),0_4px_14px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] z-50 overflow-hidden select-none animate-in fade-in zoom-in-95 duration-150 origin-top-right">
+                <div className="absolute right-0 top-full mt-2.5 w-[290px] sm:w-[320px] max-w-[calc(100vw-24px)] bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-[#27272a] rounded-2xl shadow-[0_12px_42px_rgba(0,0,0,0.12),0_4px_14px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] z-50 overflow-hidden select-none animate-in fade-in zoom-in-95 duration-150 origin-top-right">
                   
-                  {/* 1. Profile Header (Clickable -> My Channel) */}
-                  <div 
-                    onClick={() => {
-                      setProfileDropdownOpen(false);
-                      navigate('creator', currentUserProfile?.username || currentUser?.uid);
-                    }}
-                    className="p-3.5 bg-slate-50/90 dark:bg-zinc-900/60 border-b border-slate-100 dark:border-zinc-800/80 hover:bg-slate-100/90 dark:hover:bg-zinc-900/90 transition-colors cursor-pointer group flex items-center gap-3"
-                    title="View your channel"
-                  >
-                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-200/80 dark:border-zinc-700 shadow-xs">
-                      <UserAvatar 
-                        uid={currentUser.uid}
-                        fallbackPhotoURL={currentUserProfile?.photoURL}
-                        fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
-                        size="md"
-                        className="w-full h-full text-xs"
-                      />
+                  {profileDropdownView === 'accounts' ? (
+                    <div>
+                      {/* Sub-menu Top Bar */}
+                      <div className="flex items-center gap-2.5 px-3 py-3 border-b border-slate-100 dark:border-zinc-800/80 bg-slate-50/70 dark:bg-zinc-900/40">
+                        <button
+                          onClick={() => setProfileDropdownView('main')}
+                          className="p-1 -ml-1 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-zinc-800 rounded-full transition-colors cursor-pointer"
+                          title={isHindi ? 'वापस' : 'Back'}
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs font-bold text-slate-900 dark:text-white">
+                          {isHindi ? 'खाते' : 'Accounts'}
+                        </span>
+                      </div>
+
+                      {/* Current Active Account */}
+                      <div className="p-2 border-b border-slate-100 dark:border-zinc-800/80">
+                        <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                          {isHindi ? 'सक्रिय खाता' : 'Current account'}
+                        </div>
+                        <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/40">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className="relative shrink-0">
+                              <UserAvatar 
+                                uid={currentUser.uid}
+                                fallbackPhotoURL={currentUserProfile?.photoURL}
+                                fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
+                                size="sm"
+                                className="w-9 h-9 ring-2 ring-[#2563eb]"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {currentUserProfile?.displayName || currentUserProfile?.username || 'User'}
+                              </p>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                                @{currentUserProfile?.username}
+                                {typeof currentUserProfile?.followersCount === 'number' && (
+                                  <span> · {currentUserProfile.followersCount} {isHindi ? 'सदस्य' : 'subscribers'}</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="w-6 h-6 rounded-full bg-[#2563eb] text-white flex items-center justify-center shrink-0">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Other Saved Accounts List */}
+                      {(() => {
+                        const saved = accountService.getSavedAccounts().filter(a => a.uid !== currentUser.uid);
+                        return (
+                          <div className="p-1.5 max-h-[200px] overflow-y-auto">
+                            {saved.length > 0 && (
+                              <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                {isHindi ? 'अन्य खाते' : 'Other accounts'}
+                              </div>
+                            )}
+                            {saved.map((acc) => (
+                              <button
+                                key={acc.uid}
+                                disabled={switchingUid !== null}
+                                onClick={async () => {
+                                  setSwitchingUid(acc.uid);
+                                  const res = await accountService.switchToAccount(acc);
+                                  setSwitchingUid(null);
+                                  if (res.success) {
+                                    await refreshProfile();
+                                    setProfileDropdownOpen(false);
+                                    setProfileDropdownView('main');
+                                    addToast(isHindi ? `${acc.displayName || acc.username} में स्विच किया गया` : `Switched to ${acc.displayName || acc.username}`, 'success');
+                                  } else {
+                                    setProfileDropdownOpen(false);
+                                    setProfileDropdownView('main');
+                                    openSwitchAccount();
+                                  }
+                                }}
+                                className="w-full px-2.5 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center justify-between gap-2.5 transition-colors duration-150 cursor-pointer group text-left"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <UserAvatar 
+                                    uid={acc.uid}
+                                    fallbackPhotoURL={acc.photoURL}
+                                    fallbackDisplayName={acc.displayName || acc.username}
+                                    size="sm"
+                                    className="w-8 h-8 shrink-0"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] truncate">
+                                      {acc.displayName || acc.username}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                                      @{acc.username}
+                                      {typeof acc.subscribersCount === 'number' && (
+                                        <span> · {acc.subscribersCount} {isHindi ? 'सदस्य' : 'subscribers'}</span>
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                                {switchingUid === acc.uid && (
+                                  <Loader2 className="w-4 h-4 text-[#2563eb] animate-spin shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Footer Actions: Add Account & Sign Out */}
+                      <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5 space-y-0.5">
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            setProfileDropdownView('main');
+                            openSwitchAccount();
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group text-left"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6]">
+                            <Plus className="w-4 h-4 stroke-[2.5]" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] flex-1">
+                            {isHindi ? 'खाता जोड़ें' : 'Add account'}
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            setProfileDropdownView('main');
+                            handleSignOut();
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-rose-50/80 dark:hover:bg-rose-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-left"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-400 group-hover:text-rose-600 dark:group-hover:text-rose-400">
+                            <LogOut className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold flex-1">
+                            {isHindi ? 'सभी खातों से साइन आउट करें' : 'Sign out of all accounts'}
+                          </span>
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
-                        {currentUserProfile?.displayName || 'SocialIndia Creator'}
-                      </p>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
-                        @{currentUserProfile?.username || 'creator'}
-                      </p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] group-hover:translate-x-0.5 transition-all shrink-0 ml-auto" />
-                  </div>
-
-                  {/* 2. Account / Creator Group */}
-                  <div className="p-1.5">
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('creator', currentUserProfile?.username || currentUser?.uid);
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
-                        <UserIcon className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        {t('menu_your_channel', 'My Channel')}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('studio');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
-                        <LayoutDashboard className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        {t('menu_creator_studio', 'Creator Studio')}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('gopro');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-blue-50/70 dark:hover:bg-blue-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-amber-500 group-hover:scale-110 transition-transform">
-                        <Crown className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors text-left">
-                        {isHindi ? 'गो प्रो पैकेज' : 'Go Pro Package'}
-                      </span>
-                      <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] dark:text-[#60a5fa] border border-blue-200/60 dark:border-blue-800/60 shrink-0">
-                        ₹99/माह
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* 3. Platform Group */}
-                  <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('language');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-amber-500 dark:text-amber-400">
-                        <Globe className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        {isHindi ? 'भाषा: हिन्दी (सक्रिय)' : 'Language: English'}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('advertising');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
-                        <Megaphone className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        {isHindi ? 'विज्ञापन (प्रचार करें)' : 'Advertising (Promote)'}
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('settings');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
-                        <Settings className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        {t('menu_settings', 'Settings')}
-                      </span>
-                    </button>
-
-                    {currentUserProfile?.role === 'admin' && (
-                      <button
+                  ) : (
+                    <div>
+                      {/* 1. Profile Header (Clickable -> My Channel) */}
+                      <div 
                         onClick={() => {
                           setProfileDropdownOpen(false);
-                          navigate('admin');
+                          navigate('creator', currentUserProfile?.username || currentUser?.uid);
                         }}
-                        className="w-full px-3 py-2 rounded-xl hover:bg-blue-50/70 dark:hover:bg-blue-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        className="p-3.5 bg-slate-50/90 dark:bg-zinc-900/60 border-b border-slate-100 dark:border-zinc-800/80 hover:bg-slate-100/90 dark:hover:bg-zinc-900/90 transition-colors cursor-pointer group flex items-center gap-3"
+                        title="View your channel"
                       >
-                        <div className="w-5 h-5 flex items-center justify-center shrink-0 text-[#2563eb] dark:text-[#3b82f6]">
-                          <ShieldCheck className="w-4 h-4" />
+                        <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-200/80 dark:border-zinc-700 shadow-xs">
+                          <UserAvatar 
+                            uid={currentUser.uid}
+                            fallbackPhotoURL={currentUserProfile?.photoURL}
+                            fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
+                            size="md"
+                            className="w-full h-full text-xs"
+                          />
                         </div>
-                        <span className="text-xs font-semibold text-[#2563eb] dark:text-[#3b82f6] flex-1 text-left">
-                          {isHindi ? 'एडमिन हब' : 'Admin Hub'}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* 4. Support Group */}
-                  <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('help');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
-                        <HelpCircle className="w-4 h-4" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                            {currentUserProfile?.displayName || 'SocialIndia Creator'}
+                          </p>
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
+                            @{currentUserProfile?.username || 'creator'}
+                          </p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] group-hover:translate-x-0.5 transition-all shrink-0 ml-auto" />
                       </div>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        {isHindi ? 'सहायता केंद्र' : 'Help Center'}
-                      </span>
-                    </button>
 
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('feedback');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
-                        <MessageSquare className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        {isHindi ? 'फ़ीडबैक भेजें' : 'Send Feedback'}
-                      </span>
-                    </button>
-                  </div>
+                      {/* 2. Account / Creator Group */}
+                      <div className="p-1.5">
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('creator', currentUserProfile?.username || currentUser?.uid);
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                            <UserIcon className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                            {t('menu_your_channel', 'My Channel')}
+                          </span>
+                        </button>
 
-                  {/* 5. Account Switch & Sign Out */}
-                  <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
-                    <button
-                      onClick={() => {
-                        setProfileDropdownOpen(false);
-                        navigate('login');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
-                        <UserCheck className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                        {t('menu_switch_account', 'Switch Account')}
-                      </span>
-                    </button>
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('studio');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                            <LayoutDashboard className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                            {t('menu_creator_studio', 'Creator Studio')}
+                          </span>
+                        </button>
 
-                    <button
-                      onClick={handleSignOut}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-rose-50/80 dark:hover:bg-rose-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400"
-                    >
-                      <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-400 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
-                        <LogOut className="w-4 h-4" />
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('gopro');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-blue-50/70 dark:hover:bg-blue-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-amber-500 group-hover:scale-110 transition-transform">
+                            <Crown className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors text-left">
+                            {isHindi ? 'गो प्रो पैकेज' : 'Go Pro Package'}
+                          </span>
+                          <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] dark:text-[#60a5fa] border border-blue-200/60 dark:border-blue-800/60 shrink-0">
+                            ₹99/माह
+                          </span>
+                        </button>
                       </div>
-                      <span className="text-xs font-semibold flex-1 text-left">
-                        {t('sign_out', 'Sign Out')}
-                      </span>
-                    </button>
-                  </div>
+
+                      {/* 3. Platform Group */}
+                      <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('language');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-amber-500 dark:text-amber-400">
+                            <Globe className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                            {isHindi ? 'भाषा: हिन्दी (सक्रिय)' : 'Language: English'}
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('advertising');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                            <Megaphone className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                            {isHindi ? 'विज्ञापन (प्रचार करें)' : 'Advertising (Promote)'}
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('settings');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                            <Settings className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                            {t('menu_settings', 'Settings')}
+                          </span>
+                        </button>
+
+                        {currentUserProfile?.role === 'admin' && (
+                          <button
+                            onClick={() => {
+                              setProfileDropdownOpen(false);
+                              navigate('admin');
+                            }}
+                            className="w-full px-3 py-2 rounded-xl hover:bg-blue-50/70 dark:hover:bg-blue-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                          >
+                            <div className="w-5 h-5 flex items-center justify-center shrink-0 text-[#2563eb] dark:text-[#3b82f6]">
+                              <ShieldCheck className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-semibold text-[#2563eb] dark:text-[#3b82f6] flex-1 text-left">
+                              {isHindi ? 'एडमिन हब' : 'Admin Hub'}
+                            </span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* 4. Support Group */}
+                      <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('help');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                            <HelpCircle className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                            {isHindi ? 'सहायता केंद्र' : 'Help Center'}
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('feedback');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                            <MessageSquare className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                            {isHindi ? 'फ़ीडबैक भेजें' : 'Send Feedback'}
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* 5. Account Switch & Sign Out */}
+                      <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
+                        <button
+                          onClick={() => setProfileDropdownView('accounts')}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                            <UserCheck className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                            {t('menu_switch_account', 'Switch Account')}
+                          </span>
+                          <ChevronRight className="w-4 h-4 text-slate-400 dark:text-slate-500 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] group-hover:translate-x-0.5 transition-all shrink-0 ml-auto" />
+                        </button>
+
+                        <button
+                          onClick={handleSignOut}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-rose-50/80 dark:hover:bg-rose-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-400 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                            <LogOut className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold flex-1 text-left">
+                            {t('sign_out', 'Sign Out')}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                 </div>
               )}

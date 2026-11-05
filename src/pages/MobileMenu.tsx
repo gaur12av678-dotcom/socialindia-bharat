@@ -30,7 +30,7 @@ import { useTranslation } from '../i18n';
 import { UserAvatar } from '../components/UserAvatar';
 
 export const MobileMenu: React.FC = () => {
-  const { currentUser, currentUserProfile, theme, setTheme, addToast } = useApp();
+  const { currentUser, currentUserProfile, theme, setTheme, addToast, openSwitchAccount } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
@@ -101,8 +101,7 @@ export const MobileMenu: React.FC = () => {
   };
 
   const handleSwitchAccount = () => {
-    navigate('login');
-    addToast(isHindi ? 'खाता बदलने का विकल्प खुला। अब आप दूसरे चैनल में लॉगिन कर सकते हैं!' : 'Account switcher loaded. You can now login to a different channel!', 'success');
+    openSwitchAccount();
   };
 
   const isAdmin = currentUserProfile.role === 'admin';
@@ -138,14 +137,22 @@ export const MobileMenu: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={() => navigate('creator', currentUserProfile?.username || currentUser?.uid)}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-blue-500/10 cursor-pointer active:scale-98 transition-all"
-          >
-            <UserIcon className="w-4 h-4" />
-            <span>{isHindi ? 'अपनी प्रोफ़ाइल / चैनल देखें' : 'View Your Profile / Channel'}</span>
-            <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => navigate('creator', currentUserProfile?.username || currentUser?.uid)}
+              className="py-2.5 px-3 bg-[#2563eb] hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/10 cursor-pointer active:scale-98 transition-all"
+            >
+              <UserIcon className="w-3.5 h-3.5" />
+              <span className="truncate">{isHindi ? 'चैनल देखें' : 'View Channel'}</span>
+            </button>
+            <button
+              onClick={openSwitchAccount}
+              className="py-2.5 px-3 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 font-black text-xs uppercase tracking-wider rounded-2xl flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition-all"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-[#2563eb]" />
+              <span className="truncate">{isHindi ? 'खाता बदलें' : 'Switch Account'}</span>
+            </button>
+          </div>
         </div>
 
         {/* 2. MY LIBRARY & PLAYLISTS */}
