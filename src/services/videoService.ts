@@ -108,6 +108,30 @@ function savePersistedVideos(videos: Video[]) {
   } catch (_) {}
 }
 
+function getPersistedShorts(): Video[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = sessionStorage.getItem('si_cached_public_shorts') || localStorage.getItem('si_cached_public_shorts');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((v: any) => v && typeof v.videoId === 'string' && !v.videoId.startsWith('sample-'));
+      }
+    }
+  } catch (_) {}
+  return [];
+}
+
+function savePersistedShorts(shorts: Video[]) {
+  if (typeof window === 'undefined' || !shorts || shorts.length === 0) return;
+  try {
+    const slice = shorts.slice(0, 60);
+    const serialized = JSON.stringify(slice);
+    sessionStorage.setItem('si_cached_public_shorts', serialized);
+    localStorage.setItem('si_cached_public_shorts', serialized);
+  } catch (_) {}
+}
+
 export const clearVideoCache = () => {
   memoryVideoCache.clear();
   memoryVideoDetailCache.clear();
@@ -738,7 +762,19 @@ export const videoService = {
     const mem = memoryVideoCache.get(cacheKey);
     if (mem && mem.data.length > 0) return mem.data;
 
-    const all = getPersistedVideos();
+    let all: Video[] = [];
+    if (filters?.isShort === true) {
+      all = getPersistedShorts();
+      if (!all || all.length === 0) {
+        // Fallback: search regular persisted video cache for shorts
+        all = getPersistedVideos().filter(v => Boolean(v.isShort));
+      }
+    } else if (filters?.isShort === false) {
+      all = getPersistedVideos().filter(v => !v.isShort);
+    } else {
+      all = getPersistedVideos();
+    }
+
     if (!all || all.length === 0) return [];
 
     let filtered = all;
@@ -780,8 +816,8 @@ export const videoService = {
         q = query(q, where('isShort', '==', filters.isShort));
       }
 
-      // Add sensible limit to prevent downloading hundreds of items upfront
-      const queryLimit = filters?.limit || (filters?.isShort ? 25 : 60);
+      // Add sensible limit: 30 for shorts to provide smooth lightweight loading without thread lag
+      const queryLimit = filters?.limit || (filters?.isShort ? 30 : 60);
       q = query(q, limit(queryLimit));
 
       try {
@@ -796,7 +832,17 @@ export const videoService = {
 
         // Save general public feed to persistent storage for instant future loads
         if (!filters?.creatorId && (!filters?.category || filters.category === 'All')) {
-          savePersistedVideos(sorted);
+          if (filters?.isShort === true) {
+            savePersistedShorts(sorted);
+          } else if (filters?.isShort === false) {
+            savePersistedVideos(sorted);
+          } else {
+            savePersistedVideos(sorted.filter(v => !v.isShort));
+            const onlyShorts = sorted.filter(v => Boolean(v.isShort));
+            if (onlyShorts.length > 0) {
+              savePersistedShorts(onlyShorts);
+            }
+          }
         }
 
         // Pre-populate individual video caches and creator user profiles

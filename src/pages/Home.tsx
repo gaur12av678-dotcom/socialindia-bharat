@@ -67,6 +67,8 @@ export const Home: React.FC = () => {
 
   // Master in-memory video repository for instant 0ms filtering
   const initialAllCached = videoService.getCachedVideos({ isShort: false });
+  const initialCachedShorts = videoService.getCachedVideos({ isShort: true });
+
   const masterVideosRef = useRef<Video[]>(
     persistentMasterVideos.length > 0 
       ? persistentMasterVideos 
@@ -96,11 +98,22 @@ export const Home: React.FC = () => {
     if (persistentHomeShorts && persistentHomeShorts.length > 0) {
       return persistentHomeShorts;
     }
+    if (initialCachedShorts.length > 0) {
+      return recommendationService.getShortsRecommendations({
+        allShorts: initialCachedShorts,
+        userUid: currentUser?.uid,
+        limit: 15
+      });
+    }
     return [];
   });
 
   const [loading, setLoading] = useState(() => !(masterVideosRef.current.length > 0 || initialAllCached.length > 0));
-  const [loadingShorts, setLoadingShorts] = useState(() => !(persistentHomeShorts && persistentHomeShorts.length > 0));
+  const [loadingShorts, setLoadingShorts] = useState(() => {
+    if (persistentHomeShorts && persistentHomeShorts.length > 0) return false;
+    if (initialCachedShorts.length > 0) return false;
+    return true;
+  });
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
   const [adDismissed, setAdDismissed] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -114,6 +127,27 @@ export const Home: React.FC = () => {
   const filterScrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  // Shorts Horizontal Scroll Shelf State (YouTube Style)
+  const shortsScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollShortsLeft, setCanScrollShortsLeft] = useState(false);
+  const [canScrollShortsRight, setCanScrollShortsRight] = useState(false);
+
+  const checkShortsScroll = () => {
+    if (shortsScrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = shortsScrollRef.current;
+      setCanScrollShortsLeft(scrollLeft > 10);
+      setCanScrollShortsRight(scrollLeft + clientWidth < scrollWidth - 10);
+    }
+  };
+
+  const scrollShorts = (direction: 'left' | 'right') => {
+    if (shortsScrollRef.current) {
+      const scrollAmount = direction === 'left' ? -380 : 380;
+      shortsScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      setTimeout(checkShortsScroll, 250);
+    }
+  };
 
   const checkFilterScroll = () => {
     if (filterScrollRef.current) {
@@ -133,9 +167,14 @@ export const Home: React.FC = () => {
 
   useEffect(() => {
     checkFilterScroll();
+    checkShortsScroll();
     window.addEventListener('resize', checkFilterScroll);
-    return () => window.removeEventListener('resize', checkFilterScroll);
-  }, []);
+    window.addEventListener('resize', checkShortsScroll);
+    return () => {
+      window.removeEventListener('resize', checkFilterScroll);
+      window.removeEventListener('resize', checkShortsScroll);
+    };
+  }, [shorts.length]);
 
   // Sync category with URL query param if present
   useEffect(() => {
@@ -230,11 +269,13 @@ export const Home: React.FC = () => {
     }
     try {
       const shortsData = await videoService.getVideos({
-        isShort: true
+        isShort: true,
+        limit: 25
       });
-      const rankedShorts = recommendationService.rankAndFilterVideos(shortsData, {
-        isShortsOnly: true,
-        userUid: currentUser?.uid
+      const rankedShorts = recommendationService.getShortsRecommendations({
+        allShorts: shortsData,
+        userUid: currentUser?.uid,
+        limit: 15
       });
       setShorts(rankedShorts);
       persistentHomeShorts = rankedShorts;
@@ -246,6 +287,7 @@ export const Home: React.FC = () => {
       }
     } finally {
       setLoadingShorts(false);
+      setTimeout(checkShortsScroll, 200);
     }
   };
 
@@ -313,6 +355,15 @@ export const Home: React.FC = () => {
     }, 700);
     return () => clearTimeout(timer);
   }, [loading, videos.length]);
+
+  // Failsafe for shorts: never leave blank gray skeleton hanging
+  useEffect(() => {
+    if (!loadingShorts) return;
+    const timer = setTimeout(() => {
+      setLoadingShorts(false);
+    }, 750);
+    return () => clearTimeout(timer);
+  }, [loadingShorts]);
 
   // Infinite Scroll IntersectionObserver & Scroll Listener:
   // Dynamically increments visibleCount as user scrolls near bottom
@@ -534,7 +585,7 @@ export const Home: React.FC = () => {
         />
       </div>
 
-      {/* 2. Shorts Section (Only shown if loading or if real shorts exist) */}
+      {/* 2. Shorts Section (Progressive YouTube-style shelf with algorithmic rotation) */}
       {selectedCategory === 'All' && (loadingShorts || shorts.length > 0) && (
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
@@ -547,19 +598,47 @@ export const Home: React.FC = () => {
               </h2>
             </div>
 
-            <button 
-              onClick={() => navigate('shorts')}
-              className="text-xs font-bold text-[#065fd4] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <span>{isHindi ? 'सभी देखें' : 'See All'}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Desktop Scroll Buttons */}
+              {canScrollShortsLeft && (
+                <button
+                  type="button"
+                  onClick={() => scrollShorts('left')}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 hidden sm:flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all active:scale-90"
+                  aria-label="Scroll left"
+                >
+                  <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+                </button>
+              )}
+              {canScrollShortsRight && (
+                <button
+                  type="button"
+                  onClick={() => scrollShorts('right')}
+                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 hidden sm:flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all active:scale-90"
+                  aria-label="Scroll right"
+                >
+                  <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                </button>
+              )}
+
+              <button 
+                onClick={() => navigate('shorts')}
+                className="text-xs font-bold text-[#065fd4] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer ml-1"
+              >
+                <span>{isHindi ? 'सभी देखें' : 'See All'}</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
-          {loadingShorts ? (
+          {loadingShorts && shorts.length === 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex flex-col space-y-2 animate-pulse">
+                <div 
+                  key={i} 
+                  style={{ animationDelay: `${i * 90}ms` }}
+                  className="flex flex-col space-y-2 animate-pulse"
+                >
                   <div className="aspect-[9/16] w-full rounded-2xl bg-[#dbe2ee] dark:bg-slate-800 relative overflow-hidden shadow-xs">
                     <div className="absolute bottom-2.5 right-2.5 h-4 w-8 bg-[#bcc8dc] dark:bg-slate-700 rounded-md" />
                   </div>
@@ -571,18 +650,29 @@ export const Home: React.FC = () => {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
-              {shorts.slice(0, 5).map((short) => (
+            <div 
+              ref={shortsScrollRef}
+              onScroll={checkShortsScroll}
+              data-no-scrollbar="true"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none no-scrollbar scroll-smooth py-1 px-0.5"
+            >
+              {shorts.map((short, idx) => (
                 <div
                   key={short.videoId}
                   onClick={() => navigate('shorts', short.videoId)}
-                  className="group relative cursor-pointer select-none"
+                  style={{
+                    animationDelay: `${Math.min(idx, 8) * 60}ms`,
+                    animationFillMode: 'both'
+                  }}
+                  className="w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 group relative cursor-pointer select-none transition-transform active:scale-[0.98]"
                 >
                   <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-slate-900 shadow-md">
                     {short.thumbnailUrl ? (
                       <img 
                         src={short.thumbnailUrl} 
                         alt={short.title} 
+                        loading="lazy"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                       />
                     ) : (
@@ -608,14 +698,18 @@ export const Home: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Short Title & Views */}
-                  <div className="mt-2 space-y-0.5">
+                  {/* Short Title & Creator & Views */}
+                  <div className="mt-2 space-y-0.5 px-0.5">
                     <p className="text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-[#065fd4] dark:group-hover:text-[#3b82f6] transition-colors">
                       {short.title}
                     </p>
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
-                      {short.viewsCount ? (isHindi ? `${(short.viewsCount / 1000).toFixed(1)}k व्यूज़` : `${short.viewsCount.toLocaleString()} views`) : (isHindi ? '1.2k व्यूज़' : '1.2k views')}
-                    </span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      <span className="truncate max-w-[120px]">{short.creatorDisplayName || short.creatorUsername}</span>
+                      <span>•</span>
+                      <span className="shrink-0">
+                        {short.viewsCount ? (isHindi ? `${(short.viewsCount / 1000).toFixed(1)}k व्यूज़` : `${short.viewsCount.toLocaleString()} views`) : (isHindi ? '1.2k व्यूज़' : '1.2k views')}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}

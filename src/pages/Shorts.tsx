@@ -482,10 +482,35 @@ export const Shorts: React.FC = () => {
 
   // Instant synchronous cache retrieval (0ms initial frame render)
   const initialCachedShort = targetShortId ? videoService.getCachedVideo(targetShortId) : null;
-  const [shorts, setShorts] = useState<Video[]>(() => initialCachedShort ? [initialCachedShort] : []);
-  const [loading, setLoading] = useState<boolean>(() => !initialCachedShort);
+  const initialCachedShorts = videoService.getCachedVideos({ isShort: true });
+  const allShortsPoolRef = useRef<Video[]>(initialCachedShorts);
+  const isExpandingRef = useRef(false);
+
+  const [shorts, setShorts] = useState<Video[]>(() => {
+    if (initialCachedShort) {
+      // Put target short FIRST, then follow immediately with cached next shorts for seamless 0ms downward scroll!
+      const otherCached = initialCachedShorts.filter(s => s.videoId !== initialCachedShort.videoId);
+      const rankedOthers = recommendationService.getShortsRecommendations({
+        allShorts: otherCached,
+        currentShortId: initialCachedShort.videoId,
+        userUid: currentUser?.uid,
+        limit: 8
+      });
+      return [initialCachedShort, ...rankedOthers];
+    }
+    if (initialCachedShorts.length > 0) {
+      return recommendationService.getShortsRecommendations({
+        allShorts: initialCachedShorts,
+        userUid: currentUser?.uid,
+        limit: 8
+      });
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState<boolean>(() => !initialCachedShort && initialCachedShorts.length === 0);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [swipeDirection, setTransitionDirection] = useState<'up' | 'down' | null>(null);
+  const [swipeDirection, setSwipeDirection] = useState<'up' | 'down' | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMediaReady, setIsMediaReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [volume, setVolume] = useState(1);
@@ -536,45 +561,54 @@ export const Shorts: React.FC = () => {
   const [subscribing, setSubscribing] = useState(false);
 
   const fetchShorts = async () => {
-    setLoading(true);
+    if (shorts.length === 0) {
+      setLoading(true);
+    }
     try {
-      const data = await videoService.getVideos({ isShort: true });
+      // Chunked fetch (limit: 25) prevents UI lag and network choking
+      const data = await videoService.getVideos({ isShort: true, limit: 25 });
+      allShortsPoolRef.current = data;
 
       if (data.length > 0) {
-        // AI Recommendation Ranking & Anti-Repeat Filter
-        const ranked = recommendationService.rankAndFilterVideos(data, {
-          isShortsOnly: true,
+        // AI Shorts Recommendation Algorithm with Creator Diversity, Engagement & Anti-Repeat Jitter
+        const ranked = recommendationService.getShortsRecommendations({
+          allShorts: data,
+          currentShortId: targetShortId,
           userUid: currentUser?.uid
         });
 
         // If route specifies a short ID, find index or fetch
         if (targetShortId) {
-          const idx = ranked.findIndex(s => s.videoId === targetShortId);
-          if (idx !== -1) {
-            setShorts(ranked);
-            setCurrentIndex(idx);
+          const target = data.find(s => s.videoId === targetShortId);
+          if (target) {
+            const others = ranked.filter(s => s.videoId !== targetShortId).slice(0, 8);
+            setShorts([target, ...others]);
+            setCurrentIndex(0);
           } else {
             const singleShort = await videoService.getVideo(targetShortId);
             if (singleShort && singleShort.isShort) {
-              setShorts([singleShort, ...ranked.filter(s => s.videoId !== singleShort.videoId)]);
+              const others = ranked.filter(s => s.videoId !== singleShort.videoId).slice(0, 8);
+              setShorts([singleShort, ...others]);
               setCurrentIndex(0);
             } else {
-              setShorts(ranked);
+              setShorts(ranked.slice(0, 8));
               setCurrentIndex(0);
             }
           }
         } else {
-          setShorts(ranked);
+          setShorts(ranked.slice(0, 8));
           setCurrentIndex(0);
         }
-      } else {
+      } else if (shorts.length === 0) {
         setShorts([]);
         setCurrentIndex(0);
       }
     } catch (err) {
       console.error(err);
-      setShorts([]);
-      setCurrentIndex(0);
+      if (shorts.length === 0) {
+        setShorts([]);
+        setCurrentIndex(0);
+      }
     } finally {
       setLoading(false);
     }
@@ -762,21 +796,109 @@ export const Shorts: React.FC = () => {
     }
   };
 
+  const expandShortsQueue = async (advance = false) => {
+    if (isExpandingRef.current) return;
+    isExpandingRef.current = true;
+    try {
+      let pool = allShortsPoolRef.current;
+      if (!pool || pool.length === 0) {
+        pool = await videoService.getVideos({ isShort: true, limit: 25 });
+        allShortsPoolRef.current = pool;
+      }
+
+      if (pool.length > 0) {
+        const currentIds = new Set(shorts.map(s => s.videoId));
+        // Remaining unshown candidates from pool
+        const remaining = pool.filter(s => !currentIds.has(s.videoId));
+
+        let nextBatch: Video[] = [];
+        if (remaining.length > 0) {
+          nextBatch = recommendationService.getShortsRecommendations({
+            allShorts: remaining,
+            userUid: currentUser?.uid,
+            limit: 6
+          });
+        }
+
+        // If all pool items have been shown, dynamically generate fresh rotated recommendations
+        if (nextBatch.length === 0) {
+          nextBatch = recommendationService.getShortsRecommendations({
+            allShorts: pool,
+            userUid: currentUser?.uid,
+            limit: 6
+          });
+        }
+
+        if (nextBatch.length > 0) {
+          setShorts(prev => [...prev, ...nextBatch]);
+          if (advance) {
+            if (isTransitioning) return;
+            setIsTransitioning(true);
+            setSwipeDirection('up');
+            setIsMediaReady(false);
+            setTimeout(() => {
+              setCurrentIndex(prev => prev + 1);
+              setSwipeDirection(null);
+              setIsPlaying(true);
+              setIsTransitioning(false);
+            }, 140);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not expand shorts queue:', e);
+    } finally {
+      isExpandingRef.current = false;
+    }
+  };
+
   const handleNext = () => {
+    if (isTransitioning) return;
     if (currentIndex < shorts.length - 1) {
+      setIsTransitioning(true);
+      setSwipeDirection('up');
       setIsMediaReady(false);
-      setIsPlaying(true);
-      setCurrentIndex(prev => prev + 1);
+      setTimeout(() => {
+        setCurrentIndex(prev => prev + 1);
+        setSwipeDirection(null);
+        setIsPlaying(true);
+        setIsTransitioning(false);
+      }, 140);
+    } else if (shorts.length > 0) {
+      expandShortsQueue(true);
     }
   };
 
   const handlePrev = () => {
+    if (isTransitioning) return;
     if (currentIndex > 0) {
+      setIsTransitioning(true);
+      setSwipeDirection('down');
       setIsMediaReady(false);
-      setIsPlaying(true);
-      setCurrentIndex(prev => prev - 1);
+      setTimeout(() => {
+        setCurrentIndex(prev => prev - 1);
+        setSwipeDirection(null);
+        setIsPlaying(true);
+        setIsTransitioning(false);
+      }, 140);
     }
   };
+
+  // Background infinite buffer: whenever user is within 3 items of bottom, silently load next batch so scrolling never stops
+  useEffect(() => {
+    if (shorts.length > 0 && currentIndex >= shorts.length - 3) {
+      expandShortsQueue(false);
+    }
+  }, [currentIndex, shorts.length]);
+
+  // Pre-warm the next short's poster image for zero-latency instant transition
+  useEffect(() => {
+    const nextShort = shorts[currentIndex + 1];
+    if (nextShort?.thumbnailUrl) {
+      const img = new Image();
+      img.src = nextShort.thumbnailUrl;
+    }
+  }, [currentIndex, shorts]);
 
   // Touch Swipe (Mobile / Tablet)
   const touchStartY = useRef<number | null>(null);
@@ -795,7 +917,7 @@ export const Shorts: React.FC = () => {
   const handleTouchEnd = () => {
     if (touchStartY.current !== null && touchEndY.current !== null) {
       const diffY = touchStartY.current - touchEndY.current;
-      const minSwipeDistance = 45;
+      const minSwipeDistance = 35; // Sensitive YouTube-like mobile swipe threshold
       if (diffY > minSwipeDistance) {
         // Swiped UP -> Next Short
         handleNext();
@@ -1171,7 +1293,7 @@ export const Shorts: React.FC = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          className="relative w-full max-w-full md:max-w-[390px] h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] md:aspect-[9/16] bg-black rounded-none md:rounded-[2rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-pan-y"
+          className="relative w-full max-w-full md:max-w-[390px] h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] md:aspect-[9/16] bg-black rounded-none md:rounded-[2rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-none select-none"
         >
           {/* Top Mobile Overlay: Back to Home Button (YouTube Shorts Style) */}
           <div className="absolute top-3 left-3 md:hidden z-35 flex items-center gap-2">
@@ -1188,12 +1310,12 @@ export const Shorts: React.FC = () => {
           </div>
           
           {/* Media Player Component Wrapper with Smooth Sliding Transitions */}
-          <div className={`w-full h-full transition-all duration-200 ease-out transform ${
+          <div className={`w-full h-full transition-all duration-150 ease-out transform ${
             swipeDirection === 'up' 
-              ? '-translate-y-full opacity-20 scale-95' 
+              ? '-translate-y-full opacity-30 scale-95' 
               : swipeDirection === 'down' 
-              ? 'translate-y-full opacity-20 scale-95' 
-              : 'translate-y-0 opacity-100 scale-100 animate-in fade-in duration-300'
+              ? 'translate-y-full opacity-30 scale-95' 
+              : 'translate-y-0 opacity-100 scale-100'
           }`}>
             <ShortVideoMedia 
               key={activeShort.videoId} 

@@ -4,6 +4,15 @@ const WATCHED_STORAGE_KEY = 'socialindia_watched_ids';
 let lastHeroVideoId = '';
 let lastWatchSidebarFirstVideoId = '';
 let lastMoreVideosFirstId = '';
+let lastHeroShortId = '';
+
+export interface ShortsRecommendationOptions {
+  allShorts: Video[];
+  currentShortId?: string;
+  excludeIds?: string[];
+  userUid?: string;
+  limit?: number;
+}
 
 export interface HomeMoreVideosOptions {
   allVideos: Video[];
@@ -352,5 +361,106 @@ export const recommendationService = {
     }
 
     return sortedVideos;
+  },
+
+  /**
+   * YOUTUBE-STYLE SHORTS RECOMMENDATION ALGORITHM
+   * Solves: "shorts same ak hi dikhti hai lagothim bano"
+   * 1. Multi-factor engagement scoring (views + likes + comments).
+   * 2. Watched decay penalty (0.35x for already-watched shorts to prioritize fresh/unseen content).
+   * 3. Dynamic positional jitter (randomizes candidate scores to eliminate frozen static order).
+   * 4. Creator Diversity Interleaving (prevents 2+ consecutive shorts from the same creator).
+   * 5. Anti-Repeat Hero (prevents the same short from sticking at card #0 on every refresh).
+   */
+  getShortsRecommendations(options: ShortsRecommendationOptions): Video[] {
+    const { allShorts, currentShortId, excludeIds = [], limit } = options;
+    if (!allShorts || allShorts.length === 0) return [];
+
+    const excludeSet = new Set(excludeIds);
+    if (currentShortId) {
+      excludeSet.add(currentShortId);
+    }
+
+    let pool = allShorts.filter(s => s && s.videoId && !excludeSet.has(s.videoId));
+    if (pool.length === 0) {
+      pool = [...allShorts];
+    }
+
+    const watchedIds = this.getWatchedVideoIds();
+    const now = Date.now();
+
+    const scored = pool.map(short => {
+      const views = Number(short.viewsCount) || 0;
+      const likes = Number(short.likesCount) || 0;
+      const comments = Number(short.commentsCount) || 0;
+
+      // Base engagement score (logarithmic)
+      const engagement = (Math.log10(Math.max(1, views) + 1) * 26) + 
+                         (Math.log10(Math.max(1, likes) + 1) * 20) + 
+                         (Math.log10(Math.max(1, comments) + 1) * 12);
+
+      // Freshness bonus (elevates newly published shorts)
+      const uploadTime = new Date(short.createdAt || 0).getTime();
+      const ageHours = (now - uploadTime) / (1000 * 60 * 60);
+      let freshness = 0;
+      if (ageHours < 24) {
+        freshness = 90;
+      } else if (ageHours < 72) {
+        freshness = 60;
+      } else if (ageHours < 168) {
+        freshness = 35;
+      } else if (ageHours < 720) {
+        freshness = 15;
+      }
+
+      let totalScore = engagement + freshness;
+
+      // Watched penalty: Decays score so user encounters fresh shorts
+      if (watchedIds.has(short.videoId)) {
+        totalScore *= 0.35;
+      }
+
+      // Dynamic position jitter to avoid static frozen ranking
+      const jitter = Math.random() * 28;
+      totalScore += jitter;
+
+      return {
+        short,
+        score: totalScore
+      };
+    });
+
+    // Sort by algorithmic score descending
+    scored.sort((a, b) => b.score - a.score);
+    let candidateShorts = scored.map(s => s.short);
+
+    // Creator Diversity Interleaving: avoid consecutive shorts from the exact same creator
+    for (let i = 0; i < candidateShorts.length - 1; i++) {
+      const currentCreator = candidateShorts[i].creatorId || candidateShorts[i].creatorUsername;
+      const nextCreator = candidateShorts[i + 1].creatorId || candidateShorts[i + 1].creatorUsername;
+
+      if (currentCreator && nextCreator === currentCreator) {
+        const swapIdx = candidateShorts.findIndex((s, idx) => idx > i + 1 && (s.creatorId || s.creatorUsername) !== currentCreator);
+        if (swapIdx !== -1 && swapIdx < i + 5) {
+          [candidateShorts[i + 1], candidateShorts[swapIdx]] = [candidateShorts[swapIdx], candidateShorts[i + 1]];
+        }
+      }
+    }
+
+    // Anti-repeat Hero Short check: ensure card #0 isn't identical across consecutive page loads
+    if (candidateShorts.length > 2 && candidateShorts[0].videoId === lastHeroShortId) {
+      const swapTarget = Math.min(candidateShorts.length - 1, Math.floor(Math.random() * 3) + 1);
+      [candidateShorts[0], candidateShorts[swapTarget]] = [candidateShorts[swapTarget], candidateShorts[0]];
+    }
+
+    if (candidateShorts[0]?.videoId) {
+      lastHeroShortId = candidateShorts[0].videoId;
+    }
+
+    if (limit && limit > 0) {
+      return candidateShorts.slice(0, limit);
+    }
+
+    return candidateShorts;
   }
 };
