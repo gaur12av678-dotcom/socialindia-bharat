@@ -440,9 +440,9 @@ export const Home: React.FC = () => {
   };
 
   // YouTube-style Incremental Batch Rendering:
-  // For 'All': Top 4 in Row 1 above Shorts, then YouTube-style algorithm recommendations for "More Videos For You"
+  // For 'All': Top 3 in Row 1 above Shorts, then YouTube-style algorithm recommendations for "More Videos For You"
   // For specific category: slices up to visibleCount (starts with 12)
-  const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 4) : videos.slice(0, visibleCount);
+  const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 3) : videos.slice(0, visibleCount);
 
   // YouTube-style recommendation algorithm for "More Videos For You"
   const moreVideos = React.useMemo(() => {
@@ -456,11 +456,11 @@ export const Home: React.FC = () => {
   }, [selectedCategory, firstRowVideos, currentUser?.uid]);
 
   const displayedMoreVideos = selectedCategory === 'All' 
-    ? moreVideos.slice(0, Math.max(0, visibleCount - 4)) 
+    ? moreVideos.slice(0, Math.max(0, visibleCount - 3)) 
     : [];
 
   const hasMoreVideos = selectedCategory === 'All'
-    ? (visibleCount - 4 < moreVideos.length)
+    ? (visibleCount - 3 < moreVideos.length)
     : (visibleCount < videos.length);
 
   return (
@@ -579,7 +579,7 @@ export const Home: React.FC = () => {
           loading={loading} 
           activeAds={adDismissed ? [] : activeAds}
           onDismissAd={() => setAdDismissed(true)}
-          gridColsClass="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+          gridColsClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
           emptyHeading={isHindi ? 'अभी कोई वीडियो उपलब्ध नहीं है' : 'No videos available yet'}
           emptyMessage={isHindi ? 'सोशलइंडिया पर प्रकाशित वीडियो यहां दिखाई देंगे।' : 'Videos published on SocialIndia will appear here.'}
         />
@@ -658,14 +658,21 @@ export const Home: React.FC = () => {
               className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none no-scrollbar scroll-smooth py-1 px-0.5"
             >
               {shorts.map((short, idx) => (
-                <div
+                <a
                   key={short.videoId}
-                  onClick={() => navigate('shorts', short.videoId)}
+                  href={`#/shorts/${short.videoId}`}
+                  draggable={true}
+                  title={short.title}
+                  onClick={(e) => {
+                    if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                    e.preventDefault();
+                    navigate('shorts', short.videoId);
+                  }}
                   style={{
                     animationDelay: `${Math.min(idx, 8) * 60}ms`,
                     animationFillMode: 'both'
                   }}
-                  className="w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 group relative cursor-pointer select-none transition-transform active:scale-[0.98]"
+                  className="w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 group relative block cursor-pointer select-none transition-transform active:scale-[0.98]"
                 >
                   <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-slate-900 shadow-md">
                     {short.thumbnailUrl ? (
@@ -673,27 +680,28 @@ export const Home: React.FC = () => {
                         src={short.thumbnailUrl} 
                         alt={short.title} 
                         loading="lazy"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                        draggable={false}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none" 
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900 flex flex-col items-center justify-center p-3 text-center">
+                      <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900 flex flex-col items-center justify-center p-3 text-center pointer-events-none">
                         <Zap className="w-8 h-8 text-white/50 mb-1" />
                         <span className="text-[11px] text-white/70 font-semibold truncate max-w-[90%]">{short.title}</span>
                       </div>
                     )}
                     
                     {/* Dark gradient scrim at bottom */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/10 group-hover:from-black/90 transition-colors" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/10 group-hover:from-black/90 transition-colors pointer-events-none" />
 
                     {/* Play Button Overlay on Hover */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                       <div className="w-10 h-10 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center text-white border border-white/40 shadow-lg">
                         <Play className="w-5 h-5 fill-current ml-0.5" />
                       </div>
                     </div>
 
                     {/* Duration Badge */}
-                    <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold rounded-md">
+                    <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold rounded-md pointer-events-none">
                       {short.duration ? `${Math.floor(short.duration / 60)}:${(short.duration % 60).toString().padStart(2, '0')}` : '0:45'}
                     </div>
                   </div>
@@ -711,7 +719,7 @@ export const Home: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                </div>
+                </a>
               ))}
             </div>
           )}
@@ -736,7 +744,7 @@ export const Home: React.FC = () => {
             videos={displayedMoreVideos} 
             loading={false} 
             activeAds={[]}
-            gridColsClass="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+            gridColsClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
             emptyHeading={isHindi ? 'कोई और वीडियो नहीं' : 'No more videos'}
             emptyMessage={isHindi ? 'अधिक वीडियो प्रकाशित होने पर यहां दिखाई देंगे।' : 'More videos will appear here.'}
           />

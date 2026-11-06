@@ -153,17 +153,12 @@ export const LikedVideos: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {likedVideos.map((video, index) => (
+          {likedVideos.map((video, index) => {
+            const watchUrl = video.isShort ? `#/shorts/${video.videoId}` : `#/watch/${video.videoId}`;
+            return (
             <div
               key={video.videoId}
-              onClick={() => {
-                if (video.isShort) {
-                  navigate('shorts', video.videoId);
-                } else {
-                  navigate('watch', video.videoId);
-                }
-              }}
-              className="group flex flex-col sm:flex-row items-start sm:items-center gap-3.5 p-3 sm:p-3.5 bg-white dark:bg-[#16171a] hover:bg-slate-50 dark:hover:bg-[#1e2025] border border-slate-200/80 dark:border-slate-800 rounded-2xl transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-xs relative"
+              className="group flex flex-col sm:flex-row items-start sm:items-center gap-3.5 p-3 sm:p-3.5 bg-white dark:bg-[#16171a] hover:bg-slate-50 dark:hover:bg-[#1e2025] border border-slate-200/80 dark:border-slate-800 rounded-2xl transition-all duration-150 shadow-2xs hover:shadow-xs relative"
             >
               {/* Order Number on Desktop */}
               <span className="hidden sm:inline-block w-6 text-center text-xs font-black text-slate-400 dark:text-slate-500 shrink-0">
@@ -171,39 +166,68 @@ export const LikedVideos: React.FC = () => {
               </span>
 
               {/* Video Thumbnail */}
-              <div className="relative w-full sm:w-44 md:w-48 aspect-video rounded-xl overflow-hidden bg-slate-900 shrink-0">
+              <a 
+                href={watchUrl}
+                draggable={true}
+                title={video.title}
+                onClick={(e) => {
+                  if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                  e.preventDefault();
+                  if (video.isShort) {
+                    navigate('shorts', video.videoId);
+                  } else {
+                    navigate('watch', video.videoId);
+                  }
+                }}
+                className="relative block w-full sm:w-44 md:w-48 aspect-video rounded-xl overflow-hidden bg-slate-900 shrink-0 cursor-pointer"
+              >
                 <img
                   src={video.thumbnailUrl || '/logo.svg'}
                   alt={video.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  draggable={false}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
                   loading="lazy"
                   onError={(e) => {
                     (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80';
                   }}
                 />
                 {video.duration ? (
-                  <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 text-white text-[10px] font-bold rounded-md">
+                  <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 text-white text-[10px] font-bold rounded-md pointer-events-none">
                     {formatDuration(video.duration)}
                   </span>
                 ) : null}
                 {video.isShort && (
-                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-wider rounded-md">
+                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-wider rounded-md pointer-events-none">
                     Short
                   </span>
                 )}
                 {/* Play Hover Overlay */}
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                   <div className="w-10 h-10 rounded-full bg-white/90 text-blue-600 flex items-center justify-center shadow-lg">
                     <Play className="w-4 h-4 fill-current ml-0.5" />
                   </div>
                 </div>
-              </div>
+              </a>
 
               {/* Video Info */}
               <div className="flex-1 min-w-0 pr-10 sm:pr-0">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                <a
+                  href={watchUrl}
+                  draggable={true}
+                  title={video.title}
+                  onClick={(e) => {
+                    if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                    e.preventDefault();
+                    if (video.isShort) {
+                      navigate('shorts', video.videoId);
+                    } else {
+                      navigate('watch', video.videoId);
+                    }
+                  }}
+                  className="block text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors cursor-pointer"
+                >
                   {video.title || 'Untitled Video'}
-                </h3>
+                </a>
                 
                 <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                   {video.creatorDisplayName && (
@@ -246,7 +270,8 @@ export const LikedVideos: React.FC = () => {
                 </button>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
     </div>

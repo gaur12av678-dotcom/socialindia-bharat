@@ -107,28 +107,54 @@ export const SavedVideos: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {savedVideos.map((item) => (
-            <div
-              key={item.videoId}
-              onClick={() => navigate('watch', item.videoId)}
-              className="flex gap-4 p-3 bg-white dark:bg-[#0f0f0f] border border-slate-100 dark:border-[#272727] rounded-2xl cursor-pointer hover:shadow-md transition-all group relative"
-            >
-              <div className="w-32 sm:w-44 aspect-video bg-slate-100 dark:bg-[#272727] rounded-xl overflow-hidden shrink-0">
-                <img src={item.thumbnailUrl} alt={item.title} className="w-full h-full object-cover" />
-              </div>
-              <div className="flex-1 min-w-0 flex flex-col justify-between py-1 pr-8">
-                <div>
-                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
-                    {item.title}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-1 truncate">
-                    {item.creatorDisplayName}
+          {savedVideos.map((item) => {
+            const watchUrl = `#/watch/${item.videoId}`;
+            return (
+              <div
+                key={item.videoId}
+                className="flex gap-4 p-3 bg-white dark:bg-[#0f0f0f] border border-slate-100 dark:border-[#272727] rounded-2xl hover:shadow-md transition-all group relative"
+              >
+                <a 
+                  href={watchUrl}
+                  draggable={true}
+                  title={item.title}
+                  onClick={(e) => {
+                    if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                    e.preventDefault();
+                    navigate('watch', item.videoId);
+                  }}
+                  className="w-32 sm:w-44 aspect-video bg-slate-100 dark:bg-[#272727] rounded-xl overflow-hidden shrink-0 block cursor-pointer"
+                >
+                  <img 
+                    src={item.thumbnailUrl} 
+                    alt={item.title} 
+                    draggable={false} 
+                    className="w-full h-full object-cover pointer-events-none select-none" 
+                  />
+                </a>
+                <div className="flex-1 min-w-0 flex flex-col justify-between py-1 pr-8">
+                  <div>
+                    <a
+                      href={watchUrl}
+                      draggable={true}
+                      title={item.title}
+                      onClick={(e) => {
+                        if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                        e.preventDefault();
+                        navigate('watch', item.videoId);
+                      }}
+                      className="block text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors cursor-pointer"
+                    >
+                      {item.title}
+                    </a>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-1 truncate">
+                      {item.creatorDisplayName}
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                    {isHindi ? `${formatTime(item.savedAt)} सहेजा गया` : `Saved ${formatTime(item.savedAt)}`}
                   </p>
                 </div>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                  {isHindi ? `${formatTime(item.savedAt)} सहेजा गया` : `Saved ${formatTime(item.savedAt)}`}
-                </p>
-              </div>
 
               {/* Remove button from Saved list row */}
               <button
@@ -139,7 +165,8 @@ export const SavedVideos: React.FC = () => {
                 <X className="w-4 h-4" />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -479,7 +479,7 @@ export const Shorts: React.FC = () => {
   const { route, navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
   const { t, isHindi, formatTime } = useTranslation();
-  const targetShortId = route.param;
+  const targetShortId = route.param || route.searchParams?.v || route.searchParams?.id;
 
   // Instant synchronous cache retrieval (0ms initial frame render)
   const initialCachedShort = targetShortId ? videoService.getCachedVideo(targetShortId) : null;
@@ -620,6 +620,17 @@ export const Shorts: React.FC = () => {
   }, [targetShortId]);
 
   const activeShort = shorts[currentIndex];
+
+  // Sync document title with active short like YouTube Shorts
+  useEffect(() => {
+    if (activeShort?.title) {
+      const creatorPart = activeShort.creatorDisplayName ? ` - ${activeShort.creatorDisplayName}` : '';
+      document.title = `${activeShort.title}${creatorPart} | Shorts - SocialIndia`;
+    }
+    return () => {
+      document.title = 'SocialIndia';
+    };
+  }, [activeShort?.title, activeShort?.creatorDisplayName]);
 
   const isShortOwner = currentUser?.uid === activeShort?.creatorId;
   const isShortAdmin = currentUserProfile?.role === 'admin';

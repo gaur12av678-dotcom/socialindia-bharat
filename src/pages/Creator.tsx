@@ -130,7 +130,39 @@ export const CreatorProfile: React.FC = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(!creator);
-  const [activeTab, setActiveTab] = useState<'videos' | 'shorts' | 'playlists' | 'posts' | 'about'>('videos');
+
+  const resolveTab = (subTabStr?: string): 'videos' | 'shorts' | 'playlists' | 'posts' | 'about' => {
+    const raw = (subTabStr || '').toLowerCase().trim();
+    if (raw === 'shorts' || raw === 'short') return 'shorts';
+    if (raw === 'playlists' || raw === 'playlist') return 'playlists';
+    if (raw === 'posts' || raw === 'community' || raw === 'post') return 'posts';
+    if (raw === 'about' || raw === 'info') return 'about';
+    return 'videos';
+  };
+
+  const [activeTab, setActiveTab] = useState<'videos' | 'shorts' | 'playlists' | 'posts' | 'about'>(() => {
+    return resolveTab(route.subTab || route.searchParams?.tab);
+  });
+
+  const lastTargetRef = useRef<string>(targetUsername || rawParam || '');
+
+  // Keep activeTab in sync with route subTab or searchParams if user navigates or uses Back/Forward
+  useEffect(() => {
+    setActiveTab(resolveTab(route.subTab || route.searchParams?.tab));
+  }, [route.subTab, route.searchParams?.tab]);
+
+  const handleTabChange = (newTab: 'videos' | 'shorts' | 'playlists' | 'posts' | 'about') => {
+    setActiveTab(newTab);
+    const channelHandle = creator?.username || targetUsername || (currentUserProfile?.username ? currentUserProfile.username : '');
+    if (channelHandle) {
+      const cleanHandle = channelHandle.startsWith('@') ? channelHandle : `@${channelHandle}`;
+      const newHash = newTab === 'videos' ? `#/${cleanHandle}` : `#/${cleanHandle}/${newTab}`;
+      if (window.location.hash !== newHash) {
+        window.location.hash = newHash;
+      }
+    }
+  };
+
   const [subscribed, setSubscribed] = useState(() => {
     if (currentUser && creator) {
       return subscriptionService.isSubscribedSync(currentUser.uid, creator.uid);
@@ -164,6 +196,17 @@ export const CreatorProfile: React.FC = () => {
       setSelectedCountry(currentUserProfile.country.replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim());
     }
   }, [creator?.country, currentUserProfile?.country]);
+
+  // Update document title for Creator Channel page like YouTube (e.g., "Creator Name (@username) - SocialIndia")
+  useEffect(() => {
+    if (creator?.displayName || creator?.username) {
+      const handlePart = creator.username ? ` (@${creator.username})` : '';
+      document.title = `${creator.displayName || creator.username}${handlePart} - SocialIndia`;
+    }
+    return () => {
+      document.title = 'SocialIndia';
+    };
+  }, [creator?.displayName, creator?.username]);
 
   const [videoSort, setVideoSort] = useState<'latest' | 'popular' | 'oldest'>('latest');
 
@@ -231,12 +274,17 @@ export const CreatorProfile: React.FC = () => {
     let isMounted = true;
 
     const loadCreatorProfile = async () => {
-      // ALWAYS clear previous creator's videos, playlists, shorts, and posts immediately on navigation
-      setVideos([]);
-      setShorts([]);
-      setPlaylists([]);
-      setPosts([]);
-      setActiveTab('videos');
+      const currentTargetKey = targetUsername || rawParam || '';
+      const isDifferentTarget = lastTargetRef.current !== currentTargetKey;
+      
+      if (isDifferentTarget) {
+        lastTargetRef.current = currentTargetKey;
+        setVideos([]);
+        setShorts([]);
+        setPlaylists([]);
+        setPosts([]);
+        setActiveTab(resolveTab(route.subTab || route.searchParams?.tab));
+      }
 
       // Check cache first so no loading flash occurs for already cached user
       const cached = userService.getCachedUserByUsername(targetUsername) || (rawParam ? userService.getCachedUserProfile(rawParam) : null);
@@ -396,7 +444,7 @@ export const CreatorProfile: React.FC = () => {
     loadCreatorProfile();
 
     return () => { isMounted = false; };
-  }, [targetUsername, rawParam, currentUser, currentUserProfile]);
+  }, [targetUsername, rawParam, currentUser?.uid]);
 
   // Loading skeleton
   if (loading && !creator) {
@@ -998,7 +1046,8 @@ export const CreatorProfile: React.FC = () => {
       <div className="flex border-b border-slate-200 dark:border-[#334155] gap-2 sm:gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {/* Videos Tab */}
         <button
-          onClick={() => setActiveTab('videos')}
+          type="button"
+          onClick={() => handleTabChange('videos')}
           className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'videos' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
         >
           <VideoIcon className="w-4 h-4" />
@@ -1009,7 +1058,8 @@ export const CreatorProfile: React.FC = () => {
 
         {/* Shorts Tab */}
         <button
-          onClick={() => setActiveTab('shorts')}
+          type="button"
+          onClick={() => handleTabChange('shorts')}
           className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'shorts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
         >
           <Zap className="w-4 h-4 text-red-500 fill-red-500" />
@@ -1020,7 +1070,8 @@ export const CreatorProfile: React.FC = () => {
 
         {/* Playlists Tab */}
         <button
-          onClick={() => setActiveTab('playlists')}
+          type="button"
+          onClick={() => handleTabChange('playlists')}
           className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'playlists' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
         >
           <Bookmark className="w-4 h-4" />
@@ -1031,7 +1082,8 @@ export const CreatorProfile: React.FC = () => {
 
         {/* Posts Tab */}
         <button
-          onClick={() => setActiveTab('posts')}
+          type="button"
+          onClick={() => handleTabChange('posts')}
           className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'posts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
         >
           <MessageSquare className="w-4 h-4" />
@@ -1042,7 +1094,8 @@ export const CreatorProfile: React.FC = () => {
 
         {/* About Tab */}
         <button
-          onClick={() => setActiveTab('about')}
+          type="button"
+          onClick={() => handleTabChange('about')}
           className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'about' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
         >
           <Info className="w-4 h-4" />
@@ -1132,17 +1185,25 @@ export const CreatorProfile: React.FC = () => {
             {shorts.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
                 {shorts.map((short) => (
-                  <div
+                  <a
                     key={short.videoId}
-                    onClick={() => navigate('shorts', short.videoId)}
-                    className="group relative rounded-2xl overflow-hidden aspect-[9/16] bg-slate-900 cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                    href={`#/shorts/${short.videoId}`}
+                    draggable={true}
+                    title={short.title}
+                    onClick={(e) => {
+                      if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                      e.preventDefault();
+                      navigate('shorts', short.videoId);
+                    }}
+                    className="group relative block rounded-2xl overflow-hidden aspect-[9/16] bg-slate-900 cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                   >
-                    {/* Thumbnail Image */}
+                    {/* Thumbnail Image with draggable disabled so dragging transfers link to short */}
                     {short.thumbnailUrl ? (
                       <img
                         src={short.thumbnailUrl}
                         alt={short.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        draggable={false}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none select-none"
                         loading="lazy"
                       />
                     ) : (
@@ -1155,13 +1216,13 @@ export const CreatorProfile: React.FC = () => {
                     <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
 
                     {/* Top Red Shorts Badge */}
-                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs flex items-center gap-1 border border-white/10">
+                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs flex items-center gap-1 border border-white/10 pointer-events-none">
                       <Zap className="w-3 h-3 text-red-500 fill-red-500" />
                       <span className="text-[10px] font-extrabold text-white uppercase tracking-wider">Shorts</span>
                     </div>
 
                     {/* Hover Play Button */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                       <div className="w-12 h-12 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center text-white scale-90 group-hover:scale-100 transition-transform">
                         <Play className="w-5 h-5 fill-white ml-0.5" />
                       </div>
@@ -1179,7 +1240,7 @@ export const CreatorProfile: React.FC = () => {
                         )}
                       </div>
                     </div>
-                  </div>
+                  </a>
                 ))}
               </div>
             ) : (
@@ -1215,50 +1276,60 @@ export const CreatorProfile: React.FC = () => {
           <div className="space-y-4">
             {channelPlaylists.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {channelPlaylists.map(pl => (
-                  <div 
-                    key={pl.playlistId}
-                    onClick={() => {
-                      if (pl.videoIds && pl.videoIds.length > 0) {
-                        navigate('watch', pl.videoIds[0]);
-                      } else {
-                        addToast(isHindi ? 'यह प्लेलिस्ट अभी खाली है।' : 'This playlist is currently empty.', 'info');
-                      }
-                    }}
-                    className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all cursor-pointer group"
-                  >
-                    <div className="aspect-video bg-slate-900 relative overflow-hidden flex items-center justify-center">
-                      {pl.thumbnailUrl ? (
-                        <img src={pl.thumbnailUrl} alt={pl.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      ) : (
-                        <Film className="w-10 h-10 text-slate-600" />
-                      )}
-                      
-                      {/* Video Count Overlay (YouTube Style) */}
-                      <div className="absolute inset-y-0 right-0 w-1/3 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center text-white p-2">
-                        <Bookmark className="w-4 h-4 mb-1 text-slate-300" />
-                        <span className="font-mono font-black text-sm">{pl.videoIds?.length || 0}</span>
-                        <span className="text-[10px] uppercase font-bold text-slate-300">{isHindi ? 'वीडियो' : 'Videos'}</span>
-                      </div>
-
-                      {/* Lock badge for private playlist */}
-                      {pl.isPrivate && (
-                        <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs flex items-center gap-1 text-[10px] text-amber-300 font-bold border border-amber-500/30">
-                          <Lock className="w-3 h-3" />
-                          <span>{isHindi ? 'निजी' : 'Private'}</span>
+                {channelPlaylists.map(pl => {
+                  const plTargetUrl = pl.videoIds && pl.videoIds.length > 0 
+                    ? `#/watch/${pl.videoIds[0]}?list=${pl.playlistId}` 
+                    : `#/playlist/${pl.playlistId}`;
+                  return (
+                    <a 
+                      key={pl.playlistId}
+                      href={plTargetUrl}
+                      draggable={true}
+                      title={pl.title}
+                      onClick={(e) => {
+                        if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                        e.preventDefault();
+                        if (pl.videoIds && pl.videoIds.length > 0) {
+                          navigate('watch', pl.videoIds[0], { list: pl.playlistId });
+                        } else {
+                          addToast(isHindi ? 'यह प्लेलिस्ट अभी खाली है।' : 'This playlist is currently empty.', 'info');
+                        }
+                      }}
+                      className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all cursor-pointer group block"
+                    >
+                      <div className="aspect-video bg-slate-900 relative overflow-hidden flex items-center justify-center">
+                        {pl.thumbnailUrl ? (
+                          <img src={pl.thumbnailUrl} alt={pl.title} draggable={false} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none" />
+                        ) : (
+                          <Film className="w-10 h-10 text-slate-600" />
+                        )}
+                        
+                        {/* Video Count Overlay (YouTube Style) */}
+                        <div className="absolute inset-y-0 right-0 w-1/3 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center text-white p-2 pointer-events-none">
+                          <Bookmark className="w-4 h-4 mb-1 text-slate-300" />
+                          <span className="font-mono font-black text-sm">{pl.videoIds?.length || 0}</span>
+                          <span className="text-[10px] uppercase font-bold text-slate-300">{isHindi ? 'वीडियो' : 'Videos'}</span>
                         </div>
-                      )}
-                    </div>
-                    <div className="p-4 space-y-1">
-                      <h4 className="text-sm font-black text-slate-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">
-                        {pl.title}
-                      </h4>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 font-medium">
-                        {pl.description || (isHindi ? "SocialIndia पर निर्मित प्लेलिस्ट" : "Playlist created on SocialIndia")}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+
+                        {/* Lock badge for private playlist */}
+                        {pl.isPrivate && (
+                          <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs flex items-center gap-1 text-[10px] text-amber-300 font-bold border border-amber-500/30 pointer-events-none">
+                            <Lock className="w-3 h-3" />
+                            <span>{isHindi ? 'निजी' : 'Private'}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4 space-y-1">
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">
+                          {pl.title}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 font-medium">
+                          {pl.description || (isHindi ? "SocialIndia पर निर्मित प्लेलिस्ट" : "Playlist created on SocialIndia")}
+                        </p>
+                      </div>
+                    </a>
+                  );
+                })}
               </div>
             ) : (
               <div className="py-20 text-center flex flex-col items-center justify-center space-y-3">

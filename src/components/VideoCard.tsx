@@ -120,7 +120,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
     return () => clearTimeout(timer);
   }, [video.creatorId, video.creatorDisplayName, video.creatorPhotoURL, video.creatorUsername]);
 
-  const handleCardClick = () => {
+  const watchUrl = video.isShort ? `#/shorts/${video.videoId}` : `#/watch/${video.videoId}`;
+  const creatorUrl = video.creatorUsername ? `#/@${video.creatorUsername}` : `#/creator/${video.creatorId}`;
+
+  const handleCardClick = (e?: React.MouseEvent) => {
+    // If middle click or Cmd/Ctrl/Shift key, let the browser handle opening in a new tab natively!
+    if (e && (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey)) {
+      return;
+    }
+    if (e) e.preventDefault();
     videoService.cacheVideo(video);
     if (video.isShort) {
       navigate('shorts', video.videoId);
@@ -130,75 +138,98 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   };
 
   const handleCreatorClick = (e: React.MouseEvent) => {
+    if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) {
+      return;
+    }
     e.stopPropagation();
-    navigate('creator', video.creatorUsername);
+    e.preventDefault();
+    navigate('creator', video.creatorUsername || video.creatorId);
   };
 
   return (
     <div 
-      onClick={handleCardClick}
-      className="group cursor-pointer flex flex-col transition-all duration-200 w-full"
+      className="group flex flex-col transition-all duration-200 w-full"
     >
-      {/* Thumbnail area with duration badge */}
-      <div className={`relative w-full ${video.isShort ? 'aspect-[9/16] max-w-[240px]' : 'aspect-video'} bg-slate-900 dark:bg-[#1e293b] shrink-0 rounded-2xl overflow-hidden shadow-xs border border-slate-100 dark:border-slate-800/80`}>
+      {/* Thumbnail area with duration badge (wrapped in anchor tag with draggable image disabled so dragging transfers the video watch link, opening the actual video page with title & creator!) */}
+      <a
+        href={watchUrl}
+        onClick={handleCardClick}
+        draggable={true}
+        title={video.title}
+        className={`relative block w-full ${video.isShort ? 'aspect-[9/16] max-w-[240px]' : 'aspect-video'} bg-slate-900 dark:bg-[#1e293b] shrink-0 rounded-2xl overflow-hidden shadow-xs border border-slate-100 dark:border-slate-800/80 cursor-pointer`}
+      >
         <img 
           src={video.thumbnailUrl} 
           alt={video.title} 
           loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          draggable={false}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none select-none"
           onError={(e) => {
             const ytThumb = extractYoutubeThumbnail(video.videoUrl);
             e.currentTarget.src = ytThumb || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
           }}
         />
-        <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white font-bold text-[11px] rounded-md backdrop-blur-sm">
+        <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white font-bold text-[11px] rounded-md backdrop-blur-sm pointer-events-none">
           {formatDuration(video.duration)}
         </div>
         
         {video.isShort && (
-          <div className="absolute top-2 left-2 px-2 py-0.5 bg-red-600 text-white font-black text-[9px] rounded-md uppercase tracking-widest shadow-sm">
+          <div className="absolute top-2 left-2 px-2 py-0.5 bg-red-600 text-white font-black text-[9px] rounded-md uppercase tracking-widest shadow-sm pointer-events-none">
             Shorts
           </div>
         )}
 
         {/* YouTube Red Watch Progress Bar */}
         {watchProgressPercent > 0 && !video.isShort && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25 overflow-hidden z-10">
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25 overflow-hidden z-10 pointer-events-none">
             <div 
               className="h-full bg-red-600 transition-all duration-300"
               style={{ width: `${watchProgressPercent}%` }}
             />
           </div>
         )}
-      </div>
+      </a>
 
       {/* Content block */}
       <div className="mt-3 flex items-start gap-3">
         {/* Creator avatar - using centralized sync component */}
-        <UserAvatar 
-          uid={video.creatorId}
-          fallbackPhotoURL={video.creatorPhotoURL}
-          fallbackDisplayName={video.creatorDisplayName || video.creatorUsername}
-          size="sm"
+        <a 
+          href={creatorUrl}
           onClick={handleCreatorClick}
-          className="border border-slate-100 dark:border-slate-800 shadow-xs"
-        />
+          className="shrink-0 block"
+          title={video.creatorDisplayName || video.creatorUsername}
+        >
+          <UserAvatar 
+            uid={video.creatorId}
+            fallbackPhotoURL={video.creatorPhotoURL}
+            fallbackDisplayName={video.creatorDisplayName || video.creatorUsername}
+            size="sm"
+            className="border border-slate-100 dark:border-slate-800 shadow-xs cursor-pointer hover:opacity-90"
+          />
+        </a>
 
         {/* Video metadata */}
         <div className="flex-1 min-w-0 pr-1">
-          <h3 className="text-[14px] font-bold text-slate-900 dark:text-white leading-snug line-clamp-2 mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+          <a
+            href={watchUrl}
+            onClick={handleCardClick}
+            draggable={true}
+            title={video.title}
+            className="block text-[14px] font-bold text-slate-900 dark:text-white leading-snug line-clamp-2 mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors cursor-pointer"
+          >
             {video.title}
-          </h3>
+          </a>
           <div className="flex flex-col text-[12px] text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-            <p 
+            <a 
+              href={creatorUrl}
               onClick={handleCreatorClick}
-              className="hover:text-slate-900 dark:hover:text-white transition-colors truncate w-fit font-semibold flex items-center gap-1"
+              className="hover:text-slate-900 dark:hover:text-white transition-colors truncate w-fit font-semibold flex items-center gap-1 cursor-pointer"
             >
               <span>{video.creatorDisplayName || video.creatorUsername || 'Creator'}</span>
               {isVerified && (
                 <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
               )}
-            </p>
+            </a>
             <div className="flex items-center gap-1 mt-0.5 text-slate-500 dark:text-slate-400">
               <span>{formatViews(video.viewsCount)} {isHindi ? 'व्यूज़' : ''}</span>
               <span className="text-[8px] opacity-40">•</span>

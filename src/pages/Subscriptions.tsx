@@ -566,62 +566,96 @@ export const Subscriptions: React.FC = () => {
                 {viewMode === 'list' ? (
                   /* YouTube List View */
                   <div className="space-y-4">
-                    {group.videos.map((video) => (
-                      <div
-                        key={video.videoId}
-                        onClick={() => navigate('watch', video.videoId)}
-                        className="bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all cursor-pointer group shadow-xs"
-                      >
-                        {/* Thumbnail */}
-                        <div className="relative w-full sm:w-64 aspect-video bg-slate-900 rounded-xl overflow-hidden shrink-0">
-                          <img
-                            src={video.thumbnailUrl}
-                            alt={video.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            loading="lazy"
-                          />
-                          <span className="absolute bottom-1.5 right-1.5 bg-black/85 text-white text-[11px] font-bold px-1.5 py-0.5 rounded">
-                            {formatDuration(video.duration || 0)}
-                          </span>
-                        </div>
-
-                        {/* Video Info */}
-                        <div className="flex-1 min-w-0 space-y-1.5">
-                          <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white line-clamp-2 group-hover:text-[#065fd4] dark:group-hover:text-[#3ea6ff] transition-colors leading-snug">
-                            {video.title}
-                          </h3>
-
-                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                            <span>{formatViews(video.viewsCount || 0)} views</span>
-                            <span>•</span>
-                            <span>{formatTimeAgo(video.createdAt)}</span>
-                          </div>
-
-                          <div className="flex items-center gap-2 pt-1">
-                            <UserAvatar
-                              uid={video.creatorId}
-                              fallbackPhotoURL={video.creatorPhotoURL}
-                              fallbackDisplayName={video.creatorDisplayName}
-                              size="sm"
-                              className="w-6 h-6"
+                    {group.videos.map((video) => {
+                      const watchUrl = `#/watch/${video.videoId}`;
+                      const creatorUrl = `/#/@${video.creatorUsername || video.creatorId}`;
+                      return (
+                        <div
+                          key={video.videoId}
+                          className="bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all group shadow-xs"
+                        >
+                          {/* Thumbnail (Draggable Link) */}
+                          <a
+                            href={watchUrl}
+                            draggable={true}
+                            title={video.title}
+                            onClick={(e) => {
+                              if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                              e.preventDefault();
+                              navigate('watch', video.videoId);
+                            }}
+                            className="relative w-full sm:w-64 aspect-video bg-slate-900 rounded-xl overflow-hidden shrink-0 cursor-pointer block"
+                          >
+                            <img
+                              src={video.thumbnailUrl}
+                              alt={video.title}
+                              draggable={false}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
+                              loading="lazy"
                             />
-                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
-                              {video.creatorDisplayName || video.creatorUsername}
+                            <span className="absolute bottom-1.5 right-1.5 bg-black/85 text-white text-[11px] font-bold px-1.5 py-0.5 rounded pointer-events-none">
+                              {formatDuration(video.duration || 0)}
                             </span>
-                          </div>
+                          </a>
 
-                          {video.description && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 pt-1 leading-relaxed hidden sm:block">
-                              {video.description}
-                            </p>
-                          )}
+                          {/* Video Info */}
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <a
+                              href={watchUrl}
+                              draggable={true}
+                              title={video.title}
+                              onClick={(e) => {
+                                if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                                e.preventDefault();
+                                navigate('watch', video.videoId);
+                              }}
+                              className="block text-sm sm:text-base font-bold text-slate-900 dark:text-white line-clamp-2 group-hover:text-[#065fd4] dark:group-hover:text-[#3ea6ff] transition-colors leading-snug cursor-pointer"
+                            >
+                              {video.title}
+                            </a>
+
+                            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                              <span>{formatViews(video.viewsCount || 0)} views</span>
+                              <span>•</span>
+                              <span>{formatTimeAgo(video.createdAt)}</span>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-1">
+                              <a
+                                href={creatorUrl}
+                                onClick={(e) => {
+                                  if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                                  e.preventDefault();
+                                  navigate('creator', video.creatorUsername || video.creatorId);
+                                }}
+                                className="flex items-center gap-2 group/creator cursor-pointer"
+                              >
+                                <UserAvatar
+                                  uid={video.creatorId}
+                                  fallbackPhotoURL={video.creatorPhotoURL}
+                                  fallbackDisplayName={video.creatorDisplayName}
+                                  size="sm"
+                                  className="w-6 h-6"
+                                />
+                                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 group-hover/creator:text-blue-600 dark:group-hover/creator:text-blue-400">
+                                  {video.creatorDisplayName || video.creatorUsername}
+                                </span>
+                              </a>
+                            </div>
+
+                            {video.description && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 pt-1 leading-relaxed hidden sm:block">
+                                {video.description}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   /* YouTube Grid View */
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     {group.videos.map((video) => (
                       <VideoCard key={video.videoId} video={video} />
                     ))}
@@ -634,59 +668,95 @@ export const Subscriptions: React.FC = () => {
           /* Single Creator or Filter View (Unsectioned Grid or List) */
           viewMode === 'list' ? (
             <div className="space-y-4">
-              {filteredVideos.map((video) => (
-                <div
-                  key={video.videoId}
-                  onClick={() => navigate('watch', video.videoId)}
-                  className="bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all cursor-pointer group shadow-xs"
-                >
-                  <div className="relative w-full sm:w-64 aspect-video bg-slate-900 rounded-xl overflow-hidden shrink-0">
-                    <img
-                      src={video.thumbnailUrl}
-                      alt={video.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
-                    <span className="absolute bottom-1.5 right-1.5 bg-black/85 text-white text-[11px] font-bold px-1.5 py-0.5 rounded">
-                      {formatDuration(video.duration || 0)}
-                    </span>
-                  </div>
-
-                  <div className="flex-1 min-w-0 space-y-1.5">
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white line-clamp-2 group-hover:text-[#065fd4] dark:group-hover:text-[#3ea6ff] transition-colors leading-snug">
-                      {video.title}
-                    </h3>
-
-                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                      <span>{formatViews(video.viewsCount || 0)} views</span>
-                      <span>•</span>
-                      <span>{formatTimeAgo(video.createdAt)}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-1">
-                      <UserAvatar
-                        uid={video.creatorId}
-                        fallbackPhotoURL={video.creatorPhotoURL}
-                        fallbackDisplayName={video.creatorDisplayName}
-                        size="sm"
-                        className="w-6 h-6"
+              {filteredVideos.map((video) => {
+                const watchUrl = `#/watch/${video.videoId}`;
+                const creatorUrl = `/#/@${video.creatorUsername || video.creatorId}`;
+                return (
+                  <div
+                    key={video.videoId}
+                    className="bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all group shadow-xs"
+                  >
+                    {/* Thumbnail (Draggable Link) */}
+                    <a
+                      href={watchUrl}
+                      draggable={true}
+                      title={video.title}
+                      onClick={(e) => {
+                        if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                        e.preventDefault();
+                        navigate('watch', video.videoId);
+                      }}
+                      className="relative w-full sm:w-64 aspect-video bg-slate-900 rounded-xl overflow-hidden shrink-0 cursor-pointer block"
+                    >
+                      <img
+                        src={video.thumbnailUrl}
+                        alt={video.title}
+                        draggable={false}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
+                        loading="lazy"
                       />
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        {video.creatorDisplayName || video.creatorUsername}
+                      <span className="absolute bottom-1.5 right-1.5 bg-black/85 text-white text-[11px] font-bold px-1.5 py-0.5 rounded pointer-events-none">
+                        {formatDuration(video.duration || 0)}
                       </span>
-                    </div>
+                    </a>
 
-                    {video.description && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 pt-1 leading-relaxed hidden sm:block">
-                        {video.description}
-                      </p>
-                    )}
+                    {/* Video Info */}
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <a
+                        href={watchUrl}
+                        draggable={true}
+                        title={video.title}
+                        onClick={(e) => {
+                          if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                          e.preventDefault();
+                          navigate('watch', video.videoId);
+                        }}
+                        className="block text-sm sm:text-base font-bold text-slate-900 dark:text-white line-clamp-2 group-hover:text-[#065fd4] dark:group-hover:text-[#3ea6ff] transition-colors leading-snug cursor-pointer"
+                      >
+                        {video.title}
+                      </a>
+
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span>{formatViews(video.viewsCount || 0)} views</span>
+                        <span>•</span>
+                        <span>{formatTimeAgo(video.createdAt)}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-1">
+                        <a
+                          href={creatorUrl}
+                          onClick={(e) => {
+                            if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                            e.preventDefault();
+                            navigate('creator', video.creatorUsername || video.creatorId);
+                          }}
+                          className="flex items-center gap-2 group/creator cursor-pointer"
+                        >
+                          <UserAvatar
+                            uid={video.creatorId}
+                            fallbackPhotoURL={video.creatorPhotoURL}
+                            fallbackDisplayName={video.creatorDisplayName}
+                            size="sm"
+                            className="w-6 h-6"
+                          />
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 group-hover/creator:text-blue-600 dark:group-hover/creator:text-blue-400">
+                            {video.creatorDisplayName || video.creatorUsername}
+                          </span>
+                        </a>
+                      </div>
+
+                      {video.description && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 pt-1 leading-relaxed hidden sm:block">
+                          {video.description}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {filteredVideos.map((video) => (
                 <VideoCard key={video.videoId} video={video} />
               ))}

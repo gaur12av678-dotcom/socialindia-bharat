@@ -181,28 +181,54 @@ export const WatchHistory: React.FC = () => {
                     : group}
                 </h3>
                 <div className="space-y-3">
-                  {items.map((item) => (
-                    <div
-                      key={item.videoId}
-                      onClick={() => navigate('watch', item.videoId)}
-                      className="flex gap-4 p-3 bg-white dark:bg-[#0f0f0f] border border-slate-100 dark:border-[#272727] rounded-2xl cursor-pointer hover:shadow-md transition-all group relative"
-                    >
-                      <div className="w-32 sm:w-44 aspect-video bg-slate-100 dark:bg-[#272727] rounded-xl overflow-hidden shrink-0">
-                        <img src={item.thumbnailUrl} alt={item.title} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1 min-w-0 flex flex-col justify-between py-1 pr-8">
-                        <div>
-                          <h3 className="text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
-                            {item.title}
-                          </h3>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-1 truncate">
-                            {item.creatorDisplayName}
+                  {items.map((item) => {
+                    const itemWatchUrl = `#/watch/${item.videoId}`;
+                    return (
+                      <div
+                        key={item.videoId}
+                        className="flex gap-4 p-3 bg-white dark:bg-[#0f0f0f] border border-slate-100 dark:border-[#272727] rounded-2xl hover:shadow-md transition-all group relative"
+                      >
+                        <a
+                          href={itemWatchUrl}
+                          draggable={true}
+                          title={item.title}
+                          onClick={(e) => {
+                            if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                            e.preventDefault();
+                            navigate('watch', item.videoId);
+                          }}
+                          className="w-32 sm:w-44 aspect-video bg-slate-100 dark:bg-[#272727] rounded-xl overflow-hidden shrink-0 cursor-pointer block relative"
+                        >
+                          <img 
+                            src={item.thumbnailUrl} 
+                            alt={item.title} 
+                            draggable={false}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none" 
+                          />
+                        </a>
+                        <div className="flex-1 min-w-0 flex flex-col justify-between py-1 pr-8">
+                          <div>
+                            <a
+                              href={itemWatchUrl}
+                              draggable={true}
+                              title={item.title}
+                              onClick={(e) => {
+                                if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                                e.preventDefault();
+                                navigate('watch', item.videoId);
+                              }}
+                              className="block text-xs sm:text-sm font-extrabold text-slate-800 dark:text-slate-100 leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors cursor-pointer"
+                            >
+                              {item.title}
+                            </a>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-1 truncate">
+                              {item.creatorDisplayName}
+                            </p>
+                          </div>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                            {isHindi ? `${formatTime(item.watchedAt)} देखा गया` : `Watched ${formatTime(item.watchedAt)}`}
                           </p>
                         </div>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                          {isHindi ? `${formatTime(item.watchedAt)} देखा गया` : `Watched ${formatTime(item.watchedAt)}`}
-                        </p>
-                      </div>
                       <button
                         onClick={(e) => handleRemoveItem(e, item.videoId)}
                         className="absolute top-3 right-3 p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 dark:bg-slate-950 dark:hover:bg-rose-950/20 rounded-lg cursor-pointer transition-colors"
@@ -211,7 +237,8 @@ export const WatchHistory: React.FC = () => {
                         <X className="w-4 h-4" />
                       </button>
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               </div>
             );

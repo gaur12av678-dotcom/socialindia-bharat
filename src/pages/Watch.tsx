@@ -63,7 +63,7 @@ export const Watch: React.FC = () => {
   const { route, navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
   const { t, isHindi, formatTime } = useTranslation();
-  const videoId = route.param;
+  const videoId = route.param || route.searchParams?.v || route.searchParams?.id;
 
   // Instant synchronous cache resolution (0ms, no loading spinner flash!)
   const cachedInitialVid = videoService.getCachedVideo(videoId);
@@ -218,6 +218,17 @@ export const Watch: React.FC = () => {
   useEffect(() => {
     adService.getActiveAds(5).then(setActiveAds).catch(console.warn);
   }, []);
+
+  // Update document title for Watch page like YouTube (e.g., "Video Title - Creator Name - SocialIndia")
+  useEffect(() => {
+    if (video?.title) {
+      const creatorPart = video.creatorDisplayName ? ` - ${video.creatorDisplayName}` : '';
+      document.title = `${video.title}${creatorPart} - SocialIndia`;
+    }
+    return () => {
+      document.title = 'SocialIndia';
+    };
+  }, [video?.title, video?.creatorDisplayName]);
 
   // Keyboard shortcut listener for 't' (Theater Mode)
   const [commentsCollapsed, setCommentsCollapsed] = useState(false);
@@ -2117,25 +2128,50 @@ export const Watch: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Thumbnail */}
-                      <div className="relative w-20 aspect-video rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-200 dark:border-slate-800">
-                        <img src={pVid.thumbnailUrl} alt={pVid.title} className="w-full h-full object-cover" />
+                      {/* Thumbnail (Draggable Link) */}
+                      <a
+                        href={`#/watch/${pVid.videoId}?list=${activePlaylist.playlistId}`}
+                        draggable={true}
+                        title={pVid.title}
+                        onClick={(e) => {
+                          if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                          e.preventDefault();
+                          navigate('watch', pVid.videoId, { list: activePlaylist.playlistId });
+                        }}
+                        className="relative w-20 aspect-video rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-200 dark:border-slate-800 cursor-pointer block"
+                      >
+                        <img 
+                          src={pVid.thumbnailUrl} 
+                          alt={pVid.title} 
+                          draggable={false}
+                          className="w-full h-full object-cover pointer-events-none select-none" 
+                        />
                         {pVid.duration ? (
-                          <span className="absolute bottom-0.5 right-0.5 px-1 py-0.2 bg-black/80 text-[8px] font-bold rounded text-white">
+                          <span className="absolute bottom-0.5 right-0.5 px-1 py-0.2 bg-black/80 text-[8px] font-bold rounded text-white pointer-events-none">
                             {formatDuration(pVid.duration)}
                           </span>
                         ) : null}
-                      </div>
+                      </a>
 
                       {/* Info */}
                       <div className="min-w-0 flex-1">
-                        <h4 className={`text-xs line-clamp-2 leading-snug ${
-                          isCurrent 
-                            ? 'font-extrabold text-blue-600 dark:text-blue-400' 
-                            : 'font-bold text-slate-900 dark:text-slate-100'
-                        }`}>
+                        <a
+                          href={`#/watch/${pVid.videoId}?list=${activePlaylist.playlistId}`}
+                          draggable={true}
+                          title={pVid.title}
+                          onClick={(e) => {
+                            if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                            e.preventDefault();
+                            navigate('watch', pVid.videoId, { list: activePlaylist.playlistId });
+                          }}
+                          className={`block text-xs line-clamp-2 leading-snug cursor-pointer ${
+                            isCurrent 
+                              ? 'font-extrabold text-blue-600 dark:text-blue-400' 
+                              : 'font-bold text-slate-900 dark:text-slate-100 hover:text-blue-500'
+                          }`}
+                        >
                           {pVid.title}
-                        </h4>
+                        </a>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
                           {pVid.creatorDisplayName}
                         </p>
@@ -2192,58 +2228,88 @@ export const Watch: React.FC = () => {
               )}
             </div>
           ) : (
-            displayedSidebarVideos.map((v) => (
-              <div 
-                key={v.videoId}
-                onClick={() => {
-                  navigate('watch', v.videoId);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="flex items-start gap-3 bg-white dark:bg-[#111827] border border-slate-200/70 dark:border-[#334155] p-2.5 rounded-2xl cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 transition-all group relative"
-              >
-                {/* 16:9 Thumbnail with Duration Badge */}
-                <div className="relative w-36 sm:w-40 aspect-video bg-slate-900 shrink-0 rounded-xl overflow-hidden shadow-xs">
-                  <img 
-                    src={v.thumbnailUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60'} 
-                    alt={v.title} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-                  />
-                  {/* Duration Badge */}
-                  {v.duration ? (
-                    <span className="absolute bottom-1 right-1 bg-black/85 text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow-xs">
-                      {formatDuration(v.duration)}
-                    </span>
-                  ) : null}
+            displayedSidebarVideos.map((v) => {
+              const relWatchUrl = `#/watch/${v.videoId}`;
+              const relCreatorUrl = v.creatorUsername ? `#/@${v.creatorUsername}` : `#/creator/${v.creatorId}`;
+              return (
+                <div 
+                  key={v.videoId}
+                  className="flex items-start gap-3 bg-white dark:bg-[#111827] border border-slate-200/70 dark:border-[#334155] p-2.5 rounded-2xl hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 transition-all group relative"
+                >
+                  {/* 16:9 Thumbnail with Duration Badge (Link with draggable false on img) */}
+                  <a
+                    href={relWatchUrl}
+                    draggable={true}
+                    title={v.title}
+                    onClick={(e) => {
+                      if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                      e.preventDefault();
+                      navigate('watch', v.videoId);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="relative block w-36 sm:w-40 aspect-video bg-slate-900 shrink-0 rounded-xl overflow-hidden shadow-xs cursor-pointer"
+                  >
+                    <img 
+                      src={v.thumbnailUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60'} 
+                      alt={v.title} 
+                      draggable={false}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none" 
+                    />
+                    {/* Duration Badge */}
+                    {v.duration ? (
+                      <span className="absolute bottom-1 right-1 bg-black/85 text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                        {formatDuration(v.duration)}
+                      </span>
+                    ) : null}
 
-                  {/* YouTube Red Watch Progress Bar */}
-                  {playbackProgressService.getProgressPercent(v.videoId, v.duration) > 0 && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25 overflow-hidden z-10">
-                      <div 
-                        className="h-full bg-red-600" 
-                        style={{ width: `${playbackProgressService.getProgressPercent(v.videoId, v.duration)}%` }} 
-                      />
+                    {/* YouTube Red Watch Progress Bar */}
+                    {playbackProgressService.getProgressPercent(v.videoId, v.duration) > 0 && (
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25 overflow-hidden z-10 pointer-events-none">
+                        <div 
+                          className="h-full bg-red-600" 
+                          style={{ width: `${playbackProgressService.getProgressPercent(v.videoId, v.duration)}%` }} 
+                        />
+                      </div>
+                    )}
+                  </a>
+
+                  {/* Video Info */}
+                  <div className="min-w-0 flex-1 flex flex-col justify-between py-0.5">
+                    <a
+                      href={relWatchUrl}
+                      draggable={true}
+                      title={v.title}
+                      onClick={(e) => {
+                        if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                        e.preventDefault();
+                        navigate('watch', v.videoId);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="block text-xs font-bold text-slate-900 dark:text-[#F8FAFC] leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 cursor-pointer"
+                    >
+                      {v.title}
+                    </a>
+                    
+                    <div className="mt-1 space-y-0.5">
+                      {/* Creator Display Name */}
+                      <a 
+                        href={relCreatorUrl}
+                        onClick={(e) => {
+                          if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                          e.preventDefault();
+                          navigate('creator', v.creatorUsername || v.creatorId);
+                        }}
+                        className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium truncate flex items-center gap-1 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                      >
+                        <span>{v.creatorDisplayName}</span>
+                      </a>
+
+                      {/* Views Count and Upload Date */}
+                      <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium">
+                        {formatViews(v.viewsCount)} {isHindi ? 'व्यूज' : 'views'} • {formatTimeAgo(v.createdAt)}
+                      </p>
                     </div>
-                  )}
-                </div>
-
-                {/* Video Info */}
-                <div className="min-w-0 flex-1 flex flex-col justify-between py-0.5">
-                  <h4 className="text-xs font-bold text-slate-900 dark:text-[#F8FAFC] leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                    {v.title}
-                  </h4>
-                  
-                  <div className="mt-1 space-y-0.5">
-                    {/* Creator Display Name */}
-                    <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium truncate flex items-center gap-1">
-                      <span>{v.creatorDisplayName}</span>
-                    </p>
-
-                    {/* Views Count and Upload Date */}
-                    <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium">
-                      {formatViews(v.viewsCount)} {isHindi ? 'व्यूज' : 'views'} • {formatTimeAgo(v.createdAt)}
-                    </p>
                   </div>
-                </div>
 
                 {/* 3-Dots Menu Button (⋮) */}
                 <div className="relative shrink-0">
@@ -2340,7 +2406,8 @@ export const Watch: React.FC = () => {
                   )}
                 </div>
               </div>
-            ))
+            );
+          })
           )}
 
           {/* Infinite Scroll Sentinel & Loader */}

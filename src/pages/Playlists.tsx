@@ -393,48 +393,70 @@ export const PlaylistsPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              playlistVideos.map((vid, idx) => (
-                <div
-                  key={vid.videoId}
-                  onClick={() => navigate('watch', vid.videoId, selectedPlaylist ? { list: selectedPlaylist.playlistId } : undefined)}
-                  className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-slate-800/90 hover:border-[#0070f3]/60 dark:hover:border-[#00d2ff]/50 rounded-2xl p-2.5 sm:p-3 flex items-center gap-3 sm:gap-4 transition-all hover:shadow-xs cursor-pointer group"
-                >
-                  {/* Rank Index */}
-                  <span className="text-xs font-black text-slate-400 group-hover:text-[#0070f3] w-4 text-center shrink-0">
-                    {idx + 1}
-                  </span>
+              playlistVideos.map((vid, idx) => {
+                const vidWatchUrl = `#/watch/${vid.videoId}${selectedPlaylist ? `?list=${selectedPlaylist.playlistId}` : ''}`;
+                return (
+                  <div
+                    key={vid.videoId}
+                    className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-slate-800/90 hover:border-[#0070f3]/60 dark:hover:border-[#00d2ff]/50 rounded-2xl p-2.5 sm:p-3 flex items-center gap-3 sm:gap-4 transition-all hover:shadow-xs group"
+                  >
+                    {/* Rank Index */}
+                    <span className="text-xs font-black text-slate-400 group-hover:text-[#0070f3] w-4 text-center shrink-0">
+                      {idx + 1}
+                    </span>
 
-                  {/* Thumbnail */}
-                  <div className="relative w-28 sm:w-36 aspect-video bg-black rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-slate-800">
-                    <img
-                      src={vid.thumbnailUrl}
-                      alt={vid.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                    />
-                    {vid.duration && (
-                      <span className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/80 rounded text-[9px] font-bold text-white">
-                        {formatDuration(vid.duration)}
-                      </span>
-                    )}
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Play className="w-6 h-6 text-white fill-white" />
-                    </div>
-                  </div>
+                    {/* Thumbnail */}
+                    <a
+                      href={vidWatchUrl}
+                      draggable={true}
+                      title={vid.title}
+                      onClick={(e) => {
+                        if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                        e.preventDefault();
+                        navigate('watch', vid.videoId, selectedPlaylist ? { list: selectedPlaylist.playlistId } : undefined);
+                      }}
+                      className="relative block w-28 sm:w-36 aspect-video bg-black rounded-xl overflow-hidden shrink-0 border border-slate-200 dark:border-slate-800 cursor-pointer"
+                    >
+                      <img
+                        src={vid.thumbnailUrl}
+                        alt={vid.title}
+                        draggable={false}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 pointer-events-none select-none"
+                      />
+                      {vid.duration && (
+                        <span className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/80 rounded text-[9px] font-bold text-white pointer-events-none">
+                          {formatDuration(vid.duration)}
+                        </span>
+                      )}
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <Play className="w-6 h-6 text-white fill-white" />
+                      </div>
+                    </a>
 
-                  {/* Video Meta */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-[#0070f3] dark:group-hover:text-[#00d2ff] transition-colors line-clamp-2 leading-snug">
-                      {vid.title}
-                    </h3>
-                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1 truncate">
-                      {vid.creatorDisplayName}
-                    </p>
-                    <div className="flex items-center gap-2 text-[10px] font-medium text-slate-400 mt-0.5">
-                      <span>{formatViews(vid.viewsCount || 0)} views</span>
-                      <span>•</span>
-                      <span>{formatTimeAgo(vid.createdAt)}</span>
+                    {/* Video Meta */}
+                    <div className="flex-1 min-w-0">
+                      <a
+                        href={vidWatchUrl}
+                        draggable={true}
+                        title={vid.title}
+                        onClick={(e) => {
+                          if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                          e.preventDefault();
+                          navigate('watch', vid.videoId, selectedPlaylist ? { list: selectedPlaylist.playlistId } : undefined);
+                        }}
+                        className="block text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-[#0070f3] dark:group-hover:text-[#00d2ff] transition-colors line-clamp-2 leading-snug cursor-pointer"
+                      >
+                        {vid.title}
+                      </a>
+                      <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1 truncate">
+                        {vid.creatorDisplayName}
+                      </p>
+                      <div className="flex items-center gap-2 text-[10px] font-medium text-slate-400 mt-0.5">
+                        <span>{formatViews(vid.viewsCount || 0)} views</span>
+                        <span>•</span>
+                        <span>{formatTimeAgo(vid.createdAt)}</span>
+                      </div>
                     </div>
-                  </div>
 
                   {/* Remove Video action */}
                   <button
@@ -448,7 +470,8 @@ export const PlaylistsPage: React.FC = () => {
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-              ))
+              );
+            })
             )}
           </div>
 
@@ -479,7 +502,7 @@ export const PlaylistsPage: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredPlaylists.map((pl) => (
                 <div
                   key={pl.playlistId}
@@ -492,7 +515,8 @@ export const PlaylistsPage: React.FC = () => {
                       <img
                         src={pl.thumbnailUrl}
                         alt={pl.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        draggable={false}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none"
                       />
                     ) : (
                       <div 

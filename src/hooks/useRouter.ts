@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 export interface Route {
   path: string; // e.g. "watch" or "creator" or "home"
   param?: string; // e.g. videoId or username
+  subTab?: string; // e.g. "videos" | "shorts" | "playlists" | "posts" | "community" | "about"
   searchParams?: Record<string, string>;
 }
 
@@ -31,19 +32,41 @@ export function parseHash(hash: string): Route {
     });
   }
 
-  const parts = routePart.split('/');
+  const parts = routePart.split('/').filter(Boolean);
   let path = parts[0] || 'home';
   let param = parts[1] || undefined;
+  let subTab: string | undefined = undefined;
 
-  // Handle YouTube-style @handle and channel routes
+  // Handle YouTube-style @handle and channel routes: /@handle, /@handle/shorts, /@handle/about, etc.
   if (path.startsWith('@')) {
     param = path.substring(1);
+    subTab = parts[1] || searchParams.tab || undefined;
     path = 'creator';
-  } else if (path === 'channel' || path === 'user' || path === 'profile' || path === 'c') {
+  } else if (path === 'channel' || path === 'user' || path === 'profile' || path === 'c' || path === 'creator') {
     path = 'creator';
+    param = parts[1] ? parts[1].replace(/^@/, '') : undefined;
+    subTab = parts[2] || searchParams.tab || undefined;
   }
 
-  return { path, param, searchParams };
+  // Handle YouTube-style /watch?v=VIDEO_ID or /watch/VIDEO_ID
+  if (path === 'watch') {
+    if (!param && searchParams.v) {
+      param = searchParams.v;
+    } else if (!param && searchParams.id) {
+      param = searchParams.id;
+    }
+  }
+
+  // Handle /shorts?v=VIDEO_ID or /shorts/VIDEO_ID
+  if (path === 'shorts') {
+    if (!param && searchParams.v) {
+      param = searchParams.v;
+    } else if (!param && searchParams.id) {
+      param = searchParams.id;
+    }
+  }
+
+  return { path, param, subTab, searchParams };
 }
 
 export function useRouter() {
