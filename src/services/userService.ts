@@ -562,18 +562,31 @@ export const userService = {
     }
   },
 
-  // Search users by username or display name
+  // Search users / channels by username, display name, handle or bio
   async searchUsers(term: string): Promise<User[]> {
     if (!term.trim()) return [];
-    const cleanTerm = term.trim().toLowerCase();
+    const cleanTerm = term.trim().toLowerCase().replace(/^@/, '');
     const q = query(collection(db, 'users'));
     try {
       const snap = await getDocs(q);
       const allUsers = snap.docs.map(d => d.data() as User);
-      return allUsers.filter(u => 
-        u.username.toLowerCase().includes(cleanTerm) || 
-        u.displayName.toLowerCase().includes(cleanTerm)
-      ).slice(0, 5); // Limit to top 5 matches
+      const matches = allUsers.filter(u => {
+        const uName = (u.username || '').toLowerCase();
+        const dName = (u.displayName || '').toLowerCase();
+        const bio = (u.bio || '').toLowerCase();
+        return uName.includes(cleanTerm) || dName.includes(cleanTerm) || bio.includes(cleanTerm);
+      });
+
+      // Rank matching users: exact match first, then subscriber count
+      matches.sort((a, b) => {
+        const aExact = (a.username || '').toLowerCase() === cleanTerm || (a.displayName || '').toLowerCase() === cleanTerm;
+        const bExact = (b.username || '').toLowerCase() === cleanTerm || (b.displayName || '').toLowerCase() === cleanTerm;
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+        return (b.followersCount || 0) - (a.followersCount || 0);
+      });
+
+      return matches.slice(0, 12);
     } catch (err) {
       console.error(err);
       return [];

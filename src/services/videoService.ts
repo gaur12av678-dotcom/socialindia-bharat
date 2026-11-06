@@ -981,7 +981,7 @@ export const videoService = {
     }
   },
 
-  // NEW: Synchronize creator metadata (avatar, name) across all their videos
+  // Synchronize creator metadata (avatar, name) across all their videos
   async syncCreatorProfileToVideos(creatorId: string, updates: { photoURL?: string; displayName?: string; username?: string }): Promise<void> {
     const q = query(collection(db, 'videos'), where('creatorId', '==', creatorId));
     try {
@@ -998,5 +998,54 @@ export const videoService = {
     } catch (err) {
       console.error('Metadata sync failed:', err);
     }
+  },
+
+  // Invalidate all video caches (in-memory, sessionStorage, localStorage)
+  clearAllCaches(): void {
+    memoryVideoCache.clear();
+    memoryVideoDetailCache.clear();
+    memorySearchCache.clear();
+    inFlightVideoQueryPromises.clear();
+    if (typeof window !== 'undefined') {
+      try {
+        sessionStorage.removeItem('si_cached_public_videos');
+        localStorage.removeItem('si_cached_public_videos');
+        sessionStorage.removeItem('si_cached_public_shorts');
+        localStorage.removeItem('si_cached_public_shorts');
+      } catch (_) {}
+    }
+  },
+
+  // Admin Direct Update to Firestore video document
+  async adminUpdateVideo(videoId: string, updates: Partial<Video>): Promise<void> {
+    const videoRef = doc(db, 'videos', videoId);
+    const cleanUpdates: any = {
+      updatedAt: new Date().toISOString()
+    };
+    if (updates.viewsCount !== undefined) cleanUpdates.viewsCount = Number(updates.viewsCount);
+    if (updates.likesCount !== undefined) cleanUpdates.likesCount = Number(updates.likesCount);
+    if (updates.commentsCount !== undefined) cleanUpdates.commentsCount = Number(updates.commentsCount);
+    if (updates.sharesCount !== undefined) cleanUpdates.sharesCount = Number(updates.sharesCount);
+    if (updates.title !== undefined) cleanUpdates.title = updates.title.trim();
+    if (updates.thumbnailUrl !== undefined) cleanUpdates.thumbnailUrl = updates.thumbnailUrl.trim();
+    if (updates.category !== undefined) cleanUpdates.category = updates.category;
+    if (updates.visibility !== undefined) cleanUpdates.visibility = updates.visibility;
+    if (updates.status !== undefined) cleanUpdates.status = updates.status;
+    if (updates.isShort !== undefined) cleanUpdates.isShort = Boolean(updates.isShort);
+    if (updates.description !== undefined) cleanUpdates.description = updates.description;
+
+    await updateDoc(videoRef, cleanUpdates);
+    this.clearAllCaches();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('socialindia:videos_updated', { detail: { videoId, cleanUpdates } }));
+    }
   }
 };
+
+// Listen for global video updates event
+if (typeof window !== 'undefined') {
+  window.addEventListener('socialindia:videos_updated', () => {
+    videoService.clearAllCaches();
+  });
+}
+

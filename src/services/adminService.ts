@@ -158,6 +158,79 @@ export const adminService = {
     }
   },
 
+  // Directly edit video document in Firestore (views, likes, comments, shares, title, thumbnail, etc.)
+  async updateVideoDetails(
+    videoId: string, 
+    data: {
+      viewsCount?: number;
+      likesCount?: number;
+      commentsCount?: number;
+      sharesCount?: number;
+      title?: string;
+      thumbnailUrl?: string;
+      category?: string;
+      visibility?: Video['visibility'];
+      status?: Video['status'];
+      isShort?: boolean;
+      description?: string;
+    }
+  ): Promise<void> {
+    try {
+      const updates: any = {
+        updatedAt: new Date().toISOString()
+      };
+      if (typeof data.viewsCount === 'number' && !isNaN(data.viewsCount)) {
+        updates.viewsCount = Math.max(0, Math.floor(data.viewsCount));
+      }
+      if (typeof data.likesCount === 'number' && !isNaN(data.likesCount)) {
+        updates.likesCount = Math.max(0, Math.floor(data.likesCount));
+      }
+      if (typeof data.commentsCount === 'number' && !isNaN(data.commentsCount)) {
+        updates.commentsCount = Math.max(0, Math.floor(data.commentsCount));
+      }
+      if (typeof data.sharesCount === 'number' && !isNaN(data.sharesCount)) {
+        updates.sharesCount = Math.max(0, Math.floor(data.sharesCount));
+      }
+      if (data.title !== undefined && data.title.trim() !== '') {
+        updates.title = data.title.trim();
+      }
+      if (data.thumbnailUrl !== undefined && data.thumbnailUrl.trim() !== '') {
+        updates.thumbnailUrl = data.thumbnailUrl.trim();
+      }
+      if (data.category !== undefined) {
+        updates.category = data.category;
+      }
+      if (data.visibility !== undefined) {
+        updates.visibility = data.visibility;
+      }
+      if (data.status !== undefined) {
+        updates.status = data.status;
+      }
+      if (data.isShort !== undefined) {
+        updates.isShort = Boolean(data.isShort);
+      }
+      if (data.description !== undefined) {
+        updates.description = data.description;
+      }
+
+      await updateDoc(doc(db, 'videos', videoId), updates);
+
+      // Invalidate client caches so the website reflects real Firestore changes instantly
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.removeItem('si_cached_public_videos');
+          localStorage.removeItem('si_cached_public_videos');
+          sessionStorage.removeItem('si_cached_public_shorts');
+          localStorage.removeItem('si_cached_public_shorts');
+          window.dispatchEvent(new CustomEvent('socialindia:videos_updated', { detail: { videoId, updates } }));
+        } catch (_) {}
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `videos/${videoId}`);
+      throw err;
+    }
+  },
+
   // Delete a video (Safely archives to 180-Day Compliance Trash Vault before removal)
   async deleteVideo(videoId: string, creatorId?: string, adminUid?: string): Promise<void> {
     try {

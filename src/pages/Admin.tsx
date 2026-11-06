@@ -80,11 +80,13 @@ import { formatViews, formatTimeAgo, getInitials } from '../utils/videoUtils';
 import { AdminExtraTabs } from '../components/AdminExtraTabs';
 import { AdminQuickTools } from '../components/AdminQuickTools';
 import { CaptionEditorModal } from '../components/CaptionEditorModal';
+import { FirebaseVideoEditor } from '../components/admin/FirebaseVideoEditor';
 
 type AdminSection = 
   | 'dashboard' 
   | 'users' 
   | 'videos' 
+  | 'firebase_edit'
   | 'paid_videos'
   | 'withdrawals'
   | 'reports' 
@@ -1015,6 +1017,17 @@ export const AdminPanel: React.FC = () => {
           </button>
 
           <button 
+            onClick={() => setActiveSection('firebase_edit')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'firebase_edit' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Database className="w-4 h-4 text-amber-500" />
+              <span>Firebase Edit</span>
+            </div>
+            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black uppercase">Live</span>
+          </button>
+
+          <button 
             onClick={() => setActiveSection('mobile_api')}
             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'mobile_api' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
           >
@@ -1047,8 +1060,14 @@ export const AdminPanel: React.FC = () => {
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white capitalize">{activeSection}</h2>
-            <p className="text-xs text-slate-500 font-medium mt-1">Manage SocialIndia platform {activeSection} and operations.</p>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+              {activeSection === 'firebase_edit' ? 'Firebase Live Video Editor' : activeSection.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </h2>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              {activeSection === 'firebase_edit' 
+                ? 'Directly edit real video metrics, views, and likes stored in Firebase Firestore.' 
+                : `Manage SocialIndia platform ${activeSection.replace('_', ' ')} and operations.`}
+            </p>
           </div>
 
           {(activeSection === 'users' || activeSection === 'videos') && (
@@ -1089,7 +1108,10 @@ export const AdminPanel: React.FC = () => {
         {(activeSection === 'dashboard' || activeSection === 'tools') && (
           <div className="mt-6">
             <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">⚡ Quick Tools</h2>
-            <AdminQuickTools addToast={addToast} />
+            <AdminQuickTools 
+              addToast={addToast} 
+              onSelectSection={(sec) => setActiveSection(sec as any)}
+            />
           </div>
         )}
             {/* Dashboard Section */}
@@ -2509,6 +2531,36 @@ export const AdminPanel: React.FC = () => {
             {/* PLATFORM TOOLS & BROADCAST SECTION */}
             {activeSection === 'tools' && (
               <div className="space-y-8 animate-in fade-in duration-300">
+
+                {/* FEATURED TOOL: FIREBASE VIDEO & VIEWS/LIKES EDITOR */}
+                <div className="bg-linear-to-r from-amber-500/10 via-orange-500/10 to-amber-600/10 border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-sm">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3.5 bg-amber-500 text-white rounded-2xl shadow-md shadow-amber-500/20 shrink-0">
+                      <Database className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-wider">
+                        <span>Direct Database Tool</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      </div>
+                      <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                        Firebase Video Editor (Views & Likes Live Editor)
+                      </h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-medium max-w-xl">
+                        Search any video, inspect thumbnail, and directly update real <strong>views</strong>, <strong>likes</strong>, <strong>comments</strong>, or <strong>title</strong> inside Firestore. 100% genuine database updates that sync across the app.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveSection('firebase_edit')}
+                    className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl text-xs font-black transition-all cursor-pointer shadow-lg shadow-amber-600/20 active:scale-95 flex items-center gap-2 shrink-0 self-stretch md:self-auto justify-center"
+                  >
+                    <Edit3 className="w-4 h-4 stroke-[2.5]" />
+                    <span>Open Firebase Video Editor</span>
+                  </button>
+                </div>
                 
                 {/* TOOL 1: SITE-WIDE BROADCAST ANNOUNCEMENT */}
                 <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
@@ -2760,6 +2812,18 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {/* SECTION: FIREBASE VIDEO & METRICS EDIT TOOL */}
+            {activeSection === 'firebase_edit' && (
+              <div className="animate-in fade-in duration-200">
+                <FirebaseVideoEditor 
+                  addToast={addToast} 
+                  onRefreshParentVideos={() => {
+                    adminService.getAllVideos().then(setVideos);
+                  }}
+                />
               </div>
             )}
 
