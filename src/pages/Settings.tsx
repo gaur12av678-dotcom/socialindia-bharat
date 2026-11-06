@@ -1182,50 +1182,24 @@ export const Settings: React.FC = () => {
                       : 'Manage your unified wallet balance, convert points, and withdraw funds to UPI.'}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <span className="text-xs font-bold text-slate-500">
                     {isHindi ? 'उपलब्ध बैलेंस:' : 'Available:'}{' '}
                     <strong className="text-emerald-600 font-mono font-black text-base sm:text-lg">
                       ₹{displayWallet.toFixed(2)}
                     </strong>
                   </span>
+                  <button
+                    onClick={() => {
+                      setWithdrawAmount(displayWallet);
+                      setWithdrawModalOpen(true);
+                    }}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs cursor-pointer transition-all active:scale-95 flex items-center gap-1.5"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    <span>{isHindi ? 'पैसे निकालें' : 'Withdraw Funds'}</span>
+                  </button>
                 </div>
-              </div>
-
-              {/* 1. Main Wallet Balance Card */}
-              <div className="p-6 sm:p-7 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white rounded-3xl shadow-lg space-y-5 relative overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-                  <div>
-                    <span className="text-xs font-bold text-blue-100 uppercase tracking-wider block">
-                      {isHindi ? 'एकीकृत वॉलेट बैलेंस' : 'Unified Wallet Balance'}
-                    </span>
-                    <div className="flex items-baseline gap-3 mt-1.5 flex-wrap">
-                      <h3 className="text-3xl sm:text-4xl font-black font-mono">
-                        ₹{displayWallet.toFixed(2)} <span className="text-sm font-semibold text-blue-200">INR</span>
-                      </h3>
-                    </div>
-                    <p className="text-xs text-blue-100/90 mt-2 font-medium">
-                      {isHindi 
-                        ? 'इस बैलेंस का उपयोग आप पेड वीडियो खरीदने, प्रो मेंबरशिप लेने या UPI में विथड्रॉल करने के लिए कर सकते हैं।' 
-                        : 'Use this balance to purchase Pro, buy paid videos, or withdraw directly to your UPI ID.'}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-2.5 shrink-0">
-                    <button
-                      onClick={() => {
-                        setWithdrawAmount(displayWallet);
-                        setWithdrawModalOpen(true);
-                      }}
-                      className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2"
-                    >
-                      <CreditCard className="w-4 h-4" />
-                      <span>{isHindi ? 'पैसे निकालें (Withdraw Funds)' : 'Withdraw Funds'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none" />
               </div>
 
               {/* 2. Interactive Convert Points to Wallet Card */}

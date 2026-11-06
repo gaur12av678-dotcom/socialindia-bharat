@@ -242,13 +242,15 @@ export const subscriptionService = {
       const subs = getStoredSubs(subscriberId);
       deduplicated.forEach(d => {
         subs.add(d.creatorId);
-        // Pre-cache creator avatar and details
+        const existing = userService.getCachedUserProfile(d.creatorId);
         userService.cacheUserProfile({
           uid: d.creatorId,
-          username: d.creatorUsername || '',
-          displayName: d.creatorDisplayName || '',
-          photoURL: d.creatorPhotoURL || '',
-          role: 'creator',
+          username: d.creatorUsername || existing?.username || '',
+          displayName: d.creatorDisplayName || existing?.displayName || '',
+          photoURL: d.creatorPhotoURL || existing?.photoURL || '',
+          role: existing?.role || 'user',
+          isVerified: existing?.isVerified || false,
+          isPro: existing?.isPro || false,
           status: 'active'
         });
       });

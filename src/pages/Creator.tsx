@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
 import { userService } from '../services/userService';
@@ -11,10 +11,11 @@ import { User, Video, Playlist, ReportCategory, CommunityPost } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { PostCard } from '../components/community/PostCard';
 import { CreatePostBox } from '../components/community/CreatePostBox';
-import { getInitials, formatSubscribers } from '../utils/videoUtils';
+import { getInitials, formatSubscribers, formatViews, formatTimeAgo } from '../utils/videoUtils';
 import { compressBanner, compressAvatar } from '../utils/imageUtils';
 import { UserAvatar, updateUserAvatarCache } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
+import { isUserVerified } from '../utils/userUtils';
 import { 
   Video as VideoIcon, 
   Film, 
@@ -32,7 +33,13 @@ import {
   Flag,
   Share2,
   Sparkles,
-  Loader2
+  Loader2,
+  Play,
+  Plus,
+  Lock,
+  Eye,
+  Flame,
+  Globe
 } from 'lucide-react';
 
 const BANNER_PRESETS = [
@@ -158,15 +165,42 @@ export const CreatorProfile: React.FC = () => {
     }
   }, [creator?.country, currentUserProfile?.country]);
 
-  // Public playlists created by this channel (exclude internal private 'Saved Videos')
-  const publicPlaylists = playlists.filter(p => !p.isPrivate && p.title.toLowerCase() !== 'saved videos');
+  const [videoSort, setVideoSort] = useState<'latest' | 'popular' | 'oldest'>('latest');
 
-  // Tab safety: If active tab count drops to 0, switch back to videos
-  useEffect(() => {
-    if (activeTab === 'shorts' && shorts.length === 0) setActiveTab('videos');
-    if (activeTab === 'playlists' && publicPlaylists.length === 0) setActiveTab('videos');
-    if (activeTab === 'posts' && posts.length === 0) setActiveTab('videos');
-  }, [shorts.length, publicPlaylists.length, posts.length, activeTab]);
+  // Channel playlists: owners can see all their playlists; visitors see public playlists
+  const isOwner = Boolean(
+    currentUser && creator && (
+      currentUser.uid === creator.uid ||
+      (currentUserProfile?.username && creator.username && currentUserProfile.username.toLowerCase() === creator.username.toLowerCase())
+    )
+  );
+
+  const channelPlaylists = isOwner 
+    ? playlists 
+    : playlists.filter(p => !p.isPrivate && p.title.toLowerCase() !== 'saved videos');
+
+  const sortedVideos = useMemo(() => {
+    const list = [...videos];
+    if (videoSort === 'popular') {
+      return list.sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0));
+    }
+    if (videoSort === 'oldest') {
+      return list.sort((a, b) => {
+        const timeA = typeof a.createdAt === 'object' && a.createdAt !== null && 'seconds' in a.createdAt ? (a.createdAt as any).seconds * 1000 : new Date(a.createdAt || 0).getTime() || 0;
+        const timeB = typeof b.createdAt === 'object' && b.createdAt !== null && 'seconds' in b.createdAt ? (b.createdAt as any).seconds * 1000 : new Date(b.createdAt || 0).getTime() || 0;
+        return timeA - timeB;
+      });
+    }
+    return list.sort((a, b) => {
+      const timeA = typeof a.createdAt === 'object' && a.createdAt !== null && 'seconds' in a.createdAt ? (a.createdAt as any).seconds * 1000 : new Date(a.createdAt || 0).getTime() || 0;
+      const timeB = typeof b.createdAt === 'object' && b.createdAt !== null && 'seconds' in b.createdAt ? (b.createdAt as any).seconds * 1000 : new Date(b.createdAt || 0).getTime() || 0;
+      return timeB - timeA;
+    });
+  }, [videos, videoSort]);
+
+  const totalViews = useMemo(() => {
+    return [...videos, ...shorts].reduce((acc, v) => acc + (v.viewsCount || 0), 0);
+  }, [videos, shorts]);
 
   const handleSaveCountry = async () => {
     if (!creator || !currentUser) return;
@@ -322,7 +356,7 @@ export const CreatorProfile: React.FC = () => {
         // Fetch subscriptions, videos, playlists, and community posts in PARALLEL (No waterfall!)
         const [subResult, vidsResult, plsResult, postsResult] = await Promise.allSettled([
           currentUser ? subscriptionService.isSubscribed(currentUser.uid, uProfile.uid) : Promise.resolve(false),
-          videoService.getCreatorVideos(uProfile.uid),
+          videoService.getCreatorVideos(uProfile.uid, uProfile.username),
           playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName),
           postService.getPosts({ authorId: uProfile.uid })
         ]);
@@ -332,9 +366,17 @@ export const CreatorProfile: React.FC = () => {
             setSubscribed(subResult.value);
           }
           if (vidsResult.status === 'fulfilled') {
-            const publicVids = vidsResult.value.filter(v => v.visibility === 'public');
-            setVideos(publicVids.filter(v => !v.isShort));
-            setShorts(publicVids.filter(v => v.isShort));
+            const isOwnerUser = Boolean(
+              currentUser && (
+                currentUser.uid === uProfile.uid ||
+                (currentUserProfile?.username && uProfile.username && currentUserProfile.username.toLowerCase() === uProfile.username.toLowerCase())
+              )
+            );
+            const visibleVids = isOwnerUser 
+              ? vidsResult.value 
+              : vidsResult.value.filter(v => v.visibility === 'public');
+            setVideos(visibleVids.filter(v => !v.isShort));
+            setShorts(visibleVids.filter(v => v.isShort));
           }
           if (plsResult.status === 'fulfilled') {
             setPlaylists(plsResult.value);
@@ -452,8 +494,6 @@ export const CreatorProfile: React.FC = () => {
       </div>
     );
   }
-
-  const isOwner = currentUser?.uid === creator.uid;
 
   const handleShareChannel = () => {
     if (!creator) return;
@@ -696,7 +736,7 @@ export const CreatorProfile: React.FC = () => {
             <div className="flex-1 min-w-0 space-y-1.5 pt-1">
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-[#F8FAFC] flex items-center justify-center sm:justify-start gap-1.5">
                 <span>{creator.displayName}</span>
-                {(creator.role === 'creator' || creator.role === 'admin') && (
+                {isUserVerified(creator) && (
                   <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[10px] w-4.5 h-4.5 rounded-full font-black shrink-0 shadow-sm" title="Verified Channel">✓</span>
                 )}
               </h1>
@@ -716,21 +756,19 @@ export const CreatorProfile: React.FC = () => {
             <div className="shrink-0 pt-2 sm:pt-4 flex flex-wrap items-center justify-center gap-2">
               {isOwner ? (
                 <>
-                  {/* YouTube Signature Subscribe Button */}
-                  <button
-                    type="button"
-                    onClick={() => addToast(isHindi ? 'यह आपका अपना चैनल है!' : 'This is your own channel!', 'info')}
-                    className="px-6 py-2.5 rounded-full font-black text-xs sm:text-sm tracking-wide bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/90 dark:hover:bg-slate-100 transition-all cursor-pointer shadow-sm active:scale-95 flex items-center gap-2 shrink-0"
-                    title={isHindi ? 'यह आपका अपना चैनल है' : 'Your channel'}
-                  >
-                    <span>{isHindi ? 'सब्सक्राइब' : 'Subscribe'}</span>
-                  </button>
                   <button
                     onClick={() => navigate('studio')}
+                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-900 dark:bg-white text-white dark:text-black hover:bg-black/90 dark:hover:bg-slate-100 font-extrabold text-xs sm:text-sm rounded-full flex items-center gap-2 cursor-pointer shadow-sm transition-all active:scale-95"
+                  >
+                    <SettingsIcon className="w-4 h-4 text-blue-400 dark:text-blue-600" />
+                    <span>{t('nav_studio', 'Creator Studio')}</span>
+                  </button>
+                  <button
+                    onClick={() => navigate('upload')}
                     className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
                   >
-                    <SettingsIcon className="w-4 h-4 text-blue-500" />
-                    <span>{t('nav_studio', 'Creator Studio')}</span>
+                    <Upload className="w-4 h-4 text-blue-500" />
+                    <span>{isHindi ? 'वीडियो अपलोड' : 'Upload Video'}</span>
                   </button>
                   <button
                     onClick={() => {
@@ -836,7 +874,7 @@ export const CreatorProfile: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-center sm:justify-start">
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center justify-center sm:justify-start gap-2">
                   <span>{creator.displayName}</span>
-                  {(creator.role === 'creator' || creator.role === 'admin') && (
+                  {isUserVerified(creator) && (
                     <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[11px] w-5 h-5 rounded-full font-black shrink-0 shadow-xs" title="Verified Channel">✓</span>
                   )}
                 </h1>
@@ -866,10 +904,18 @@ export const CreatorProfile: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => navigate('studio')}
+                      className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-900 dark:bg-white text-white dark:text-black hover:bg-black/90 dark:hover:bg-slate-100 font-extrabold text-xs sm:text-sm rounded-full flex items-center gap-2 cursor-pointer shadow-sm transition-all active:scale-95"
+                    >
+                      <SettingsIcon className="w-4 h-4 text-blue-400 dark:text-blue-600" />
+                      <span>{t('nav_studio', 'Creator Studio')}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate('upload')}
                       className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
                     >
-                      <SettingsIcon className="w-4 h-4 text-blue-500" />
-                      <span>{t('nav_studio', 'Creator Studio')}</span>
+                      <Upload className="w-4 h-4 text-blue-500" />
+                      <span>{isHindi ? 'वीडियो अपलोड' : 'Upload Video'}</span>
                     </button>
                     <button
                       type="button"
@@ -948,129 +994,301 @@ export const CreatorProfile: React.FC = () => {
         </div>
       )}
 
-      {/* DYNAMIC PROFILE NAVIGATION TABS (Hides empty sections: Shorts, Playlists, Posts) */}
-      <div className="flex border-b border-slate-200 dark:border-[#334155] gap-4 sm:gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        {/* Videos Tab: Always available */}
+      {/* YOUTUBE-STYLE PROFILE NAVIGATION TABS (All sections always available) */}
+      <div className="flex border-b border-slate-200 dark:border-[#334155] gap-2 sm:gap-6 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {/* Videos Tab */}
         <button
           onClick={() => setActiveTab('videos')}
-          className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'videos' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
+          className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'videos' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
         >
           <VideoIcon className="w-4 h-4" />
-          <span>{t('tab_videos', 'Videos')} ({videos.length})</span>
-          {activeTab === 'videos' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
+          <span>{t('tab_videos', 'Videos')}</span>
+          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{videos.length}</span>
+          {activeTab === 'videos' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
 
-        {/* Shorts Tab: Only show if creator has shorts */}
-        {shorts.length > 0 && (
-          <button
-            onClick={() => setActiveTab('shorts')}
-            className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'shorts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
-          >
-            <Zap className="w-4 h-4" />
-            <span>{t('tab_shorts', 'Shorts')} ({shorts.length})</span>
-            {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
-          </button>
-        )}
+        {/* Shorts Tab */}
+        <button
+          onClick={() => setActiveTab('shorts')}
+          className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'shorts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
+        >
+          <Zap className="w-4 h-4 text-red-500 fill-red-500" />
+          <span>{t('tab_shorts', 'Shorts')}</span>
+          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{shorts.length}</span>
+          {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
+        </button>
 
-        {/* Playlists Tab: Only show if creator has public playlists */}
-        {publicPlaylists.length > 0 && (
-          <button
-            onClick={() => setActiveTab('playlists')}
-            className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'playlists' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
-          >
-            <Bookmark className="w-4 h-4" />
-            <span>{t('tab_playlists', 'Playlists')} ({publicPlaylists.length})</span>
-            {activeTab === 'playlists' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
-          </button>
-        )}
+        {/* Playlists Tab */}
+        <button
+          onClick={() => setActiveTab('playlists')}
+          className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'playlists' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
+        >
+          <Bookmark className="w-4 h-4" />
+          <span>{t('tab_playlists', 'Playlists')}</span>
+          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{channelPlaylists.length}</span>
+          {activeTab === 'playlists' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
+        </button>
 
-        {/* Posts Tab: Only show if creator has posts */}
-        {posts.length > 0 && (
-          <button
-            onClick={() => setActiveTab('posts')}
-            className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'posts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>{isHindi ? 'पोस्ट' : 'Posts'} ({posts.length})</span>
-            {activeTab === 'posts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
-          </button>
-        )}
+        {/* Posts Tab */}
+        <button
+          onClick={() => setActiveTab('posts')}
+          className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'posts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span>{isHindi ? 'कम्युनिटी' : 'Community'}</span>
+          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{posts.length}</span>
+          {activeTab === 'posts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
+        </button>
 
-        {/* About Tab: Always available */}
+        {/* About Tab */}
         <button
           onClick={() => setActiveTab('about')}
-          className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative ${activeTab === 'about' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 dark:text-slate-400'}`}
+          className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'about' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
         >
           <Info className="w-4 h-4" />
           <span>{t('tab_about', 'About')}</span>
-          {activeTab === 'about' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400" />}
+          {activeTab === 'about' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
       </div>
 
       {/* Tab views layout */}
-      <div className="pt-2">
+      <div className="pt-4">
+        {/* VIDEOS TAB */}
         {activeTab === 'videos' && (
-          <VideoGrid 
-            videos={videos} 
-            loading={false} 
-            emptyHeading={isHindi ? "कोई सामान्य वीडियो नहीं" : "No standard videos"}
-            emptyMessage={isHindi ? "इस क्रिएटर ने अभी तक कोई सामान्य वीडियो प्रकाशित नहीं किया है।" : "This creator has not published any standard videos yet."}
-          />
-        )}
-
-        {activeTab === 'shorts' && (
-          <VideoGrid 
-            videos={shorts} 
-            loading={false} 
-            emptyHeading={isHindi ? "कोई शॉर्ट वीडियो नहीं" : "No short videos"}
-            emptyMessage={isHindi ? "इस क्रिएटर ने अभी तक कोई शॉर्ट वीडियो प्रकाशित नहीं किया है।" : "This creator has not published any short videos yet."}
-          />
-        )}
-
-        {activeTab === 'playlists' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {publicPlaylists.length === 0 ? (
-              <div className="col-span-full py-16 text-center text-slate-400 font-bold">
-                {isHindi ? "इस चैनल द्वारा अभी तक कोई प्लेलिस्ट नहीं बनाई गई है।" : "No public playlists created by this channel yet."}
-              </div>
-            ) : (
-              publicPlaylists.map(pl => (
-                <div 
-                  key={pl.playlistId}
-                  onClick={() => {
-                    if (pl.videoIds && pl.videoIds.length > 0) {
-                      navigate('watch', pl.videoIds[0]);
-                    } else {
-                      addToast(isHindi ? 'यह प्लेलिस्ट अभी खाली है।' : 'This playlist is currently empty.', 'info');
-                    }
-                  }}
-                  className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs hover:shadow-md transition-all cursor-pointer group"
+          <div className="space-y-4">
+            {/* YouTube-style Filter Chips */}
+            {videos.length > 0 && (
+              <div className="flex items-center gap-2 pb-1">
+                <button
+                  type="button"
+                  onClick={() => setVideoSort('latest')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                    videoSort === 'latest'
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
                 >
-                  <div className="aspect-video bg-slate-900 relative overflow-hidden flex items-center justify-center">
-                    {pl.thumbnailUrl ? (
-                      <img src={pl.thumbnailUrl} alt={pl.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    ) : (
-                      <Film className="w-10 h-10 text-slate-600" />
-                    )}
-                    <div className="absolute inset-y-0 right-0 w-1/3 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center text-white p-2">
-                      <span className="font-mono font-black text-sm">{pl.videoIds?.length || 0}</span>
-                      <span className="text-[10px] uppercase font-bold text-slate-300">{isHindi ? 'वीडियो' : 'Videos'}</span>
-                    </div>
-                  </div>
-                  <div className="p-4 space-y-1">
-                    <h4 className="text-sm font-black text-slate-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">
-                      {pl.title}
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 font-medium">
-                      {pl.description || (isHindi ? "SocialIndia पर निर्मित" : "Created on SocialIndia")}
-                    </p>
-                  </div>
+                  {isHindi ? 'नवीनतम' : 'Latest'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVideoSort('popular')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center gap-1 ${
+                    videoSort === 'popular'
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <Flame className="w-3.5 h-3.5 text-amber-500" />
+                  <span>{isHindi ? 'लोकप्रिय' : 'Popular'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVideoSort('oldest')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                    videoSort === 'oldest'
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {isHindi ? 'पुराने' : 'Oldest'}
+                </button>
+              </div>
+            )}
+
+            {sortedVideos.length > 0 ? (
+              <VideoGrid videos={sortedVideos} loading={false} />
+            ) : (
+              <div className="py-20 text-center flex flex-col items-center justify-center space-y-3">
+                <div className="w-16 h-16 rounded-3xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400">
+                  <VideoIcon className="w-8 h-8" />
                 </div>
-              ))
+                <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                  {isHindi ? 'कोई वीडियो उपलब्ध नहीं है' : 'No videos uploaded yet'}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm">
+                  {isOwner 
+                    ? (isHindi ? 'अपनी पहली वीडियो अपलोड करें और दर्शकों के साथ साझा करें।' : 'Upload a video to get started. Start sharing your knowledge, entertainment, and creative moments.')
+                    : (isHindi ? 'इस क्रिएटर ने अभी तक कोई मानक वीडियो अपलोड नहीं किया है।' : 'This creator has not uploaded any standard videos yet.')}
+                </p>
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('upload')}
+                    className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-full flex items-center gap-2 cursor-pointer shadow-sm transition-all"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span>{isHindi ? 'वीडियो अपलोड करें' : 'Upload Video'}</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         )}
 
+        {/* SHORTS TAB (YouTube 9:16 Vertical Grid) */}
+        {activeTab === 'shorts' && (
+          <div className="space-y-4">
+            {shorts.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {shorts.map((short) => (
+                  <div
+                    key={short.videoId}
+                    onClick={() => navigate('shorts', short.videoId)}
+                    className="group relative rounded-2xl overflow-hidden aspect-[9/16] bg-slate-900 cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                  >
+                    {/* Thumbnail Image */}
+                    {short.thumbnailUrl ? (
+                      <img
+                        src={short.thumbnailUrl}
+                        alt={short.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-linear-to-b from-indigo-950 via-slate-900 to-black flex items-center justify-center">
+                        <Zap className="w-10 h-10 text-red-500/70" />
+                      </div>
+                    )}
+
+                    {/* Gradient Overlay for Readable Text */}
+                    <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
+
+                    {/* Top Red Shorts Badge */}
+                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs flex items-center gap-1 border border-white/10">
+                      <Zap className="w-3 h-3 text-red-500 fill-red-500" />
+                      <span className="text-[10px] font-extrabold text-white uppercase tracking-wider">Shorts</span>
+                    </div>
+
+                    {/* Hover Play Button */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-12 h-12 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center text-white scale-90 group-hover:scale-100 transition-transform">
+                        <Play className="w-5 h-5 fill-white ml-0.5" />
+                      </div>
+                    </div>
+
+                    {/* Bottom Metadata */}
+                    <div className="absolute bottom-0 inset-x-0 p-3 space-y-1 pointer-events-none">
+                      <h4 className="text-xs font-bold text-white line-clamp-2 leading-snug drop-shadow-xs">
+                        {short.title}
+                      </h4>
+                      <div className="flex items-center justify-between text-[11px] font-medium text-slate-300">
+                        <span>{formatViews(short.viewsCount || 0)} views</span>
+                        {short.createdAt && (
+                          <span className="text-slate-400 text-[10px]">{formatTimeAgo(short.createdAt)}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-20 text-center flex flex-col items-center justify-center space-y-3">
+                <div className="w-16 h-16 rounded-3xl bg-red-50 dark:bg-red-950/40 text-red-500 flex items-center justify-center">
+                  <Zap className="w-8 h-8 fill-red-500" />
+                </div>
+                <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                  {isHindi ? 'कोई शॉर्ट्स वीडियो नहीं' : 'No Shorts yet'}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm">
+                  {isOwner 
+                    ? (isHindi ? '60 सेकंड तक के वर्टिकल शॉर्ट्स वीडियो बनाएं और अधिक दर्शकों तक पहुंचें!' : 'Share vertical videos up to 60 seconds with SocialIndia Shorts to reach a wider audience.')
+                    : (isHindi ? 'इस क्रिएटर ने अभी तक कोई शॉर्ट्स प्रकाशित नहीं किया है।' : 'This creator has not published any Shorts yet.')}
+                </p>
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('upload')}
+                    className="mt-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-full flex items-center gap-2 cursor-pointer shadow-sm transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{isHindi ? 'शॉर्ट्स बनाएं' : 'Create Short'}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PLAYLISTS TAB */}
+        {activeTab === 'playlists' && (
+          <div className="space-y-4">
+            {channelPlaylists.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {channelPlaylists.map(pl => (
+                  <div 
+                    key={pl.playlistId}
+                    onClick={() => {
+                      if (pl.videoIds && pl.videoIds.length > 0) {
+                        navigate('watch', pl.videoIds[0]);
+                      } else {
+                        addToast(isHindi ? 'यह प्लेलिस्ट अभी खाली है।' : 'This playlist is currently empty.', 'info');
+                      }
+                    }}
+                    className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all cursor-pointer group"
+                  >
+                    <div className="aspect-video bg-slate-900 relative overflow-hidden flex items-center justify-center">
+                      {pl.thumbnailUrl ? (
+                        <img src={pl.thumbnailUrl} alt={pl.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <Film className="w-10 h-10 text-slate-600" />
+                      )}
+                      
+                      {/* Video Count Overlay (YouTube Style) */}
+                      <div className="absolute inset-y-0 right-0 w-1/3 bg-black/80 backdrop-blur-xs flex flex-col items-center justify-center text-white p-2">
+                        <Bookmark className="w-4 h-4 mb-1 text-slate-300" />
+                        <span className="font-mono font-black text-sm">{pl.videoIds?.length || 0}</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-300">{isHindi ? 'वीडियो' : 'Videos'}</span>
+                      </div>
+
+                      {/* Lock badge for private playlist */}
+                      {pl.isPrivate && (
+                        <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs flex items-center gap-1 text-[10px] text-amber-300 font-bold border border-amber-500/30">
+                          <Lock className="w-3 h-3" />
+                          <span>{isHindi ? 'निजी' : 'Private'}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4 space-y-1">
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">
+                        {pl.title}
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 font-medium">
+                        {pl.description || (isHindi ? "SocialIndia पर निर्मित प्लेलिस्ट" : "Playlist created on SocialIndia")}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-20 text-center flex flex-col items-center justify-center space-y-3">
+                <div className="w-16 h-16 rounded-3xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400">
+                  <Bookmark className="w-8 h-8" />
+                </div>
+                <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                  {isHindi ? 'कोई प्लेलिस्ट नहीं है' : 'No playlists yet'}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm">
+                  {isOwner 
+                    ? (isHindi ? 'अपने वीडियो को श्रेणियों में व्यवस्थित करने के लिए प्लेलिस्ट बनाएं।' : 'Group your videos into curated playlists so viewers can watch your series easily.')
+                    : (isHindi ? 'इस चैनल द्वारा अभी तक कोई सार्वजनिक प्लेलिस्ट नहीं बनाई गई है।' : 'No public playlists created by this channel yet.')}
+                </p>
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('playlists')}
+                    className="mt-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-full flex items-center gap-2 cursor-pointer shadow-sm transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{isHindi ? 'प्लेलिस्ट प्रबंधित करें' : 'Manage Playlists'}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* COMMUNITY / POSTS TAB */}
         {activeTab === 'posts' && (
           <div className="max-w-2xl mx-auto space-y-5">
             {isOwner && (
@@ -1082,15 +1300,17 @@ export const CreatorProfile: React.FC = () => {
             )}
 
             {posts.length === 0 ? (
-              <div className="py-16 text-center text-slate-400 space-y-2">
-                <MessageSquare className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
-                <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              <div className="py-20 text-center flex flex-col items-center justify-center space-y-3">
+                <div className="w-16 h-16 rounded-3xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400">
+                  <MessageSquare className="w-8 h-8" />
+                </div>
+                <h4 className="text-base font-bold text-slate-900 dark:text-white">
                   {isHindi ? 'अभी कोई कम्युनिटी पोस्ट नहीं है' : 'No community posts yet'}
                 </h4>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                <p className="text-xs text-slate-500 max-w-sm">
                   {isOwner 
-                    ? (isHindi ? 'ऊपर दिए गए बॉक्स से अपनी पहली पोस्ट, पोल या फ़ोटो साझा करें!' : 'Publish your first post, interactive poll or photo above!')
-                    : (isHindi ? 'इस क्रिएटर ने अभी तक कोई पोस्ट साझा नहीं की है।' : 'This creator hasn’t published any community posts yet.')}
+                    ? (isHindi ? 'ऊपर दिए गए बॉक्स से अपनी पहली पोस्ट, इंटरैक्टिव पोल या फोटो साझा करें!' : 'Publish your first post, interactive poll or photo above to engage your audience!')
+                    : (isHindi ? 'इस क्रिएटर ने अभी तक कोई कम्युनिटी पोस्ट साझा नहीं की है।' : 'This creator hasn’t published any community posts yet.')}
                 </p>
               </div>
             ) : (
@@ -1109,109 +1329,154 @@ export const CreatorProfile: React.FC = () => {
           </div>
         )}
 
+        {/* ABOUT TAB (YouTube Standard Multi-Card Info & Stats) */}
         {activeTab === 'about' && (
-          <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-5 max-w-xl shadow-xs">
-            <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
-              {isHindi ? "चैनल के बारे में" : "About this Channel"}
-            </h3>
-            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-              {creator.bio || (isHindi ? "इस क्रिएटर ने अभी तक चैनल का कोई अतिरिक्त विवरण नहीं दिया है।" : "This creator has not provided any additional channel biography.")}
-            </p>
-            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3 text-xs font-semibold text-slate-500 dark:text-[#94A3B8]">
-              {/* Country Details Row with In-Place Channel Owner Editor */}
-              <div className="flex items-center justify-between">
-                <span>{isHindi ? "देश" : "Country"}</span>
-                {isOwner && isEditingCountry ? (
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={(selectedCountry || 'India').replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim()}
-                      onChange={(e) => setSelectedCountry(e.target.value)}
-                      className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="India">India 🇮🇳</option>
-                      <option value="United States">United States 🇺🇸</option>
-                      <option value="United Kingdom">United Kingdom 🇬🇧</option>
-                      <option value="Canada">Canada 🇨🇦</option>
-                      <option value="Australia">Australia 🇦🇺</option>
-                      <option value="United Arab Emirates">United Arab Emirates 🇦🇪</option>
-                      <option value="Singapore">Singapore 🇸🇬</option>
-                      <option value="Germany">Germany 🇩🇪</option>
-                      <option value="France">France 🇫🇷</option>
-                      <option value="Japan">Japan 🇯🇵</option>
-                      <option value="Brazil">Brazil 🇧🇷</option>
-                      <option value="Nepal">Nepal 🇳🇵</option>
-                      <option value="Bangladesh">Bangladesh 🇧🇩</option>
-                      <option value="Saudi Arabia">Saudi Arabia 🇸🇦</option>
-                      <option value="South Africa">South Africa 🇿🇦</option>
-                      <option value="Indonesia">Indonesia 🇮🇩</option>
-                      <option value="Malaysia">Malaysia 🇲🇾</option>
-                      <option value="Pakistan">Pakistan 🇵🇰</option>
-                      <option value="Sri Lanka">Sri Lanka 🇱🇰</option>
-                      <option value="Russia">Russia 🇷🇺</option>
-                      <option value="New Zealand">New Zealand 🇳🇿</option>
-                      <option value="Netherlands">Netherlands 🇳🇱</option>
-                      <option value="Italy">Italy 🇮🇹</option>
-                      <option value="Spain">Spain 🇪🇸</option>
-                    </select>
-                    <button
-                      type="button"
-                      disabled={isSavingCountry}
-                      onClick={handleSaveCountry}
-                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
-                    >
-                      {isSavingCountry ? '...' : (isHindi ? 'सेव' : 'Save')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingCountry(false)}
-                      className="px-2 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">
-                      {formatCountryDisplay(creator.country || (isOwner ? currentUserProfile?.country : '') || 'India')}
-                    </span>
-                    {isOwner && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedCountry((creator.country || currentUserProfile?.country || 'India').replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim());
-                          setIsEditingCountry(true);
-                        }}
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-[11px] font-bold cursor-pointer"
-                      >
-                        {isHindi ? 'बदलें' : 'Edit'}
-                      </button>
-                    )}
-                  </div>
-                )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Description & Country Details (Left 2 cols) */}
+            <div className="md:col-span-2 space-y-5">
+              <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 shadow-xs">
+                <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
+                  {isHindi ? "चैनल विवरण" : "Description"}
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">
+                  {creator.bio || (isHindi ? "इस क्रिएटर ने अभी तक चैनल का कोई अतिरिक्त विवरण नहीं दिया है।" : "Welcome to the official channel on SocialIndia! Subscribe to stay updated with new videos, stories, and exclusive creator updates.")}
+                </p>
               </div>
 
-              <div className="flex justify-between">
-                <span>{isHindi ? "SocialIndia से जुड़े" : "Joined SocialIndia"}</span>
-                <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{new Date(creator.createdAt).toLocaleDateString(isHindi ? 'hi-IN' : 'en-US')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>{isHindi ? "कुल चैनल सब्सक्राइबर्स" : "Total Channel Subscribers"}</span>
-                <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{creator.followersCount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>{isHindi ? "कुल अपलोड किए गए वीडियो" : "Total Videos Uploaded"}</span>
-                <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">{creator.videosCount}</span>
+              {/* Details & Location Box */}
+              <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 shadow-xs">
+                <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
+                  {isHindi ? "विवरण व स्थान" : "Details & Location"}
+                </h3>
+                
+                <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800 text-xs">
+                  <span className="font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <Globe className="w-4 h-4 text-blue-500" />
+                    {isHindi ? "स्थान / देश" : "Country"}
+                  </span>
+                  {isOwner && isEditingCountry ? (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={(selectedCountry || 'India').replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim()}
+                        onChange={(e) => setSelectedCountry(e.target.value)}
+                        className="px-2.5 py-1 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="India">India 🇮🇳</option>
+                        <option value="United States">United States 🇺🇸</option>
+                        <option value="United Kingdom">United Kingdom 🇬🇧</option>
+                        <option value="Canada">Canada 🇨🇦</option>
+                        <option value="Australia">Australia 🇦🇺</option>
+                        <option value="United Arab Emirates">United Arab Emirates 🇦🇪</option>
+                        <option value="Singapore">Singapore 🇸🇬</option>
+                        <option value="Germany">Germany 🇩🇪</option>
+                        <option value="France">France 🇫🇷</option>
+                        <option value="Japan">Japan 🇯🇵</option>
+                        <option value="Brazil">Brazil 🇧🇷</option>
+                        <option value="Nepal">Nepal 🇳🇵</option>
+                        <option value="Bangladesh">Bangladesh 🇧🇩</option>
+                        <option value="Saudi Arabia">Saudi Arabia 🇸🇦</option>
+                        <option value="South Africa">South Africa 🇿🇦</option>
+                        <option value="Indonesia">Indonesia 🇮🇩</option>
+                        <option value="Malaysia">Malaysia 🇲🇾</option>
+                        <option value="Pakistan">Pakistan 🇵🇰</option>
+                        <option value="Sri Lanka">Sri Lanka 🇱🇰</option>
+                        <option value="Russia">Russia 🇷🇺</option>
+                        <option value="New Zealand">New Zealand 🇳🇿</option>
+                        <option value="Netherlands">Netherlands 🇳🇱</option>
+                        <option value="Italy">Italy 🇮🇹</option>
+                        <option value="Spain">Spain 🇪🇸</option>
+                      </select>
+                      <button
+                        type="button"
+                        disabled={isSavingCountry}
+                        onClick={handleSaveCountry}
+                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingCountry ? '...' : (isHindi ? 'सेव' : 'Save')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingCountry(false)}
+                        className="px-2 py-1 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-900 dark:text-[#F8FAFC] font-bold">
+                        {formatCountryDisplay(creator.country || (isOwner ? currentUserProfile?.country : '') || 'India')}
+                      </span>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCountry((creator.country || currentUserProfile?.country || 'India').replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]/g, '').trim());
+                            setIsEditingCountry(true);
+                          }}
+                          className="text-blue-600 dark:text-blue-400 hover:underline text-[11px] font-bold cursor-pointer"
+                        >
+                          {isHindi ? 'बदलें' : 'Edit'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between py-1 text-xs">
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">{isHindi ? "कस्टम हैंडल" : "Channel Handle"}</span>
+                  <span className="text-blue-600 dark:text-blue-400 font-mono font-bold">@{creator.username}</span>
+                </div>
               </div>
             </div>
 
-            <div className="pt-3">
-              <button
-                onClick={handleShareChannel}
-                className="w-full py-2.5 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-900 cursor-pointer transition-all active:scale-95"
-              >
-                <Share2 className="w-4 h-4" />
-                <span>{isHindi ? 'चैनल शेयर करें' : 'Share Channel'}</span>
-              </button>
+            {/* Stats Card (Right 1 col) */}
+            <div className="space-y-4">
+              <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 shadow-xs">
+                <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
+                  {isHindi ? "चैनल आँकड़े" : "Stats"}
+                </h3>
+
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-500 dark:text-slate-400">{isHindi ? "शामिल होने की तिथि" : "Joined"}</span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {creator.createdAt ? new Date(creator.createdAt).toLocaleDateString(isHindi ? 'hi-IN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Recently'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-500 dark:text-slate-400">{isHindi ? "कुल व्यूज" : "Total Views"}</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">
+                      {totalViews.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-slate-500 dark:text-slate-400">{isHindi ? "सदस्य" : "Subscribers"}</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">
+                      {(creator.followersCount || 0).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 dark:text-slate-400">{isHindi ? "कुल वीडियो व शॉर्ट्स" : "Total Videos"}</span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">
+                      {(videos.length + shorts.length).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-3">
+                  <button
+                    onClick={handleShareChannel}
+                    className="w-full py-2.5 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-900 cursor-pointer transition-all active:scale-95"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>{isHindi ? 'चैनल शेयर करें' : 'Share Channel'}</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

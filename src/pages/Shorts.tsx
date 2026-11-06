@@ -10,6 +10,7 @@ import { subscriptionService } from '../services/subscriptionService';
 import { DEFAULT_SOUNDS } from '../services/soundService';
 import { Video, Comment, User } from '../types';
 import { parseVideoUrl, getInitials, formatTimeAgo, formatViews } from '../utils/videoUtils';
+import { isUserVerified } from '../utils/userUtils';
 import { UserAvatar } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
 import { 
@@ -1638,7 +1639,7 @@ export const Shorts: React.FC = () => {
                 <div className="min-w-0">
                   <h4 onClick={() => navigate('creator', activeShort.creatorUsername)} className="text-xs sm:text-sm font-black hover:underline cursor-pointer truncate drop-shadow-md flex items-center gap-1">
                     <span>{activeShort.creatorDisplayName}</span>
-                    {(creator?.role === 'creator' || creator?.role === 'admin') && (
+                    {isUserVerified(creator) && (
                       <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0 shadow-md" title="Verified Creator">✓</span>
                     )}
                   </h4>

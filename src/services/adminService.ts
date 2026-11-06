@@ -119,6 +119,33 @@ export const adminService = {
     }
   },
 
+  // Update user verified blue tick status
+  async updateUserVerification(uid: string, isVerified: boolean): Promise<void> {
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        isVerified,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+      throw err;
+    }
+  },
+
+  // Update user Pro status
+  async updateUserProStatus(uid: string, isPro: boolean): Promise<void> {
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        isPro,
+        isVerified: isPro,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+      throw err;
+    }
+  },
+
   // Update video status (e.g., published, hidden, removed)
   async updateVideoStatus(videoId: string, status: Video['status']): Promise<void> {
     try {

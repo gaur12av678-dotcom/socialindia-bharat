@@ -6,6 +6,7 @@ import { useRouter } from '../../hooks/useRouter';
 import { UserAvatar } from '../UserAvatar';
 import { RichText } from '../RichText';
 import { formatTimeAgo, formatViews } from '../../utils/videoUtils';
+import { isUserVerified } from '../../utils/userUtils';
 import { useTranslation } from '../../i18n';
 import { 
   ThumbsUp, 
@@ -254,7 +255,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
               >
                 {post.authorDisplayName}
               </span>
-              {(post.authorRole === 'creator' || post.authorRole === 'admin') && (
+              {isUserVerified({ role: post.authorRole, isVerified: (post as any).authorIsVerified }) && (
                 <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[9px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">
                   ✓
                 </span>

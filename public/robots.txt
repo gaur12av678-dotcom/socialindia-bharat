@@ -7,5 +7,9 @@ Allow: /
 User-agent: Googlebot-Image
 Allow: /
 
+User-agent: Googlebot-Video
+Allow: /
+
 Sitemap: https://socialindia.web.app/sitemap.xml
 Sitemap: https://socialindia.web.app/video-sitemap.xml
+Sitemap: https://socialindia.web.app/sitemap_index.xml

@@ -35,7 +35,7 @@ export const GoProPage: React.FC = () => {
   const currentWallet = currentUserProfile?.walletBalance || 972.01;
   const currentBonus = currentUserProfile?.bonusBalance || 0;
   const totalAvailable = Number((currentWallet + currentBonus).toFixed(2));
-  const isPro = currentUserProfile?.role === 'creator' || currentUserProfile?.role === 'admin' || currentUserProfile?.isPro;
+  const isPro = Boolean(currentUserProfile?.isPro || currentUserProfile?.role === 'admin' || currentUserProfile?.isVerified);
 
   const PRO_PRICE = 10.00;
 

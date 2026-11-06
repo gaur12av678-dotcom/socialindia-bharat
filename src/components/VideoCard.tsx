@@ -10,6 +10,7 @@ import { UserAvatar } from './UserAvatar';
 import { userService } from '../services/userService';
 import { playbackProgressService } from '../services/playbackProgressService';
 import { useTranslation } from '../i18n';
+import { isUserVerified } from '../utils/userUtils';
 import { 
   MoreVertical, 
   Share2, 
@@ -40,7 +41,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
     const cached = creatorVerificationCache[video.creatorId];
     if (cached) return cached.verified;
     const profile = userService.getCachedUserProfile(video.creatorId);
-    if (profile) return profile.role === 'creator' || profile.role === 'admin';
+    if (profile) return isUserVerified(profile);
     return false;
   });
   const [showMenu, setShowMenu] = useState(false);
@@ -89,7 +90,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
     // Check memory profile cache before initiating network request
     const existing = userService.getCachedUserProfile(video.creatorId);
     if (existing) {
-      const verified = existing.role === 'creator' || existing.role === 'admin';
+      const verified = isUserVerified(existing);
       creatorVerificationCache[video.creatorId] = {
         verified,
         expiry: Date.now() + 10 * 60 * 1000
@@ -101,7 +102,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
     // Defer network fetch by 1s so initial feed rendering & image downloads are never blocked
     const timer = setTimeout(() => {
       userService.getUserProfile(video.creatorId).then(profile => {
-        const verified = profile?.role === 'creator' || profile?.role === 'admin';
+        const verified = isUserVerified(profile);
         creatorVerificationCache[video.creatorId] = {
           verified,
           expiry: Date.now() + 10 * 60 * 1000

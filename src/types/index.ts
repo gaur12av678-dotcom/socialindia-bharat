@@ -21,6 +21,8 @@ export interface User {
   mainBalance?: number;   // Balance available for withdraw (formerly withdrawable / earnings)
   bonusBalance?: number;
   isPro?: boolean;
+  isVerified?: boolean;
+  verified?: boolean;
   gender?: string;
   country?: string;
   age?: string;

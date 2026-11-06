@@ -23,6 +23,7 @@ import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 import { UserAvatar } from '../components/UserAvatar';
 import { parseVideoUrl, formatViews, formatTimeAgo, formatDuration, formatSubscribers, getInitials } from '../utils/videoUtils';
+import { isUserVerified } from '../utils/userUtils';
 import { RichText } from '../components/RichText';
 import { useTranslation } from '../i18n';
 import { 
@@ -1307,7 +1308,9 @@ export const Watch: React.FC = () => {
                   className="text-xs sm:text-sm font-black text-slate-900 dark:text-[#F8FAFC] hover:underline cursor-pointer truncate flex items-center gap-1.5"
                 >
                   <span>{video.creatorDisplayName}</span>
-                  <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
+                  {isUserVerified(creator) && (
+                    <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
+                  )}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium leading-none mt-1">
                   {creator ? (isHindi ? `${formatSubscribers(creator.followersCount).replace(/subscribers/i, '').trim()} सब्सक्राइबर्स` : formatSubscribers(creator.followersCount)) : (isHindi ? '0 सब्सक्राइबर्स' : '0 subscribers')}
@@ -2230,10 +2233,9 @@ export const Watch: React.FC = () => {
                   </h4>
                   
                   <div className="mt-1 space-y-0.5">
-                    {/* Creator Display Name with Verified Checkmark */}
+                    {/* Creator Display Name */}
                     <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium truncate flex items-center gap-1">
                       <span>{v.creatorDisplayName}</span>
-                      <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[7px] w-3 h-3 rounded-full font-black shrink-0">✓</span>
                     </p>
 
                     {/* Views Count and Upload Date */}

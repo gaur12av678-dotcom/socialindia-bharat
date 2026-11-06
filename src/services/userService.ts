@@ -231,7 +231,8 @@ export const userService = {
   // Get user profile by username (Fast cache + real Firestore fetch + in-flight deduplication)
   async getUserByUsername(username: string, forceFresh: boolean = false): Promise<User | null> {
     if (!username) return null;
-    const cleanUsername = username.replace(/^@/, '').trim().toLowerCase();
+    const rawUsername = username.replace(/^@/, '').trim();
+    const cleanUsername = rawUsername.toLowerCase();
     const cached = getFromLocalUsernameCache(cleanUsername);
     const now = Date.now();
 
@@ -249,12 +250,20 @@ export const userService = {
 
     const fetchPromise = (async () => {
       try {
-        const q = query(
+        let q = query(
           collection(db, 'users'),
           where('username', '==', cleanUsername),
           limit(1)
         );
-        const snap = await getDocs(q);
+        let snap = await getDocs(q);
+        if (snap.empty && rawUsername !== cleanUsername) {
+          q = query(
+            collection(db, 'users'),
+            where('username', '==', rawUsername),
+            limit(1)
+          );
+          snap = await getDocs(q);
+        }
         if (!snap.empty) {
           const freshData = snap.docs[0].data() as User;
           saveToLocalUserCache(freshData);

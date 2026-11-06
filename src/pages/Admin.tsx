@@ -9,6 +9,7 @@ import { soundService } from '../services/soundService';
 import { userService } from '../services/userService';
 import { paidVideoService } from '../services/paidVideoService';
 import { payoutService } from '../services/payoutService';
+import { isUserVerified } from '../utils/userUtils';
 import { 
   Users, 
   Wallet, 
@@ -3078,7 +3079,7 @@ export const AdminPanel: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-[#222222] font-semibold text-slate-800 dark:text-slate-200">
                         {users.map((u) => {
-                          const isProUser = u.role === 'creator' || u.role === 'admin';
+                          const isProUser = isUserVerified(u);
                           return (
                             <tr key={u.uid} className="hover:bg-slate-50 dark:hover:bg-[#181818] transition-colors">
                               <td className="p-4">
@@ -3120,8 +3121,8 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     onClick={async () => {
                                       try {
-                                        await adminService.updateUserRole(u.uid, 'creator');
-                                        addToast(`Granted Pro status to @${u.username}`, 'success');
+                                        await adminService.updateUserProStatus(u.uid, true);
+                                        addToast(`Granted Pro status & Blue Tick to @${u.username}`, 'success');
                                         const updated = await adminService.getAllUsers();
                                         setUsers(updated);
                                       } catch (err) {
@@ -3136,7 +3137,7 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     onClick={async () => {
                                       try {
-                                        await adminService.updateUserRole(u.uid, 'user');
+                                        await adminService.updateUserProStatus(u.uid, false);
                                         addToast(`Revoked Pro status for @${u.username}`, 'info');
                                         const updated = await adminService.getAllUsers();
                                         setUsers(updated);

@@ -634,15 +634,18 @@ export const videoService = {
 
     // Also populate creator info cache for instant avatar & handle rendering!
     if (video.creatorId) {
+      const existing = userService.getCachedUserProfile(video.creatorId);
       userService.cacheUserProfile({
         uid: video.creatorId,
-        username: video.creatorUsername || '',
-        displayName: video.creatorDisplayName || '',
-        photoURL: video.creatorPhotoURL || '',
-        role: 'creator',
-        status: 'active',
-        createdAt: video.createdAt || new Date().toISOString(),
-        updatedAt: video.updatedAt || new Date().toISOString()
+        username: video.creatorUsername || existing?.username || '',
+        displayName: video.creatorDisplayName || existing?.displayName || '',
+        photoURL: video.creatorPhotoURL || existing?.photoURL || '',
+        role: existing?.role || 'user',
+        isVerified: existing?.isVerified || false,
+        isPro: existing?.isPro || false,
+        status: existing?.status || 'active',
+        createdAt: existing?.createdAt || video.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
     }
   },
@@ -916,16 +919,62 @@ export const videoService = {
     }
   },
 
-  // Retrieve creator's dashboard content including private/unlisted videos
-  async getCreatorVideos(creatorId: string): Promise<Video[]> {
-    const q = query(
-      collection(db, 'videos'),
-      where('creatorId', '==', creatorId)
-    );
+  // Retrieve creator's dashboard content including private/unlisted videos (supports creatorId & creatorUsername)
+  async getCreatorVideos(creatorId: string, creatorUsername?: string): Promise<Video[]> {
+    if (!creatorId && !creatorUsername) return [];
+    const map = new Map<string, Video>();
+
     try {
-      const snap = await getDocs(q);
-      const videos = snap.docs.map((d: any) => d.data() as Video);
-      return videos.sort((a: Video, b: Video) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      // 1. Query by creatorId
+      if (creatorId) {
+        const q1 = query(
+          collection(db, 'videos'),
+          where('creatorId', '==', creatorId)
+        );
+        const snap1 = await getDocs(q1);
+        snap1.docs.forEach((d: any) => {
+          const v = d.data() as Video;
+          if (v && v.videoId) map.set(v.videoId, v);
+        });
+      }
+
+      // 2. Also query by creatorUsername to ensure all videos assigned to this handle are retrieved
+      if (creatorUsername && creatorUsername.trim()) {
+        const cleanUser = creatorUsername.trim().toLowerCase().replace(/^@/, '');
+        const q2 = query(
+          collection(db, 'videos'),
+          where('creatorUsername', '==', cleanUser)
+        );
+        const snap2 = await getDocs(q2);
+        snap2.docs.forEach((d: any) => {
+          const v = d.data() as Video;
+          if (v && v.videoId) map.set(v.videoId, v);
+        });
+      }
+
+      // 3. Fallback: Check memory cache for freshly published videos that might not be indexed in Firestore yet
+      memoryVideoDetailCache.forEach(entry => {
+        const v = entry.data;
+        if (v && v.videoId && !map.has(v.videoId)) {
+          const idMatch = creatorId && v.creatorId === creatorId;
+          const userMatch = creatorUsername && v.creatorUsername && v.creatorUsername.toLowerCase() === creatorUsername.toLowerCase();
+          if (idMatch || userMatch) {
+            map.set(v.videoId, v);
+          }
+        }
+      });
+
+      const parseTime = (dateVal: any): number => {
+        if (!dateVal) return 0;
+        if (typeof dateVal === 'number') return dateVal;
+        if (typeof dateVal.toDate === 'function') return dateVal.toDate().getTime();
+        if (dateVal.seconds) return dateVal.seconds * 1000;
+        const t = new Date(dateVal).getTime();
+        return isNaN(t) ? 0 : t;
+      };
+
+      const videos = Array.from(map.values());
+      return videos.sort((a: Video, b: Video) => parseTime(b.createdAt) - parseTime(a.createdAt));
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, 'videos');
       return [];
