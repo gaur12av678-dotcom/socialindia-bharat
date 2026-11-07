@@ -74,9 +74,6 @@ export const UploadPage: React.FC = () => {
   const [price, setPrice] = useState<number>(10);
   const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>('allow');
 
-  // Only the dedicated MovieHub username can upload and publish videos.
-  const canUploadVideos = currentUserProfile?.username?.trim().toLowerCase() === 'moviehub';
-
   // Only monetized creators can publish paid videos
   const isUserMonetized = Boolean(
     currentUserProfile?.isMonetized || 
@@ -89,8 +86,6 @@ export const UploadPage: React.FC = () => {
   const [selectedThumbFile, setSelectedThumbFile] = useState<File | null>(null);
   const [capturedThumbBlob, setCapturedThumbBlob] = useState<Blob | null>(null);
   const [videoFileName, setVideoFileName] = useState('');
-  const [googleDriveLink, setGoogleDriveLink] = useState('');
-  const [isImportingDrive, setIsImportingDrive] = useState(false);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
   const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState('');
   const [isAutoCapturedThumb, setIsAutoCapturedThumb] = useState(false);
@@ -205,47 +200,6 @@ export const UploadPage: React.FC = () => {
     setCurrentStep(2);
   };
 
-  // Import a publicly shared Google Drive video through Cloudinary's remote-URL upload.
-  const handleGoogleDriveImport = async () => {
-    if (!canUploadVideos) {
-      addToast('Only the MovieHub account can upload videos.', 'error');
-      return;
-    }
-    const rawLink = googleDriveLink.trim();
-    if (!rawLink) {
-      addToast('Paste a Google Drive video link first.', 'error');
-      return;
-    }
-    try {
-      const parsed = new URL(rawLink);
-      if (parsed.hostname !== 'drive.google.com' && parsed.hostname !== 'www.drive.google.com') {
-        throw new Error('Please use a Google Drive share link.');
-      }
-      const pathMatch = parsed.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/);
-      const fileId = pathMatch?.[1] || parsed.searchParams.get('id') || '';
-      if (!/^[A-Za-z0-9_-]{10,}$/.test(fileId)) {
-        throw new Error('This does not look like a valid Google Drive file link.');
-      }
-      setIsImportingDrive(true);
-      const directDownloadUrl = `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`;
-      const imported = await videoService.importVideoFromRemoteUrl(directDownloadUrl);
-      setVideoUrl(imported.videoUrl);
-      setVideoPreviewUrl(imported.videoUrl);
-      setVideoFileName('Google Drive video');
-      setSelectedVideoFile(null);
-      setCapturedThumbBlob(null);
-      setIsAutoCapturedThumb(false);
-      if (imported.duration) setDuration(imported.duration);
-      setCurrentStep(2);
-      addToast('Video imported. Add its title, description and thumbnail.', 'success');
-    } catch (err: any) {
-      console.error('Google Drive import failed:', err);
-      addToast(err.message || 'Could not import this Google Drive video. Check that link access is set to Anyone with the link – Viewer.', 'error');
-    } finally {
-      setIsImportingDrive(false);
-    }
-  };
-
   // Handle Video Selection from Device
   const handleVideoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -304,10 +258,6 @@ export const UploadPage: React.FC = () => {
       e.preventDefault();
     }
     if (isPublishing) return;
-    if (uploadMode !== 'post' && !canUploadVideos) {
-      addToast('Only the MovieHub account can upload videos.', 'error');
-      return;
-    }
     if (currentStep !== 4) {
       return;
     }
@@ -446,16 +396,6 @@ export const UploadPage: React.FC = () => {
         >
           {isHindi ? 'अभी साइन इन करें' : 'Sign In Now'}
         </button>
-      </div>
-    );
-  }
-
-  if (uploadMode !== 'post' && currentUserProfile && !canUploadVideos) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-20 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-[#065fd4] dark:bg-blue-950/40"><Lock className="h-8 w-8" /></div>
-        <h2 className="text-xl font-black text-slate-900 dark:text-white">Video uploads are reserved for MovieHub</h2>
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Sign in with the MovieHub creator account to upload videos on SocialIndia.</p>
       </div>
     );
   }
@@ -813,25 +753,6 @@ export const UploadPage: React.FC = () => {
                     <FolderOpen className="w-4 h-4" />
                     <span>{isHindi ? 'डिवाइस से मीडिया चुनें' : 'Select Media from Device'}</span>
                   </button>
-
-                  {/* Google Drive import */}
-                  {canUploadVideos && (
-                    <div className="mt-6 w-full max-w-2xl rounded-2xl border border-blue-200 bg-white/90 p-4 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-                      <div className="mb-2 flex items-center gap-2 text-sm font-black text-slate-900 dark:text-white">
-                        <Globe className="h-4 w-4 text-[#065fd4]" />
-                        Import from Google Drive
-                      </div>
-                      <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">Paste a share link. In Google Drive, set General access to “Anyone with the link – Viewer”. The video will be imported into SocialIndia media storage.</p>
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <input type="url" value={googleDriveLink} onChange={(e) => setGoogleDriveLink(e.target.value)} placeholder="https://drive.google.com/file/d/.../view" disabled={isImportingDrive || isPublishing} className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-[#065fd4] dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
-                        <button type="button" onClick={handleGoogleDriveImport} disabled={isImportingDrive || isPublishing || !googleDriveLink.trim()} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#065fd4] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#054fb1] disabled:cursor-not-allowed disabled:opacity-50">
-                          {isImportingDrive ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
-                          {isImportingDrive ? 'Importing…' : 'Import video'}
-                        </button>
-                      </div>
-                      <p className="mt-2 text-[11px] text-slate-400">Import depends on the configured Cloudinary account. Google Drive confirmation pages or restricted links may not import.</p>
-                    </div>
-                  )}
 
                   {/* Supported Formats & Max Size Bar */}
                   <div className="flex items-center justify-center gap-2.5 flex-wrap mt-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
