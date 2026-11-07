@@ -674,9 +674,8 @@ export const videoService = {
   async getVideo(videoId: string): Promise<Video | null> {
     if (videoId === 'live_XGym1ByjKHw' || videoId === 'XGym1ByjKHw') {
       const { liveBroadcastService } = await import('./liveBroadcastService');
-      const liveVideo = liveBroadcastService.getVideo();
-      const cached = this.getCachedVideo(liveVideo.videoId) || liveVideo;
-      return cached;
+      // Always use the canonical broadcast state, never an old cached LIVE/ended snapshot.
+      return liveBroadcastService.getVideo();
     }
 
     const cached = this.getCachedVideo(videoId);
