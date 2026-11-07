@@ -217,18 +217,20 @@ export const postService = {
       updatedAt: now
     };
 
-    // 1. Save locally for instant rendering
-    const local = getLocalPosts();
-    const updated = [newPost, ...local];
-    saveLocalPosts(updated);
-    memoryPostsCache = updated;
-
-    // 2. Persist to Firestore
+    // Persist first so the UI never reports success for a post that was not saved.
+    // Firestore errors are surfaced to CreatePostBox for a truthful error message.
     try {
       await setDoc(doc(db, 'posts', postId), newPost);
     } catch (err) {
-      console.warn('Could not sync community post to Firestore, saved in local store:', err);
+      console.error('Community post Firestore save failed:', err);
+      throw err;
     }
+
+    // Update local cache only after the server confirms the write.
+    const local = getLocalPosts();
+    const updated = [newPost, ...local.filter(p => p.postId !== postId)];
+    saveLocalPosts(updated);
+    memoryPostsCache = updated;
 
     return newPost;
   },
