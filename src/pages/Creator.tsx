@@ -843,8 +843,8 @@ export const CreatorProfile: React.FC = () => {
                     disabled={subscribing}
                     className={`px-6 py-2.5 rounded-full font-extrabold text-xs sm:text-sm tracking-wide transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-60 flex items-center gap-2 shrink-0 ${
                       subscribed 
-                        ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 hover:bg-slate-300' 
-                        : 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/90 dark:hover:bg-slate-100'
+                        ? 'bg-blue-600 dark:bg-[#1E293B] text-white dark:text-white border border-blue-600 dark:border-slate-700 hover:bg-blue-700 dark:hover:bg-slate-700' 
+                        : 'bg-white dark:bg-white text-slate-900 dark:text-black border border-slate-300 dark:border-slate-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 dark:hover:bg-slate-100'
                     }`}
                   >
                     {subscribed ? (
