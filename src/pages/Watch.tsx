@@ -1318,7 +1318,7 @@ export const Watch: React.FC = () => {
         {/* Video Title and Social Interactions block */}
         <div className="px-3.5 sm:px-0 space-y-4">
           <div className="flex flex-wrap items-start gap-2.5">
-            {video.isLive && (
+            {(video.isLive || video.videoId === 'live_XGym1ByjKHw' || video.videoId === 'XGym1ByjKHw') && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded-lg uppercase tracking-wider shadow-sm shrink-0">
                 <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                 {isHindi ? 'लाइव' : 'LIVE'}
