@@ -406,6 +406,10 @@ export const Watch: React.FC = () => {
           if (cr) setCreator(cr);
         }
       } else {
+        // Do not leave the previous video's details visible while a new route loads.
+        setVideo(null);
+        setCreator(null);
+        setComments([]);
         setLoading(true);
       }
       try {
