@@ -1359,27 +1359,27 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         
         {/* SIDEBAR (Desktop Only) */}
         <aside 
-          className={`hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-60' : 'w-0 overflow-hidden border-r-0'}`}
+          className={`hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`}
         >
-          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto px-3 py-3.5 space-y-4.5 scrollbar-none">
+          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto px-3.5 py-4 space-y-5 scrollbar-none">
             
             {/* 1. Feeds & Discover Section */}
             <div className="space-y-1">
-              <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
+              <span className="px-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 block mb-2">
                 {isHindi ? 'फीड व डिस्कवरी' : 'FEED & DISCOVER'}
               </span>
 
               {/* Home */}
               <button
                 onClick={handleHomeClick}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'home' && !route.searchParams?.category
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Home className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'home' && !route.searchParams?.category ? 'text-[#2563eb] dark:text-blue-400 fill-[#2563eb]/20' : 'text-slate-500 dark:text-slate-400'}`} />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <Home className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'home' && !route.searchParams?.category ? 'text-[#2563eb] dark:text-blue-400 fill-[#2563eb]/20' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_home', 'Home')}</span>
                 </div>
               </button>
@@ -1387,14 +1387,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {/* Shorts */}
               <button
                 onClick={() => navigate('shorts')}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'shorts'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Zap className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'text-amber-500 fill-amber-500' : 'text-amber-500/80'}`} />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <Zap className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'text-amber-500 fill-amber-500' : 'text-amber-500/80'}`} />
                   <span className="truncate">{t('nav_shorts', 'Shorts')}</span>
                 </div>
               </button>
@@ -1402,14 +1402,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {/* Trending */}
               <button
                 onClick={() => navigate('trending')}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'trending'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Flame className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'trending' ? 'text-rose-500 fill-rose-500' : 'text-rose-500/80'}`} />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <Flame className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'trending' ? 'text-rose-500 fill-rose-500' : 'text-rose-500/80'}`} />
                   <span className="truncate">{t('nav_trending', 'Trending')}</span>
                 </div>
               </button>
@@ -1417,17 +1417,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {/* Subscriptions */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('subscriptions'))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'subscriptions'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3.5 min-w-0">
                   <svg 
                     viewBox="0 0 24 24" 
                     fill="currentColor" 
-                    className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
+                    className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${
                       route.path === 'subscriptions' 
                         ? 'text-[#2563eb] dark:text-blue-400' 
                         : 'text-slate-500 dark:text-slate-400'
@@ -1446,14 +1446,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {/* Messages / Direct Chat (Placed immediately below Subscriptions) */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('chat'))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'chat' || route.path === 'messages'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <MessageCircle className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'chat' || route.path === 'messages' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <MessageCircle className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'chat' || route.path === 'messages' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_chat', 'Messages & Chat')}</span>
                 </div>
               </button>
@@ -1463,21 +1463,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
             {/* 2. My Space / Personal Library Tools */}
             <div className="space-y-1">
-              <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
+              <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-2">
                 {isHindi ? 'मेरी लाइब्रेरी' : 'MY SPACE'}
               </span>
 
               {/* History */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('history'))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'history'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Clock className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'history' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <Clock className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'history' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_history', 'Watch History')}</span>
                 </div>
               </button>
@@ -1485,14 +1485,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {/* Liked Videos */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('liked'))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'liked' || route.path === 'liked-videos'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <ThumbsUp className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'liked' || route.path === 'liked-videos' ? 'text-blue-600 dark:text-blue-400 fill-current' : 'text-slate-500 dark:text-slate-400'}`} />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <ThumbsUp className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'liked' || route.path === 'liked-videos' ? 'text-blue-600 dark:text-blue-400 fill-current' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_liked_videos', isHindi ? 'पसंद किए गए' : 'Liked Videos')}</span>
                 </div>
               </button>
@@ -1500,14 +1500,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {/* Playlists */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('playlists'))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'playlists' || route.path === 'playlist'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <ListVideo className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'playlists' || route.path === 'playlist' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <ListVideo className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'playlists' || route.path === 'playlist' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_playlists', 'Playlists')}</span>
                 </div>
               </button>
@@ -1515,14 +1515,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {/* Saved / Watch Later */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('saved'))}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'saved'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Bookmark className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'saved' ? 'text-amber-500 fill-amber-500' : 'text-slate-500 dark:text-slate-400'}`} />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <Bookmark className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'saved' ? 'text-amber-500 fill-amber-500' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{isHindi ? 'सहेजे गए वीडियो' : 'Watch Later'}</span>
                 </div>
               </button>
@@ -1530,14 +1530,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {/* Offline Downloads */}
               <button
                 onClick={() => navigate('downloads')}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer group ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'downloads'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <ArrowDownToLine className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'downloads' ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}`} />
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <ArrowDownToLine className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'downloads' ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_downloads', 'Downloads')}</span>
                 </div>
               </button>
@@ -1548,14 +1548,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <div className="space-y-1">
                 <button
                   onClick={() => navigate('admin')}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer group ${
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-extrabold transition-all duration-150 cursor-pointer group ${
                     route.path === 'admin' 
                       ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-l-[3px] border-red-600 rounded-l-xs shadow-xs' 
                       : 'text-red-600 dark:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-950/20'
                   }`}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <ShieldCheck className="w-4 h-4 shrink-0 text-red-500" />
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <ShieldCheck className="w-[18px] h-[18px] shrink-0 text-red-500" />
                     <span className="truncate">{t('nav_admin', 'Admin Hub')}</span>
                   </div>
                 </button>
