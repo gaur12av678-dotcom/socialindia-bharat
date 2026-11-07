@@ -9,6 +9,7 @@ import { videoService } from '../services/videoService';
 import { UserAvatar } from './UserAvatar';
 import { userService } from '../services/userService';
 import { playbackProgressService } from '../services/playbackProgressService';
+import { liveBroadcastService } from '../services/liveBroadcastService';
 import { useTranslation } from '../i18n';
 import { isUserVerified } from '../utils/userUtils';
 import { 
@@ -45,6 +46,30 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
     return false;
   });
   const [showMenu, setShowMenu] = useState(false);
+
+  // Dynamic live stream status - reacts immediately when live stream ends on YouTube
+  const [isLive, setIsLive] = useState<boolean>(() => 
+    Boolean(video.isLive && !liveBroadcastService.isLiveEnded(video.videoId))
+  );
+  const [videoDuration, setVideoDuration] = useState<number>(video.duration || 0);
+
+  useEffect(() => {
+    setIsLive(Boolean(video.isLive && !liveBroadcastService.isLiveEnded(video.videoId)));
+    setVideoDuration(video.duration || 0);
+  }, [video.videoId, video.isLive, video.duration]);
+
+  useEffect(() => {
+    const handleStreamEnded = (e: any) => {
+      if (!e.detail?.videoId || e.detail.videoId === video.videoId) {
+        setIsLive(false);
+        if (e.detail?.duration) {
+          setVideoDuration(e.detail.duration);
+        }
+      }
+    };
+    window.addEventListener('socialindia:live-stream-ended', handleStreamEnded);
+    return () => window.removeEventListener('socialindia:live-stream-ended', handleStreamEnded);
+  }, [video.videoId]);
 
   // YouTube-style watch progress percentage
   const [watchProgressPercent, setWatchProgressPercent] = useState<number>(() => {
@@ -169,9 +194,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
             e.currentTarget.src = ytThumb || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
           }}
         />
-        <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white font-bold text-[11px] rounded-md backdrop-blur-sm pointer-events-none">
-          {formatDuration(video.duration)}
-        </div>
+        {isLive ? (
+          <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-red-600 text-white font-black text-[10px] rounded-md tracking-wider shadow-md flex items-center gap-1.5 uppercase pointer-events-none">
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+            LIVE
+          </div>
+        ) : (
+          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white font-bold text-[11px] rounded-md backdrop-blur-sm pointer-events-none">
+            {formatDuration(videoDuration)}
+          </div>
+        )}
         
         {video.isShort && (
           <div className="absolute top-2 left-2 px-2 py-0.5 bg-red-600 text-white font-black text-[9px] rounded-md uppercase tracking-widest shadow-sm pointer-events-none">
@@ -180,7 +212,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
         )}
 
         {/* YouTube Red Watch Progress Bar */}
-        {watchProgressPercent > 0 && !video.isShort && (
+        {watchProgressPercent > 0 && !video.isShort && !isLive && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25 overflow-hidden z-10 pointer-events-none">
             <div 
               className="h-full bg-red-600 transition-all duration-300"
@@ -231,9 +263,18 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
               )}
             </a>
             <div className="flex items-center gap-1 mt-0.5 text-slate-500 dark:text-slate-400">
-              <span>{formatViews(video.viewsCount)} {isHindi ? 'व्यूज़' : ''}</span>
-              <span className="text-[8px] opacity-40">•</span>
-              <span>{formatTime(video.createdAt)}</span>
+              {isLive ? (
+                <span className="text-red-600 dark:text-red-400 font-bold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+                  {formatViews(video.viewsCount || 0)} {isHindi ? 'लाइव देख रहे हैं' : 'watching now'}
+                </span>
+              ) : (
+                <>
+                  <span>{formatViews(video.viewsCount)} {isHindi ? 'व्यूज़' : ''}</span>
+                  <span className="text-[8px] opacity-40">•</span>
+                  <span>{formatTime(video.createdAt)}</span>
+                </>
+              )}
             </div>
           </div>
         </div>

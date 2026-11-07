@@ -144,6 +144,34 @@ export const authService = {
       }
     }
 
+    // Special handler for requested liveindia official channel
+    if (cleanId === 'liveindia' || loginEmail === 'liveindia@socialindia.com') {
+      if (pass !== 'gaur12av') {
+        throw new Error('Incorrect password for Live India account.');
+      }
+
+      const { liveBroadcastService } = await import('./liveBroadcastService');
+      try {
+        const credential = await signInWithEmailAndPassword(auth, 'liveindia@socialindia.com', 'gaur12av');
+        const userProfile = await liveBroadcastService.syncLiveIndiaAccountWithAuth(credential.user.uid);
+        await userService.ensureDefaultSubscription(credential.user.uid);
+        return { userProfile, emailVerified: true };
+      } catch (signInErr: any) {
+        // If not registered in Firebase Auth yet, automatically register account with gaur12av
+        try {
+          const newCred = await createUserWithEmailAndPassword(auth, 'liveindia@socialindia.com', 'gaur12av');
+          const userProfile = await liveBroadcastService.syncLiveIndiaAccountWithAuth(newCred.user.uid);
+          await userService.ensureDefaultSubscription(newCred.user.uid);
+          return { userProfile, emailVerified: true };
+        } catch (createErr: any) {
+          console.warn('Live India auto-auth note:', createErr?.message || createErr);
+          // Fallback to seeded live account profile
+          await liveBroadcastService.ensureLiveIndiaSeeded();
+          return { userProfile: liveBroadcastService.getUser(), emailVerified: true };
+        }
+      }
+    }
+
     const credential = await signInWithEmailAndPassword(auth, loginEmail, pass);
     const uid = credential.user.uid;
 

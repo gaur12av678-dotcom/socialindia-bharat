@@ -23,6 +23,7 @@ import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 import { UserAvatar } from '../components/UserAvatar';
 import { parseVideoUrl, formatViews, formatTimeAgo, formatDuration, formatSubscribers, getInitials } from '../utils/videoUtils';
+import { liveBroadcastService } from '../services/liveBroadcastService';
 import { isUserVerified } from '../utils/userUtils';
 import { RichText } from '../components/RichText';
 import { useTranslation } from '../i18n';
@@ -218,6 +219,24 @@ export const Watch: React.FC = () => {
   useEffect(() => {
     adService.getActiveAds(5).then(setActiveAds).catch(console.warn);
   }, []);
+
+  // Listen for live broadcast completion to transition to normal recorded video immediately
+  useEffect(() => {
+    const handleStreamEnded = (e: any) => {
+      if (!e.detail?.videoId || (video && e.detail.videoId === video.videoId)) {
+        setVideo(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            isLive: false,
+            duration: e.detail?.duration || prev.duration || 3600
+          };
+        });
+      }
+    };
+    window.addEventListener('socialindia:live-stream-ended', handleStreamEnded);
+    return () => window.removeEventListener('socialindia:live-stream-ended', handleStreamEnded);
+  }, [video?.videoId]);
 
   // Update document title for Watch page like YouTube (e.g., "Video Title - Creator Name - SocialIndia")
   useEffect(() => {
@@ -1298,9 +1317,17 @@ export const Watch: React.FC = () => {
 
         {/* Video Title and Social Interactions block */}
         <div className="px-3.5 sm:px-0 space-y-4">
-          <h1 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-[#F8FAFC] leading-snug">
-            <RichText text={video.title} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
-          </h1>
+          <div className="flex flex-wrap items-start gap-2.5">
+            {video.isLive && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded-lg uppercase tracking-wider shadow-sm shrink-0">
+                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                {isHindi ? 'लाइव' : 'LIVE'}
+              </span>
+            )}
+            <h1 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-[#F8FAFC] leading-snug flex-1">
+              <RichText text={video.title} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
+            </h1>
+          </div>
 
           <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-slate-200 dark:border-[#334155]">
             {/* Creator Channel Card (Left Side) */}
@@ -1544,9 +1571,20 @@ export const Watch: React.FC = () => {
         {/* Video Description Box (Shows real views, createdAt date, database tags, and real description) */}
         <div className="p-4 bg-slate-100/90 dark:bg-[#1E293B]/70 rounded-2xl border border-slate-200/70 dark:border-slate-800 shadow-xs space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-900 dark:text-white">
-            <span>{formatViews(video.viewsCount || 0)} {isHindi ? 'दृश्य (व्यूज़)' : 'views'}</span>
+            {video.isLive ? (
+              <span className="text-red-600 dark:text-red-400 flex items-center gap-1.5 font-black">
+                <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+                {formatViews(video.viewsCount || 0)} {isHindi ? 'लाइव देख रहे हैं' : 'watching now'}
+              </span>
+            ) : (
+              <span>{formatViews(video.viewsCount || 0)} {isHindi ? 'दृश्य (व्यूज़)' : 'views'}</span>
+            )}
             <span>•</span>
-            <span>{video.createdAt ? (isHindi ? new Date(video.createdAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(video.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })) : (isHindi ? 'अभी-अभी' : 'Just now')}</span>
+            <span>
+              {video.isLive 
+                ? (isHindi ? 'लाइव प्रसारण जारी है' : 'Live Stream Active')
+                : (video.createdAt ? (isHindi ? new Date(video.createdAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(video.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })) : (isHindi ? 'अभी-अभी' : 'Just now'))}
+            </span>
             {video.category && (
               <>
                 <span>•</span>

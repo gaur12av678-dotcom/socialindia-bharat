@@ -243,6 +243,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       applyTheme('system');
     }
 
+    // Ensure Live India broadcast channel and video are primed
+    import('../services/liveBroadcastService').then(({ liveBroadcastService }) => {
+      liveBroadcastService.ensureLiveIndiaSeeded().catch(() => {});
+    });
+
     const unsubscribe = authService.onAuthStateChanged(async (user) => {
       setLoading(true);
       setCurrentUser(user);

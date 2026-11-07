@@ -13,8 +13,20 @@ export function parseVideoUrl(url: string): ParsedVideo {
 
   const cleanUrl = url.trim();
 
+  // YouTube Live matchers (e.g. https://www.youtube.com/live/XGym1ByjKHw?si=...)
+  const liveRegExp = /\/live\/([a-zA-Z0-9\-_]{11})/;
+  const liveMatch = cleanUrl.match(liveRegExp);
+  if (liveMatch && liveMatch[1]) {
+    const videoId = liveMatch[1];
+    return {
+      type: 'youtube',
+      youtubeId: videoId,
+      embedUrl: `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=1&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3&live=1`
+    };
+  }
+
   // YouTube matchers
-  const ytRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const ytRegExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|live\/|watch\?v=|\&v=)([^#\&\?]*).*/;
   const match = cleanUrl.match(ytRegExp);
 
   if (match && match[2].length === 11) {

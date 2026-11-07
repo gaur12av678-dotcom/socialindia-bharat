@@ -554,6 +554,8 @@ export const videoService = {
       sharesCount: 0,
       isShort: videoData.isShort || false,
       status: 'published',
+      isLive: videoData.isLive || false,
+      liveViewers: videoData.liveViewers || (videoData.isLive ? 1 : 0),
       soundId,
       soundTitle,
       soundArtist,
@@ -670,6 +672,13 @@ export const videoService = {
 
   // Get a specific video with instant memory cache & background revalidation
   async getVideo(videoId: string): Promise<Video | null> {
+    if (videoId === 'live_XGym1ByjKHw' || videoId === 'XGym1ByjKHw') {
+      const { liveBroadcastService } = await import('./liveBroadcastService');
+      const liveVideo = liveBroadcastService.getVideo();
+      const cached = this.getCachedVideo(liveVideo.videoId) || liveVideo;
+      return cached;
+    }
+
     const cached = this.getCachedVideo(videoId);
     const cachedEntry = memoryVideoDetailCache.get(videoId);
 
@@ -825,10 +834,27 @@ export const videoService = {
 
       try {
         const snap = await getDocs(q);
-        const videos = snap.docs.map((d: any) => d.data() as Video);
+        let videos = snap.docs.map((d: any) => d.data() as Video);
         
-        // Sort newest first in memory
-        const sorted = videos.sort((a: Video, b: Video) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        // Ensure Live India broadcast is active in public and news feeds
+        const shouldIncludeLive = filters?.isShort !== true && 
+          (!filters?.creatorId || filters.creatorId === 'user_liveindia_official') &&
+          (!filters?.category || filters.category === 'All' || filters.category === 'News');
+
+        if (shouldIncludeLive) {
+          const { liveBroadcastService } = await import('./liveBroadcastService');
+          const liveVideo = liveBroadcastService.getVideo();
+          if (!videos.some(v => v.videoId === liveVideo.videoId)) {
+            videos = [liveVideo, ...videos];
+          }
+        }
+
+        // Sort: Live streams first, then newest first
+        const sorted = videos.sort((a: Video, b: Video) => {
+          if (a.isLive && !b.isLive) return -1;
+          if (!a.isLive && b.isLive) return 1;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
         
         // Store in memory cache
         memoryVideoCache.set(cacheKey, { data: sorted, timestamp: Date.now() });
@@ -963,6 +989,13 @@ export const videoService = {
           }
         }
       });
+
+      // Include Live India broadcast if queried for liveindia channel
+      if ((creatorUsername && creatorUsername.toLowerCase() === 'liveindia') || creatorId === 'user_liveindia_official') {
+        const { liveBroadcastService } = await import('./liveBroadcastService');
+        const liveVideo = liveBroadcastService.getVideo();
+        map.set(liveVideo.videoId, liveVideo);
+      }
 
       const parseTime = (dateVal: any): number => {
         if (!dateVal) return 0;

@@ -76,6 +76,10 @@ export interface Video {
   isShort: boolean;
   status: 'published' | 'processing' | 'hidden' | 'removed';
   
+  // Live Stream Broadcast properties
+  isLive?: boolean;
+  liveViewers?: number;
+  
   // Sound Library Track metadata
   soundId?: string;
   soundTitle?: string;

@@ -5,6 +5,7 @@ import { parseVideoUrl, formatDuration, getInitials } from '../utils/videoUtils'
 import { useRouter } from '../hooks/useRouter';
 import { useTranslation } from '../i18n';
 import { playbackProgressService } from '../services/playbackProgressService';
+import { liveBroadcastService } from '../services/liveBroadcastService';
 import { UserAvatar } from './UserAvatar';
 import { 
   Play, 
@@ -123,6 +124,28 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+
+  // Dynamic Live Stream Status (auto-detects when stream ends on YouTube)
+  const [isLiveStream, setIsLiveStream] = useState<boolean>(() => 
+    Boolean(video.isLive && !liveBroadcastService.isLiveEnded(video.videoId))
+  );
+
+  useEffect(() => {
+    setIsLiveStream(Boolean(video.isLive && !liveBroadcastService.isLiveEnded(video.videoId)));
+  }, [video.videoId, video.isLive]);
+
+  useEffect(() => {
+    const handleStreamEnded = (e: any) => {
+      if (!e.detail?.videoId || e.detail.videoId === video.videoId) {
+        setIsLiveStream(false);
+        if (e.detail?.duration) {
+          setDuration(e.detail.duration);
+        }
+      }
+    };
+    window.addEventListener('socialindia:live-stream-ended', handleStreamEnded);
+    return () => window.removeEventListener('socialindia:live-stream-ended', handleStreamEnded);
+  }, [video.videoId]);
 
   // Resume Playback from Last Watched Position (YouTube Style)
   const [showResumeBadge, setShowResumeBadge] = useState(false);
@@ -378,13 +401,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         videoId: parsedMedia.youtubeId,
         playerVars: {
           autoplay: 1,
-          controls: 0,
+          controls: isLiveStream ? 1 : 0,
           modestbranding: 1,
           rel: 0,
           showinfo: 0,
           iv_load_policy: 3,
-          disablekb: 1,
-          fs: 0,
+          disablekb: isLiveStream ? 0 : 1,
+          fs: 1,
           playsinline: 1
         },
         events: {
@@ -394,6 +417,17 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             setIsBuffering(false);
             const d = event.target.getDuration();
             if (d) setDuration(d);
+
+            // Auto-detect if YouTube reports this live broadcast has finished
+            if (isLiveStream) {
+              try {
+                const videoData = event.target.getVideoData?.();
+                if ((videoData && videoData.isLive === false && d > 0) || (d > 0 && event.target.getCurrentTime?.() >= d)) {
+                  liveBroadcastService.markLiveEnded(video.videoId, d);
+                  setIsLiveStream(false);
+                }
+              } catch (_) {}
+            }
             
             // Resume from last watched position if seekToTime is provided
             if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
@@ -446,6 +480,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               try {
                 ytAmbientPlayerRef.current?.pauseVideo();
               } catch (_) {}
+              // When stream ends on YouTube, transition to regular video
+              if (isLiveStream) {
+                const finalDur = event.target.getDuration?.() || duration || 0;
+                liveBroadcastService.markLiveEnded(video.videoId, finalDur);
+                setIsLiveStream(false);
+                if (finalDur) setDuration(finalDur);
+              }
               if (onEnded) onEnded();
             }
           }
@@ -524,7 +565,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     };
   }, [video.videoId, video.videoUrl]);
 
-  // Track YouTube Player Progress
+  // Track YouTube Player Progress & auto-detect stream completion
   useEffect(() => {
     if (parsedMedia.type !== 'youtube') return;
 
@@ -538,14 +579,28 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             if (onProgress) onProgress(cur);
           }
           if (dur) setDuration(dur);
+
+          // If marked as live stream, check if YouTube stream transitioned to recorded/ended state
+          if (isLiveStream) {
+            try {
+              const videoData = ytPlayerRef.current.getVideoData?.();
+              if (
+                (videoData && videoData.isLive === false && dur > 0) ||
+                (dur > 0 && cur >= dur)
+              ) {
+                liveBroadcastService.markLiveEnded(video.videoId, dur);
+                setIsLiveStream(false);
+              }
+            } catch (_) {}
+          }
         } catch (e) {
           // ignore
         }
       }
-    }, 300);
+    }, 500);
 
     return () => clearInterval(interval);
-  }, [parsedMedia.type]);
+  }, [parsedMedia.type, isLiveStream, video.videoId]);
 
   // Real-time Canvas Frame Sampling for authentic Ambient Light (Direct Videos)
   useEffect(() => {
@@ -1389,11 +1444,31 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 </div>
 
                 {/* Timeline Time Display */}
-                <div className="text-[11px] font-bold tracking-wider text-slate-200">
-                  <span>{formatDuration(currentTime)}</span>
-                  <span className="mx-1 text-slate-400">/</span>
-                  <span className="text-slate-400">{formatDuration(duration)}</span>
-                </div>
+                {isLiveStream ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (ytPlayerRef.current?.seekTo) {
+                        try {
+                          const dur = ytPlayerRef.current.getDuration();
+                          ytPlayerRef.current.seekTo(dur || 999999, true);
+                          ytPlayerRef.current.playVideo();
+                        } catch (_) {}
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-600 hover:bg-red-700 text-white text-[11px] font-black tracking-wider shadow-sm transition-all cursor-pointer"
+                    title="Jump to live edge"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                    <span>LIVE</span>
+                  </button>
+                ) : (
+                  <div className="text-[11px] font-bold tracking-wider text-slate-200">
+                    <span>{formatDuration(currentTime)}</span>
+                    <span className="mx-1 text-slate-400">/</span>
+                    <span className="text-slate-400">{formatDuration(duration)}</span>
+                  </div>
+                )}
               </div>
 
               {/* Right Side: CC, Settings (with HD Badge), Theater, Fullscreen */}
