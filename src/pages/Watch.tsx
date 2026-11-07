@@ -203,7 +203,10 @@ export const Watch: React.FC = () => {
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
+  const isLiveBroadcastVideoId = videoId === 'live_XGym1ByjKHw' || videoId === 'XGym1ByjKHw';
+  const isPlaylistPlayback = Boolean(route.searchParams?.list);
   const [seekToTime, setSeekToTime] = useState<number | undefined>(() => {
+    if (isPlaylistPlayback || cachedInitialVid?.isLive || isLiveBroadcastVideoId) return undefined;
     return videoId ? (playbackProgressService.getProgress(videoId, cachedInitialVid?.duration) || undefined) : undefined;
   });
 
@@ -452,19 +455,26 @@ export const Watch: React.FC = () => {
         videoService.incrementViewCount(videoId).catch(console.error);
         recommendationService.recordVideoWatch(videoId, currentUser?.uid);
         
-        // Fetch last watched time (from synchronous local storage cache first, then Firestore history)
-        const localProgress = playbackProgressService.getProgress(videoId, vid.duration);
-        if (localProgress > 5) {
-          setSeekToTime(localProgress);
-        }
-        if (currentUser) {
-          historyService.getHistory(currentUser.uid).then(history => {
-            playbackProgressService.syncFromHistoryItems(history);
-            const item = history.find(h => h.videoId === videoId);
-            if (item && item.progressSeconds && item.progressSeconds > 5) {
-              setSeekToTime(item.progressSeconds);
-            }
-          }).catch(console.error);
+        // Resume is only for a regular video opened on its own.
+        // Never seek old progress for live broadcasts or playlist playback.
+        const isLiveVideo = Boolean(vid.isLive || videoId === 'live_XGym1ByjKHw' || videoId === 'XGym1ByjKHw');
+        if (!isPlaylistPlayback && !isLiveVideo) {
+          const localProgress = playbackProgressService.getProgress(videoId, vid.duration);
+          if (localProgress > 5) {
+            setSeekToTime(localProgress);
+          }
+          if (currentUser) {
+            historyService.getHistory(currentUser.uid).then(history => {
+              playbackProgressService.syncFromHistoryItems(history);
+              const item = history.find(h => h.videoId === videoId);
+              if (item && item.progressSeconds && item.progressSeconds > 5) {
+                setSeekToTime(item.progressSeconds);
+              }
+            }).catch(console.error);
+          }
+        } else {
+          setSeekToTime(undefined);
+          playbackProgressService.clearProgress(videoId);
         }
 
         userService.getUserProfile(vid.creatorId, true).then(crProfile => {
@@ -537,7 +547,8 @@ export const Watch: React.FC = () => {
   // Save playback progress on page exit, back button, or tab switch (YouTube Style)
   useEffect(() => {
     const handleSaveCurrentProgress = () => {
-      if (video && lastSavedProgressRef.current > 0) {
+      const isLiveVideo = Boolean(video?.isLive || video?.videoId === 'live_XGym1ByjKHw' || video?.videoId === 'XGym1ByjKHw');
+      if (video && !isPlaylistPlayback && !isLiveVideo && lastSavedProgressRef.current > 0) {
         playbackProgressService.saveProgress(video.videoId, lastSavedProgressRef.current, video.duration || 0, currentUser?.uid);
       }
     };
@@ -1236,7 +1247,7 @@ export const Watch: React.FC = () => {
               setReportModalOpen(true);
             }}
             onProgress={(seconds) => {
-              if (video) {
+              if (video && !isPlaylistPlayback && !video.isLive && !isLiveBroadcastVideoId) {
                 lastSavedProgressRef.current = seconds;
                 playbackProgressService.saveProgress(video.videoId, seconds, video.duration || 0, currentUser?.uid);
               }
