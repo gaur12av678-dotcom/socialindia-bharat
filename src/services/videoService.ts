@@ -191,26 +191,6 @@ export const videoService = {
     }
   },
 
-  // Import a publicly accessible remote video URL directly into Cloudinary.
-  async importVideoFromRemoteUrl(sourceUrl: string): Promise<{ videoUrl: string; duration?: number }> {
-    const { cloudName, preset } = await getCloudinaryConfigAsync();
-    if (!cloudName || !preset) throw new Error('CLOUDINARY_CONFIG_REQUIRED');
-    const source = new URL(sourceUrl);
-    if (source.protocol !== 'https:' || source.hostname !== 'drive.google.com') {
-      throw new Error('Only secure Google Drive video links are supported.');
-    }
-    const formData = new FormData();
-    formData.append('file', source.toString());
-    formData.append('upload_preset', preset);
-    formData.append('folder', 'socialindia_videos');
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/video/upload`, { method: 'POST', body: formData });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.secure_url) {
-      throw new Error(result.error?.message || `Cloud media import failed (${response.status}). Check that the Drive file is publicly viewable.`);
-    }
-    return { videoUrl: result.secure_url, duration: result.duration ? Math.round(result.duration) : undefined };
-  },
-
   // Direct single-request upload for small video clips
   uploadSingleVideo(
     file: File,
