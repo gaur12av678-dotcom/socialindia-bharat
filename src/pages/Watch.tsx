@@ -474,7 +474,11 @@ export const Watch: React.FC = () => {
           }
         } else {
           setSeekToTime(undefined);
-          playbackProgressService.clearProgress(videoId);
+          // Clear only stale progress for the live broadcast itself.
+          // Keep normal video progress intact when it is merely played from a playlist.
+          if (isLiveVideo) {
+            playbackProgressService.clearProgress(videoId, currentUser?.uid);
+          }
         }
 
         userService.getUserProfile(vid.creatorId, true).then(crProfile => {
