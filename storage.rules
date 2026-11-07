@@ -11,14 +11,10 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isMovieHub() {
-      return isSignedIn() && request.auth.token.email == 'moviehub@socialindia.com';
-    }
-
     // Video uploads: max 100MB (104857600 bytes), must be video/ content type
     match /videos/{uid}/{allPaths=**} {
       allow read: if true;
-      allow write: if isOwner(uid) && isMovieHub()
+      allow write: if isOwner(uid) 
         && request.resource.contentType.matches('video/.*')
         && request.resource.size <= 104857600;
     }
@@ -26,7 +22,7 @@ service firebase.storage {
     // Thumbnail uploads: max 5MB (5242880 bytes), must be image/ content type
     match /thumbnails/{uid}/{allPaths=**} {
       allow read: if true;
-      allow write: if isOwner(uid) && isMovieHub()
+      allow write: if isOwner(uid)
         && request.resource.contentType.matches('image/.*')
         && request.resource.size <= 5242880;
     }
