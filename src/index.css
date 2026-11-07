@@ -192,3 +192,51 @@ html.dark .yt-chip-inactive:hover {
     animation-duration: 0s !important;
   }
 }
+
+
+/* LIGHT MODE: keep labels readable on light/white action buttons.
+   Applies app-wide, including every Admin Panel section and modal. */
+html.light button.text-white[class*="bg-white"],
+html:not(.dark) button.text-white[class*="bg-white"],
+html.light button.text-white[class*="bg-slate-"],
+html:not(.dark) button.text-white[class*="bg-slate-"],
+html.light button.text-white[class*="bg-gray-"],
+html:not(.dark) button.text-white[class*="bg-gray-"],
+html.light button.text-white[class*="bg-zinc-"],
+html:not(.dark) button.text-white[class*="bg-zinc-"],
+html.light button.text-white[class*="bg-neutral-"],
+html:not(.dark) button.text-white[class*="bg-neutral-"],
+html.light button.text-white[class*="bg-stone-"],
+html:not(.dark) button.text-white[class*="bg-stone-"],
+html.light button.text-white[class*="bg-transparent"],
+html:not(.dark) button.text-white[class*="bg-transparent"] {
+  color: #1f2937 !important;
+}
+
+/* Preserve white labels on intentionally saturated primary/status buttons. */
+html.light button.text-white[class*="bg-blue-"],
+html:not(.dark) button.text-white[class*="bg-blue-"],
+html.light button.text-white[class*="bg-indigo-"],
+html:not(.dark) button.text-white[class*="bg-indigo-"],
+html.light button.text-white[class*="bg-emerald-"],
+html:not(.dark) button.text-white[class*="bg-emerald-"],
+html.light button.text-white[class*="bg-green-"],
+html:not(.dark) button.text-white[class*="bg-green-"],
+html.light button.text-white[class*="bg-rose-"],
+html:not(.dark) button.text-white[class*="bg-rose-"],
+html.light button.text-white[class*="bg-red-"],
+html:not(.dark) button.text-white[class*="bg-red-"],
+html.light button.text-white[class*="bg-amber-"],
+html:not(.dark) button.text-white[class*="bg-amber-"],
+html.light button.text-white[class*="bg-purple-"],
+html:not(.dark) button.text-white[class*="bg-purple-"],
+html.light button.text-white[class*="bg-violet-"],
+html:not(.dark) button.text-white[class*="bg-violet-"],
+html.light button.text-white[class*="bg-cyan-"],
+html:not(.dark) button.text-white[class*="bg-cyan-"],
+html.light button.text-white[class*="bg-sky-"],
+html:not(.dark) button.text-white[class*="bg-sky-"],
+html.light button.text-white[class*="bg-social-blue"],
+html:not(.dark) button.text-white[class*="bg-social-blue"] {
+  color: #ffffff !important;
+}
