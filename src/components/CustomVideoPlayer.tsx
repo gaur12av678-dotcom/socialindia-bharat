@@ -976,13 +976,15 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       className={`relative w-full group select-none transition-all ${
         isFullscreen 
           ? 'h-screen w-screen bg-black overflow-hidden flex items-center justify-center' 
-          : 'aspect-video'
+          : isTheaterMode
+            ? 'w-full h-[min(calc(100vh-140px),56.25vw)] min-h-[380px] sm:min-h-[480px] max-h-[calc(100vh-100px)] bg-black flex items-center justify-center'
+            : 'aspect-video w-full max-h-[calc(100vh-169px)] min-h-[220px] sm:min-h-[360px]'
       }`}
     >
       {/* REAL AMBIENT LIGHT BACKDROP (Radiates into the page when not fullscreen, and fills letterbox gaps in fullscreen) */}
       <div 
         className={`absolute pointer-events-none select-none z-0 transition-all duration-700 ease-out ${
-          isFullscreen ? 'inset-0 overflow-hidden' : `${ambientConfig.spreadClass} overflow-visible`
+          isFullscreen || isTheaterMode ? 'inset-0 overflow-hidden' : `${ambientConfig.spreadClass} overflow-visible`
         } ${isAmbientMode ? 'opacity-100' : 'opacity-0'}`}
         style={{
           opacity: isAmbientMode ? (isPlaying ? ambientConfig.opacity : ambientConfig.opacity * 0.5) : 0,
@@ -1020,7 +1022,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       {/* INNER VIDEO BOX */}
       <div 
         className={`relative w-full h-full z-10 bg-slate-950 overflow-hidden shadow-2xl ${
-          isFullscreen 
+          isFullscreen || isTheaterMode
             ? 'rounded-none border-none flex items-center justify-center' 
             : 'rounded-none sm:rounded-2xl border-none sm:border border-slate-200 dark:border-[#334155]'
         }`}

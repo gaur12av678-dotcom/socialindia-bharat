@@ -154,12 +154,16 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     }
   }, [route.path]);
 
-  // Close sidebar on mobile navigation
+  // Close sidebar on mobile navigation or when entering Watch page (YouTube behavior)
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setSidebarOpen(false);
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth < 768 || isWatchPage) {
+        setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
+      }
     }
-  }, [route.path, route.param]);
+  }, [route.path, route.param, isWatchPage]);
 
   // YouTube-style Home Click: If already on home, refresh feed and scroll smoothly to top
   const handleHomeClick = () => {
@@ -1357,9 +1361,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       {/* MAIN LAYOUT */}
       <div className="flex flex-1 relative">
         
-        {/* SIDEBAR (Desktop Only) */}
+        {/* Watch Page Drawer Overlay Backdrop (YouTube Style: keeps video full width without pushing) */}
+        {isWatchPage && sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-45 transition-opacity backdrop-blur-[2px]"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* SIDEBAR (Desktop Only or Watch Page Drawer Overlay) */}
         <aside 
-          className={`hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`}
+          className={
+            isWatchPage
+              ? `fixed top-0 bottom-0 left-0 w-64 bg-white/98 dark:bg-[#0e0f12]/98 border-r border-slate-200 dark:border-slate-800 z-50 transition-transform duration-200 select-none shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+              : `hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`
+          }
         >
           <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto px-3.5 py-4 space-y-5 scrollbar-none">
             

@@ -571,34 +571,36 @@ export const Watch: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-        <div className="lg:col-span-2 space-y-4">
-          <div className="aspect-video bg-black rounded-2xl w-full flex items-center justify-center p-6 text-center shadow-xl relative overflow-hidden border border-slate-800">
-            <div className="w-14 h-14 rounded-full border-[3.5px] border-white/20 border-t-[#2563eb] animate-spin shadow-lg" />
-          </div>
-          <div className="space-y-3 pt-4">
-            <div className="h-8 bg-slate-100 dark:bg-[#1e293b] rounded-2xl w-3/4 animate-pulse" />
-            <div className="flex gap-2">
-              <div className="h-10 w-10 bg-slate-100 dark:bg-[#1e293b] rounded-full animate-pulse" />
-              <div className="space-y-2 flex-1">
-                <div className="h-4 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-1/4 animate-pulse" />
-                <div className="h-3 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-1/6 animate-pulse" />
+      <div className="w-full max-w-[1750px] 2xl:max-w-[1800px] mx-auto p-0 sm:px-4 md:px-6 lg:px-8 pb-12">
+        <div className="flex flex-col lg:flex-row gap-6 items-start justify-center">
+          <div className="w-full flex-1 min-w-0 max-w-[1280px] space-y-4">
+            <div className="w-full aspect-video max-h-[calc(100vh-169px)] min-h-[220px] sm:min-h-[360px] bg-black rounded-none sm:rounded-2xl flex items-center justify-center p-6 text-center shadow-xl relative overflow-hidden border-none sm:border border-slate-800">
+              <div className="w-14 h-14 rounded-full border-[3.5px] border-white/20 border-t-[#2563eb] animate-spin shadow-lg" />
+            </div>
+            <div className="space-y-3 pt-4 px-4 sm:px-0">
+              <div className="h-8 bg-slate-100 dark:bg-[#1e293b] rounded-2xl w-3/4 animate-pulse" />
+              <div className="flex gap-2">
+                <div className="h-10 w-10 bg-slate-100 dark:bg-[#1e293b] rounded-full animate-pulse" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-1/4 animate-pulse" />
+                  <div className="h-3 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-1/6 animate-pulse" />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div className="space-y-4">
-          <div className="h-4 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-1/3 animate-pulse mb-6" />
-          {Array.from({ length: 5 }).map((_, idx) => (
-            <div key={idx} className="flex gap-3 animate-pulse">
-              <div className="w-32 h-20 bg-slate-100 dark:bg-[#1e293b] rounded-2xl shrink-0" />
-              <div className="flex-1 space-y-2 py-1">
-                <div className="h-4 bg-slate-100 dark:bg-[#1e293b] rounded-lg" />
-                <div className="h-3 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-2/3" />
-                <div className="h-3 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-1/2" />
+          <div className="w-full lg:w-[380px] xl:w-[402px] shrink-0 space-y-4 px-4 sm:px-0">
+            <div className="h-4 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-1/3 animate-pulse mb-6" />
+            {Array.from({ length: 5 }).map((_, idx) => (
+              <div key={idx} className="flex gap-3 animate-pulse">
+                <div className="w-36 sm:w-40 aspect-video bg-slate-100 dark:bg-[#1e293b] rounded-xl shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="h-4 bg-slate-100 dark:bg-[#1e293b] rounded-lg" />
+                  <div className="h-3 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-2/3" />
+                  <div className="h-3 bg-slate-100 dark:bg-[#1e293b] rounded-lg w-1/2" />
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -1144,124 +1146,142 @@ export const Watch: React.FC = () => {
     forceUpdate({});
   };
 
-  return (
-    <div className={`p-0 sm:p-4 md:p-6 grid grid-cols-1 ${isTheaterMode ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-4 md:gap-6 max-w-[1440px] mx-auto pb-12 transition-all`}>
-      
-      {/* LEFT COLUMN: Player + Details + Comments */}
-      <div className={`${isTheaterMode ? 'lg:col-span-1' : 'lg:col-span-2'} space-y-4 md:space-y-6`}>
-        
-        {/* SocialIndia Custom Video Player or Paid Paywall Lock */}
-        {video?.isPaid && (video?.price || 0) > 0 && !isUnlocked && !isVideoOwner && currentUserProfile?.role !== 'admin' ? (
-          <div className="relative aspect-video w-full rounded-2xl md:rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 shadow-2xl flex items-center justify-center p-6 text-center">
-            {video.thumbnailUrl && (
-              <img 
-                src={video.thumbnailUrl} 
-                alt={video.title} 
-                className="absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-105"
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-900/60" />
-
-            <div className="relative z-10 max-w-md w-full space-y-4 text-white">
-              <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-amber-500 to-emerald-500 text-white flex items-center justify-center mx-auto shadow-xl shadow-amber-500/25">
-                <Lock className="w-7 h-7 stroke-[2.5]" />
-              </div>
-
-              <div className="space-y-1">
-                <span className="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                  Exclusive Paid Video
-                </span>
-                <h2 className="text-lg sm:text-xl font-black tracking-tight line-clamp-1">{video.title}</h2>
-                <p className="text-xs text-slate-300 font-medium">
-                  By <strong>@{video.creatorUsername}</strong>. Unlock full video access for lifetime.
-                </p>
-              </div>
-
-              <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 space-y-2 text-left">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300">Access Fee:</span>
-                  <span className="text-xl font-black font-mono text-emerald-400">
-                    ₹{video.price} INR
-                  </span>
-                </div>
-
-                <div className="h-px bg-white/10" />
-
-                <div className="flex items-center justify-between text-[11px] font-medium text-slate-300">
-                  <span>Your Wallet Balance:</span>
-                  <span className="font-mono font-bold text-white">
-                    ₹{(currentUserProfile?.walletBalance || 0).toFixed(2)}
-                  </span>
-                </div>
-                {(currentUserProfile?.bonusBalance || 0) > 0 && (
-                  <div className="flex items-center justify-between text-[11px] font-medium text-amber-300">
-                    <span>Bonus Money Available:</span>
-                    <span className="font-mono font-bold">
-                      +₹{(currentUserProfile?.bonusBalance || 0).toFixed(2)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {unlockError && (
-                <div className="p-2.5 bg-rose-500/20 border border-rose-500/40 rounded-xl text-rose-300 text-xs font-bold">
-                  {unlockError}
-                </div>
-              )}
-
-              <div className="flex flex-col gap-2.5 pt-1">
-                {((currentUserProfile?.walletBalance || 0) + (currentUserProfile?.bonusBalance || 0)) >= (video.price || 0) ? (
-                  <button
-                    onClick={handleUnlockVideo}
-                    disabled={isPurchasing}
-                    className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-500/30 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95"
-                  >
-                    {isPurchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    <span>Pay ₹{video.price} & Unlock Video</span>
-                  </button>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="p-2 bg-amber-500/20 border border-amber-500/30 rounded-xl text-[11px] font-bold text-amber-300">
-                      Insufficient Balance (Need ₹{((video.price || 0) - ((currentUserProfile?.walletBalance || 0) + (currentUserProfile?.bonusBalance || 0))).toFixed(2)} more)
-                    </div>
-                    <button
-                      onClick={() => navigate('settings')}
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Wallet className="w-4 h-4" />
-                      <span>Go to Wallet</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <CustomVideoPlayer 
-            video={video} 
-            isTheaterMode={isTheaterMode}
-            onToggleTheaterMode={() => setIsTheaterMode(prev => !prev)}
-            seekToTime={seekToTime}
-            onEnded={() => {
-              if (activePlaylist && nextPlaylistVideo) {
-                handlePlayNextInPlaylist();
-              }
-            }}
-            onNextVideo={nextPlaylistVideo ? handlePlayNextInPlaylist : undefined}
-            hasNextVideo={!!nextPlaylistVideo}
-            onReport={() => {
-              setReportType('video');
-              setReportTargetId(video.videoId);
-              setReportModalOpen(true);
-            }}
-            onProgress={(seconds) => {
-              if (video && !isPlaylistPlayback && !video.isLive && !isLiveBroadcastVideoId) {
-                lastSavedProgressRef.current = seconds;
-                playbackProgressService.saveProgress(video.videoId, seconds, video.duration || 0, currentUser?.uid);
-              }
-            }}
+  const renderPlayer = () => {
+    if (video?.isPaid && (video?.price || 0) > 0 && !isUnlocked && !isVideoOwner && currentUserProfile?.role !== 'admin') {
+      return (
+      <div className={`relative w-full ${isTheaterMode ? 'h-[min(calc(100vh-140px),56.25vw)] min-h-[380px] sm:min-h-[480px] max-h-[calc(100vh-100px)] rounded-none' : 'aspect-video max-h-[calc(100vh-169px)] min-h-[220px] sm:min-h-[360px] rounded-none sm:rounded-2xl'} overflow-hidden bg-slate-900 border border-slate-800 shadow-2xl flex items-center justify-center p-6 text-center`}>
+        {video.thumbnailUrl && (
+          <img 
+            src={video.thumbnailUrl} 
+            alt={video.title} 
+            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-25 scale-105"
           />
         )}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-900/60" />
+
+        <div className="relative z-10 max-w-md w-full space-y-4 text-white">
+          <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-amber-500 to-emerald-500 text-white flex items-center justify-center mx-auto shadow-xl shadow-amber-500/25">
+            <Lock className="w-7 h-7 stroke-[2.5]" />
+          </div>
+
+          <div className="space-y-1">
+            <span className="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              Exclusive Paid Video
+            </span>
+            <h2 className="text-lg sm:text-xl font-black tracking-tight line-clamp-1">{video.title}</h2>
+            <p className="text-xs text-slate-300 font-medium">
+              By <strong>@{video.creatorUsername}</strong>. Unlock full video access for lifetime.
+            </p>
+          </div>
+
+          <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 space-y-2 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300">Access Fee:</span>
+              <span className="text-xl font-black font-mono text-emerald-400">
+                ₹{video.price} INR
+              </span>
+            </div>
+
+            <div className="h-px bg-white/10" />
+
+            <div className="flex items-center justify-between text-[11px] font-medium text-slate-300">
+              <span>Your Wallet Balance:</span>
+              <span className="font-mono font-bold text-white">
+                ₹{(currentUserProfile?.walletBalance || 0).toFixed(2)}
+              </span>
+            </div>
+            {(currentUserProfile?.bonusBalance || 0) > 0 && (
+              <div className="flex items-center justify-between text-[11px] font-medium text-amber-300">
+                <span>Bonus Money Available:</span>
+                <span className="font-mono font-bold">
+                  +₹{(currentUserProfile?.bonusBalance || 0).toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {unlockError && (
+            <div className="p-2.5 bg-rose-500/20 border border-rose-500/40 rounded-xl text-rose-300 text-xs font-bold">
+              {unlockError}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2.5 pt-1">
+            {((currentUserProfile?.walletBalance || 0) + (currentUserProfile?.bonusBalance || 0)) >= (video.price || 0) ? (
+              <button
+                onClick={handleUnlockVideo}
+                disabled={isPurchasing}
+                className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-500/30 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+              >
+                {isPurchasing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                <span>Pay ₹{video.price} & Unlock Video</span>
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <div className="p-2 bg-amber-500/20 border border-amber-500/30 rounded-xl text-[11px] font-bold text-amber-300">
+                  Insufficient Balance (Need ₹{((video.price || 0) - ((currentUserProfile?.walletBalance || 0) + (currentUserProfile?.bonusBalance || 0))).toFixed(2)} more)
+                </div>
+                <button
+                  onClick={() => navigate('settings')}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span>Go to Wallet</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <CustomVideoPlayer 
+      video={video} 
+      isTheaterMode={isTheaterMode}
+      onToggleTheaterMode={() => setIsTheaterMode(prev => !prev)}
+      seekToTime={seekToTime}
+      onEnded={() => {
+        if (activePlaylist && nextPlaylistVideo) {
+          handlePlayNextInPlaylist();
+        }
+      }}
+      onNextVideo={nextPlaylistVideo ? handlePlayNextInPlaylist : undefined}
+      hasNextVideo={!!nextPlaylistVideo}
+      onReport={() => {
+        setReportType('video');
+        setReportTargetId(video.videoId);
+        setReportModalOpen(true);
+      }}
+      onProgress={(seconds) => {
+        if (video && !isPlaylistPlayback && !video.isLive && !isLiveBroadcastVideoId) {
+          lastSavedProgressRef.current = seconds;
+          playbackProgressService.saveProgress(video.videoId, seconds, video.duration || 0, currentUser?.uid);
+        }
+      }}
+    />
+  );
+};
+
+  return (
+    <div className={`w-full ${isTheaterMode ? 'pb-12' : 'max-w-[1750px] 2xl:max-w-[1800px] mx-auto p-0 sm:px-4 md:px-6 lg:px-8 pb-12'} transition-all`}>
+      
+      {/* THEATER MODE FULL-WIDTH VIDEO BANNER (YouTube Cinema Mode) */}
+      {isTheaterMode && (
+        <div className="w-full bg-black flex justify-center py-0 sm:py-2 mb-4 md:mb-6 shadow-2xl">
+          <div className="w-full max-w-[1750px] 2xl:max-w-[1800px] mx-auto px-0 sm:px-4 md:px-6 lg:px-8">
+            {renderPlayer()}
+          </div>
+        </div>
+      )}
+
+      {/* TWO-COLUMN YOUTUBE LAYOUT (Primary Content + Recommended Sidebar) */}
+      <div className={`flex flex-col lg:flex-row gap-6 items-start justify-center ${isTheaterMode ? 'max-w-[1750px] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8' : ''}`}>
+        
+        {/* PRIMARY COLUMN: Player (in Default View) + Details + Comments */}
+        <div className="w-full flex-1 min-w-0 max-w-[1280px] space-y-4 md:space-y-6">
+          {!isTheaterMode && renderPlayer()}
 
         {/* MOBILE COLLAPSIBLE PLAYLIST BAR (YouTube Style) */}
         {activePlaylist && (
@@ -2104,8 +2124,8 @@ export const Watch: React.FC = () => {
     </div>
       </div>
 
-      {/* RIGHT COLUMN: Recommended Sidebar (Matches Reference UI with Category Pills, Upload Dates, and 3-Dots Menu) */}
-      <div className="px-3.5 sm:px-0 space-y-4">
+      {/* SECONDARY COLUMN: Recommended Sidebar (YouTube Style Fixed-Width Column) */}
+      <div className="w-full lg:w-[380px] xl:w-[402px] shrink-0 px-3.5 sm:px-0 space-y-4">
         
         {/* YOUTUBE-STYLE PLAYLIST QUEUE CARD (Desktop) */}
         {activePlaylist && (
@@ -2484,6 +2504,7 @@ export const Watch: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
       </div>
 
       {/* Content Reporting Modal Popups */}
