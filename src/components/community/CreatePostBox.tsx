@@ -161,8 +161,15 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
       setPostType('text');
 
       onPostCreated?.();
-    } catch {
-      addToast(isHindi ? 'पोस्ट प्रकाशित करने में विफल।' : 'Failed to publish post.', 'error');
+    } catch (err: any) {
+      console.error('Community post publish failed:', err);
+      const errorCode = typeof err?.code === 'string' ? err.code : '';
+      addToast(
+        isHindi
+          ? `पोस्ट सेव नहीं हुई। कृपया दोबारा कोशिश करें। ${errorCode}`.trim()
+          : `Post could not be saved. Please try again. ${errorCode}`.trim(),
+        'error'
+      );
     } finally {
       setIsPosting(false);
     }
