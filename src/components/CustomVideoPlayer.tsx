@@ -1011,6 +1011,14 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             : 'rounded-none sm:rounded-2xl border-none sm:border border-slate-200 dark:border-[#334155]'
         }`}
       >
+      {/* SOCIALINDIA LIVE STATUS BADGE — stays visible inside the video frame */}
+      {isLiveStream && (
+        <div className="absolute top-4 left-4 z-40 inline-flex items-center gap-2 rounded-full bg-red-600 px-3 py-1.5 text-white text-xs font-black tracking-wider shadow-lg pointer-events-none">
+          <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+          LIVE
+        </div>
+      )}
+
       {/* YOUTUBE-STYLE RESUME PLAYBACK NOTIFICATION BADGE */}
       <AnimatePresence>
         {showResumeBadge && seekToTime && seekToTime > 5 && (
