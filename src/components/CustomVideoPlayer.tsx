@@ -418,16 +418,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             const d = event.target.getDuration();
             if (d) setDuration(d);
 
-            // Auto-detect if YouTube reports this live broadcast has finished
-            if (isLiveStream) {
-              try {
-                const videoData = event.target.getVideoData?.();
-                if ((videoData && videoData.isLive === false && d > 0) || (d > 0 && event.target.getCurrentTime?.() >= d)) {
-                  liveBroadcastService.markLiveEnded(video.videoId, d);
-                  setIsLiveStream(false);
-                }
-              } catch (_) {}
-            }
+            // Do not infer LIVE completion from currentTime/duration on load.
+            // YouTube reports elapsed stream time as duration for live broadcasts.
             
             // Resume from last watched position if seekToTime is provided
             if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
@@ -1358,6 +1350,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 : 'bg-gradient-to-t from-black/95 via-black/60 to-transparent'
             } pointer-events-auto space-y-1.5 transition-colors duration-300`}
           >
+            {!isLiveStream && (
+            <>
             {/* Custom Interactive Timeline (Electric Blue Played Track + Hover Preview Tooltip) */}
             <div 
               ref={timelineRef}
@@ -1397,6 +1391,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               />
             </div>
 
+            </>
+            )}
             {/* Controls Bar */}
             <div className="flex items-center justify-between text-white text-xs">
               <div className="flex items-center gap-2 sm:gap-3">
