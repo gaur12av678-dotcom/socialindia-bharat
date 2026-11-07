@@ -135,9 +135,9 @@
    YOUTUBE FILTER CHIPS: High-Contrast & Guaranteed Text Visibility
    ============================================================ */
 .yt-chip-active {
-  background-color: #0f0f0f !important;
+  background-color: #2563eb !important;
   color: #ffffff !important;
-  border-color: #0f0f0f !important;
+  border-color: #2563eb !important;
   font-weight: 700 !important;
 }
 .dark .yt-chip-active,
@@ -155,8 +155,9 @@ html.dark .yt-chip-active {
   font-weight: 500 !important;
 }
 .yt-chip-inactive:hover {
-  background-color: #e5e5e5 !important;
-  color: #000000 !important;
+  background-color: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
 }
 .dark .yt-chip-inactive,
 html.dark .yt-chip-inactive {
@@ -242,31 +243,37 @@ html:not(.dark) button.text-white[class*="bg-social-blue"] {
 }
 
 
-/* LIGHT-MODE INTERACTION CONTRAST: app-wide, including Admin Hub and tool tabs. */
-html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible,[aria-selected="true"],[aria-pressed="true"]):is(
+/* LIGHT MODE: refined blue interaction states across the app and Admin Panel.
+   Keep normal text colors untouched; only add a blue accent on interaction. */
+html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible):is(
   [class*="bg-white"],[class*="bg-slate-50"],[class*="bg-slate-100"],
   [class*="bg-gray-50"],[class*="bg-gray-100"],[class*="bg-zinc-50"],
-  [class*="bg-zinc-100"],[class*="hover:bg-white"],[class*="hover:bg-slate-50"],
+  [class*="bg-zinc-100"],[class*="bg-transparent"],
+  [class*="hover:bg-white"],[class*="hover:bg-slate-50"],
   [class*="hover:bg-slate-100"],[class*="hover:bg-gray-50"],[class*="hover:bg-gray-100"]
-),
-html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible,[aria-selected="true"],[aria-pressed="true"]):is(
-  [class*="bg-white"],[class*="bg-slate-50"],[class*="bg-slate-100"],
-  [class*="bg-gray-50"],[class*="bg-gray-100"],[class*="bg-zinc-50"],
-  [class*="bg-zinc-100"],[class*="hover:bg-white"],[class*="hover:bg-slate-50"],
-  [class*="hover:bg-slate-100"],[class*="hover:bg-gray-50"],[class*="hover:bg-gray-100"]
-) :is(span,svg,i) {
-  color: #111827 !important;
+) {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1d4ed8 !important;
 }
 
-html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible,[aria-selected="true"],[aria-pressed="true"]):is(
-  [class*="bg-black"],[class*="bg-slate-950"],[class*="bg-gray-950"],
-  [class*="bg-zinc-950"],[class*="hover:bg-black"],[class*="hover:bg-slate-950"],
-  [class*="hover:bg-gray-950"],[class*="hover:bg-zinc-950"]
-),
-html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible,[aria-selected="true"],[aria-pressed="true"]):is(
-  [class*="bg-black"],[class*="bg-slate-950"],[class*="bg-gray-950"],
-  [class*="bg-zinc-950"],[class*="hover:bg-black"],[class*="hover:bg-slate-950"],
-  [class*="hover:bg-gray-950"],[class*="hover:bg-zinc-950"]
+html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible):is(
+  [class*="bg-white"],[class*="bg-slate-50"],[class*="bg-slate-100"],
+  [class*="bg-gray-50"],[class*="bg-gray-100"],[class*="bg-zinc-50"],
+  [class*="bg-zinc-100"],[class*="bg-transparent"],
+  [class*="hover:bg-white"],[class*="hover:bg-slate-50"],
+  [class*="hover:bg-slate-100"],[class*="hover:bg-gray-50"],[class*="hover:bg-gray-100"]
 ) :is(span,svg,i) {
-  color: #ffffff !important;
+  color: #1d4ed8 !important;
+}
+
+/* Selected tabs and tool buttons use a soft blue selection instead of black. */
+html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is([aria-selected="true"],[aria-pressed="true"]) {
+  background-color: #dbeafe !important;
+  border-color: #93c5fd !important;
+  color: #1e40af !important;
+}
+
+html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is([aria-selected="true"],[aria-pressed="true"]) :is(span,svg,i) {
+  color: #1e40af !important;
 }
