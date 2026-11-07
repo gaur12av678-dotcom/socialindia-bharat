@@ -201,8 +201,10 @@ export const userService = {
       }
     }
 
-    // Deduplicate concurrent in-flight requests for the same UID
-    if (inFlightUserPromises.has(uid)) {
+    // Reuse in-flight requests only for cache-friendly reads.
+    // A forceFresh read must always reach Firestore instead of inheriting an
+    // older request that may contain a stale subscriber count.
+    if (!forceFresh && inFlightUserPromises.has(uid)) {
       return inFlightUserPromises.get(uid)!;
     }
 
@@ -224,7 +226,9 @@ export const userService = {
       }
     })();
 
-    inFlightUserPromises.set(uid, fetchPromise);
+    if (!forceFresh) {
+      inFlightUserPromises.set(uid, fetchPromise);
+    }
     return fetchPromise;
   },
 
@@ -244,7 +248,8 @@ export const userService = {
       return cached;
     }
 
-    if (inFlightUsernamePromises.has(cleanUsername)) {
+    // A forced refresh must not reuse a possibly stale username lookup.
+    if (!forceFresh && inFlightUsernamePromises.has(cleanUsername)) {
       return inFlightUsernamePromises.get(cleanUsername)!;
     }
 
@@ -278,7 +283,9 @@ export const userService = {
       }
     })();
 
-    inFlightUsernamePromises.set(cleanUsername, fetchPromise);
+    if (!forceFresh) {
+      inFlightUsernamePromises.set(cleanUsername, fetchPromise);
+    }
     return fetchPromise;
   },
 
