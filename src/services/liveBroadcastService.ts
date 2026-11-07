@@ -59,16 +59,9 @@ export const liveBroadcastService = {
     return LIVE_INDIA_USER;
   },
 
-  // Check whether this stream has ended either in memory, localStorage, or Firestore
-  isLiveEnded(videoId?: string): boolean {
-    const id = videoId || LIVE_INDIA_VIDEO.videoId;
-    if (typeof window !== 'undefined') {
-      try {
-        if (localStorage.getItem(`socialindia_live_ended_${id}`) === 'true') {
-          return true;
-        }
-      } catch (_) {}
-    }
+  // Use the current in-memory broadcast state.
+  // Old localStorage flags can become stale when a broadcast is still active after a reload.
+  isLiveEnded(_videoId?: string): boolean {
     return !LIVE_INDIA_VIDEO.isLive;
   },
 
