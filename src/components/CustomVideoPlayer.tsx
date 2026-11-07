@@ -401,13 +401,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         videoId: parsedMedia.youtubeId,
         playerVars: {
           autoplay: 1,
-          controls: isLiveStream ? 1 : 0,
-          modestbranding: 1,
+          // Keep YouTube's native controls hidden for ALL videos, including live streams.
+          // SocialIndia renders its own timeline, playback controls, and fullscreen button.
+          controls: 0,
           rel: 0,
-          showinfo: 0,
           iv_load_policy: 3,
-          disablekb: isLiveStream ? 0 : 1,
-          fs: 1,
+          disablekb: 1,
+          fs: 0,
           playsinline: 1
         },
         events: {
