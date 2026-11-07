@@ -240,3 +240,33 @@ html.light button.text-white[class*="bg-social-blue"],
 html:not(.dark) button.text-white[class*="bg-social-blue"] {
   color: #ffffff !important;
 }
+
+
+/* LIGHT-MODE INTERACTION CONTRAST: app-wide, including Admin Hub and tool tabs. */
+html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible,[aria-selected="true"],[aria-pressed="true"]):is(
+  [class*="bg-white"],[class*="bg-slate-50"],[class*="bg-slate-100"],
+  [class*="bg-gray-50"],[class*="bg-gray-100"],[class*="bg-zinc-50"],
+  [class*="bg-zinc-100"],[class*="hover:bg-white"],[class*="hover:bg-slate-50"],
+  [class*="hover:bg-slate-100"],[class*="hover:bg-gray-50"],[class*="hover:bg-gray-100"]
+),
+html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible,[aria-selected="true"],[aria-pressed="true"]):is(
+  [class*="bg-white"],[class*="bg-slate-50"],[class*="bg-slate-100"],
+  [class*="bg-gray-50"],[class*="bg-gray-100"],[class*="bg-zinc-50"],
+  [class*="bg-zinc-100"],[class*="hover:bg-white"],[class*="hover:bg-slate-50"],
+  [class*="hover:bg-slate-100"],[class*="hover:bg-gray-50"],[class*="hover:bg-gray-100"]
+) :is(span,svg,i) {
+  color: #111827 !important;
+}
+
+html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible,[aria-selected="true"],[aria-pressed="true"]):is(
+  [class*="bg-black"],[class*="bg-slate-950"],[class*="bg-gray-950"],
+  [class*="bg-zinc-950"],[class*="hover:bg-black"],[class*="hover:bg-slate-950"],
+  [class*="hover:bg-gray-950"],[class*="hover:bg-zinc-950"]
+),
+html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible,[aria-selected="true"],[aria-pressed="true"]):is(
+  [class*="bg-black"],[class*="bg-slate-950"],[class*="bg-gray-950"],
+  [class*="bg-zinc-950"],[class*="hover:bg-black"],[class*="hover:bg-slate-950"],
+  [class*="hover:bg-gray-950"],[class*="hover:bg-zinc-950"]
+) :is(span,svg,i) {
+  color: #ffffff !important;
+}
