@@ -331,13 +331,13 @@ export const CreatorProfile: React.FC = () => {
           }
         } else if (targetUsername) {
           try {
-            uProfile = await userService.getUserByUsername(targetUsername, !cached);
+            uProfile = await userService.getUserByUsername(targetUsername, true);
           } catch (e) {
             console.warn('getUserByUsername notice:', e);
           }
           if (!uProfile && rawParam) {
             try {
-              uProfile = await userService.getUserProfile(rawParam, !cached);
+              uProfile = await userService.getUserProfile(rawParam, true);
             } catch (e) {
               console.warn('getUserProfile notice:', e);
             }
