@@ -221,7 +221,7 @@ export const UploadPage: React.FC = () => {
       if (parsed.hostname !== 'drive.google.com' && parsed.hostname !== 'www.drive.google.com') {
         throw new Error('Please use a Google Drive share link.');
       }
-      const pathMatch = parsed.pathname.match(/\\/file\\/d\\/([A-Za-z0-9_-]+)/);
+      const pathMatch = parsed.pathname.match(/\/file\/d\/([A-Za-z0-9_-]+)/);
       const fileId = pathMatch?.[1] || parsed.searchParams.get('id') || '';
       if (!/^[A-Za-z0-9_-]{10,}$/.test(fileId)) {
         throw new Error('This does not look like a valid Google Drive file link.');
