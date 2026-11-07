@@ -125,6 +125,19 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
 
+  // Reset the player UI immediately when navigating to a different video.
+  // This prevents the previous video's ready/playing state leaking into the next one.
+  useEffect(() => {
+    setIsMediaReady(false);
+    setIsBuffering(true);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(video.duration || 0);
+    setShowControls(true);
+    hasAppliedSeekRef.current = false;
+    setShowResumeBadge(false);
+  }, [video.videoId, video.videoUrl]);
+
   // Dynamic Live Stream Status (auto-detects when stream ends on YouTube)
   const isLiveIndiaBroadcast = video.videoId === 'live_XGym1ByjKHw' || video.videoId === 'XGym1ByjKHw';
   const [isLiveStream, setIsLiveStream] = useState<boolean>(() =>
