@@ -93,9 +93,7 @@ match /adminSettings/{docId} {
     match /videos/{videoId} {
       allow read: if true;
       
-      // Only the dedicated MovieHub account can publish new video records.
-      allow create: if isSignedIn() &&
-        request.auth.token.email == 'moviehub@socialindia.com' &&
+      allow create: if isSignedIn() && 
         request.resource.data.creatorId == request.auth.uid;
         
       allow update: if (isSignedIn() && (
