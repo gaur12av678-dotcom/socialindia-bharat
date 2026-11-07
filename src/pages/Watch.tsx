@@ -1145,7 +1145,7 @@ export const Watch: React.FC = () => {
   };
 
   return (
-    <div className={`p-0 sm:p-4 md:p-6 grid grid-cols-1 ${isTheaterMode ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-4 md:gap-6 max-w-7xl mx-auto pb-12 transition-all`}>
+    <div className={`p-0 sm:p-4 md:p-6 grid grid-cols-1 ${isTheaterMode ? 'lg:grid-cols-1' : 'lg:grid-cols-3'} gap-4 md:gap-6 max-w-[1440px] mx-auto pb-12 transition-all`}>
       
       {/* LEFT COLUMN: Player + Details + Comments */}
       <div className={`${isTheaterMode ? 'lg:col-span-1' : 'lg:col-span-2'} space-y-4 md:space-y-6`}>
