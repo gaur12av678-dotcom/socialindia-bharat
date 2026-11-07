@@ -580,19 +580,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           }
           if (dur) setDuration(dur);
 
-          // If marked as live stream, check if YouTube stream transitioned to recorded/ended state
-          if (isLiveStream) {
-            try {
-              const videoData = ytPlayerRef.current.getVideoData?.();
-              if (
-                (videoData && videoData.isLive === false && dur > 0) ||
-                (dur > 0 && cur >= dur)
-              ) {
-                liveBroadcastService.markLiveEnded(video.videoId, dur);
-                setIsLiveStream(false);
-              }
-            } catch (_) {}
-          }
+          // Do not infer that a live stream has ended from currentTime >= duration.
+          // For YouTube live broadcasts, duration is the elapsed stream time and currentTime
+          // can reach the live edge while the broadcast is STILL live. The authoritative
+          // player-side end signal is handled by the ENDED state event below.
         } catch (e) {
           // ignore
         }
