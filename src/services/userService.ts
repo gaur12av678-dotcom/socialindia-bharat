@@ -15,15 +15,15 @@ function saveToLocalUserCache(user: Partial<User> & { uid: string }) {
     ...existing,
     ...user,
     // Preserve existing real subscriber count if incoming partial has 0 or undefined
-    followersCount: typeof user.followersCount === 'number' && user.followersCount > 0
+    followersCount: typeof user.followersCount === 'number'
       ? user.followersCount
-      : (existing.followersCount ?? (typeof user.followersCount === 'number' ? user.followersCount : 0)),
-    followingCount: typeof user.followingCount === 'number' && user.followingCount > 0
+      : (existing.followersCount ?? 0),
+    followingCount: typeof user.followingCount === 'number'
       ? user.followingCount
-      : (existing.followingCount ?? (typeof user.followingCount === 'number' ? user.followingCount : 0)),
-    videosCount: typeof user.videosCount === 'number' && user.videosCount > 0
+      : (existing.followingCount ?? 0),
+    videosCount: typeof user.videosCount === 'number'
       ? user.videosCount
-      : (existing.videosCount ?? (typeof user.videosCount === 'number' ? user.videosCount : 0)),
+      : (existing.videosCount ?? 0),
   } : (user as User);
 
   userProfileMemoryCache.set(user.uid, { data: merged, timestamp: Date.now() });
