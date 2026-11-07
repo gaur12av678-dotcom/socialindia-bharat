@@ -42,6 +42,37 @@ jobs:
           fi
           echo "Build completed successfully. Found $(find dist -type f | wc -l) files in dist/."
 
+      - name: Ensure Sitemap Files Are Included
+        run: |
+          set -e
+          mkdir -p dist
+          for file in sitemap.xml video-sitemap.xml sitemap_index.xml robots.txt; do
+            if [ -f "public/$file" ]; then
+              cp "public/$file" "dist/$file"
+            else
+              echo "::error::Missing required public/$file"
+              exit 1
+            fi
+          done
+
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          for name in ("sitemap.xml", "video-sitemap.xml", "sitemap_index.xml"):
+              path = Path("dist") / name
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception as exc:
+                  raise SystemExit(f"Invalid XML in {path}: {exc}")
+              if not root.tag.endswith(("urlset", "sitemapindex")):
+                  raise SystemExit(f"Unexpected sitemap root element in {path}: {root.tag}")
+              print(f"Validated {path}: {root.tag}")
+          PY
+
+          echo "Sitemap deployment files:"
+          ls -lh dist/sitemap.xml dist/video-sitemap.xml dist/sitemap_index.xml dist/robots.txt
+
       - name: Install Firebase CLI
         run: npm install -g firebase-tools@13.30.0
 
@@ -64,7 +95,8 @@ jobs:
           ")
           echo "Selected Project ID: $PROJECT_ID"
           echo "{\"projects\":{\"default\":\"$PROJECT_ID\"},\"targets\":{\"$PROJECT_ID\":{\"hosting\":{\"socialindia\":[\"socialindia\"]}}}}" > .firebaserc
-          echo '{
+          cat > firebase.json <<'JSON'
+          {
             "hosting": {
               "site": "socialindia",
               "public": "dist",
@@ -75,20 +107,26 @@ jobs:
               ],
               "headers": [
                 {
-                  "source": "**/*.xml",
+                  "source": "/sitemap.xml",
                   "headers": [
                     { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
-                    { "key": "Access-Control-Allow-Origin", "value": "*" },
                     { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
                   ]
                 },
                 {
-                  "source": "/*.xml",
+                  "source": "/video-sitemap.xml",
                   "headers": [
                     { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
-                    { "key": "Access-Control-Allow-Origin", "value": "*" },
+                    { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
+                  ]
+                },
+                {
+                  "source": "/sitemap_index.xml",
+                  "headers": [
+                    { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
+                    { "key": "X-Robots-Tag", "value": "all" },
                     { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
                   ]
                 },
@@ -97,7 +135,6 @@ jobs:
                   "headers": [
                     { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
-                    { "key": "Access-Control-Allow-Origin", "value": "*" },
                     { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
                   ]
                 }
@@ -109,7 +146,8 @@ jobs:
                 }
               ]
             }
-          }' > firebase.json
+          }
+          JSON
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
@@ -117,7 +155,7 @@ jobs:
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "::error::FIREBASE_SERVICE_ACCOUNT secret is missing or empty in GitHub Secrets!"
-            echo "Please ensure the FIREBASE_SERVICE_ACCOUNT secret is populated in your repository settings (Settings > Secrets and variables > Actions)."
+            echo "Please ensure the FIREBASE_SERVICE_ACCOUNT secret is populated in repository Settings > Secrets and variables > Actions."
             exit 1
           fi
 
@@ -136,11 +174,25 @@ jobs:
             console.log('socialindia-cf742');
           ")
           echo "Deploying to Firebase project: $PROJECT_ID (target site: socialindia)..."
-          
-          # Map target and deploy exclusively to site 'socialindia'
+
           firebase target:apply hosting socialindia socialindia --project "$PROJECT_ID" || true
           firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
-          
+
           rm -f sa_key.json
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Verify Live Sitemap URLs
+        run: |
+          set -e
+          for file in sitemap.xml video-sitemap.xml sitemap_index.xml robots.txt; do
+            url="https://socialindia.web.app/$file"
+            echo "Checking $url"
+            curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$url" -o "/tmp/$file"
+            if [ "$file" = "robots.txt" ]; then
+              grep -q "Sitemap: https://socialindia.web.app/sitemap.xml" "/tmp/$file"
+            else
+              grep -q "http://www.sitemaps.org/schemas/sitemap/0.9" "/tmp/$file"
+            fi
+            echo "OK: $url"
+          done
