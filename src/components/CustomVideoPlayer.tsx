@@ -427,6 +427,14 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         events: {
           onReady: (event: any) => {
             if (!isMounted) return;
+            // Force the YouTube iframe to fill the responsive 16:9 player frame.
+            const playerIframe = event.target.getIframe?.();
+            if (playerIframe) {
+              playerIframe.style.width = '100%';
+              playerIframe.style.height = '100%';
+              playerIframe.style.position = 'absolute';
+              playerIframe.style.inset = '0';
+            }
             setIsMediaReady(true);
             setIsBuffering(false);
             const d = event.target.getDuration();
@@ -1102,7 +1110,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
         {parsedMedia.type === 'youtube' ? (
           <div className="w-full h-full flex items-center justify-center">
-            <div id={`yt-player-${video.videoId}`} className="w-full h-full" />
+            <div id={`yt-player-${video.videoId}`} className="relative w-full h-full" />
           </div>
         ) : parsedMedia.type === 'drive' ? (
           <iframe
@@ -1179,7 +1187,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               setIsPlaying(false);
               if (onEnded) onEnded();
             }}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         )}
       </div>
