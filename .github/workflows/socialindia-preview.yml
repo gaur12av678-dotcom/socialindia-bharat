@@ -76,7 +76,23 @@ jobs:
 
           PROJECT_ID=$(node -e "const fs=require('fs');const sa=JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,'utf8'));if(!sa.project_id)process.exit(1);console.log(sa.project_id)")
           npm install --global firebase-tools@13.30.0
-          firebase hosting:channel:deploy "pr-$PR_NUMBER" --site socialindia --project "$PROJECT_ID" --expires 7d --non-interactive
+
+          # Match the repository's existing production Hosting site configuration,
+          # but deploy only to an expiring preview channel.
+          printf '{"projects":{"default":"%s"},"targets":{"%s":{"hosting":{"socialindia":["socialindia"]}}}}\\n' "$PROJECT_ID" "$PROJECT_ID" > .firebaserc
+          cat > firebase.json <<'JSON'
+          {
+            "hosting": {
+              "site": "socialindia",
+              "public": "dist",
+              "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+              "rewrites": [
+                { "source": "**", "destination": "/index.html" }
+              ]
+            }
+          }
+          JSON
+          firebase hosting:channel:deploy "pr-$PR_NUMBER" --project "$PROJECT_ID" --expires 7d --non-interactive
 
       - name: Publish preview details
         if: success()
