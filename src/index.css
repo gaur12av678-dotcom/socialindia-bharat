@@ -332,3 +332,17 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is([aria-selected="tr
   .si-admin-redesign { padding: 10px !important; gap: 12px !important; }
   .si-admin-redesign > aside { max-height: none !important; }
 }
+
+@media (min-width: 768px) {
+  .si-sidebar-toggle { display: none !important; }
+  .si-top-nav { box-shadow: 0 2px 10px rgba(15, 23, 42, .025); }
+}
+.si-top-nav button { min-width: 88px; }
+.si-admin-redesign > main {
+  border-radius: 22px;
+  min-width: 0;
+}
+.si-admin-redesign > aside { width: 272px; }
+@media (max-width: 1023px) {
+  .si-admin-redesign > aside { width: 100%; }
+}
