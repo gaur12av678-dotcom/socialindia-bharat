@@ -95,7 +95,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [switchingUid, setSwitchingUid] = useState<string | null>(null);
   
   const { route, navigate } = useRouter();
-  const isShortsPage = route.path === 'shorts' || route.path === 'clips';
+  const isShortsPage = (route.path === 'shorts' || route.path === 'clips') || route.path === 'clips';
   const isWatchPage = route.path === 'watch';
 
   // Mobile bottom bar & tools hidden on:
@@ -348,7 +348,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const menuItems = [
     { label: t('nav_home', 'Home'), path: 'home', icon: Home },
-    { label: t('nav_shorts', 'Clips'), path: 'shorts', icon: Zap },
+    { label: t('nav_shorts', 'Clips'), path: 'clips', icon: Zap },
     { label: t('nav_trending', 'Trending'), path: 'trending', icon: TrendingUp },
     { label: t('nav_chat', 'Direct Messages'), path: 'chat', icon: MessageSquare, protected: true },
     { label: t('nav_downloads', 'Downloads'), path: 'downloads', icon: ArrowDownToLine },
@@ -1411,7 +1411,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <Zap className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'text-amber-500 fill-amber-500' : 'text-amber-500/80'}`} />
-                  <span className="truncate">{t('nav_shorts', 'Shorts')}</span>
+                  <span className="truncate">{t('nav_shorts', 'Clips')}</span>
                 </div>
               </button>
 
@@ -1630,8 +1630,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </button>
 
           <button
-            onClick={() => navigate('shorts')}
-            aria-current={route.path === 'shorts' ? 'page' : undefined}
+            onClick={() => navigate('clips')}
+            aria-current={route.path === 'shorts' || route.path === 'clips' ? 'page' : undefined}
             className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 pt-2 pb-1 text-[11px] font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 active:scale-[0.97] ${
               isShortsPage
                 ? 'bg-white/10 text-white'
