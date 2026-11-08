@@ -1420,7 +1420,7 @@ export const Shorts: React.FC = () => {
             </div>
           )}
 
-          {/* TOP BAR: Create Short Shortcut, Sound / Volume Button & YouTube-style 3-Dot More Options Menu */}
+          {/* TOP BAR: Create Clip Shortcut, Sound / Volume Button & YouTube-style 3-Dot More Options Menu */}
           <div className="absolute top-4 right-4 z-35 flex items-center gap-2">
             <button
               onClick={(e) => {
