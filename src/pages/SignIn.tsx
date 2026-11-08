@@ -332,7 +332,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
       } catch (err: any) {
         let msg = err.message || 'Registration failed.';
         if (msg.includes('auth/email-already-in-use')) {
-          msg = isHindi ? 'इस ईमेल पते पर पहले से एक खाता मौजूद है। कृपया साइन इन करें।' : 'An account with this email already exists. Please sign in instead.';
+          msg = isHindi ? 'इस ईमेल पते पर पहले से एक खाता मौजूद है। कृपया लॉग इन करें।' : 'An account with this email already exists. Please sign in instead.';
         } else if (msg.includes('auth/invalid-email')) {
           msg = isHindi ? 'कृपया एक मान्य ईमेल पता दर्ज करें।' : 'Please enter a valid email address.';
         } else if (msg.includes('auth/weak-password')) {
@@ -536,7 +536,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
         <div className="w-9" /> {/* Spacer balance */}
       </header>
 
-      {/* Main Container - Centered Google/YouTube Card */}
+      {/* Main Container - Centered SocialIndia Login Card */}
       <main className="flex-1 flex items-center justify-center p-0 sm:p-6 md:p-8">
         <div className="w-full sm:max-w-[448px] md:max-w-[480px] bg-white dark:bg-[#1e1f20] sm:border sm:border-[#dadce0] dark:sm:border-[#444746] sm:rounded-[28px] p-6 sm:p-10 transition-all sm:shadow-sm">
           
@@ -597,7 +597,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
             ) : (
               <div>
                 <h1 className="text-[24px] sm:text-[28px] font-normal tracking-tight text-[#1f1f1f] dark:text-[#e3e3e3] leading-snug">
-                  {isHindi ? 'साइन इन करें' : 'Sign in'}
+                  {isHindi ? 'लॉग इन करें' : 'Log in'}
                 </h1>
                 <p className="text-sm text-[#444746] dark:text-[#c4c7c5] mt-1.5">
                   {isHindi ? 'सोशलइंडिया पर जारी रखने के लिए' : 'to continue to SocialIndia'}
@@ -784,7 +784,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                           onClick={() => handleSwitchMode('login')}
                           className="h-10 px-4 text-xs font-semibold text-[#0b57d0] dark:text-[#a8c7fa] hover:bg-[#0b57d0]/10 rounded-full transition-colors cursor-pointer"
                         >
-                          {isHindi ? 'साइन इन करें' : 'Back to Sign In'}
+                          {isHindi ? 'लॉग इन करें' : 'Back to Sign In'}
                         </button>
                       </div>
                     </div>
@@ -1012,7 +1012,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                     onClick={handleCancelVerification}
                     className="text-xs font-semibold text-[#0b57d0] dark:text-[#a8c7fa] hover:underline cursor-pointer"
                   >
-                    {isHindi ? 'किसी अन्य खाते से साइन इन करें' : 'Sign in with a different account'}
+                    {isHindi ? 'किसी अन्य खाते से लॉग इन करें' : 'Log in with a different account'}
                   </button>
                 </div>
               </div>
@@ -1375,7 +1375,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                     onClick={() => handleSwitchMode('login')}
                     className="text-sm font-semibold text-[#0b57d0] dark:text-[#a8c7fa] hover:bg-[#0b57d0]/10 dark:hover:bg-[#a8c7fa]/10 px-4 py-2.5 rounded-full transition-colors cursor-pointer"
                   >
-                    {isHindi ? 'साइन इन करें' : 'Sign in instead'}
+                    {isHindi ? 'लॉग इन करें' : 'Log in instead'}
                   </button>
                 )}
 
@@ -1430,7 +1430,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                     {googleLoading 
                       ? (isHindi ? 'Google से जुड़ रहे हैं...' : 'Connecting...') 
                       : (mode === 'login' 
-                          ? (isHindi ? 'Google के साथ साइन इन करें' : 'Sign in with Google') 
+                          ? (isHindi ? 'Google के साथ लॉग इन करें' : 'Log in with Google') 
                           : (isHindi ? 'Google के साथ खाता बनाएं' : 'Sign up with Google'))}
                   </span>
                 </button>
@@ -1442,7 +1442,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
         </div>
       </main>
 
-      {/* Google / YouTube Bottom Bar (Language dropdown on Left, Help/Privacy/Terms on Right) */}
+      {/* SocialIndia Footer (Language dropdown on Left, Help/Privacy/Terms on Right) */}
       <footer className="w-full max-w-[448px] md:max-w-[480px] mx-auto px-4 sm:px-2 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#444746] dark:text-[#c4c7c5]">
         
         {/* Language selector dropdown */}
