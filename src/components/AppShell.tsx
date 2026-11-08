@@ -1603,65 +1603,88 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       </div>
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <nav className={`${shouldHideBottomNav ? 'hidden' : 'block md:hidden'} fixed bottom-0 left-0 right-0 z-40 select-none transition-all duration-300 pb-safe ${
-        isShortsPage 
-          ? 'bg-black/90 backdrop-blur-md border-t border-white/10 text-white shadow-none' 
-          : 'bg-white dark:bg-[#0f0f0f] border-t border-[#e5e5e5] dark:border-[#3f3f3f] shadow-lg'
+      <nav className={`${shouldHideBottomNav ? 'hidden' : 'block md:hidden'} fixed bottom-0 left-0 right-0 z-40 select-none transition-all duration-300 pb-safe backdrop-blur-xl ${
+        isShortsPage
+          ? 'border-t border-white/10 bg-[#080a0f]/95 text-white shadow-[0_-8px_24px_rgba(0,0,0,0.24)]'
+          : 'border-t border-slate-200/80 bg-white/95 text-slate-900 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] dark:border-slate-800/90 dark:bg-[#0e0f12]/95 dark:text-slate-100'
       }`}>
-        <div className="h-full flex items-center justify-around px-2">
-          
-          <button 
+        <div className="mx-auto flex h-[68px] w-full max-w-2xl items-stretch justify-around gap-1 px-2 sm:px-3">
+
+          <button
             onClick={handleHomeClick}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
-              isShortsPage 
-                ? 'text-white/60 hover:text-white' 
-                : 'text-[#0f0f0f] dark:text-[#f1f1f1] ' + (route.path === 'home' ? 'font-bold' : 'opacity-70')
+            aria-current={route.path === 'home' && !route.searchParams?.category ? 'page' : undefined}
+            className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 pt-2 pb-1 text-[11px] font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 active:scale-[0.97] ${
+              isShortsPage
+                ? 'text-white/65 hover:bg-white/10 hover:text-white'
+                : route.path === 'home' && !route.searchParams?.category
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/45 dark:text-blue-300'
+                  : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
             }`}
           >
-            <Home className="w-5 h-5" />
-            <span className="text-[10px]">{t('nav_home', 'Home')}</span>
+            <Home className={`h-[21px] w-[21px] transition-transform duration-200 ${
+              route.path === 'home' && !route.searchParams?.category && !isShortsPage
+                ? 'fill-blue-600/10 stroke-[2.5]'
+                : ''
+            }`} />
+            <span className="text-[11px] font-semibold leading-none">{t('nav_home', 'Home')}</span>
           </button>
 
-          <button 
+          <button
             onClick={() => navigate('shorts')}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
-              isShortsPage 
-                ? 'text-white font-bold' 
-                : (route.path === 'shorts' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
+            aria-current={route.path === 'shorts' ? 'page' : undefined}
+            className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 pt-2 pb-1 text-[11px] font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 active:scale-[0.97] ${
+              isShortsPage
+                ? 'bg-white/10 text-white'
+                : route.path === 'shorts'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/45 dark:text-blue-300'
+                  : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
             }`}
           >
-            <Zap className={`w-5 h-5 ${isShortsPage ? 'fill-current text-white' : ''}`} />
-            <span className="text-[10px]">{t('nav_shorts', 'Shorts')}</span>
+            <Zap className={`h-[21px] w-[21px] transition-transform duration-200 ${
+              isShortsPage ? 'fill-current text-white' : 'text-amber-500'
+            }`} />
+            <span className="text-[11px] font-semibold leading-none">{t('nav_shorts', 'Shorts')}</span>
           </button>
 
-          <button 
+          <button
             onClick={() => triggerProtectedAction(() => setCreateActionSheetOpen(true))}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
-              isShortsPage ? 'text-white' : 'text-[#2563eb] dark:text-[#3b82f6]'
+            className={`group relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 pt-1.5 pb-1 text-[11px] font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 active:scale-[0.97] ${
+              isShortsPage ? 'text-white' : 'text-blue-700 dark:text-blue-300'
             }`}
             aria-label={t('create_video', 'Create')}
             title={t('create_video', 'Create')}
           >
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shadow-xs transition-colors ${
-              isShortsPage ? 'bg-white text-black' : 'bg-[#2563eb] text-white'
+            <div className={`flex h-8 w-8 items-center justify-center rounded-xl shadow-sm ring-1 transition-transform duration-200 group-hover:-translate-y-0.5 ${
+              isShortsPage
+                ? 'bg-white text-slate-900 ring-white/30'
+                : 'bg-blue-600 text-white ring-blue-700/10 dark:bg-blue-500'
             }`}>
-              <Plus className="w-4 h-4 stroke-[3]" />
+              <Plus className="h-[18px] w-[18px] stroke-[3]" />
             </div>
-            <span className="text-[10px]">{t('create_video', 'Create')}</span>
+            <span className="text-[11px] font-semibold leading-none">{t('create_video', 'Create')}</span>
           </button>
 
-          <button 
+          <button
             onClick={() => triggerProtectedAction(() => navigate('subscriptions'))}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
-              isShortsPage 
-                ? 'text-white/60 hover:text-white' 
-                : (route.path === 'subscriptions' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
+            aria-current={route.path === 'subscriptions' ? 'page' : undefined}
+            className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 pt-2 pb-1 text-[11px] font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 active:scale-[0.97] ${
+              isShortsPage
+                ? 'text-white/65 hover:bg-white/10 hover:text-white'
+                : route.path === 'subscriptions'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/45 dark:text-blue-300'
+                  : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
             }`}
           >
-            <svg 
-              viewBox="0 0 24 24" 
-              fill="currentColor" 
-              className={`w-5 h-5 transition-transform ${route.path === 'subscriptions' ? 'text-[#2563eb] dark:text-[#3b82f6]' : isShortsPage ? 'text-white/60' : 'text-slate-500 dark:text-slate-400'}`}
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className={`h-[21px] w-[21px] transition-transform duration-200 ${
+                route.path === 'subscriptions' && !isShortsPage
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : isShortsPage
+                    ? 'text-white/65'
+                    : 'text-slate-500 dark:text-slate-400'
+              }`}
             >
               {route.path === 'subscriptions' ? (
                 <path d="M20 8H4V6h16v2zm-2-6H6v2h12V2zm4 10v8c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2v-8c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2zm-12 7l6-3.5L10 12v7z" />
@@ -1669,11 +1692,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 <path d="M18.7 8.7H5.3V7h13.4v1.7zm-1.7-5H7v1.7h10V3.7zm3.3 8.3v8c0 .9-.8 1.7-1.7 1.7H5.7c-.9 0-1.7-.8-1.7-1.7v-8c0-.9.8-1.7 1.7-1.7h12.9c1 0 1.7.8 1.7 1.7zm-1.7 0H5.7v8h12.9v-8zm-7.6 1.7l4.5 2.3-4.5 2.3v-4.6z" />
               )}
             </svg>
-            <span className="text-[10px]">{t('nav_subscriptions', 'Subscriptions')}</span>
+            <span className="text-[11px] font-semibold leading-none">{t('nav_subscriptions', 'Subscriptions')}</span>
           </button>
 
-          {/* YouTube-style 'You' Tab */}
-          <button 
+          {/* You Tab */}
+          <button
             onClick={() => {
               if (currentUser) {
                 navigate('profile-menu');
@@ -1681,30 +1704,33 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 navigate('login');
               }
             }}
-            className={`flex flex-col items-center gap-1 cursor-pointer min-w-12 transition-all ${
-              isShortsPage 
-                ? 'text-white/60 hover:text-white' 
-                : (route.path === 'profile-menu' || route.path === 'creator' || route.path === 'channel' ? 'text-[#2563eb] dark:text-[#3b82f6] font-bold' : 'text-slate-500 dark:text-slate-400')
+            aria-current={route.path === 'profile-menu' || route.path === 'creator' || route.path === 'channel' ? 'page' : undefined}
+            className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 pt-2 pb-1 text-[11px] font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 active:scale-[0.97] ${
+              isShortsPage
+                ? 'text-white/65 hover:bg-white/10 hover:text-white'
+                : route.path === 'profile-menu' || route.path === 'creator' || route.path === 'channel'
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/45 dark:text-blue-300'
+                  : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
             }`}
           >
             {currentUser ? (
-              <div className={`w-6 h-6 rounded-full overflow-hidden transition-all flex items-center justify-center ${
+              <div className={`flex h-7 w-7 items-center justify-center overflow-hidden rounded-full transition-all ${
                 route.path === 'profile-menu' || (route.path === 'creator' && (!route.param || route.param === currentUserProfile?.username))
-                  ? 'ring-2 ring-[#2563eb] scale-105' 
+                  ? 'ring-2 ring-blue-600 dark:ring-blue-400'
                   : 'ring-1 ring-slate-300 dark:ring-slate-700'
               }`}>
-                <UserAvatar 
+                <UserAvatar
                   uid={currentUser.uid}
                   fallbackPhotoURL={currentUserProfile?.photoURL}
                   fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
                   size="xs"
-                  className="w-full h-full text-[10px]"
+                  className="h-full w-full text-[10px]"
                 />
               </div>
             ) : (
-              <UserIcon className="w-5 h-5" />
+              <UserIcon className="h-[21px] w-[21px]" />
             )}
-            <span className="text-[10px]">{isHindi ? 'आप' : 'You'}</span>
+            <span className="text-[11px] font-semibold leading-none">{isHindi ? 'आप' : 'You'}</span>
           </button>
 
         </div>
