@@ -277,3 +277,58 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is([aria-selected="tr
 html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is([aria-selected="true"],[aria-pressed="true"]) :is(span,svg,i) {
   color: #1e40af !important;
 }
+
+
+/* =========================================================
+   SOCIALINDIA DISTINCT PRODUCT UI — November 2026
+   Keep existing features and routes; refresh presentation only.
+   ========================================================= */
+@media (min-width: 768px) {
+  .socialindia-desktop-sidebar { display: none !important; }
+}
+.si-settings-redesign {
+  background: #f7f9fc !important;
+  padding: clamp(14px, 2.2vw, 32px) !important;
+}
+.dark .si-settings-redesign { background: #0c1220 !important; }
+.si-settings-redesign > .max-w-6xl {
+  max-width: 1180px !important;
+  gap: 18px !important;
+}
+.si-settings-redesign > .max-w-6xl > * {
+  border-radius: 22px !important;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, .045) !important;
+}
+.si-monetization-panel { gap: 18px !important; }
+.si-monetization-panel > div {
+  border-radius: 22px !important;
+  box-shadow: 0 6px 24px rgba(15, 23, 42, .045) !important;
+}
+.si-monetization-panel h2 { letter-spacing: -.035em !important; }
+.si-admin-redesign {
+  background: #f6f8fc !important;
+  padding: clamp(12px, 2vw, 28px) !important;
+  gap: 18px !important;
+}
+.dark .si-admin-redesign { background: #090e18 !important; }
+.si-admin-redesign > aside {
+  border-radius: 22px !important;
+  border-color: #e6ebf2 !important;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, .055) !important;
+}
+.dark .si-admin-redesign > aside { border-color: #242c3a !important; }
+.si-admin-redesign > main,
+.si-admin-redesign > section,
+.si-admin-redesign > div:not(aside) {
+  min-width: 0;
+}
+.si-admin-redesign button { transition: background-color .16s ease, color .16s ease, border-color .16s ease, transform .16s ease; }
+.si-admin-redesign button:focus-visible,
+.si-settings-redesign button:focus-visible {
+  outline: 2px solid #2563eb !important;
+  outline-offset: 2px !important;
+}
+@media (max-width: 767px) {
+  .si-admin-redesign { padding: 10px !important; gap: 12px !important; }
+  .si-admin-redesign > aside { max-height: none !important; }
+}
