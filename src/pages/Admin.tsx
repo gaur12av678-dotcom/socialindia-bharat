@@ -765,7 +765,7 @@ export const AdminPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50/80 dark:bg-[#09090b] p-2 md:p-6 gap-6 -mt-2">
+    <div className="si-admin-redesign flex flex-col md:flex-row min-h-screen bg-slate-50/80 dark:bg-[#09090b] p-2 md:p-6 gap-6 -mt-2">
       {/* Sidebar Navigation Card */}
       <aside className="w-full md:w-72 bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-4 space-y-4 shrink-0 shadow-sm self-start max-h-[85vh] overflow-y-auto scrollbar-none select-none">
         
