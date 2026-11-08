@@ -258,7 +258,7 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visi
 html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible):is(
   [class*="bg-white"],[class*="bg-slate-50"],[class*="bg-slate-100"],
   [class*="bg-gray-50"],[class*="bg-gray-100"],[class*="bg-zinc-50"],
-  [class*="bg-zinc-100"],[class*="bg-transparent"],
+  [class*="bg-zinc-100"],[class*="bg-transparent"]
 ) :is(span,svg,i) {
   color: #1d4ed8 !important;
 }
