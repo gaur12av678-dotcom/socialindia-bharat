@@ -376,6 +376,16 @@ export const Watch: React.FC = () => {
     }
   };
 
+  const previousPlaylistVideo = currentPlaylistIndex > 0
+    ? playlistVideos[currentPlaylistIndex - 1]
+    : (isPlaylistLoop && playlistVideos.length > 0 ? playlistVideos[playlistVideos.length - 1] : null);
+
+  const handlePlayPreviousInPlaylist = () => {
+    if (previousPlaylistVideo) {
+      navigate('watch', previousPlaylistVideo.videoId, playlistId ? { list: playlistId } : undefined);
+    }
+  };
+
   const isVideoOwner = !!(
     currentUser &&
     video &&
@@ -1245,10 +1255,22 @@ export const Watch: React.FC = () => {
       onEnded={() => {
         if (activePlaylist && nextPlaylistVideo) {
           handlePlayNextInPlaylist();
+        } else if (recommendedSidebarVideos.length > 0) {
+          const nextVid = recommendedSidebarVideos[0];
+          if (nextVid) navigate('watch', nextVid.videoId);
         }
       }}
-      onNextVideo={nextPlaylistVideo ? handlePlayNextInPlaylist : undefined}
-      hasNextVideo={!!nextPlaylistVideo}
+      onNextVideo={() => {
+        if (activePlaylist && nextPlaylistVideo) {
+          handlePlayNextInPlaylist();
+        } else if (recommendedSidebarVideos.length > 0) {
+          const nextVid = recommendedSidebarVideos[0];
+          if (nextVid) navigate('watch', nextVid.videoId);
+        }
+      }}
+      hasNextVideo={Boolean(nextPlaylistVideo || recommendedSidebarVideos.length > 0)}
+      onPreviousVideo={previousPlaylistVideo ? handlePlayPreviousInPlaylist : undefined}
+      hasPreviousVideo={Boolean(previousPlaylistVideo)}
       onReport={() => {
         setReportType('video');
         setReportTargetId(video.videoId);
@@ -1279,9 +1301,13 @@ export const Watch: React.FC = () => {
       {/* TWO-COLUMN YOUTUBE LAYOUT (Primary Content + Recommended Sidebar) */}
       <div className={`flex flex-col lg:flex-row gap-6 items-start justify-center ${isTheaterMode ? 'max-w-[1750px] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8' : ''}`}>
         
-        {/* PRIMARY COLUMN: Player (in Default View) + Details + Comments */}
+        {/* PRIMARY COLUMN: Player (in Default View - Sticky on mobile screen like YouTube app) + Details + Comments */}
         <div className="w-full flex-1 min-w-0 max-w-[1280px] space-y-4 md:space-y-6">
-          {!isTheaterMode && renderPlayer()}
+          {!isTheaterMode && (
+            <div className="sticky top-0 z-30 sm:relative sm:top-auto sm:z-auto bg-black shadow-md sm:shadow-none">
+              {renderPlayer()}
+            </div>
+          )}
 
         {/* MOBILE COLLAPSIBLE PLAYLIST BAR (YouTube Style) */}
         {activePlaylist && (

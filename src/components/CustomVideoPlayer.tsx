@@ -20,6 +20,7 @@ import {
   ChevronsRight,
   Tv,
   SkipForward,
+  SkipBack,
   Settings,
   Clock,
   Share2,
@@ -28,13 +29,17 @@ import {
   Repeat,
   Subtitles,
   ChevronRight,
+  ChevronDown,
   ArrowLeft as ArrowLeftIcon,
   X as XIcon,
   Copy,
   Sliders,
   Sparkles,
   Sun,
-  Flag
+  Flag,
+  Lock,
+  Unlock,
+  Maximize2
 } from 'lucide-react';
 
 interface CustomVideoPlayerProps {
@@ -44,7 +49,9 @@ interface CustomVideoPlayerProps {
   onToggleTheaterMode?: () => void;
   seekToTime?: number;
   onNextVideo?: () => void;
+  onPreviousVideo?: () => void;
   hasNextVideo?: boolean;
+  hasPreviousVideo?: boolean;
   onReport?: () => void;
   onProgress?: (seconds: number) => void;
 }
@@ -63,7 +70,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   onToggleTheaterMode,
   seekToTime,
   onNextVideo,
+  onPreviousVideo,
   hasNextVideo = false,
+  hasPreviousVideo = false,
   onReport,
   onProgress
 }) => {
@@ -125,6 +134,25 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
 
+  // YouTube Mobile Features State
+  const [isScreenLocked, setIsScreenLocked] = useState(false);
+  const [showUnlockPill, setShowUnlockPill] = useState(false);
+  const unlockPillTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isHolding2x, setIsHolding2x] = useState(false);
+  const [isAutoplay, setIsAutoplay] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('socialindia_autoplay') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const [videoFitMode, setVideoFitMode] = useState<'contain' | 'cover'>('contain');
+  const [isDraggingTimeline, setIsDraggingTimeline] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pointerStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const pointerMovedRef = useRef(false);
+  const isLongPressTriggeredRef = useRef(false);
+
   // Reset the player UI immediately when navigating to a different video.
   // This prevents the previous video's ready/playing state leaking into the next one.
   useEffect(() => {
@@ -134,6 +162,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     setCurrentTime(0);
     setDuration(video.duration || 0);
     setShowControls(true);
+    setIsScreenLocked(false);
+    setShowUnlockPill(false);
+    setIsHolding2x(false);
     hasAppliedSeekRef.current = false;
     setShowResumeBadge(false);
   }, [video.videoId, video.videoUrl]);
@@ -313,6 +344,44 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   };
 
   const handleTimelineMouseLeave = () => {
+    setIsTimelineHovered(false);
+    setHoverTime(null);
+  };
+
+  const handleTimelineTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    setIsDraggingTimeline(true);
+    handleTimelineTouchMove(e);
+  };
+
+  const handleTimelineTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!timelineRef.current || !duration) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const pos = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+    const targetTime = pos * duration;
+    setHoverPercent(pos * 100);
+    setHoverTime(targetTime);
+    setCurrentTime(targetTime);
+    setIsTimelineHovered(true);
+
+    if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.seekTo) {
+      try {
+        ytPlayerRef.current.seekTo(targetTime, true);
+        if (ytAmbientPlayerRef.current?.seekTo) {
+          ytAmbientPlayerRef.current.seekTo(targetTime, true);
+        }
+      } catch (_) {}
+    } else if (videoRef.current) {
+      videoRef.current.currentTime = targetTime;
+      if (ambientVideoRef.current) {
+        ambientVideoRef.current.currentTime = targetTime;
+      }
+    }
+  };
+
+  const handleTimelineTouchEnd = () => {
+    setIsDraggingTimeline(false);
     setIsTimelineHovered(false);
     setHoverTime(null);
   };
@@ -906,10 +975,40 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [duration, currentTime, isPlaying, isMuted, volume]);
 
-  // Handle pointer down (both mouse double-click and mobile touch double-tap)
+  // Handle pointer down (both mouse double-click and mobile touch double-tap, plus YouTube 2x speed long-press)
   const handleShieldPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     // Only primary click/touch
     if (e.button !== 0) return;
+
+    if (isScreenLocked) {
+      setShowUnlockPill(true);
+      if (unlockPillTimerRef.current) clearTimeout(unlockPillTimerRef.current);
+      unlockPillTimerRef.current = setTimeout(() => setShowUnlockPill(false), 3000);
+      return;
+    }
+
+    pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
+    pointerMovedRef.current = false;
+    isLongPressTriggeredRef.current = false;
+
+    // Start 2x speed long-press timer if media is playing
+    if (isPlaying) {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = setTimeout(() => {
+        if (!pointerMovedRef.current) {
+          isLongPressTriggeredRef.current = true;
+          setIsHolding2x(true);
+          if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.setPlaybackRate) {
+            try { ytPlayerRef.current.setPlaybackRate(2); } catch (_) {}
+          } else if (videoRef.current) {
+            videoRef.current.playbackRate = 2;
+          }
+          if (navigator.vibrate) {
+            try { navigator.vibrate(20); } catch (_) {}
+          }
+        }
+      }, 400);
+    }
 
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -917,8 +1016,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     const width = rect.width;
 
     let side: 'left' | 'right' | 'center' = 'center';
-    if (relativeX < width * 0.4) side = 'left';
-    else if (relativeX > width * 0.6) side = 'right';
+    if (relativeX < width * 0.35) side = 'left';
+    else if (relativeX > width * 0.65) side = 'right';
 
     const now = Date.now();
     const isDouble =
@@ -928,6 +1027,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         (side === 'left' || side === 'right'));
 
     if (isDouble && (side === 'left' || side === 'right')) {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
       if (singleClickTimeoutRef.current) {
         clearTimeout(singleClickTimeoutRef.current);
         singleClickTimeoutRef.current = null;
@@ -949,6 +1049,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       }
       const isTouch = e.pointerType === 'touch';
       singleClickTimeoutRef.current = setTimeout(() => {
+        if (isLongPressTriggeredRef.current) return;
         if (isTouch) {
           // On mobile touch: tap toggles controls visibility like YouTube mobile
           setShowControls(prev => {
@@ -963,6 +1064,33 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         }
         singleClickTimeoutRef.current = null;
       }, 240);
+    }
+  };
+
+  const handleShieldPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const dx = Math.abs(e.clientX - pointerStartPosRef.current.x);
+    const dy = Math.abs(e.clientY - pointerStartPosRef.current.y);
+    if (dx > 12 || dy > 12) {
+      pointerMovedRef.current = true;
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    }
+  };
+
+  const handleShieldPointerUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+    if (isLongPressTriggeredRef.current) {
+      // Restore playback rate
+      if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.setPlaybackRate) {
+        try { ytPlayerRef.current.setPlaybackRate(playbackSpeed); } catch (_) {}
+      } else if (videoRef.current) {
+        videoRef.current.playbackRate = playbackSpeed;
+      }
+      setIsHolding2x(false);
+      isLongPressTriggeredRef.current = false;
     }
   };
 
@@ -1187,16 +1315,23 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 return;
               }
               setIsPlaying(false);
-              if (onEnded) onEnded();
+              if (onEnded) {
+                onEnded();
+              } else if (isAutoplay && hasNextVideo && onNextVideo) {
+                onNextVideo();
+              }
             }}
-            className="w-full h-full object-contain"
+            className={`w-full h-full ${videoFitMode === 'cover' ? 'object-cover' : 'object-contain'}`}
           />
         )}
       </div>
 
-      {/* INVISIBLE CLICK SHIELD (Single-tap play/pause, Double-click / Double-tap 10s seek) */}
+      {/* INVISIBLE CLICK SHIELD (Single-tap play/pause, Double-click / Double-tap 10s seek, Long-press 2x speed) */}
       <div 
         onPointerDown={handleShieldPointerDown}
+        onPointerMove={handleShieldPointerMove}
+        onPointerUp={handleShieldPointerUp}
+        onPointerCancel={handleShieldPointerUp}
         className="absolute inset-0 z-20 cursor-pointer"
       />
 
@@ -1245,22 +1380,80 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         )}
       </AnimatePresence>
 
-      {/* TOP HEADER OVERLAY WITH MOTION (Title, Creator Avatar, Watch Later, Share & 3-Dots) */}
+      {/* 2X SPEED LONG PRESS BADGE (YouTube Mobile signature) */}
       <AnimatePresence>
-        {(showControls || !isPlaying) && isMediaReady && (
+        {isHolding2x && (
+          <motion.div
+            initial={{ opacity: 0, y: -12, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.9 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-4 inset-x-0 mx-auto w-max z-40 bg-black/85 backdrop-blur-md text-white text-xs font-black px-4 py-1.5 rounded-full flex items-center gap-1.5 border border-white/20 shadow-2xl pointer-events-none select-none"
+          >
+            <span>2X Speed</span>
+            <ChevronsRight className="w-4 h-4 text-blue-400 animate-pulse" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SCREEN LOCKED UNLOCK PILL (YouTube Mobile signature) */}
+      <AnimatePresence>
+        {isScreenLocked && showUnlockPill && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.9 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-6 inset-x-0 mx-auto w-max z-45"
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsScreenLocked(false);
+                setShowUnlockPill(false);
+              }}
+              className="px-4 py-2 bg-black/90 hover:bg-black text-white text-xs font-extrabold rounded-full border border-white/20 backdrop-blur-md flex items-center gap-2 shadow-2xl active:scale-95 transition-transform cursor-pointer"
+            >
+              <Unlock className="w-4 h-4 text-blue-400" />
+              <span>{isHindi ? 'स्क्रीन अनलॉक करें' : 'Tap to unlock'}</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* TOP HEADER OVERLAY WITH MOTION (YouTube Mobile App style: Minimize/Back, Title, Autoplay, CC, Settings) */}
+      <AnimatePresence>
+        {(showControls || !isPlaying) && isMediaReady && !isScreenLocked && (
           <motion.div 
             initial={{ opacity: 0, y: -24 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -24 }}
             transition={{ duration: 0.25, ease: 'easeInOut' }}
-            className={`absolute top-0 inset-x-0 z-30 p-3 sm:p-4 ${
+            className={`absolute top-0 inset-x-0 z-30 p-2.5 sm:p-4 ${
               isAmbientMode 
-                ? 'bg-gradient-to-b from-black/50 via-black/20 to-transparent backdrop-blur-[2px]' 
+                ? 'bg-gradient-to-b from-black/60 via-black/30 to-transparent backdrop-blur-[2px]' 
                 : 'bg-gradient-to-b from-black/90 via-black/40 to-transparent'
             } pointer-events-auto flex items-center justify-between transition-colors duration-300`}
           >
-            {/* Left: Channel Avatar & Title */}
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            {/* Left: Minimize / Back Arrow + Video Details */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.history.length > 1) {
+                    window.history.back();
+                  } else {
+                    navigate('home');
+                  }
+                }}
+                className="p-1 sm:p-1.5 text-white hover:bg-white/20 rounded-full transition-colors cursor-pointer shrink-0"
+                title={isHindi ? "पीछे जाएं / मिनिमाइज़" : "Back / Minimize"}
+              >
+                <ChevronDown className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+              </button>
+
               <UserAvatar 
                 uid={video.creatorId}
                 fallbackPhotoURL={video.creatorPhotoURL}
@@ -1270,10 +1463,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   e.stopPropagation();
                   navigate('creator', video.creatorUsername);
                 }}
-                className="w-8 h-8 sm:w-9 sm:h-9 cursor-pointer border border-white/20 shadow-xs hover:scale-105 transition-transform shrink-0 text-xs"
+                className="hidden sm:flex w-8 h-8 cursor-pointer border border-white/20 shadow-xs hover:scale-105 transition-transform shrink-0 text-xs"
               />
               <div className="min-w-0">
-                <h3 className="text-xs sm:text-sm font-extrabold text-white truncate max-w-[200px] sm:max-w-md drop-shadow-md">
+                <h3 className="text-xs sm:text-sm font-extrabold text-white truncate max-w-[170px] sm:max-w-md drop-shadow-md">
                   {video.title}
                 </h3>
                 <p 
@@ -1288,77 +1481,148 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               </div>
             </div>
 
-            {/* Right: Watch Later, Share, and 3-Dots Menu */}
-            <div className="flex items-center gap-1 sm:gap-2 shrink-0 relative">
+            {/* Right: Autoplay Toggle, Captions CC & Settings */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 relative">
+              {/* YouTube Autoplay Toggle Button */}
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsSavedWatchLater(!isSavedWatchLater);
+                  setIsAutoplay(prev => {
+                    const next = !prev;
+                    try { localStorage.setItem('socialindia_autoplay', String(next)); } catch {}
+                    return next;
+                  });
                 }}
-                className="p-2 text-white hover:bg-white/20 rounded-full transition-colors cursor-pointer"
-                title={isSavedWatchLater ? "Saved to Watch Later" : "Watch Later"}
+                className="p-1 hover:bg-white/10 rounded-full cursor-pointer transition-transform active:scale-95"
+                title={isAutoplay ? (isHindi ? "ऑटो-प्ले चालू है" : "Auto-play is ON") : (isHindi ? "ऑटो-प्ले बंद है" : "Auto-play is OFF")}
               >
-                <Clock className={`w-4 h-4 ${isSavedWatchLater ? 'text-blue-400 fill-blue-400/40' : 'text-white'}`} />
+                <div className={`w-7 h-4 rounded-full p-0.5 transition-colors flex items-center ${isAutoplay ? 'bg-blue-600' : 'bg-white/30'}`}>
+                  <div className={`w-3 h-3 rounded-full bg-white transition-transform flex items-center justify-center shadow-xs ${isAutoplay ? 'translate-x-3' : 'translate-x-0'}`}>
+                    <Play className="w-1.5 h-1.5 fill-current text-blue-600" />
+                  </div>
+                </div>
               </button>
 
+              {/* Subtitles / CC Badge */}
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (navigator.share) {
-                    navigator.share({ title: video.title, url: window.location.href }).catch(() => {});
-                  } else {
-                    navigator.clipboard.writeText(window.location.href);
-                  }
+                  setIsCaptionsOn(!isCaptionsOn);
                 }}
-                className="p-2 text-white hover:bg-white/20 rounded-full transition-colors cursor-pointer"
-                title="Share"
+                className={`px-1.5 py-0.5 rounded text-[10px] font-black border transition-all cursor-pointer ${
+                  isCaptionsOn 
+                    ? 'bg-white text-black border-white shadow-xs' 
+                    : 'border-white/50 text-white/80 hover:border-white hover:text-white'
+                }`}
+                title="Subtitles / CC"
               >
-                <Share2 className="w-4 h-4 text-white" />
+                CC
               </button>
 
+              {/* Settings (Gear) */}
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setPlayerMenuAnchor('top');
                   setShowPlayerMenu(!showPlayerMenu);
                   setPlayerSubMenu('main');
                 }}
-                className="p-2 text-white hover:bg-white/20 rounded-full transition-colors cursor-pointer"
-                title="Playback Settings & More"
+                className="p-1.5 sm:p-2 text-white hover:bg-white/20 rounded-full transition-colors cursor-pointer"
+                title="Playback Settings"
               >
-                <MoreVertical className="w-4 h-4 text-white" />
+                <Settings className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* CENTER PLAY/PAUSE BUTTON WITH MOTION */}
+      {/* CENTER CONTROLS TRIO (YouTube Mobile App Style: Previous/Rewind 10s, Big Center Play/Pause, Next/Skip 10s) */}
       <AnimatePresence>
-        {(showControls || !isPlaying) && isMediaReady && !isBuffering && (
+        {(showControls || !isPlaying) && isMediaReady && !isBuffering && !isScreenLocked && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.75 }}
+            initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.75 }}
+            exit={{ opacity: 0, scale: 0.8 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute inset-0 z-25 flex items-center justify-center pointer-events-none"
+            className="absolute inset-0 z-25 flex items-center justify-center gap-7 sm:gap-14 pointer-events-none"
           >
+            {/* Rewind 10s / Previous Video */}
             <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasPreviousVideo && onPreviousVideo) {
+                  onPreviousVideo();
+                } else {
+                  skipSeconds(-10);
+                  triggerFeedback('left', 10);
+                }
+              }}
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center border border-white/20 backdrop-blur-md shadow-lg active:scale-90 transition-transform cursor-pointer pointer-events-auto"
+              title={hasPreviousVideo ? "Previous Video" : "Rewind 10s"}
+            >
+              {hasPreviousVideo ? (
+                <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
+              ) : (
+                <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
+              )}
+            </button>
+
+            {/* Big Center Play / Pause Button */}
+            <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 togglePlay();
               }}
-              className="w-16 h-16 rounded-full bg-[#2563eb] text-white flex items-center justify-center shadow-2xl shadow-blue-600/40 border-2 border-white/20 backdrop-blur-md transition-transform hover:scale-110 active:scale-95 cursor-pointer pointer-events-auto"
+              className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center shadow-2xl border-2 border-white/30 backdrop-blur-md active:scale-95 transition-transform cursor-pointer pointer-events-auto"
+              title={isPlaying ? "Pause" : "Play"}
             >
               {isPlaying ? (
-                <Pause className="w-7 h-7 fill-current" />
+                <Pause className="w-6 h-6 sm:w-8 sm:h-8 fill-current" />
               ) : (
-                <Play className="w-7 h-7 fill-current ml-1" />
+                <Play className="w-6 h-6 sm:w-8 sm:h-8 fill-current ml-0.5 sm:ml-1" />
+              )}
+            </button>
+
+            {/* Fast Forward 10s / Next Video */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasNextVideo && onNextVideo) {
+                  onNextVideo();
+                } else {
+                  skipSeconds(10);
+                  triggerFeedback('right', 10);
+                }
+              }}
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center border border-white/20 backdrop-blur-md shadow-lg active:scale-90 transition-transform cursor-pointer pointer-events-auto"
+              title={hasNextVideo ? "Next Video" : "Skip 10s"}
+            >
+              {hasNextVideo ? (
+                <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
+              ) : (
+                <RotateCw className="w-5 h-5 sm:w-6 sm:h-6" />
               )}
             </button>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* THIN SCRUBBER LINE ON BOTTOM (YouTube Mobile signature when controls are hidden) */}
+      {!showControls && isPlaying && !isLiveStream && !isScreenLocked && (
+        <div className="absolute bottom-0 inset-x-0 h-[2.5px] bg-white/25 z-20 pointer-events-none">
+          <div 
+            className="h-full bg-[#2563eb] transition-all"
+            style={{ width: `${Math.min(100, Math.max(0, (currentTime / (duration || 1)) * 100))}%` }}
+          />
+        </div>
+      )}
 
       {/* BOTTOM CONTROLS & TIMELINE BAR WITH MOTION */}
       <AnimatePresence>
@@ -1376,16 +1640,19 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           >
             {!isLiveStream && (
             <>
-            {/* Custom Interactive Timeline (Electric Blue Played Track + Hover Preview Tooltip) */}
+            {/* Custom Interactive Timeline (Electric Blue Played Track + Touch Scrubbing + Hover Preview Tooltip) */}
             <div 
               ref={timelineRef}
               onClick={handleTimelineSeekClick}
               onMouseMove={handleTimelineMouseMove}
               onMouseLeave={handleTimelineMouseLeave}
-              className="relative w-full h-4 flex items-center group/timeline cursor-pointer"
+              onTouchStart={handleTimelineTouchStart}
+              onTouchMove={handleTimelineTouchMove}
+              onTouchEnd={handleTimelineTouchEnd}
+              className="relative w-full h-5 py-2 -my-2 flex items-center group/timeline cursor-pointer touch-none"
             >
-              {/* Tooltip on hover */}
-              {isTimelineHovered && hoverTime !== null && (
+              {/* Tooltip on hover/drag */}
+              {(isTimelineHovered || isDraggingTimeline) && hoverTime !== null && (
                 <div 
                   className="absolute bottom-6 -translate-x-1/2 px-2 py-0.5 bg-black/90 text-white text-[10px] font-bold rounded-md shadow-lg pointer-events-none whitespace-nowrap border border-white/10"
                   style={{ left: `${hoverPercent}%` }}
@@ -1410,7 +1677,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
               {/* Scrubber Handle Dot (Electric Blue with White Rim) */}
               <div 
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#2563eb] border-2 border-white shadow-md pointer-events-none transition-transform scale-0 group-hover/timeline:scale-100"
+                className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#2563eb] border-2 border-white shadow-md pointer-events-none transition-transform ${
+                  isTimelineHovered || isDraggingTimeline ? 'scale-100' : 'scale-0 group-hover/timeline:scale-100'
+                }`}
                 style={{ left: `${Math.min(100, Math.max(0, (currentTime / (duration || 1)) * 100))}%` }}
               />
             </div>
@@ -1420,15 +1689,16 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             {/* Controls Bar */}
             <div className="flex items-center justify-between text-white text-xs">
               <div className="flex items-center gap-2 sm:gap-3">
-                {/* Play/Pause Button */}
+                {/* Play/Pause Button - Desktop */}
                 <button
                   onClick={togglePlay}
-                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                  className="hidden sm:flex p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                  title={isPlaying ? "Pause" : "Play"}
                 >
                   {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
                 </button>
 
-                {/* Next Video Button (Skips to next video in playlist queue, or seeks +10s) */}
+                {/* Next Video Button - Desktop */}
                 <button
                   onClick={() => {
                     if (hasNextVideo && onNextVideo) {
@@ -1437,14 +1707,14 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                       skipSeconds(10);
                     }
                   }}
-                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                  className="hidden sm:flex p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
                   title={hasNextVideo ? "Next Video in Playlist (Shift+N)" : "Skip 10s"}
                 >
                   <SkipForward className="w-4 h-4 fill-current" />
                 </button>
 
-                {/* Volume Slider */}
-                <div className="flex items-center gap-1.5 group/vol">
+                {/* Volume Slider - Desktop */}
+                <div className="hidden sm:flex items-center gap-1.5 group/vol">
                   <button
                     onClick={toggleMute}
                     className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
@@ -1458,7 +1728,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     step={0.05}
                     value={isMuted ? 0 : volume}
                     onChange={handleVolumeChange}
-                    className="hidden sm:block w-14 sm:w-16 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-[#2563eb]"
+                    className="w-14 sm:w-16 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-[#2563eb]"
                   />
                 </div>
 
@@ -1490,12 +1760,22 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 )}
               </div>
 
-              {/* Right Side: CC, Settings (with HD Badge), Theater, Fullscreen */}
+              {/* Right Side: Zoom to Fill, CC, Ambient, Settings, Theater, Fullscreen */}
               <div className="flex items-center gap-1.5 sm:gap-2 relative">
+                {/* Fit / Fill Screen Toggle (Zoom to fill - YouTube mobile signature) */}
+                <button
+                  type="button"
+                  onClick={() => setVideoFitMode(prev => prev === 'contain' ? 'cover' : 'contain')}
+                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                  title={videoFitMode === 'cover' ? (isHindi ? "स्क्रीन में फिट करें" : "Original ratio") : (isHindi ? "स्क्रीन भरें" : "Zoom to fill")}
+                >
+                  {videoFitMode === 'cover' ? <Minimize className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                </button>
+
                 {/* Closed Captions CC Badge */}
                 <button
                   onClick={() => setIsCaptionsOn(!isCaptionsOn)}
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold border transition-colors cursor-pointer ${
+                  className={`hidden sm:block px-1.5 py-0.5 rounded text-[10px] font-extrabold border transition-colors cursor-pointer ${
                     isCaptionsOn 
                       ? 'bg-white text-black border-white shadow-xs' 
                       : 'border-white/50 text-white/80 hover:border-white hover:text-white'
@@ -1505,7 +1785,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   CC
                 </button>
 
-                {/* Ambient Mode Quick Toggle (Enhanced YouTube Ambient Light) - Desktop only, on mobile it is in Settings menu */}
+                {/* Ambient Mode Quick Toggle (Enhanced YouTube Ambient Light) - Desktop only */}
                 <button
                   onClick={toggleAmbientMode}
                   className={`hidden sm:flex p-1.5 rounded-lg transition-colors cursor-pointer items-center justify-center ${
@@ -1592,23 +1872,26 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 8 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              className={`absolute z-50 bg-[#18181c]/95 backdrop-blur-md border border-white/20 text-white select-none text-xs shadow-2xl overflow-y-auto max-h-[85%] ${
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className={`absolute z-50 bg-[#16161b]/98 backdrop-blur-xl border border-white/20 text-white select-none text-xs shadow-2xl overflow-y-auto max-h-[85%] ${
                 isFullscreen
-                  ? 'bottom-14 right-4 w-60 rounded-2xl p-2.5'
-                  : 'inset-x-2 bottom-2 sm:inset-auto sm:w-60 sm:rounded-2xl rounded-2xl p-2.5 ' +
+                  ? 'bottom-14 right-4 w-64 rounded-2xl p-3'
+                  : 'inset-x-0 bottom-0 rounded-t-3xl sm:rounded-2xl sm:inset-auto sm:w-64 p-3.5 sm:p-2.5 ' +
                     (playerMenuAnchor === 'top' ? 'sm:top-12 sm:right-3 sm:bottom-auto' : 'sm:bottom-12 sm:right-3 sm:top-auto')
               }`}
             >
+              {/* YouTube Mobile Bottom Sheet Drag Handle */}
+              <div className="w-10 h-1 bg-white/25 rounded-full mx-auto mb-2.5 sm:hidden" />
+
               {playerSubMenu === 'main' && (
                 <div className="space-y-0.5">
                   {/* Compact Header */}
                   <div className="flex items-center justify-between pb-1.5 px-1 border-b border-white/10 mb-1">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">
-                      {isHindi ? 'वीडियो विकल्प' : 'Video Options'}
+                      {isHindi ? 'प्लेबैक विकल्प' : 'Playback Options'}
                     </span>
                     <button
                       onClick={() => setShowPlayerMenu(false)}
@@ -1646,6 +1929,23 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     <div className="flex items-center gap-1 text-[11px] text-slate-400">
                       <span>{playbackSpeed === 1 ? (isHindi ? 'सामान्य' : 'Normal') : `${playbackSpeed}x`}</span>
                       <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+                    </div>
+                  </button>
+
+                  {/* 3. Lock Screen (YouTube Mobile Signature Feature) */}
+                  <button
+                    onClick={() => {
+                      setIsScreenLocked(true);
+                      setShowPlayerMenu(false);
+                      setShowUnlockPill(true);
+                      if (unlockPillTimerRef.current) clearTimeout(unlockPillTimerRef.current);
+                      unlockPillTimerRef.current = setTimeout(() => setShowUnlockPill(false), 3000);
+                    }}
+                    className="w-full py-2 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Lock className="w-4 h-4 text-blue-400" />
+                      <span className="text-xs font-semibold">{isHindi ? 'स्क्रीन लॉक करें' : 'Lock screen'}</span>
                     </div>
                   </button>
 
