@@ -322,7 +322,7 @@ export const translations: Record<LanguageCode, Translations> = {
   en: {
     // Navigation & Shell
     nav_home: 'Home',
-    nav_shorts: 'Shorts',
+    nav_shorts: 'Clips',
     nav_subscriptions: 'Subscriptions',
     nav_history: 'History',
     nav_saved: 'Saved',
@@ -348,7 +348,7 @@ export const translations: Record<LanguageCode, Translations> = {
     voice_search: 'Search with voice',
     create_video: 'Create',
     upload_video_btn: 'Upload Video',
-    sign_in: 'Sign In',
+    sign_in: 'Login',
     sign_out: 'Sign Out',
     notifications: 'Notifications',
     no_notifications: 'No notifications yet',
@@ -576,7 +576,7 @@ export const translations: Record<LanguageCode, Translations> = {
     auth_terms_agree: 'I agree to the',
     auth_terms_link: 'Terms of Service',
     auth_privacy_link: 'Privacy Policy',
-    auth_sign_in_btn: 'Sign In',
+    auth_sign_in_btn: 'Log in',
     auth_create_account_btn: 'Create Account',
     auth_no_account: "Don't have an account?",
     auth_have_account: 'Already have an account?',
@@ -637,7 +637,7 @@ export const translations: Record<LanguageCode, Translations> = {
   hi: {
     // Navigation & Shell (नेविगेशन और शैल)
     nav_home: 'होम',
-    nav_shorts: 'शॉर्ट्स',
+    nav_shorts: 'क्लिप्स',
     nav_subscriptions: 'सब्सक्रिप्शन',
     nav_history: 'इतिहास',
     nav_saved: 'सहेजे गए',
@@ -663,7 +663,7 @@ export const translations: Record<LanguageCode, Translations> = {
     voice_search: 'आवाज़ से खोजें',
     create_video: 'बनाएं',
     upload_video_btn: 'वीडियो अपलोड करें',
-    sign_in: 'साइन इन करें',
+    sign_in: 'लॉग इन करें',
     sign_out: 'साइन आउट',
     notifications: 'सूचनाएं',
     no_notifications: 'अभी कोई सूचना नहीं है',
@@ -891,7 +891,7 @@ export const translations: Record<LanguageCode, Translations> = {
     auth_terms_agree: 'मैं सहमत हूँ',
     auth_terms_link: 'सेवा की शर्तें',
     auth_privacy_link: 'गोपनीयता नीति',
-    auth_sign_in_btn: 'साइन इन करें',
+    auth_sign_in_btn: 'लॉग इन करें',
     auth_create_account_btn: 'खाता बनाएं',
     auth_no_account: 'खाता नहीं है?',
     auth_have_account: 'पहले से खाता है?',
