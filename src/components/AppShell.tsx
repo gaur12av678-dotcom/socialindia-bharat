@@ -1375,7 +1375,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <button
               key={item.path}
               type="button"
-              onClick={() => navigate(item.path)}
+              onClick={() => ['subscriptions', 'chat'].includes(item.path)
+                ? triggerProtectedAction(() => navigate(item.path))
+                : navigate(item.path)}
               aria-current={active ? 'page' : undefined}
               className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${active
                 ? 'bg-blue-600 text-white shadow-sm'
