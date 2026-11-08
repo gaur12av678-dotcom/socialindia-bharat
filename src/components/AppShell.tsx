@@ -95,7 +95,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [switchingUid, setSwitchingUid] = useState<string | null>(null);
   
   const { route, navigate } = useRouter();
-  const isShortsPage = route.path === 'shorts';
+  const isShortsPage = route.path === 'shorts' || route.path === 'clips';
   const isWatchPage = route.path === 'watch';
 
   // Mobile bottom bar & tools hidden on:
@@ -348,7 +348,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const menuItems = [
     { label: t('nav_home', 'Home'), path: 'home', icon: Home },
-    { label: t('nav_shorts', 'Shorts'), path: 'shorts', icon: Zap },
+    { label: t('nav_shorts', 'Clips'), path: 'shorts', icon: Zap },
     { label: t('nav_trending', 'Trending'), path: 'trending', icon: TrendingUp },
     { label: t('nav_chat', 'Direct Messages'), path: 'chat', icon: MessageSquare, protected: true },
     { label: t('nav_downloads', 'Downloads'), path: 'downloads', icon: ArrowDownToLine },
@@ -1349,7 +1349,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 onClick={() => navigate('login')}
                 className="px-4 sm:px-6 py-1.5 sm:py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-xs sm:text-base rounded-full shadow-md transition-all cursor-pointer active:scale-95 shrink-0"
               >
-                {t('sign_in', 'Sign In')}
+                {t('sign_in', 'Login')}
               </button>
             </div>
           )}
@@ -1373,8 +1373,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         <aside 
           className={
             isWatchPage
-              ? `fixed top-0 bottom-0 left-0 w-64 bg-white/98 dark:bg-[#0e0f12]/98 border-r border-slate-200 dark:border-slate-800 z-50 transition-transform duration-200 select-none shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
-              : `hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`
+              ? `socialindia-desktop-sidebar fixed top-0 bottom-0 left-0 w-64 bg-white/98 dark:bg-[#0e0f12]/98 border-r border-slate-200 dark:border-slate-800 z-50 transition-transform duration-200 select-none shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+              : `socialindia-desktop-sidebar hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`
           }
         >
           <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto px-3.5 py-4 space-y-5 scrollbar-none">
@@ -1402,7 +1402,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
               {/* Shorts */}
               <button
-                onClick={() => navigate('shorts')}
+                onClick={() => navigate('clips')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'shorts'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
