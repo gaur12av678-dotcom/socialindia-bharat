@@ -625,7 +625,7 @@ export const Shorts: React.FC = () => {
   useEffect(() => {
     if (activeShort?.title) {
       const creatorPart = activeShort.creatorDisplayName ? ` - ${activeShort.creatorDisplayName}` : '';
-      document.title = `${activeShort.title}${creatorPart} | Shorts - SocialIndia`;
+      document.title = `${activeShort.title}${creatorPart} | Clips - SocialIndia`;
     }
     return () => {
       document.title = 'SocialIndia';
