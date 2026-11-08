@@ -248,7 +248,7 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).tex
 html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visible):is(
   [class*="bg-white"],[class*="bg-slate-50"],[class*="bg-slate-100"],
   [class*="bg-gray-50"],[class*="bg-gray-100"],[class*="bg-zinc-50"],
-  [class*="bg-zinc-100"],[class*="bg-transparent"],
+  [class*="bg-zinc-100"],[class*="bg-transparent"]
 ) {
   background-color: #eff6ff !important;
   border-color: #bfdbfe !important;
