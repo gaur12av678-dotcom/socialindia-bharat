@@ -95,7 +95,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [switchingUid, setSwitchingUid] = useState<string | null>(null);
   
   const { route, navigate } = useRouter();
-  const isShortsPage = (route.path === 'shorts' || route.path === 'clips') || route.path === 'clips';
+  const isShortsPage = route.path === 'shorts' || route.path === 'clips';
   const isWatchPage = route.path === 'watch';
 
   // Mobile bottom bar & tools hidden on:
@@ -604,7 +604,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <button
                     type="button"
                     onClick={() => setSidebarOpen(prev => !prev)}
-                    className="hidden md:flex p-2 -ml-1 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer items-center justify-center shrink-0 active:scale-95"
+                    className="si-sidebar-toggle hidden md:flex p-2 -ml-1 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer items-center justify-center shrink-0 active:scale-95"
                     aria-label={sidebarOpen ? (isHindi ? 'मेनू बंद करें' : 'Close Menu') : (isHindi ? 'मेनू खोलें' : 'Open Menu')}
                     title={isHindi ? 'मेनू' : 'Menu'}
                   >
@@ -1358,6 +1358,35 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             )}
       </header>
 
+      </header>
+
+      {/* Independent desktop navigation — no left rail */}
+      <nav className="si-top-nav hidden md:flex items-center justify-center gap-2 px-4 py-2.5 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-[#101722]/95 sticky top-16 z-30">
+        {[
+          { label: t('nav_home', 'Home'), path: 'home' },
+          { label: t('nav_shorts', 'Clips'), path: 'clips' },
+          { label: t('nav_trending', 'Discover'), path: 'trending' },
+          { label: t('nav_subscriptions', 'Following'), path: 'subscriptions' },
+          { label: t('nav_chat', 'Messages'), path: 'chat' },
+          { label: isHindi ? 'समुदाय' : 'Community', path: 'community' }
+        ].map(item => {
+          const active = route.path === item.path || (item.path === 'clips' && isShortsPage);
+          return (
+            <button
+              key={item.path}
+              type="button"
+              onClick={() => navigate(item.path)}
+              aria-current={active ? 'page' : undefined}
+              className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-colors ${active
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
+
       {/* MAIN LAYOUT */}
       <div className="flex flex-1 relative">
         
@@ -1643,7 +1672,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <Zap className={`h-[21px] w-[21px] transition-transform duration-200 ${
               isShortsPage ? 'fill-current text-white' : 'text-amber-500'
             }`} />
-            <span className="text-[11px] font-semibold leading-none">{t('nav_shorts', 'Shorts')}</span>
+            <span className="text-[11px] font-semibold leading-none">{t('nav_shorts', 'Clips')}</span>
           </button>
 
           <button
