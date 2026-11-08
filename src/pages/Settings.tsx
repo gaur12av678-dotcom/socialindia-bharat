@@ -625,7 +625,7 @@ export const Settings: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4.5rem)] bg-[#F1F4F9] dark:bg-[#0B1120] text-[#0F172A] dark:text-[#F8FAFC] p-4 sm:p-6 md:p-8 font-sans antialiased transition-colors">
+    <div className="si-settings-redesign min-h-[calc(100vh-4.5rem)] bg-[#F1F4F9] dark:bg-[#0B1120] text-[#0F172A] dark:text-[#F8FAFC] p-4 sm:p-6 md:p-8 font-sans antialiased transition-colors">
       
       {/* Hidden File Inputs */}
       <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarFileSelect} />
