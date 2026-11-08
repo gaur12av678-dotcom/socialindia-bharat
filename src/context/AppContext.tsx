@@ -45,7 +45,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(() => {
     try {
       const cached = localStorage.getItem('socialindia_cached_profile');
-      return cached ? JSON.parse(cached) : null;
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      // Never restore an unverified profile from cache
+      if (parsed?.email && !parsed.email.endsWith('@socialindia.com') && !parsed.emailVerified) {
+        localStorage.removeItem('socialindia_cached_profile');
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -249,9 +256,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     const unsubscribe = authService.onAuthStateChanged(async (user) => {
+      // If registration is actively creating and saving profile documents, do not interfere
+      if (authService.isRegistrationInProgress()) {
+        return;
+      }
+
       setLoading(true);
-      setCurrentUser(user);
       if (user) {
+        try {
+          await user.reload();
+        } catch {}
+
+        const isRealEmail = user.email && !user.email.endsWith('@socialindia.com');
+        if (isRealEmail && !user.emailVerified) {
+          console.warn('Unverified user session detected. Signing out:', user.email);
+          await authService.logout();
+          setCurrentUser(null);
+          setCurrentUserProfile(null);
+          localStorage.removeItem('socialindia_cached_profile');
+          accountService.removeAccount(user.uid);
+          setLoading(false);
+          return;
+        }
+
+        setCurrentUser(user);
         // Fetch fresh public profile from Firestore
         try {
           let profile = await userService.getUserProfile(user.uid, true);

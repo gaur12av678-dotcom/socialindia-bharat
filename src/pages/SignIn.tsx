@@ -103,6 +103,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
 
   // Verification states
   const [verificationTargetEmail, setVerificationTargetEmail] = useState('');
+  const [pendingVerifyPassword, setPendingVerifyPassword] = useState('');
   const [checkingVerification, setCheckingVerification] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -252,23 +253,25 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
       setLoading(true);
       try {
         const cleanIdentifier = identifier.trim().toLowerCase();
-        const { userProfile, emailVerified } = await authService.login(cleanIdentifier, password);
+        const { userProfile } = await authService.login(cleanIdentifier, password);
         accountService.saveAccount(userProfile, password, 'password');
         await refreshProfile();
-
-        const userEmail = userProfile.email || authService.getCurrentUserEmail() || '';
-        const isRealEmail = userEmail && !userEmail.endsWith('@socialindia.com');
-
-        if (isRealEmail && !emailVerified) {
+        addToast(isHindi ? 'सोशलइंडिया में पुनः स्वागत है!' : 'Welcome back to SocialIndia!', 'success');
+        navigate('home');
+      } catch (err: any) {
+        if (err.code === 'auth/email-not-verified') {
+          const userEmail = err.email || identifier.trim().toLowerCase();
           setVerificationTargetEmail(userEmail);
+          setPendingVerifyPassword(password);
           setMode('verify-email');
           setResendCooldown(30);
-          addToast(isHindi ? 'कृपया अपने ईमेल की पुष्टि करें।' : 'Please verify your email to unlock all features.', 'info');
-        } else {
-          addToast(isHindi ? 'सोशलइंडिया में पुनः स्वागत है!' : 'Welcome back to SocialIndia!', 'success');
-          navigate('home');
+          setServerError(
+            isHindi 
+              ? 'आपका खाता अभी सत्यापित नहीं है। हमने सत्यापन लिंक भेजा है। कृपया पहले लिंक पर क्लिक करके खाता सत्यापित करें।' 
+              : 'Your account is not verified yet. Please check your inbox and verify before signing in.'
+          );
+          return;
         }
-      } catch (err: any) {
         let msg = err.message || 'Authentication failed.';
         if (
           msg.includes('auth/invalid-credential') || 
@@ -321,10 +324,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
         const cleanUsername = username.trim().toLowerCase();
         const cleanDisplayName = displayName.trim() || cleanUsername;
 
-        const { userProfile } = await authService.register(cleanEmail, cleanUsername, cleanDisplayName, password);
-        accountService.saveAccount(userProfile, password, 'password');
-        await refreshProfile();
-
+        await authService.register(cleanEmail, cleanUsername, cleanDisplayName, password);
+        // CRITICAL: Do NOT save account or refreshProfile - user is unverified and signed out!
+        setPendingVerifyPassword(password);
         setVerificationTargetEmail(cleanEmail);
         setMode('verify-email');
         setResendCooldown(60);
@@ -426,16 +428,33 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
     setCheckingVerification(true);
     setServerError('');
     try {
-      const verified = await authService.checkEmailVerified();
-      if (verified) {
+      if (pendingVerifyPassword && verificationTargetEmail) {
+        // Attempt login with credentials
+        const { userProfile } = await authService.login(verificationTargetEmail, pendingVerifyPassword);
+        accountService.saveAccount(userProfile, pendingVerifyPassword, 'password');
         await refreshProfile();
         addToast(isHindi ? 'ईमेल सफलतापूर्वक सत्यापित हुआ! सोशलइंडिया में आपका स्वागत है।' : 'Email verified successfully! Welcome to SocialIndia.', 'success');
         navigate('home');
       } else {
-        setServerError(isHindi ? 'ईमेल अभी सत्यापित नहीं हुआ है। कृपया Gmail में जाकर लिंक पर क्लिक करें।' : 'Email not verified yet. Please check your Gmail Spam/Junk folder and click the link first.');
+        // Switch to login form with pre-filled identifier so user can enter password and sign in
+        setIdentifier(verificationTargetEmail);
+        setMode('login');
+        setServerError(
+          isHindi 
+            ? 'कृपया अपना पासवर्ड दर्ज करके साइन इन पूरा करें।' 
+            : 'Please enter your password to complete sign in.'
+        );
       }
     } catch (err: any) {
-      setServerError(err.message || 'Could not check verification status. Please try again.');
+      if (err.code === 'auth/email-not-verified') {
+        setServerError(
+          isHindi 
+            ? 'ईमेल अभी सत्यापित नहीं हुआ है। कृपया Gmail में जाकर सत्यापन लिंक पर क्लिक करें।' 
+            : 'Email not verified yet. Please check your Gmail (including Spam folder) and click the link first.'
+        );
+      } else {
+        setServerError(err.message || (isHindi ? 'सत्यापन स्थिति नहीं जांची जा सकी।' : 'Could not check verification status. Please try again.'));
+      }
     } finally {
       setCheckingVerification(false);
     }
@@ -447,11 +466,11 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
     setResendingEmail(true);
     setServerError('');
     try {
-      await authService.sendVerificationEmail();
+      await authService.resendVerificationEmail(verificationTargetEmail, pendingVerifyPassword);
       setResendCooldown(60);
       addToast(isHindi ? `सत्यापन ईमेल ${verificationTargetEmail} पर पुनः भेजा गया!` : `Verification email resent to ${verificationTargetEmail || 'your email'}!`, 'success');
     } catch (err: any) {
-      setServerError(err.message || 'Failed to resend email. Please try again in a few moments.');
+      setServerError(err.message || (isHindi ? 'ईमेल भेजने में विफल। कृपया पुनः प्रयास करें।' : 'Failed to resend email. Please try again in a few moments.'));
     } finally {
       setResendingEmail(false);
     }
@@ -460,6 +479,8 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
   // Cancel verification
   const handleCancelVerification = async () => {
     await authService.logout().catch(() => {});
+    setPendingVerifyPassword('');
+    setVerificationTargetEmail('');
     handleSwitchMode('login');
   };
 

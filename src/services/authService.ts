@@ -20,7 +20,14 @@ export function usernameToEmail(username: string): string {
   return `${username.trim().toLowerCase()}@socialindia.com`;
 }
 
+let registrationInProgress = false;
+
 export const authService = {
+  // Check if account registration is currently writing user documents
+  isRegistrationInProgress(): boolean {
+    return registrationInProgress;
+  },
+
   // Register a new user with real email verification
   async register(
     arg1: string, 
@@ -63,44 +70,72 @@ export const authService = {
       throw new Error("Username is already taken. Please choose another username.");
     }
 
-    // 1. Create firebase auth user
-    const credential = await createUserWithEmailAndPassword(auth, email, pass);
-    const uid = credential.user.uid;
-
-    // 2. Send real Firebase verification email
+    registrationInProgress = true;
     try {
-      await sendEmailVerification(credential.user);
-    } catch (e) {
-      console.warn("Could not send verification email automatically:", e);
+      // 1. Create firebase auth user
+      const credential = await createUserWithEmailAndPassword(auth, email, pass);
+      const uid = credential.user.uid;
+
+      // 2. Send real Firebase verification email
+      try {
+        await sendEmailVerification(credential.user);
+      } catch (e) {
+        console.warn("Could not send verification email automatically:", e);
+      }
+
+      // 3. Create the firestore public profile while authenticated
+      await userService.createUserProfile(uid, {
+        username: cleanUsername,
+        displayName: display || cleanUsername,
+        email: email,
+        emailVerified: false,
+        role: 'user',
+      });
+
+      // 4. Create default private info while authenticated
+      const privateInfo: PrivateUserInfo = {
+        email,
+        theme: 'system',
+        allowNotificationLikes: true,
+        allowNotificationComments: true,
+        allowNotificationFollowers: true,
+        allowNotificationUploads: true,
+      };
+      await userService.setPrivateInfo(uid, privateInfo);
+
+      // 5. Ensure official channel subscription while authenticated
+      try {
+        await userService.ensureDefaultSubscription(uid);
+      } catch (subErr) {
+        console.warn("Default subscription non-critical note:", subErr);
+      }
+
+      // 6. CRITICAL: Sign out immediately! Unverified accounts must NOT stay signed in.
+      await signOut(auth);
+
+      const profileData: User = {
+        uid,
+        username: cleanUsername,
+        displayName: display || cleanUsername,
+        email,
+        emailVerified: false,
+        role: 'user',
+        followersCount: 0,
+        followingCount: 0,
+        videosCount: 0,
+        points: 10,
+        walletBalance: 0,
+        status: 'active',
+        gender: 'Male',
+        country: 'India',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      return { userProfile: profileData, emailVerified: false };
+    } finally {
+      registrationInProgress = false;
     }
-
-    // 3. Create the firestore public profile
-    await userService.createUserProfile(uid, {
-      username: cleanUsername,
-      displayName: display || cleanUsername,
-      email: email,
-      emailVerified: credential.user.emailVerified,
-      role: 'user',
-    });
-
-    // 4. Create default private info
-    const privateInfo: PrivateUserInfo = {
-      email,
-      theme: 'system',
-      allowNotificationLikes: true,
-      allowNotificationComments: true,
-      allowNotificationFollowers: true,
-      allowNotificationUploads: true,
-    };
-    await userService.setPrivateInfo(uid, privateInfo);
-
-    const userProfile = await userService.getUserProfile(uid);
-    if (!userProfile) {
-      throw new Error("Failed to create user profile.");
-    }
-
-    await userService.ensureDefaultSubscription(uid);
-    return { userProfile, emailVerified: credential.user.emailVerified };
   },
 
   // Send verification email to currently signed in user
@@ -109,6 +144,23 @@ export const authService = {
       throw new Error("No user is currently signed in to verify.");
     }
     await sendEmailVerification(auth.currentUser);
+  },
+
+  // Resend verification email even when user is signed out
+  async resendVerificationEmail(email: string, password?: string): Promise<void> {
+    const cleanEmail = email.trim().toLowerCase();
+    if (auth.currentUser) {
+      await sendEmailVerification(auth.currentUser);
+      return;
+    }
+    if (password) {
+      const cred = await signInWithEmailAndPassword(auth, cleanEmail, password);
+      await sendEmailVerification(cred.user);
+      await signOut(auth);
+      return;
+    }
+    // If no password provided, send password reset link as verification fallback
+    await sendPasswordResetEmail(auth, cleanEmail);
   },
 
   // Check if current user has verified their email (reloads auth state)
@@ -175,6 +227,25 @@ export const authService = {
     const credential = await signInWithEmailAndPassword(auth, loginEmail, pass);
     const uid = credential.user.uid;
 
+    // Verify email requirement for real email accounts
+    const isRealEmail = credential.user.email && !credential.user.email.endsWith('@socialindia.com');
+    if (isRealEmail && !credential.user.emailVerified) {
+      try {
+        await credential.user.reload();
+      } catch {}
+
+      if (!credential.user.emailVerified) {
+        // CRITICAL: Unverified users must NOT be allowed to sign in!
+        await signOut(auth);
+        const err: any = new Error(
+          'Your account is not verified yet. Please check your email inbox (and Spam folder) to verify your account before signing in.'
+        );
+        err.code = 'auth/email-not-verified';
+        err.email = credential.user.email;
+        throw err;
+      }
+    }
+
     const userProfile = await userService.getUserProfile(uid);
     if (!userProfile) {
       throw new Error("User profile not found.");
@@ -187,7 +258,7 @@ export const authService = {
     }
 
     await userService.ensureDefaultSubscription(uid);
-    return { userProfile, emailVerified: credential.user.emailVerified };
+    return { userProfile, emailVerified: true };
   },
 
   // Log out

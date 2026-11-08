@@ -59,6 +59,11 @@ class AccountService {
   saveAccount(userProfile: User, password?: string, provider: 'password' | 'google' = 'password'): void {
     if (!userProfile || !userProfile.uid) return;
 
+    // CRITICAL: Unverified accounts must NEVER be saved to local saved accounts
+    if (userProfile.email && !userProfile.email.endsWith('@socialindia.com') && !userProfile.emailVerified) {
+      return;
+    }
+
     const accounts = this.getSavedAccounts();
     const existingIndex = accounts.findIndex((a) => a.uid === userProfile.uid);
 
@@ -100,6 +105,9 @@ class AccountService {
    */
   syncCurrentProfile(userProfile: User | null): void {
     if (!userProfile) return;
+    if (userProfile.email && !userProfile.email.endsWith('@socialindia.com') && !userProfile.emailVerified) {
+      return;
+    }
     this.saveAccount(userProfile);
   }
 

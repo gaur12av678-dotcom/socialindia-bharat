@@ -27,6 +27,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [pendingPassword, setPendingPassword] = useState('');
 
   if (!isOpen) return null;
 
@@ -70,33 +71,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setSubmitting(true);
     try {
       if (isLogin) {
-        const { userProfile, emailVerified } = await authService.login(cleanUsername, password);
+        const { userProfile } = await authService.login(cleanUsername, password);
         accountService.saveAccount(userProfile, password, 'password');
         await refreshProfile();
-        if (cleanUsername.includes('@') && !emailVerified) {
-          setIsVerifying(true);
-          setResendCooldown(30);
-          addToast(isHindi ? 'कृपया अपना ईमेल सत्यापित करें।' : 'Please verify your email address.', 'info');
-        } else {
-          addToast(isHindi ? 'सोशलइंडिया में आपका स्वागत है!' : 'Welcome back to SocialIndia!', 'success');
-          onClose();
-          if (onSuccess) onSuccess();
-        }
+        addToast(isHindi ? 'सोशलइंडिया में आपका स्वागत है!' : 'Welcome back to SocialIndia!', 'success');
+        onClose();
+        if (onSuccess) onSuccess();
       } else {
-        const { userProfile } = await authService.register(
+        await authService.register(
           email.trim().toLowerCase(), 
           cleanUsername, 
           displayName.trim() || cleanUsername, 
           password
         );
-        accountService.saveAccount(userProfile, password, 'password');
-        await refreshProfile();
+        // CRITICAL: Do NOT save account or refreshProfile - user is unverified and signed out!
+        setPendingPassword(password);
         setIsVerifying(true);
         setResendCooldown(60);
         addToast(isHindi ? `सत्यापन ईमेल ${email.trim()} पर भेजा गया!` : `Verification email sent to ${email.trim()}!`, 'success');
       }
     } catch (err: any) {
       console.error(err);
+      if (err.code === 'auth/email-not-verified') {
+        setPendingPassword(password);
+        setIsVerifying(true);
+        setResendCooldown(30);
+        setErrorMsg(
+          isHindi 
+            ? 'आपका खाता अभी सत्यापित नहीं है। कृपया अपने इनबॉक्स में जाकर लिंक पर क्लिक करें।' 
+            : 'Your account is not verified yet. Please check your inbox and verify before signing in.'
+        );
+        return;
+      }
       let friendlyError = err.message || 'Authentication failed.';
       if (friendlyError.includes('auth/invalid-credential') || friendlyError.includes('auth/wrong-password') || friendlyError.includes('auth/user-not-found')) {
         friendlyError = isHindi ? 'गलत ईमेल/यूज़रनेम या पासवर्ड।' : 'Incorrect email/username or password.';
@@ -132,7 +138,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
   const handleCheckVerified = async () => {
     setSubmitting(true);
+    setErrorMsg('');
     try {
+      const targetIdentifier = email.trim().toLowerCase() || username.trim().toLowerCase();
+      if (pendingPassword && targetIdentifier) {
+        const { userProfile } = await authService.login(targetIdentifier, pendingPassword);
+        accountService.saveAccount(userProfile, pendingPassword, 'password');
+        await refreshProfile();
+        addToast(isHindi ? 'ईमेल सफलतापूर्वक सत्यापित हुआ!' : '🎉 Email verified successfully! Welcome to SocialIndia.', 'success');
+        onClose();
+        if (onSuccess) onSuccess();
+        return;
+      }
       const verified = await authService.checkEmailVerified();
       if (verified) {
         await refreshProfile();
@@ -143,7 +160,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         setErrorMsg(isHindi ? 'ईमेल अभी सत्यापित नहीं हुआ है। कृपया लिंक पर क्लिक करें।' : 'Email not verified yet. Please click the verification link in your email first.');
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Could not verify email.');
+      if (err.code === 'auth/email-not-verified') {
+        setErrorMsg(isHindi ? 'ईमेल अभी सत्यापित नहीं हुआ है। कृपया Gmail में जाकर लिंक पर क्लिक करें।' : 'Email not verified yet. Please click the link in your email first.');
+      } else {
+        setErrorMsg(err.message || 'Could not verify email.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -152,7 +173,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const handleResend = async () => {
     if (resendCooldown > 0) return;
     try {
-      await authService.sendVerificationEmail();
+      const targetEmail = email.trim().toLowerCase() || username.trim().toLowerCase();
+      await authService.resendVerificationEmail(targetEmail, pendingPassword);
       setResendCooldown(60);
       addToast(isHindi ? 'सत्यापन ईमेल पुनः भेज दिया गया है।' : 'Verification email resent! Please check your inbox.', 'success');
     } catch (err: any) {

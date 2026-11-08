@@ -36,9 +36,7 @@ import {
   Info,
   Upload,
   UserCheck,
-  Crown,
   ChevronRight,
-  Megaphone,
   LayoutDashboard,
   Flame,
   Clock,
@@ -1127,24 +1125,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                             {t('menu_creator_studio', 'Creator Studio')}
                           </span>
                         </button>
-
-                        <button
-                          onClick={() => {
-                            setProfileDropdownOpen(false);
-                            navigate('gopro');
-                          }}
-                          className="w-full px-3 py-2 rounded-xl hover:bg-blue-50/70 dark:hover:bg-blue-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                        >
-                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-amber-500 group-hover:scale-110 transition-transform">
-                            <Crown className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors text-left">
-                            {isHindi ? 'गो प्रो पैकेज' : 'Go Pro Package'}
-                          </span>
-                          <span className="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] dark:text-[#60a5fa] border border-blue-200/60 dark:border-blue-800/60 shrink-0">
-                            ₹99/माह
-                          </span>
-                        </button>
                       </div>
 
                       {/* 3. Platform Group */}
@@ -1161,21 +1141,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                           </div>
                           <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
                             {isHindi ? 'भाषा: हिन्दी (सक्रिय)' : 'Language: English'}
-                          </span>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setProfileDropdownOpen(false);
-                            navigate('advertising');
-                          }}
-                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                        >
-                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
-                            <Megaphone className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
-                            {isHindi ? 'विज्ञापन (प्रचार करें)' : 'Advertising (Promote)'}
                           </span>
                         </button>
 

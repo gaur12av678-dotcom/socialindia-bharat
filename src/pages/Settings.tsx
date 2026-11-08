@@ -13,16 +13,12 @@ import {
   Image as ImageIcon,
   Shield, 
   Key, 
-  Smartphone, 
-  Monitor, 
-  Ban, 
   DollarSign, 
   CreditCard, 
   Wallet,
   Award, 
   ShieldCheck, 
   Info, 
-  ShoppingBag, 
   Trash2, 
   Check, 
   Loader2, 
@@ -34,16 +30,13 @@ import {
   Upload, 
   CheckCircle2, 
   Sparkles, 
-  ArrowRightLeft, 
   Gift,
   MessageSquare,
   ThumbsUp,
   ThumbsDown,
   Eye,
   Film,
-  Play,
-  HelpCircle,
-  Trophy
+  HelpCircle
 } from 'lucide-react';
 import { payoutService } from '../services/payoutService';
 import { WithdrawalRequest, Video } from '../types';
@@ -64,16 +57,12 @@ export const Settings: React.FC = () => {
     | 'avatar_cover'
     | 'privacy'
     | 'password'
-    | 'two_factor'
-    | 'sessions'
-    | 'blocked_users'
     | 'monetization'
     | 'balance'
     | 'wallet'
     | 'points'
     | 'verification'
     | 'my_info'
-    | 'purchases'
     | 'delete_account'
   >('general');
 
@@ -139,9 +128,6 @@ export const Settings: React.FC = () => {
   const [userTotalViews, setUserTotalViews] = useState(0);
   const [isRequestingMonetization, setIsRequestingMonetization] = useState(false);
   const [monetizationMsg, setMonetizationMsg] = useState('');
-
-  // Two Factor
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
 
   // In-line Status Messages
   const [saveMsg, setSaveMsg] = useState('');
@@ -594,9 +580,6 @@ export const Settings: React.FC = () => {
       category: isHindi ? 'सुरक्षा (Security)' : 'SECURITY',
       items: [
         { id: 'password', label: isHindi ? 'पासवर्ड बदलें' : 'Password', icon: Key },
-        { id: 'two_factor', label: isHindi ? '2-चरणीय प्रमाणीकरण' : 'Two-factor authentication', icon: Smartphone },
-        { id: 'sessions', label: isHindi ? 'लॉगिन सेशन्स' : 'Manage Sessions', icon: Monitor },
-        { id: 'blocked_users', label: isHindi ? 'ब्लॉक किए गए यूज़र्स' : 'Blocked Users', icon: Ban },
       ]
     },
     {
@@ -612,7 +595,6 @@ export const Settings: React.FC = () => {
       category: isHindi ? 'डेटा (Data)' : 'DATA',
       items: [
         { id: 'my_info', label: isHindi ? 'मेरी जानकारी' : 'My Information', icon: Info },
-        { id: 'purchases', label: isHindi ? 'मेरी खरीदारी' : 'My Purchases', icon: ShoppingBag },
         { id: 'delete_account', label: isHindi ? 'खाता हटाएं' : 'Delete account', icon: Trash2, isDanger: true },
       ]
     }
@@ -1529,43 +1511,6 @@ export const Settings: React.FC = () => {
                 </div>
               </div>
 
-              {/* 1.5 PROMINENT ACTIVE BANNER (Monetization Enabled - Start Earning) */}
-              {isChannelMonetized && (
-                <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 text-white shadow-lg space-y-4 animate-in fade-in">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-2">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-black tracking-wider uppercase">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
-                        <span>{isHindi ? 'पार्टनर प्रोग्राम एक्टिव' : 'Partner Program Active'}</span>
-                      </div>
-                      <h3 className="text-2xl sm:text-3xl font-black tracking-tight">
-                        {isHindi ? 'मोनेटाइजेशन चालू है - कमाई शुरू करें' : 'Monetization Enabled - Start Earning'}
-                      </h3>
-                      <p className="text-xs sm:text-sm text-white/90 max-w-xl font-medium leading-relaxed">
-                        {isHindi 
-                          ? 'एडमिन द्वारा आपके चैनल का मोनेटाइजेशन सक्रिय कर दिया गया है! अब आप पेड वीडियो, विज्ञापन और व्यूज से सीधे अपने वॉलेट में कमाई शुरू कर सकते हैं।' 
-                          : 'Your channel monetization has been approved and activated! You can now publish paid videos, earn from viewer watch time, and receive revenue directly in your Wallet.'}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 shrink-0">
-                      <button
-                        onClick={() => navigate('studio')}
-                        className="px-5 py-2.5 bg-white text-emerald-800 hover:bg-emerald-50 font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-                      >
-                        {isHindi ? 'क्रिएटर स्टूडियो खोलें' : 'Go to Creator Studio'}
-                      </button>
-                      <button
-                        onClick={() => navigate('upload')}
-                        className="px-4 py-2.5 bg-emerald-700/90 hover:bg-emerald-800 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-xs transition-all active:scale-95 cursor-pointer"
-                      >
-                        {isHindi ? 'पेड वीडियो अपलोड' : 'Upload Paid Video'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* 2. ELIGIBILITY PROGRESS CARD */}
               <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-6">
                 
@@ -1745,131 +1690,6 @@ export const Settings: React.FC = () => {
                 )}
               </div>
 
-              {/* 3. HIGHEST-VIEWED VIDEO CARD */}
-              <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
-                    Your Highest-Viewed Video
-                  </h3>
-                  {highestViewedVideo && (
-                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                      Auto-tracks dynamic views
-                    </span>
-                  )}
-                </div>
-
-                {loadingCreatorVideos ? (
-                  <div className="py-8 flex items-center justify-center gap-2 text-xs font-bold text-slate-500">
-                    <Loader2 className="w-4 h-4 animate-spin text-[#2563EB]" />
-                    <span>Loading channel video metrics...</span>
-                  </div>
-                ) : highestViewedVideo ? (
-                  <div
-                    onClick={() => navigate('watch', highestViewedVideo.videoId)}
-                    className="group cursor-pointer bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 rounded-2xl p-4 sm:p-5 transition-all flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5 shadow-2xs"
-                  >
-                    {/* Video Thumbnail */}
-                    <div className="relative w-full sm:w-52 h-32 rounded-xl overflow-hidden bg-slate-900 shrink-0">
-                      {highestViewedVideo.thumbnailUrl ? (
-                        <img
-                          src={highestViewedVideo.thumbnailUrl}
-                          alt={highestViewedVideo.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-600">
-                          <Film className="w-8 h-8" />
-                        </div>
-                      )}
-
-                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#2563EB] text-white text-[9px] font-black uppercase tracking-wider rounded-md shadow-xs flex items-center gap-1">
-                        <Trophy className="w-3 h-3" /> Highest Views
-                      </div>
-
-                      {highestViewedVideo.duration > 0 && (
-                        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 text-white text-[10px] font-bold rounded">
-                          {formatDuration(highestViewedVideo.duration)}
-                        </div>
-                      )}
-
-                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 flex items-center justify-center transition-colors">
-                        <div className="w-9 h-9 rounded-full bg-white/95 text-slate-900 flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
-                          <Play className="w-4 h-4 fill-current ml-0.5" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Video Details & Progress */}
-                    <div className="flex-1 min-w-0 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 border border-blue-100 dark:border-blue-900/40">
-                          Highest Views
-                        </span>
-                        <span className="text-xs text-slate-400">•</span>
-                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                          {highestVideoViews.toLocaleString()} views
-                        </span>
-                      </div>
-
-                      <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white group-hover:text-[#2563EB] transition-colors line-clamp-2">
-                        {highestViewedVideo.title}
-                      </h4>
-
-                      <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                        Published {formatTimeAgo(highestViewedVideo.createdAt) || 'Recently'}
-                      </div>
-
-                      <div className="pt-1.5 space-y-1">
-                        <div className="flex items-center justify-between text-xs font-bold">
-                          <span className="text-slate-500 dark:text-slate-400">Progress to 1,000 views:</span>
-                          <span className="text-[#2563EB] dark:text-blue-400 font-black">
-                            {highestVideoViews.toLocaleString()} / 1,000 views
-                          </span>
-                        </div>
-
-                        <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min(100, Math.round((highestVideoViews / 1000) * 100))}%` }}
-                          />
-                        </div>
-
-                        <div className="text-[11px] font-medium pt-0.5">
-                          {highestVideoViews >= 1000 ? (
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> 1,000+ views requirement reached
-                            </span>
-                          ) : (
-                            <span className="text-slate-500 dark:text-slate-400">
-                              {1000 - highestVideoViews} more views needed on this video
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-10 px-4 bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] flex items-center justify-center mx-auto">
-                      <Film className="w-6 h-6 stroke-[2]" />
-                    </div>
-                    <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                      No videos published yet
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto font-medium">
-                      Publish your first video to start building your audience and tracking your monetization progress.
-                    </p>
-                    <button
-                      onClick={() => navigate('upload')}
-                      className="mt-2 px-5 py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-xs inline-flex items-center gap-2 transition-all active:scale-95"
-                    >
-                      <Upload className="w-4 h-4" />
-                      <span>Publish Video</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
               {/* 4. REQUIREMENTS EXPLANATION CARD */}
               <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-3">
                 <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
@@ -1894,112 +1714,12 @@ export const Settings: React.FC = () => {
                 </p>
               </div>
 
-              {/* 5. CREATOR EARNINGS / WALLET SUMMARY */}
-              <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] flex items-center justify-center font-bold">
-                      <CreditCard className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
-                        Creator Earnings & Wallet
-                      </h3>
-                      <p className="text-[11px] text-slate-500 font-medium">
-                        Real-time balances from your SocialIndia account
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleSelectTab('balance')}
-                    className="text-xs font-bold text-[#2563EB] hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>Manage Balance & Payouts</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                      Withdrawable Balance
-                    </span>
-                    <span className="text-xl font-black text-slate-900 dark:text-white mt-1 block">
-                      ₹{Number(currentUserProfile?.mainBalance ?? 0).toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                      Shopping Wallet
-                    </span>
-                    <span className="text-xl font-black text-[#2563EB] dark:text-blue-400 mt-1 block">
-                      ₹{Number(currentUserProfile?.walletBalance ?? 0).toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
-                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                      Reward Points
-                    </span>
-                    <span className="text-xl font-black text-amber-500 mt-1 block">
-                      {currentUserProfile?.points ?? 0}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
             </div>
           )}
 
           {/* ====================================================== */}
-          {/* OTHER TABS: SESSIONS, 2FA, VERIFICATION, INFO, DELETE  */}
+          {/* OTHER TABS: VERIFICATION, INFO, DELETE                 */}
           {/* ====================================================== */}
-          {activeTab === 'two_factor' && (
-            <div className="space-y-6">
-              <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Two-factor authentication</h2>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-xl">
-                <span>Enable 2FA</span>
-                <button
-                  onClick={() => setTwoFactorEnabled(!twoFactorEnabled)}
-                  className={`w-12 h-6 rounded-full p-1 transition-colors ${twoFactorEnabled ? 'bg-[#2563EB]' : 'bg-slate-300'}`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${twoFactorEnabled ? 'translate-x-6' : ''}`} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'sessions' && (
-            <div className="space-y-6">
-              <div className="pb-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{isHindi ? 'लॉगिन सेशन्स एवं खाते' : 'Manage Sessions & Accounts'}</h2>
-                  <p className="text-xs text-slate-500 mt-1">{isHindi ? 'इस डिवाइस पर सक्रिय सेशन्स और सहेजे गए खाते प्रबंधित करें' : 'Manage active sessions and switch saved channels on this device'}</p>
-                </div>
-                <button
-                  onClick={openSwitchAccount}
-                  className="px-4 py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md shadow-blue-500/10 flex items-center justify-center gap-2 self-start sm:self-auto"
-                >
-                  <ArrowRightLeft className="w-4 h-4" />
-                  <span>{isHindi ? 'खाता बदलें' : 'Switch Account'}</span>
-                </button>
-              </div>
-              <p className="text-xs text-slate-500">Current device: Linux / Web Browser • Active Now</p>
-            </div>
-          )}
-
-          {activeTab === 'blocked_users' && (
-            <div className="space-y-6">
-              <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Blocked Users</h2>
-              </div>
-              <p className="text-xs text-slate-400">No blocked users.</p>
-            </div>
-          )}
-
           {activeTab === 'verification' && (
             <div className="space-y-6">
               <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
@@ -2026,15 +1746,6 @@ export const Settings: React.FC = () => {
               >
                 Download Data (.json)
               </button>
-            </div>
-          )}
-
-          {activeTab === 'purchases' && (
-            <div className="space-y-6">
-              <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">My Purchases</h2>
-              </div>
-              <p className="text-xs text-slate-500">No recent purchase transactions.</p>
             </div>
           )}
 
