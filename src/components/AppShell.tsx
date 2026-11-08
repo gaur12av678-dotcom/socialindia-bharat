@@ -1358,8 +1358,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             )}
       </header>
 
-      </header>
-
       {/* Independent desktop navigation — no left rail */}
       <nav className="si-top-nav hidden md:flex items-center justify-center gap-2 px-4 py-2.5 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/95 dark:bg-[#101722]/95 sticky top-16 z-30">
         {[
