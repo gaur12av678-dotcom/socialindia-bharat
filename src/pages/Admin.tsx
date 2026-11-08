@@ -928,7 +928,7 @@ export const AdminPanel: React.FC = () => {
             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'videos' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
           >
             <VideoIcon className="w-4 h-4" />
-            <span>Videos & Shorts</span>
+            <span>Videos & Clips</span>
           </button>
 
           <button 
@@ -2099,7 +2099,7 @@ export const AdminPanel: React.FC = () => {
                       <p className="text-[10px] text-white/70 font-mono">~{Math.round((videos.filter(v => !v.isShort).reduce((acc, v) => acc + (Number(v.duration)||0), 0) / 60) * 2.2)} MB</p>
                     </div>
                     <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
-                      <p className="text-[10px] font-black uppercase text-cyan-200">Vertical Shorts</p>
+                      <p className="text-[10px] font-black uppercase text-cyan-200">Vertical Clips</p>
                       <p className="text-lg font-black mt-0.5">{totalShorts} files</p>
                       <p className="text-[10px] text-white/70 font-mono">~{Math.round((videos.filter(v => v.isShort).reduce((acc, v) => acc + (Number(v.duration)||0), 0) / 60) * 2.2)} MB</p>
                     </div>
@@ -2364,7 +2364,7 @@ export const AdminPanel: React.FC = () => {
                     {[
                       { id: 'all', label: `All (${trashItems.length})`, icon: Layers },
                       { id: 'video', label: `Videos (${trashItems.filter(t => t.itemType === 'video').length})`, icon: VideoIcon },
-                      { id: 'short', label: `Shorts (${trashItems.filter(t => t.itemType === 'short').length})`, icon: Zap },
+                      { id: 'short', label: `Clips (${trashItems.filter(t => t.itemType === 'short').length})`, icon: Zap },
                       { id: 'user', label: `Accounts (${trashItems.filter(t => t.itemType === 'user').length})`, icon: Users },
                     ].map(f => {
                       const Icon = f.icon;
@@ -2954,7 +2954,7 @@ export const AdminPanel: React.FC = () => {
                               {s.artist} • <span className="text-blue-500">{s.category}</span>
                             </p>
                             <p className="text-[10px] text-emerald-600 font-black mt-0.5">
-                              🔥 {s.usesCount || 0} REAL Shorts created
+                              🔥 {s.usesCount || 0} REAL Clips created
                             </p>
                           </div>
                         </div>
