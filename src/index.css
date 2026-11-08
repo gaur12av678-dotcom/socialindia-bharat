@@ -275,6 +275,23 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is([aria-selected="tr
 }
 
 
+
+/* App-wide text safeguard: labels/headings that explicitly use white text on
+   a pale solid surface must switch to a dark readable foreground in light mode. */
+html.light .text-white:is(
+  [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
+  [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
+  [class*="bg-transparent"]
+),
+html:not(.dark) .text-white:is(
+  [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
+  [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
+  [class*="bg-transparent"]
+) {
+  color: #1f2937 !important;
+  -webkit-text-fill-color: #1f2937 !important;
+}
+
 /* LIGHT MODE CONTRAST PATCH
    Extend readable foreground handling to animated/action elements that are not
    native buttons. Keep white text on saturated/gradient primary actions. */
