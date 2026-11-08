@@ -182,6 +182,7 @@ function MainAppContent() {
       case 'watch':
         return <Watch />;
       case 'shorts':
+      case 'clips':
         return <Shorts />;
       case 'trending':
         return <Trending />;
