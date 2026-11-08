@@ -39,7 +39,9 @@ import {
   Lock,
   Eye,
   Flame,
-  Globe
+  Globe,
+  CheckCircle2,
+  Trash2
 } from 'lucide-react';
 
 const BANNER_PRESETS = [
@@ -590,17 +592,27 @@ export const CreatorProfile: React.FC = () => {
     }
   };
 
+  // Directly trigger device/gallery file picker like YouTube
+  const handleOpenBannerPicker = () => {
+    if (!isOwner) return;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
   const handleBannerFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      addToast('Compressing banner image...', 'info');
+      addToast(isHindi ? 'गैलरी से इमेज ली जा रही है...' : 'Loading image from device gallery...', 'info');
       const compressed = await compressBanner(file);
       setBannerPreview(compressed);
+      setBannerModalOpen(true);
     } catch (err) {
       console.error(err);
-      addToast('Failed to process banner image.', 'error');
+      addToast(isHindi ? 'बैनर इमेज प्रोसेस करने में विफल।' : 'Failed to process banner image.', 'error');
     }
   };
 
@@ -710,6 +722,15 @@ export const CreatorProfile: React.FC = () => {
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
       
+      {/* Hidden File Input for Device/Gallery Banner Selection (YouTube-style) */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        accept="image/*" 
+        onChange={handleBannerFileSelect} 
+        className="hidden" 
+      />
+
       {/* YOUTUBE-STYLE CHANNEL HEADER */}
       {creator.bannerURL ? (
         /* 1. CHANNEL WITH CUSTOM BANNER */
@@ -735,12 +756,9 @@ export const CreatorProfile: React.FC = () => {
             {isOwner && (
               <button
                 type="button"
-                onClick={() => {
-                  setBannerPreview(creator.bannerURL || '');
-                  setBannerModalOpen(true);
-                }}
+                onClick={handleOpenBannerPicker}
                 className="absolute top-3 right-3 sm:top-4 sm:right-4 px-3.5 py-2 bg-slate-900/90 hover:bg-black text-white text-xs font-bold rounded-xl flex items-center gap-2 transition-all border border-white/40 cursor-pointer shadow-xl active:scale-95 z-30"
-                title={isHindi ? 'चैनल बैनर बदलें' : 'Change Channel Banner'}
+                title={isHindi ? 'सीधे गैलरी या डिवाइस से बैनर चुनें' : 'Choose Channel Banner from Gallery/Device'}
               >
                 <Camera className="w-4 h-4 text-cyan-400 shrink-0" />
                 <span>{isHindi ? 'बैनर बदलें' : 'Change Banner'}</span>
@@ -819,11 +837,9 @@ export const CreatorProfile: React.FC = () => {
                     <span>{isHindi ? 'वीडियो अपलोड' : 'Upload Video'}</span>
                   </button>
                   <button
-                    onClick={() => {
-                      setBannerPreview(creator.bannerURL || '');
-                      setBannerModalOpen(true);
-                    }}
+                    onClick={handleOpenBannerPicker}
                     className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
+                    title={isHindi ? 'सीधे गैलरी या डिवाइस से बैनर चुनें' : 'Choose banner from gallery/device'}
                   >
                     <Camera className="w-4 h-4 text-blue-500" />
                     <span>{isHindi ? 'बैनर बदलें' : 'Change Banner'}</span>
@@ -967,11 +983,9 @@ export const CreatorProfile: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setBannerPreview(creator.bannerURL || '');
-                        setBannerModalOpen(true);
-                      }}
+                      onClick={handleOpenBannerPicker}
                       className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
+                      title={isHindi ? 'सीधे गैलरी या डिवाइस से बैनर जोड़ें' : 'Add banner from gallery/device'}
                     >
                       <Camera className="w-4 h-4 text-blue-500" />
                       <span>{isHindi ? 'बैनर जोड़ें' : 'Add Banner'}</span>
@@ -1553,16 +1567,16 @@ export const CreatorProfile: React.FC = () => {
         )}
       </div>
 
-      {/* YOUTUBE-STYLE CHANNEL BANNER CUSTOMIZER MODAL */}
+      {/* YOUTUBE-STYLE CHANNEL BANNER PREVIEW & CONFIRMATION MODAL */}
       {bannerModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#16171d] border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Camera className="w-5 h-5 text-blue-600" />
                 <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  Channel Banner Customizer
+                  {isHindi ? 'चैनल बैनर प्रीव्यू' : 'Channel Banner Preview'}
                 </h3>
               </div>
               <button 
@@ -1573,19 +1587,30 @@ export const CreatorProfile: React.FC = () => {
               </button>
             </div>
 
-            {/* Live Banner Preview Box */}
-            <div>
-              <label className="block text-xs font-black uppercase tracking-wider text-slate-500 mb-2">
-                Live Banner Preview (Recommended: 2048 x 1152 px)
-              </label>
-              <div className="w-full h-36 sm:h-44 rounded-2xl bg-slate-950 overflow-hidden relative border border-slate-200 dark:border-slate-800 flex items-center justify-center">
+            {/* Live Banner Preview Box with YouTube safe-zone styling */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                <span>{isHindi ? 'बैनर प्रीव्यू (सुझाया गया आकार: 2048 x 1152 px)' : 'Live Preview (Recommended: 2048 x 1152 px)'}</span>
+                <span className="text-[11px] text-blue-600 dark:text-blue-400 font-extrabold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {isHindi ? 'गैलरी से चयनित' : 'Selected from Device'}
+                </span>
+              </div>
+
+              <div className="w-full h-40 sm:h-52 rounded-2xl bg-slate-950 overflow-hidden relative border border-slate-200 dark:border-slate-800 flex items-center justify-center shadow-inner">
                 {bannerPreview ? (
                   <img src={bannerPreview} alt="Banner Preview" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-xs font-bold text-slate-500">No Banner Image Selected</span>
+                  <span className="text-xs font-bold text-slate-500">{isHindi ? 'कोई इमेज नहीं चुनी गई' : 'No Banner Image Selected'}</span>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-                <div className="absolute bottom-3 left-4 flex items-center gap-2">
+                {/* Safe area guidance line like YouTube */}
+                <div className="absolute inset-x-8 sm:inset-x-16 inset-y-6 sm:inset-y-8 border border-white/40 border-dashed rounded-lg pointer-events-none flex items-start justify-end p-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-black/60 backdrop-blur-xs text-white/90 px-2 py-0.5 rounded">
+                    {isHindi ? 'सभी डिवाइस पर दृश्य' : 'Viewable on all devices'}
+                  </span>
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute bottom-3 left-4 flex items-center gap-2.5">
                   <UserAvatar 
                     uid={creator.uid}
                     fallbackPhotoURL={creator.photoURL}
@@ -1593,43 +1618,47 @@ export const CreatorProfile: React.FC = () => {
                     size="sm"
                     className="w-10 h-10 border-2 border-white shadow-md text-xs"
                   />
-                  <span className="text-xs font-bold text-white drop-shadow-md">{creator.displayName}</span>
+                  <div>
+                    <span className="text-xs font-bold text-white drop-shadow-md block">{creator.displayName}</span>
+                    <span className="text-[10px] text-white/80 block">@{creator.username}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Upload Custom File */}
-            <div className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">
-                1. Upload from Your Device
-              </span>
-              <div className="flex items-center gap-3">
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  accept="image/*" 
-                  onChange={handleBannerFileSelect} 
-                  className="hidden" 
-                />
+            {/* Quick Actions to pick another photo or choose preset */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2.5 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer transition-all active:scale-95"
+                  className="px-4 py-2 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-[#2563EB] dark:text-blue-400 font-extrabold text-xs rounded-xl flex items-center gap-2 border border-blue-200 dark:border-blue-900/60 cursor-pointer transition-all active:scale-95"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>Choose Image File...</span>
+                  <span>{isHindi ? 'गैलरी से दूसरी फोटो चुनें' : 'Choose Another Photo from Gallery'}</span>
                 </button>
-                <span className="text-[11px] text-slate-400">JPG, PNG, WebP up to 5MB</span>
               </div>
+
+              {creator.bannerURL && (
+                <button
+                  type="button"
+                  onClick={handleRemoveBanner}
+                  disabled={isSavingBanner}
+                  className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-40 transition-colors flex items-center gap-1.5 self-start sm:self-auto"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{isHindi ? 'बैनर हटाएं' : 'Remove Banner'}</span>
+                </button>
+              )}
             </div>
 
-            {/* Curated Indian Creator Preset Gallery */}
+            {/* Curated Themes Preset Gallery (Optional Quick Picks) */}
             <div className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">
-                2. Or Select a Curated Creator Theme Preset
+              <span className="text-xs font-bold text-slate-500">
+                {isHindi ? 'या सोशलइंडिया थीम में से चुनें:' : 'Or choose from curated themes:'}
               </span>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {BANNER_PRESETS.map((preset) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {BANNER_PRESETS.slice(0, 3).map((preset) => (
                   <button
                     key={preset.name}
                     type="button"
@@ -1654,51 +1683,25 @@ export const CreatorProfile: React.FC = () => {
               </div>
             </div>
 
-            {/* Custom URL Input */}
-            <div className="space-y-1">
-              <label className="text-xs font-black uppercase tracking-wider text-slate-500">
-                3. Or Paste Banner Image URL
-              </label>
-              <input
-                type="url"
-                placeholder="https://example.com/channel-banner.jpg"
-                value={bannerPreview}
-                onChange={(e) => setBannerPreview(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-
             {/* Action Buttons */}
-            <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+            <div className="pt-3 flex items-center justify-end gap-2.5 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
-                onClick={handleRemoveBanner}
-                disabled={isSavingBanner || !creator.bannerURL}
-                className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl text-xs font-bold cursor-pointer disabled:opacity-40 transition-colors"
+                onClick={() => setBannerModalOpen(false)}
+                className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl cursor-pointer transition-all"
               >
-                Remove Banner
+                {isHindi ? 'रद्द करें' : 'Cancel'}
               </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setBannerModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveBanner}
-                  disabled={isSavingBanner || !bannerPreview}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2 active:scale-95 transition-all"
-                >
-                  {isSavingBanner ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
-                  <span>Save Banner</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleSaveBanner}
+                disabled={isSavingBanner || !bannerPreview}
+                className="px-6 py-2.5 bg-[#2563EB] hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2 active:scale-95 transition-all"
+              >
+                {isSavingBanner ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
+                <span>{isHindi ? 'बैनर सेव करें' : 'Save Banner'}</span>
+              </button>
             </div>
-
           </div>
         </div>
       )}

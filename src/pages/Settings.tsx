@@ -1511,208 +1511,305 @@ export const Settings: React.FC = () => {
                 </div>
               </div>
 
-              {/* 2. ELIGIBILITY PROGRESS CARD */}
-              <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-6">
-                
-                {/* Title and Requirements Banner */}
-                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-                      {isChannelMonetized 
-                        ? (isHindi ? 'चैनल माइलस्टोन ट्रैकिंग' : 'Channel Milestones & Progress') 
-                        : (isHindi ? 'पार्टनर प्रोग्राम पात्रता' : 'Partner Program Eligibility')}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2 font-medium">
-                      {isChannelMonetized 
-                        ? (isHindi ? 'आपका मोनेटाइजेशन चालू है। नीचे दिए गए माइलस्टोन से आपकी चैनल रीच और बढ़ेगी:' : 'Your monetization is active. Reaching standard milestones unlocks higher tier creator rewards:') 
-                        : (isHindi ? 'सोशलइंडिया पार्टनर प्रोग्राम के लिए पात्रता आवश्यकताएं:' : 'To become eligible for the SocialIndia Partner Program, you need:')}
-                    </p>
-                    <div className="space-y-2 mt-3">
-                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
-                        <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
-                        <span>500 {isHindi ? 'सब्सक्राइबर्स' : 'Subscribers'}</span>
+              {/* MONETIZATION CONTENT */}
+              {isChannelMonetized ? (
+                /* MONETIZED CREATOR ACTIVE DASHBOARD */
+                <div className="space-y-6">
+                  {/* Status Banner */}
+                  <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50/50 to-blue-50/30 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-slate-900 border border-emerald-200 dark:border-emerald-800/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-black text-sm uppercase tracking-wider">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        <span>{isHindi ? 'मोनेटाइजेशन सक्रिय है' : 'Monetization Active'}</span>
                       </div>
-                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
-                        <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
-                        <span>1,000 {isHindi ? 'व्यूज (कम से कम एक वीडियो पर)' : 'Views on at least one video'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Info Callout Box */}
-                  <div className="lg:max-w-md bg-[#eff6ff]/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 rounded-2xl p-4 flex items-start gap-3">
-                    <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
-                      <Info className="w-3.5 h-3.5" />
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-                      {isHindi 
-                        ? 'व्यूज की गणना आपके सबसे अधिक देखे गए एक वीडियो के आधार पर की जाती है।' 
-                        : 'Your video-view requirement is based on your single highest-viewed video, not your total channel views.'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Two Requirements Progress Sub-Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-                  
-                  {/* Subscribers Sub-Card */}
-                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0">
-                        <User className="w-5 h-5 stroke-[2.2]" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{isHindi ? 'सब्सक्राइबर्स' : 'Subscribers'}</div>
-                        <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                          {currentSubscribers} <span className="text-base font-bold text-slate-400">/ 500</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min(100, Math.round((currentSubscribers / 500) * 100))}%` }}
-                      />
-                    </div>
-
-                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {subscriberRequirementMet ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4" /> 500+ subscribers reached
-                        </span>
-                      ) : (
-                        <span>{500 - currentSubscribers} {isHindi ? 'सब्सक्राइबर्स शेष' : 'more subscribers needed'}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Highest Video Views Sub-Card */}
-                  <div className="bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs">
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0">
-                        <Film className="w-5 h-5 stroke-[2.2]" />
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{isHindi ? 'शीर्ष वीडियो व्यूज' : 'Highest Video Views'}</div>
-                        <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
-                          {highestVideoViews} <span className="text-base font-bold text-slate-400">/ 1,000</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
-                        style={{ width: `${Math.min(100, Math.round((highestVideoViews / 1000) * 100))}%` }}
-                      />
-                    </div>
-
-                    <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      {videoRequirementMet ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4" /> 1,000+ views reached
-                        </span>
-                      ) : (
-                        <span>{1000 - highestVideoViews} {isHindi ? 'व्यूज शेष' : 'more views needed'}</span>
-                      )}
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Success / Status Action Banner */}
-                {isChannelMonetized ? (
-                  <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50/70 dark:from-emerald-950/50 dark:to-teal-950/40 border border-emerald-200 dark:border-emerald-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>{isHindi ? 'मोनेटाइजेशन चालू है - कमाई शुरू करें' : 'Monetization Enabled - Start Earning'}</span>
-                      </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                      <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                         {isHindi 
-                          ? 'आपका चैनल मोनेटाइज है। वीडियो अपलोड करके और दर्शकों से जुड़कर अपनी कमाई बढ़ाएं।' 
-                          : 'Your channel is approved and active for partner monetization. Start earning now.'}
+                          ? 'बधाई हो! आपका चैनल मोनेटाइज है' 
+                          : 'Congratulations! Your Channel is Monetized'}
+                      </h3>
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium max-w-2xl leading-relaxed">
+                        {isHindi
+                          ? 'आपका चैनल सोशलइंडिया पार्टनर प्रोग्राम में पूरी तरह से सक्रिय है। आपके वीडियो पर विज्ञापन चालू हैं और आप क्रिएटर स्टूडियो से सीधे अपनी कमाई और पेड वीडियो को प्रबंधित कर सकते हैं।'
+                          : 'Your channel is approved and active in the SocialIndia Partner Program. Ads are enabled on your content and you can monetize premium videos and track earnings in Creator Studio.'}
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0">
                       <button
                         onClick={() => navigate('studio')}
-                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-xs cursor-pointer transition-all active:scale-95"
+                        className="px-5 py-3 bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2"
                       >
-                        {isHindi ? 'क्रिएटर स्टूडियो' : 'Creator Studio'}
+                        <Sparkles className="w-4 h-4" />
+                        <span>{isHindi ? 'क्रिएटर स्टूडियो / कमाई' : 'Go to Studio & Earnings'}</span>
+                      </button>
+                      <button
+                        onClick={() => navigate('upload')}
+                        className="px-5 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <Upload className="w-4 h-4 text-[#2563EB]" />
+                        <span>{isHindi ? 'नया वीडियो अपलोड करें' : 'Upload Video'}</span>
                       </button>
                     </div>
                   </div>
-                ) : isEligibleForMonetization ? (
-                  <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/70 dark:from-blue-950/50 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-sm font-extrabold text-[#2563EB] dark:text-blue-400">
-                        <Sparkles className="w-4 h-4" />
-                        <span>{isHindi ? 'आप सोशलइंडिया पार्टनर प्रोग्राम के लिए पात्र हैं' : "You're eligible for the SocialIndia Partner Program"}</span>
+
+                  {/* Active Features & Benefits Grid */}
+                  <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-5">
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                        {isHindi ? 'सक्रिय पार्टनर सुविधाएं' : 'Active Partner Features'}
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                        {isHindi 
+                          ? 'आपके चैनल पर निम्नलिखित मोनेटाइजेशन विकल्प सक्रिय हैं:' 
+                          : 'The following monetization tools are fully enabled for your channel:'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* 1. Ad Revenue */}
+                      <div className="bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4.5 space-y-2 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center font-bold text-lg">
+                            ₹
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                            {isHindi ? 'सक्रिय' : 'Active'}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                          {isHindi ? 'वीडियो विज्ञापन राजस्व' : 'Video Ad Revenue'}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                          {isHindi 
+                            ? 'आपके प्रकाशित वीडियो पर विज्ञापनों से स्वतः राजस्व प्राप्त होता है।' 
+                            : 'Automatically earn revenue share from in-stream ads on your videos.'}
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
-                        {isHindi ? 'आवश्यकताएं पूरी हो चुकी हैं! आवेदन करने के लिए आगे बढ़ें।' : 'Both requirements are complete! Continue below to enable channel monetization.'}
-                      </p>
+
+                      {/* 2. Paid Videos */}
+                      <div className="bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4.5 space-y-2 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                            <Film className="w-5 h-5 stroke-[2.2]" />
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                            {isHindi ? 'सक्रिय' : 'Active'}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                          {isHindi ? 'पेड व प्रीमियम वीडियो' : 'Paid & Exclusive Videos'}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                          {isHindi 
+                            ? 'विशेष कंटेंट के लिए दर्शकों से प्रति-वीडियो शुल्क (Pay-per-view) सेट करें।' 
+                            : 'Set custom pay-per-view prices for exclusive creator content.'}
+                        </p>
+                      </div>
+
+                      {/* 3. Fast Payouts */}
+                      <div className="bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4.5 space-y-2 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                            <Wallet className="w-5 h-5 stroke-[2.2]" />
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                            {isHindi ? 'सक्रिय' : 'Active'}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                          {isHindi ? 'UPI व बैंक निकासी' : 'UPI & Bank Payouts'}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                          {isHindi 
+                            ? 'कमाई को क्रिएटर स्टूडियो से सीधे अपने बैंक खाते या UPI आईडी में ट्रांसफर करें।' 
+                            : 'Withdraw verified earnings directly to your UPI ID or bank account.'}
+                        </p>
+                      </div>
                     </div>
-
-                    <button
-                      onClick={handleRequestMonetization}
-                      disabled={isRequestingMonetization}
-                      className="px-6 py-2.5 bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md flex items-center gap-2 shrink-0 transition-all active:scale-98"
-                    >
-                      {isRequestingMonetization ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-4 h-4" />
-                      )}
-                      <span>{isHindi ? 'आवेदन करें' : 'Continue to Apply'}</span>
-                    </button>
-                  </div>
-                ) : (
-                  (subscriberRequirementMet || videoRequirementMet) && (
-                    <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/50 flex items-center gap-3">
-                      <Clock className="w-4 h-4 text-[#2563EB] dark:text-blue-400 shrink-0" />
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        {subscriberRequirementMet
-                          ? (isHindi ? "सब्सक्राइबर आवश्यकता पूरी हो चुकी है। एक वीडियो पर 1,000 व्यूज प्राप्त करें।" : "You have reached the subscriber requirement. Get 1,000 views on one video to become eligible.")
-                          : (isHindi ? "वीडियो व्यूज आवश्यकता पूरी हो चुकी है। 500 सब्सक्राइबर्स तक पहुंचें।" : "Your video has reached 1,000 views. Reach 500 subscribers to become eligible.")}
-                      </p>
-                    </div>
-                  )
-                )}
-
-                {monetizationMsg && (
-                  <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-[#2563EB] dark:text-blue-300 text-xs font-bold rounded-xl">
-                    {monetizationMsg}
-                  </div>
-                )}
-              </div>
-
-              {/* 4. REQUIREMENTS EXPLANATION CARD */}
-              <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-3">
-                <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-                  <HelpCircle className="w-5 h-5 text-[#2563EB]" />
-                  <span>How eligibility works</span>
-                </h4>
-                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
-                  To become eligible for SocialIndia monetization, you need:
-                </p>
-                <div className="space-y-1.5 pl-3">
-                  <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
-                    <span>500 subscribers</span>
-                  </div>
-                  <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
-                    <span>1,000 views on at least one video</span>
                   </div>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed pt-1">
-                  Your video-view requirement is based on your single highest-viewed video, not your total channel views.
-                </p>
-              </div>
+              ) : (
+                /* UNMONETIZED: ELIGIBILITY PROGRESS AND REQUIREMENTS */
+                <>
+                  {/* 2. ELIGIBILITY PROGRESS CARD */}
+                  <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-6">
+                    
+                    {/* Title and Requirements Banner */}
+                    <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+                      <div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                          {isHindi ? 'पार्टनर प्रोग्राम पात्रता' : 'Partner Program Eligibility'}
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2 font-medium">
+                          {isHindi ? 'सोशलइंडिया पार्टनर प्रोग्राम के लिए पात्रता आवश्यकताएं:' : 'To become eligible for the SocialIndia Partner Program, you need:'}
+                        </p>
+                        <div className="space-y-2 mt-3">
+                          <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                            <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
+                            <span>500 {isHindi ? 'सब्सक्राइबर्स' : 'Subscribers'}</span>
+                          </div>
+                          <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                            <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
+                            <span>1,000 {isHindi ? 'व्यूज (कम से कम एक वीडियो पर)' : 'Views on at least one video'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Info Callout Box */}
+                      <div className="lg:max-w-md bg-[#eff6ff]/80 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 rounded-2xl p-4 flex items-start gap-3">
+                        <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
+                          <Info className="w-3.5 h-3.5" />
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                          {isHindi 
+                            ? 'व्यूज की गणना आपके सबसे अधिक देखे गए एक वीडियो के आधार पर की जाती है।' 
+                            : 'Your video-view requirement is based on your single highest-viewed video, not your total channel views.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Two Requirements Progress Sub-Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                      
+                      {/* Subscribers Sub-Card */}
+                      <div className="bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <User className="w-5 h-5 stroke-[2.2]" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{isHindi ? 'सब्सक्राइबर्स' : 'Subscribers'}</div>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                              {currentSubscribers} <span className="text-base font-bold text-slate-400">/ 500</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.round((currentSubscribers / 500) * 100))}%` }}
+                          />
+                        </div>
+
+                        <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                          {subscriberRequirementMet ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4" /> 500+ subscribers reached
+                            </span>
+                          ) : (
+                            <span>{500 - currentSubscribers} {isHindi ? 'सब्सक्राइबर्स शेष' : 'more subscribers needed'}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Highest Video Views Sub-Card */}
+                      <div className="bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 sm:p-6 space-y-4 shadow-2xs">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 flex items-center justify-center shrink-0">
+                            <Film className="w-5 h-5 stroke-[2.2]" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{isHindi ? 'शीर्ष वीडियो व्यूज' : 'Highest Video Views'}</div>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
+                              {highestVideoViews} <span className="text-base font-bold text-slate-400">/ 1,000</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.round((highestVideoViews / 1000) * 100))}%` }}
+                          />
+                        </div>
+
+                        <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                          {videoRequirementMet ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4" /> 1,000+ views reached
+                            </span>
+                          ) : (
+                            <span>{1000 - highestVideoViews} {isHindi ? 'व्यूज शेष' : 'more views needed'}</span>
+                          )}
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Action Banner for Eligible / In Progress */}
+                    {isEligibleForMonetization ? (
+                      <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/70 dark:from-blue-950/50 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-sm font-extrabold text-[#2563EB] dark:text-blue-400">
+                            <Sparkles className="w-4 h-4" />
+                            <span>{isHindi ? 'आप सोशलइंडिया पार्टनर प्रोग्राम के लिए पात्र हैं' : "You're eligible for the SocialIndia Partner Program"}</span>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                            {isHindi ? 'आवश्यकताएं पूरी हो चुकी हैं! आवेदन करने के लिए आगे बढ़ें।' : 'Both requirements are complete! Continue below to enable channel monetization.'}
+                          </p>
+                        </div>
+
+                        <button
+                          onClick={handleRequestMonetization}
+                          disabled={isRequestingMonetization}
+                          className="px-6 py-2.5 bg-[#2563EB] hover:bg-blue-700 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md flex items-center gap-2 shrink-0 transition-all active:scale-98"
+                        >
+                          {isRequestingMonetization ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                          <span>{isHindi ? 'आवेदन करें' : 'Continue to Apply'}</span>
+                        </button>
+                      </div>
+                    ) : (
+                      (subscriberRequirementMet || videoRequirementMet) && (
+                        <div className="p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/50 flex items-center gap-3">
+                          <Clock className="w-4 h-4 text-[#2563EB] dark:text-blue-400 shrink-0" />
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            {subscriberRequirementMet
+                              ? (isHindi ? "सब्सक्राइबर आवश्यकता पूरी हो चुकी है। एक वीडियो पर 1,000 व्यूज प्राप्त करें।" : "You have reached the subscriber requirement. Get 1,000 views on one video to become eligible.")
+                              : (isHindi ? "वीडियो व्यूज आवश्यकता पूरी हो चुकी है। 500 सब्सक्राइबर्स तक पहुंचें।" : "Your video has reached 1,000 views. Reach 500 subscribers to become eligible.")}
+                          </p>
+                        </div>
+                      )
+                    )}
+
+                    {monetizationMsg && (
+                      <div className="p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-[#2563EB] dark:text-blue-300 text-xs font-bold rounded-xl">
+                        {monetizationMsg}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 4. REQUIREMENTS EXPLANATION CARD */}
+                  <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xs space-y-3">
+                    <h4 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                      <HelpCircle className="w-5 h-5 text-[#2563EB]" />
+                      <span>{isHindi ? 'पात्रता कैसे काम करती है' : 'How eligibility works'}</span>
+                    </h4>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+                      {isHindi ? 'सोशलइंडिया मोनेटाइजेशन के पात्र बनने के लिए आपको चाहिए:' : 'To become eligible for SocialIndia monetization, you need:'}
+                    </p>
+                    <div className="space-y-1.5 pl-3">
+                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
+                        <span>500 {isHindi ? 'सब्सक्राइबर्स' : 'subscribers'}</span>
+                      </div>
+                      <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
+                        <span>1,000 {isHindi ? 'व्यूज (कम से कम एक वीडियो पर)' : 'views on at least one video'}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed pt-1">
+                      {isHindi 
+                        ? 'व्यूज की गणना आपके सबसे अधिक देखे गए एक वीडियो के आधार पर की जाती है, कुल चैनल व्यूज पर नहीं।' 
+                        : 'Your video-view requirement is based on your single highest-viewed video, not your total channel views.'}
+                    </p>
+                  </div>
+                </>
+              )}
 
             </div>
           )}

@@ -731,67 +731,72 @@ export const CreatorStudio: React.FC = () => {
         {/* DASHBOARD - ACTIVE DEFAULT TAB */}
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 shadow-sm ${
             activeTab === 'dashboard'
-              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+              ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
               : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
           }`}
+          style={activeTab === 'dashboard' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
         >
-          <LayoutDashboard className={`w-3.5 h-3.5 ${activeTab === 'dashboard' ? 'text-white' : 'text-slate-500'}`} />
-          <span>{isHindi ? 'डैशबोर्ड' : 'DASHBOARD'}</span>
+          <LayoutDashboard className="w-3.5 h-3.5 shrink-0" style={{ color: activeTab === 'dashboard' ? '#ffffff' : undefined }} />
+          <span style={{ color: activeTab === 'dashboard' ? '#ffffff' : undefined }}>{isHindi ? 'डैशबोर्ड' : 'DASHBOARD'}</span>
         </button>
 
         {/* CONTENT (1) */}
         <button
           onClick={() => setActiveTab('content')}
-          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 shadow-sm ${
             activeTab === 'content'
-              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+              ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
               : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
           }`}
+          style={activeTab === 'content' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
         >
-          <Play className={`w-3.5 h-3.5 ${activeTab === 'content' ? 'fill-white text-white' : 'text-slate-500'}`} />
-          <span>{isHindi ? `कंटेंट (${videos.length || 1})` : `CONTENT (${videos.length || 1})`}</span>
+          <Play className="w-3.5 h-3.5 shrink-0" style={{ fill: activeTab === 'content' ? '#ffffff' : undefined, color: activeTab === 'content' ? '#ffffff' : undefined }} />
+          <span style={{ color: activeTab === 'content' ? '#ffffff' : undefined }}>{isHindi ? `कंटेंट (${videos.length || 1})` : `CONTENT (${videos.length || 1})`}</span>
         </button>
 
         {/* ANALYTICS TAB */}
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 shadow-sm ${
             activeTab === 'analytics'
-              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+              ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
               : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
           }`}
+          style={activeTab === 'analytics' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
         >
-          <BarChart3 className={`w-4 h-4 ${activeTab === 'analytics' ? 'text-white' : 'text-slate-500'}`} />
-          <span>{isHindi ? 'एनालिटिक्स' : 'ANALYTICS'}</span>
+          <BarChart3 className="w-4 h-4 shrink-0" style={{ color: activeTab === 'analytics' ? '#ffffff' : undefined }} />
+          <span style={{ color: activeTab === 'analytics' ? '#ffffff' : undefined }}>{isHindi ? 'एनालिटिक्स' : 'ANALYTICS'}</span>
         </button>
 
         {/* COMMENTS (0) TAB */}
         <button
           onClick={() => setActiveTab('comments')}
-          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+          className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 shadow-sm ${
             activeTab === 'comments'
-              ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+              ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
               : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
           }`}
+          style={activeTab === 'comments' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
         >
-          <MessageSquare className={`w-4 h-4 ${activeTab === 'comments' ? 'text-white' : 'text-slate-500'}`} />
-          <span>{isHindi ? `टिप्पणियाँ (${studioComments.length || 0})` : `COMMENTS (${studioComments.length || 0})`}</span>
+          <MessageSquare className="w-4 h-4 shrink-0" style={{ color: activeTab === 'comments' ? '#ffffff' : undefined }} />
+          <span style={{ color: activeTab === 'comments' ? '#ffffff' : undefined }}>{isHindi ? `टिप्पणियाँ (${studioComments.length || 0})` : `COMMENTS (${studioComments.length || 0})`}</span>
         </button>
 
         {/* EARN & MONETIZATION TAB - Only visible to monetized creators */}
         {isUserMonetized && (
           <button
             onClick={() => setActiveTab('earn')}
-            className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+            className={`px-5 sm:px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 shadow-sm ${
               activeTab === 'earn'
-                ? 'bg-gradient-to-r from-[#2563eb] via-[#3b82f6] to-[#4f46e5] text-white shadow-md shadow-indigo-500/25 ring-1 ring-blue-400/40'
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40'
                 : 'bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
             }`}
+            style={activeTab === 'earn' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <DollarSign className={`w-4 h-4 ${activeTab === 'earn' ? 'text-white' : 'text-slate-500'}`} />
-            <span>{isHindi ? 'कमाई व मोनेटाइजेशन' : 'EARN & MONETIZATION'}</span>
+            <DollarSign className="w-4 h-4 shrink-0" style={{ color: activeTab === 'earn' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeTab === 'earn' ? '#ffffff' : undefined }}>{isHindi ? 'कमाई व मोनेटाइजेशन' : 'EARN & MONETIZATION'}</span>
           </button>
         )}
       </div>

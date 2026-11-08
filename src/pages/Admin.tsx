@@ -804,58 +804,93 @@ export const AdminPanel: React.FC = () => {
           
           <button 
             onClick={() => setActiveSection('dashboard')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'dashboard' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'dashboard' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>Dashboard</span>
+            <LayoutDashboard className="w-4 h-4 shrink-0" style={{ color: activeSection === 'dashboard' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'dashboard' ? '#ffffff' : undefined }}>Dashboard</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('settings')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'settings' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'settings' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'settings' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Sliders className="w-4 h-4" />
-            <span>Settings</span>
+            <Sliders className="w-4 h-4 shrink-0" style={{ color: activeSection === 'settings' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'settings' ? '#ffffff' : undefined }}>Settings</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('design')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'design' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'design' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'design' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Palette className="w-4 h-4" />
-            <span>Design Layout</span>
+            <Palette className="w-4 h-4 shrink-0" style={{ color: activeSection === 'design' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'design' ? '#ffffff' : undefined }}>Design Layout</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('pages')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'pages' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'pages' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'pages' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <FileText className="w-4 h-4" />
-            <span>Pages Markup</span>
+            <FileText className="w-4 h-4 shrink-0" style={{ color: activeSection === 'pages' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'pages' ? '#ffffff' : undefined }}>Pages Markup</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('sitemap')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'sitemap' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'sitemap' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'sitemap' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <MapIcon className="w-4 h-4" />
-            <span>Sitemap Index</span>
+            <MapIcon className="w-4 h-4 shrink-0" style={{ color: activeSection === 'sitemap' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'sitemap' ? '#ffffff' : undefined }}>Sitemap Index</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('system_status')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'system_status' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'system_status' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'system_status' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Activity className="w-4 h-4" />
-            <span>System Status</span>
+            <Activity className="w-4 h-4 shrink-0" style={{ color: activeSection === 'system_status' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'system_status' ? '#ffffff' : undefined }}>System Status</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('changelogs')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'changelogs' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'changelogs' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'changelogs' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <History className="w-4 h-4" />
-            <span>Changelogs</span>
+            <History className="w-4 h-4 shrink-0" style={{ color: activeSection === 'changelogs' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'changelogs' ? '#ffffff' : undefined }}>Changelogs</span>
           </button>
         </div>
 
@@ -865,11 +900,16 @@ export const AdminPanel: React.FC = () => {
 
           <button 
             onClick={() => setActiveSection('withdrawals')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'withdrawals' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'withdrawals' 
+                ? 'bg-[#059669] hover:bg-[#047857] text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'withdrawals' ? { backgroundColor: '#059669', color: '#ffffff' } : undefined}
           >
             <div className="flex items-center gap-2.5">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              <span>Withdrawals (UPI)</span>
+              <DollarSign className="w-4 h-4 shrink-0" style={{ color: activeSection === 'withdrawals' ? '#ffffff' : '#34d399' }} />
+              <span style={{ color: activeSection === 'withdrawals' ? '#ffffff' : undefined }}>Withdrawals (UPI)</span>
             </div>
             {withdrawalRequests.filter(r => r.status === 'pending').length > 0 && (
               <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-950 animate-pulse">
@@ -880,34 +920,54 @@ export const AdminPanel: React.FC = () => {
 
           <button 
             onClick={() => setActiveSection('paid_videos')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'paid_videos' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'paid_videos' 
+                ? 'bg-[#059669] hover:bg-[#047857] text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'paid_videos' ? { backgroundColor: '#059669', color: '#ffffff' } : undefined}
           >
-            <DollarSign className="w-4 h-4 text-emerald-500" />
-            <span>Paid Videos & Earnings</span>
+            <DollarSign className="w-4 h-4 shrink-0" style={{ color: activeSection === 'paid_videos' ? '#ffffff' : '#10b981' }} />
+            <span style={{ color: activeSection === 'paid_videos' ? '#ffffff' : undefined }}>Paid Videos & Earnings</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('payments_ads')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'payments_ads' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'payments_ads' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'payments_ads' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Wallet className="w-4 h-4" />
-            <span>Payments & Ads Setup</span>
+            <Wallet className="w-4 h-4 shrink-0" style={{ color: activeSection === 'payments_ads' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'payments_ads' ? '#ffffff' : undefined }}>Payments & Ads Setup</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('advertising')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'advertising' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'advertising' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'advertising' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Megaphone className="w-4 h-4" />
-            <span>Ad Campaigns</span>
+            <Megaphone className="w-4 h-4 shrink-0" style={{ color: activeSection === 'advertising' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'advertising' ? '#ffffff' : undefined }}>Ad Campaigns</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('pro_members')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'pro_members' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'pro_members' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'pro_members' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Sparkles className="w-4 h-4" />
-            <span>Pro System (GoPro)</span>
+            <Sparkles className="w-4 h-4 shrink-0" style={{ color: activeSection === 'pro_members' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'pro_members' ? '#ffffff' : undefined }}>Pro System (GoPro)</span>
           </button>
         </div>
 
@@ -917,58 +977,93 @@ export const AdminPanel: React.FC = () => {
 
           <button 
             onClick={() => setActiveSection('users')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'users' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'users' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'users' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Users className="w-4 h-4" />
-            <span>Users Accounts</span>
+            <Users className="w-4 h-4 shrink-0" style={{ color: activeSection === 'users' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'users' ? '#ffffff' : undefined }}>Users Accounts</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('videos')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'videos' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'videos' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'videos' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <VideoIcon className="w-4 h-4" />
-            <span>Videos & Shorts</span>
+            <VideoIcon className="w-4 h-4 shrink-0" style={{ color: activeSection === 'videos' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'videos' ? '#ffffff' : undefined }}>Videos & Shorts</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('movies')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'movies' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'movies' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'movies' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Film className="w-4 h-4" />
-            <span>Movies Catalog</span>
+            <Film className="w-4 h-4 shrink-0" style={{ color: activeSection === 'movies' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'movies' ? '#ffffff' : undefined }}>Movies Catalog</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('articles')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'articles' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'articles' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'articles' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <BookOpen className="w-4 h-4" />
-            <span>Articles</span>
+            <BookOpen className="w-4 h-4 shrink-0" style={{ color: activeSection === 'articles' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'articles' ? '#ffffff' : undefined }}>Articles</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('categories')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'categories' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'categories' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'categories' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <FolderTree className="w-4 h-4" />
-            <span>Categories</span>
+            <FolderTree className="w-4 h-4 shrink-0" style={{ color: activeSection === 'categories' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'categories' ? '#ffffff' : undefined }}>Categories</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('languages')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'languages' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'languages' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'languages' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Globe className="w-4 h-4" />
-            <span>Languages</span>
+            <Globe className="w-4 h-4 shrink-0" style={{ color: activeSection === 'languages' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'languages' ? '#ffffff' : undefined }}>Languages</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('sounds')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'sounds' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'sounds' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'sounds' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Music className="w-4 h-4" />
-            <span>Sound Library</span>
+            <Music className="w-4 h-4 shrink-0" style={{ color: activeSection === 'sounds' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'sounds' ? '#ffffff' : undefined }}>Sound Library</span>
           </button>
         </div>
 
@@ -978,77 +1073,126 @@ export const AdminPanel: React.FC = () => {
 
           <button 
             onClick={() => setActiveSection('reports')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'reports' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'reports' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'reports' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <AlertTriangle className="w-4 h-4" />
-            <span>Reports</span>
+            <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: activeSection === 'reports' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'reports' ? '#ffffff' : undefined }}>Reports</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('feedback')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'feedback' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'feedback' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'feedback' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <MessageSquare className="w-4 h-4" />
-            <span>Feedback</span>
+            <MessageSquare className="w-4 h-4 shrink-0" style={{ color: activeSection === 'feedback' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'feedback' ? '#ffffff' : undefined }}>Feedback</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('storage')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'storage' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'storage' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'storage' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Cloud className="w-4 h-4" />
-            <span>Cloud Storage</span>
+            <Cloud className="w-4 h-4 shrink-0" style={{ color: activeSection === 'storage' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'storage' ? '#ffffff' : undefined }}>Cloud Storage</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('trash')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'trash' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'trash' 
+                ? 'bg-[#e11d48] hover:bg-[#be123c] text-white shadow-md shadow-rose-500/25 ring-2 ring-rose-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'trash' ? { backgroundColor: '#e11d48', color: '#ffffff' } : undefined}
           >
-            <Archive className="w-4 h-4" />
-            <span>Trash Vault</span>
+            <Archive className="w-4 h-4 shrink-0" style={{ color: activeSection === 'trash' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'trash' ? '#ffffff' : undefined }}>Trash Vault</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('tools')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'tools' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'tools' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'tools' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Wrench className="w-4 h-4" />
-            <span>Platform Tools</span>
+            <Wrench className="w-4 h-4 shrink-0" style={{ color: activeSection === 'tools' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'tools' ? '#ffffff' : undefined }}>Platform Tools</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('firebase_edit')}
-            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'firebase_edit' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'firebase_edit' 
+                ? 'bg-[#d97706] hover:bg-[#b45309] text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'firebase_edit' ? { backgroundColor: '#d97706', color: '#ffffff' } : undefined}
           >
             <div className="flex items-center gap-2.5">
-              <Database className="w-4 h-4 text-amber-500" />
-              <span>Firebase Edit</span>
+              <Database className="w-4 h-4 shrink-0" style={{ color: activeSection === 'firebase_edit' ? '#ffffff' : '#f59e0b' }} />
+              <span style={{ color: activeSection === 'firebase_edit' ? '#ffffff' : undefined }}>Firebase Edit</span>
             </div>
-            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black uppercase">Live</span>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-black uppercase ${
+              activeSection === 'firebase_edit' 
+                ? 'bg-white/20 text-white' 
+                : 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+            }`}>Live</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('mobile_api')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'mobile_api' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'mobile_api' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'mobile_api' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Smartphone className="w-4 h-4" />
-            <span>Mobile & APIs</span>
+            <Smartphone className="w-4 h-4 shrink-0" style={{ color: activeSection === 'mobile_api' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'mobile_api' ? '#ffffff' : undefined }}>Mobile & APIs</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('backup')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'backup' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'backup' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'backup' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <Database className="w-4 h-4" />
-            <span>Backup Snapshots</span>
+            <Database className="w-4 h-4 shrink-0" style={{ color: activeSection === 'backup' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'backup' ? '#ffffff' : undefined }}>Backup Snapshots</span>
           </button>
 
           <button 
             onClick={() => setActiveSection('faq_docs')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${activeSection === 'faq_docs' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'}`}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'faq_docs' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'faq_docs' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <HelpCircle className="w-4 h-4" />
-            <span>FAQs & Docs</span>
+            <HelpCircle className="w-4 h-4 shrink-0" style={{ color: activeSection === 'faq_docs' ? '#ffffff' : undefined }} />
+            <span style={{ color: activeSection === 'faq_docs' ? '#ffffff' : undefined }}>FAQs & Docs</span>
           </button>
         </div>
 

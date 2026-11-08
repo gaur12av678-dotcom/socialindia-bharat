@@ -117,8 +117,7 @@
 
 .scrollbar-none::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar,
-[data-no-scrollbar]::-webkit-scrollbar,
-*::-webkit-scrollbar.no-scrollbar {
+[data-no-scrollbar]::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
