@@ -1485,7 +1485,7 @@ export const Settings: React.FC = () => {
           {/* TAB 8: MONETIZATION                                    */}
           {/* ====================================================== */}
           {activeTab === 'monetization' && (
-            <div className="space-y-6">
+            <div className="si-monetization-panel space-y-6">
               
               {/* 1. HEADER CARD */}
               <div className="bg-slate-50/70 dark:bg-[#161f30]/60 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
