@@ -197,48 +197,48 @@ html.dark .yt-chip-inactive:hover {
 
 /* LIGHT MODE: keep labels readable on light/white action buttons.
    Applies app-wide, including every Admin Panel section and modal. */
-html.light button.text-white[class*="bg-white"],
-html:not(.dark) button.text-white[class*="bg-white"],
-html.light button.text-white[class*="bg-slate-"],
-html:not(.dark) button.text-white[class*="bg-slate-"],
-html.light button.text-white[class*="bg-gray-"],
-html:not(.dark) button.text-white[class*="bg-gray-"],
-html.light button.text-white[class*="bg-zinc-"],
-html:not(.dark) button.text-white[class*="bg-zinc-"],
-html.light button.text-white[class*="bg-neutral-"],
-html:not(.dark) button.text-white[class*="bg-neutral-"],
-html.light button.text-white[class*="bg-stone-"],
-html:not(.dark) button.text-white[class*="bg-stone-"],
-html.light button.text-white[class*="bg-transparent"],
-html:not(.dark) button.text-white[class*="bg-transparent"] {
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-white"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-white"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-slate-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-slate-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-gray-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-gray-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-zinc-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-zinc-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-neutral-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-neutral-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-stone-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-stone-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-transparent"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-transparent"] {
   color: #1f2937 !important;
 }
 
 /* Preserve white labels on intentionally saturated primary/status buttons. */
-html.light button.text-white[class*="bg-blue-"],
-html:not(.dark) button.text-white[class*="bg-blue-"],
-html.light button.text-white[class*="bg-indigo-"],
-html:not(.dark) button.text-white[class*="bg-indigo-"],
-html.light button.text-white[class*="bg-emerald-"],
-html:not(.dark) button.text-white[class*="bg-emerald-"],
-html.light button.text-white[class*="bg-green-"],
-html:not(.dark) button.text-white[class*="bg-green-"],
-html.light button.text-white[class*="bg-rose-"],
-html:not(.dark) button.text-white[class*="bg-rose-"],
-html.light button.text-white[class*="bg-red-"],
-html:not(.dark) button.text-white[class*="bg-red-"],
-html.light button.text-white[class*="bg-amber-"],
-html:not(.dark) button.text-white[class*="bg-amber-"],
-html.light button.text-white[class*="bg-purple-"],
-html:not(.dark) button.text-white[class*="bg-purple-"],
-html.light button.text-white[class*="bg-violet-"],
-html:not(.dark) button.text-white[class*="bg-violet-"],
-html.light button.text-white[class*="bg-cyan-"],
-html:not(.dark) button.text-white[class*="bg-cyan-"],
-html.light button.text-white[class*="bg-sky-"],
-html:not(.dark) button.text-white[class*="bg-sky-"],
-html.light button.text-white[class*="bg-social-blue"],
-html:not(.dark) button.text-white[class*="bg-social-blue"] {
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-blue-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-blue-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-indigo-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-indigo-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-emerald-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-emerald-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-green-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-green-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-rose-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-rose-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-red-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-red-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-amber-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-amber-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-purple-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-purple-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-violet-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-violet-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-cyan-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-cyan-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-sky-"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-sky-"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-social-blue"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-social-blue"] {
   color: #ffffff !important;
 }
 
@@ -249,8 +249,6 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visi
   [class*="bg-white"],[class*="bg-slate-50"],[class*="bg-slate-100"],
   [class*="bg-gray-50"],[class*="bg-gray-100"],[class*="bg-zinc-50"],
   [class*="bg-zinc-100"],[class*="bg-transparent"],
-  [class*="hover:bg-white"],[class*="hover:bg-slate-50"],
-  [class*="hover:bg-slate-100"],[class*="hover:bg-gray-50"],[class*="hover:bg-gray-100"]
 ) {
   background-color: #eff6ff !important;
   border-color: #bfdbfe !important;
@@ -261,8 +259,6 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is(:hover,:focus-visi
   [class*="bg-white"],[class*="bg-slate-50"],[class*="bg-slate-100"],
   [class*="bg-gray-50"],[class*="bg-gray-100"],[class*="bg-zinc-50"],
   [class*="bg-zinc-100"],[class*="bg-transparent"],
-  [class*="hover:bg-white"],[class*="hover:bg-slate-50"],
-  [class*="hover:bg-slate-100"],[class*="hover:bg-gray-50"],[class*="hover:bg-gray-100"]
 ) :is(span,svg,i) {
   color: #1d4ed8 !important;
 }
@@ -276,4 +272,55 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is([aria-selected="tr
 
 html:not(.dark) :is(button,a,[role="button"],[role="tab"]):is([aria-selected="true"],[aria-pressed="true"]) :is(span,svg,i) {
   color: #1e40af !important;
+}
+
+
+/* LIGHT MODE CONTRAST PATCH
+   Extend readable foreground handling to animated/action elements that are not
+   native buttons. Keep white text on saturated/gradient primary actions. */
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white:is(
+  [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
+  [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
+  [class*="bg-transparent"]
+),
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white:is(
+  [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
+  [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
+  [class*="bg-transparent"]
+) {
+  color: #1f2937 !important;
+  -webkit-text-fill-color: #1f2937 !important;
+}
+
+/* Text nested inside light-background actions must inherit the readable color,
+   including labels rendered by Motion/animated wrappers. */
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]):is(
+  [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
+  [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
+  [class*="bg-transparent"]
+) :is(.text-white,[class*="text-white/"]) ,
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]):is(
+  [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
+  [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
+  [class*="bg-transparent"]
+) :is(.text-white,[class*="text-white/"]) {
+  color: #1f2937 !important;
+  -webkit-text-fill-color: #1f2937 !important;
+}
+
+/* Keep saturated primary/status buttons white, including their animated labels. */
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white:is(
+  [class*="bg-blue-"],[class*="bg-indigo-"],[class*="bg-emerald-"],
+  [class*="bg-green-"],[class*="bg-rose-"],[class*="bg-red-"],
+  [class*="bg-amber-"],[class*="bg-purple-"],[class*="bg-violet-"],
+  [class*="bg-cyan-"],[class*="bg-sky-"],[class*="bg-social-blue"]
+),
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white:is(
+  [class*="bg-blue-"],[class*="bg-indigo-"],[class*="bg-emerald-"],
+  [class*="bg-green-"],[class*="bg-rose-"],[class*="bg-red-"],
+  [class*="bg-amber-"],[class*="bg-purple-"],[class*="bg-violet-"],
+  [class*="bg-cyan-"],[class*="bg-sky-"],[class*="bg-social-blue"]
+) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
