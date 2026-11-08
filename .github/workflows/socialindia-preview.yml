@@ -1,0 +1,97 @@
+name: SocialIndia Redesign Preview
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: socialindia-preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-preview:
+    name: Build and publish temporary preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out redesign branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build SocialIndia
+        run: npm run build
+        env:
+          CI: false
+          NODE_ENV: production
+
+      - name: Verify build output and required sitemap files
+        run: |
+          set -e
+          test -d dist
+          for file in sitemap.xml video-sitemap.xml sitemap_index.xml robots.txt; do
+            test -f "public/$file"
+            cp "public/$file" "dist/$file"
+          done
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          for name in ("sitemap.xml", "video-sitemap.xml", "sitemap_index.xml"):
+              root = ET.parse(Path("dist") / name).getroot()
+              if not root.tag.endswith(("urlset", "sitemapindex")):
+                  raise SystemExit(f"Unexpected sitemap root in {name}: {root.tag}")
+              print(f"Validated {name}")
+          PY
+          echo "Build output contains $(find dist -type f | wc -l) files."
+
+      - name: Prepare Firebase Hosting preview configuration
+        run: |
+          cat > .firebaserc <<'JSON'
+          {
+            "projects": {
+              "default": "socialindia-96fa1"
+            },
+            "targets": {
+              "socialindia-96fa1": {
+                "hosting": {
+                  "socialindia": ["socialindia"]
+                }
+              }
+            }
+          }
+          JSON
+          cat > firebase.json <<'JSON'
+          {
+            "hosting": {
+              "target": "socialindia",
+              "public": "dist",
+              "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+              "rewrites": [
+                { "source": "**", "destination": "/index.html" }
+              ]
+            }
+          }
+          JSON
+
+      - name: Publish temporary Firebase Hosting preview
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: socialindia-96fa1
+          target: socialindia
+          channelId: pr-${{ github.event.pull_request.number }}
+          expires: 7d
