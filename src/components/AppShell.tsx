@@ -1337,21 +1337,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 </div>
               </button>
 
-              {/* Clips */}
-              <button
-                onClick={() => navigate('shorts')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
-                  route.path === 'shorts'
-                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
-                }`}
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <ShortsLogo className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'scale-110' : 'opacity-95'}`} />
-                  <span className="truncate">{t('nav_shorts', 'Clips')}</span>
-                </div>
-              </button>
-
               {/* Trending */}
               <button
                 onClick={() => navigate('trending')}
@@ -1364,6 +1349,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 <div className="flex items-center gap-3.5 min-w-0">
                   <Flame className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'trending' ? 'text-rose-500 fill-rose-500' : 'text-rose-500/80'}`} />
                   <span className="truncate">{t('nav_trending', 'Trending')}</span>
+                </div>
+              </button>
+
+              {/* Clips */}
+              <button
+                onClick={() => navigate('shorts')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'shorts'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <ShortsLogo className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'scale-110' : 'opacity-95'}`} />
+                  <span className="truncate">{t('nav_shorts', 'Clips')}</span>
                 </div>
               </button>
 
