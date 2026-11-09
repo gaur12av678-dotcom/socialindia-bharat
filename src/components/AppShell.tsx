@@ -352,7 +352,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     { label: t('nav_trending', 'Trending'), path: 'trending', icon: TrendingUp },
     { label: t('nav_chat', 'Direct Messages'), path: 'chat', icon: MessageSquare, protected: true },
     { label: t('nav_downloads', 'Downloads'), path: 'downloads', icon: ArrowDownToLine },
-    { label: 'Sub.', path: 'subscriptions', icon: Users, protected: true },
+    { label: 'Following', path: 'subscriptions', icon: Users, protected: true },
     { label: t('nav_saved', 'Saved Videos'), path: 'saved', icon: Bookmark, protected: true },
     { label: t('nav_history', 'Watch History'), path: 'history', icon: History, protected: true },
   ];
@@ -1304,7 +1304,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             {/* 1. Feeds & Discover Section */}
             <div className="space-y-1">
               <span className="px-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 block mb-2">
-                {isHindi ? 'खोजें व जुड़ें' : 'DISCOVER & CONNECT'}
+                {isHindi ? 'खोजें' : 'DISCOVER'}
               </span>
 
               {/* Home */}
@@ -1348,7 +1348,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <ShortsLogo className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'scale-110' : 'opacity-95'}`} />
-                  <span className="truncate">{t('nav_shorts', 'Shorts')}</span>
+                  <span className="truncate">{t('nav_shorts', 'Clips')}</span>
                 </div>
               </button>
 
@@ -1367,7 +1367,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 </div>
               </button>
 
-              {/* Subscriptions */}
+              <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">{isHindi ? 'आपका नेटवर्क' : 'YOUR NETWORK'}</div>
+              {/* Following */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('subscriptions'))}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
@@ -1392,11 +1393,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       <path d="M18.7 8.7H5.3V7h13.4v1.7zm-1.7-5H7v1.7h10V3.7zm3.3 8.3v8c0 .9-.8 1.7-1.7 1.7H5.7c-.9 0-1.7-.8-1.7-1.7v-8c0-.9.8-1.7 1.7-1.7h12.9c1 0 1.7.8 1.7 1.7zm-1.7 0H5.7v8h12.9v-8zm-7.6 1.7l4.5 2.3-4.5 2.3v-4.6z" />
                     )}
                   </svg>
-                  <span className="truncate">{t('nav_subscriptions', 'Subscriptions')}</span>
+                  <span className="truncate">{t('nav_subscriptions', 'Following')}</span>
                 </div>
               </button>
 
-              {/* Messages / Direct Chat (Placed immediately below Subscriptions) */}
+              {/* Messages / Direct Chat */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('chat'))}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
@@ -1417,7 +1418,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             {/* 2. My Space / Personal Library Tools */}
             <div className="space-y-1">
               <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-2">
-                {isHindi ? 'मेरी लाइब्रेरी' : 'MY SPACE'}
+                {isHindi ? 'आपकी जगह' : 'YOUR SPACE'}
               </span>
 
               {/* History */}
