@@ -1268,7 +1268,7 @@ export const CreatorProfile: React.FC = () => {
                 <p className="text-xs text-slate-500 max-w-sm">
                   {isOwner 
                     ? (isHindi ? '60 सेकंड तक के वर्टिकल शॉर्ट्स वीडियो बनाएं और अधिक दर्शकों तक पहुंचें!' : 'Share vertical videos up to 60 seconds with SocialIndia Shorts to reach a wider audience.')
-                    : (isHindi ? 'इस क्रिएटर ने अभी तक कोई शॉर्ट्स प्रकाशित नहीं किया है।' : 'This creator has not published any Shorts yet.')}
+                    : (isHindi ? 'इस क्रिएटर ने अभी तक कोई शॉर्ट्स प्रकाशित नहीं किया है।' : 'This creator has not published any Clips yet.')}
                 </p>
                 {isOwner && (
                   <button
