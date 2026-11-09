@@ -596,29 +596,48 @@ export const videoService = {
     }
   },
 
-  // Delete a video (Safely archives to 180-Day Compliance Trash Vault before removal)
+  // Delete a video. The video document is the primary operation; optional
+  // profile-counter maintenance must never turn a successful deletion into a
+  // failed UI action.
   async deleteVideo(videoId: string, creatorId: string): Promise<void> {
+    let videoData: Video | null = null;
+
     try {
-      // First capture snapshot for 180-Day Legal Compliance Vault
-      const videoSnap = await getDoc(doc(db, 'videos', videoId));
+      const videoRef = doc(db, 'videos', videoId);
+      const videoSnap = await getDoc(videoRef);
       if (videoSnap.exists()) {
-        const videoData = videoSnap.data() as Video;
-        await trashService.moveToTrash({
-          itemId: videoId,
-          itemType: videoData.isShort ? 'short' : 'video',
-          title: videoData.title,
-          subtitle: `@${videoData.creatorUsername} • ${videoData.category}`,
-          thumbnailUrl: videoData.thumbnailUrl,
-          deletedBy: creatorId,
-          deletedByName: videoData.creatorDisplayName || videoData.creatorUsername,
-          details: `Deleted by creator @${videoData.creatorUsername}. Preserved for 180-day compliance.`,
-          dataSnapshot: videoData
-        });
+        videoData = videoSnap.data() as Video;
+
+        // Archive is best-effort: the Trash collection is admin-restricted in
+        // Firestore rules, so regular creators may not be allowed to write it.
+        try {
+          await trashService.moveToTrash({
+            itemId: videoId,
+            itemType: videoData.isShort ? 'short' : 'video',
+            title: videoData.title,
+            subtitle: `@${videoData.creatorUsername} • ${videoData.category}`,
+            thumbnailUrl: videoData.thumbnailUrl,
+            deletedBy: creatorId,
+            deletedByName: videoData.creatorDisplayName || videoData.creatorUsername,
+            details: `Deleted by creator @${videoData.creatorUsername}. Preserved for 180-day compliance.`,
+            dataSnapshot: videoData
+          });
+        } catch (archiveError) {
+          console.warn('Video deleted without Trash archive:', archiveError);
+        }
       }
 
-      await deleteDoc(doc(db, 'videos', videoId));
-      await userService.incrementVideoCount(creatorId, -1);
+      // Firestore rules allow creators to delete their own video documents.
+      await deleteDoc(videoRef);
       clearVideoCache();
+
+      // Keep the user's content deletion successful even if their profile
+      // counter cannot be updated (e.g. a restricted/legacy profile).
+      try {
+        await userService.incrementVideoCount(creatorId, -1);
+      } catch (counterError) {
+        console.warn('Video deleted; profile video counter update failed:', counterError);
+      }
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `videos/${videoId}`);
     }
