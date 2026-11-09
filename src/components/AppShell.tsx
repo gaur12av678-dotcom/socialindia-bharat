@@ -348,11 +348,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const menuItems = [
     { label: t('nav_home', 'Home'), path: 'home', icon: Home },
-    { label: t('nav_shorts', 'Shorts'), path: 'shorts', icon: ShortsLogo },
+    { label: 'Clips', path: 'shorts', icon: ShortsLogo },
     { label: t('nav_trending', 'Trending'), path: 'trending', icon: TrendingUp },
     { label: t('nav_chat', 'Direct Messages'), path: 'chat', icon: MessageSquare, protected: true },
     { label: t('nav_downloads', 'Downloads'), path: 'downloads', icon: ArrowDownToLine },
-    { label: t('nav_subscriptions', 'Subscriptions'), path: 'subscriptions', icon: Users, protected: true },
+    { label: 'Sub.', path: 'subscriptions', icon: Users, protected: true },
     { label: t('nav_saved', 'Saved Videos'), path: 'saved', icon: Bookmark, protected: true },
     { label: t('nav_history', 'Watch History'), path: 'history', icon: History, protected: true },
   ];
@@ -1304,7 +1304,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             {/* 1. Feeds & Discover Section */}
             <div className="space-y-1">
               <span className="px-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 block mb-2">
-                {isHindi ? 'फीड व डिस्कवरी' : 'FEED & DISCOVER'}
+                {isHindi ? 'खोजें व जुड़ें' : 'DISCOVER & CONNECT'}
               </span>
 
               {/* Home */}
@@ -1322,7 +1322,22 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 </div>
               </button>
 
-              {/* Shorts */}
+              {/* Explore: SocialIndia public posts feed */}
+              <button
+                onClick={() => navigate('explore')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'explore'
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <Globe className="w-[18px] h-[18px] shrink-0 text-[#2563eb]" />
+                  <span className="truncate">Explore</span>
+                </div>
+              </button>
+
+              {/* Clips */}
               <button
                 onClick={() => navigate('shorts')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${

@@ -55,7 +55,7 @@ export const Subscriptions: React.FC = () => {
   const [followedCreators, setFollowedCreators] = useState<Subscription[]>(() => cachedSubs);
   const [loading, setLoading] = useState<boolean>(() => cachedSubs.length === 0);
   
-  // YouTube UI Filters & Controls
+  // Following feed filters
   const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<SubscriptionsFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
