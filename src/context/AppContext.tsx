@@ -36,6 +36,7 @@ interface AppContextType {
   isSwitchAccountOpen: boolean;
   openSwitchAccount: () => void;
   closeSwitchAccount: () => void;
+  logout: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -239,6 +240,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [refreshNotifications]);
 
+  const logout = useCallback(async () => {
+    setLoading(true);
+    try {
+      await authService.logout();
+    } catch (e) {
+      console.warn('Logout error:', e);
+    } finally {
+      setCurrentUser(null);
+      setCurrentUserProfile(null);
+      try {
+        localStorage.removeItem('socialindia_cached_profile');
+      } catch {}
+      setNotifications([]);
+      setUnreadCount(0);
+      setLoading(false);
+    }
+  }, []);
+
   // Handle auth state changes
   useEffect(() => {
     // 1. Initial theme load
@@ -321,6 +340,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           console.warn('Notification fetch warning:', err);
         }
       } else {
+        setCurrentUser(null);
         setCurrentUserProfile(null);
         localStorage.removeItem('socialindia_cached_profile');
         setNotifications([]);
@@ -367,6 +387,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         isSwitchAccountOpen,
         openSwitchAccount,
         closeSwitchAccount,
+        logout,
       }}
     >
       {children}

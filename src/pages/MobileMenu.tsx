@@ -30,7 +30,7 @@ import { useTranslation } from '../i18n';
 import { UserAvatar } from '../components/UserAvatar';
 
 export const MobileMenu: React.FC = () => {
-  const { currentUser, currentUserProfile, theme, setTheme, addToast, openSwitchAccount } = useApp();
+  const { currentUser, currentUserProfile, theme, setTheme, addToast, openSwitchAccount, logout } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
@@ -92,7 +92,7 @@ export const MobileMenu: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await authService.logout();
+      await logout();
       addToast(isHindi ? 'सफलतापूर्वक साइन आउट किया गया।' : 'Signed out successfully.', 'success');
       navigate('home');
     } catch {

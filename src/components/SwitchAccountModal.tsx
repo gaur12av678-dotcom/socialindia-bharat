@@ -28,7 +28,7 @@ interface SwitchAccountModalProps {
 }
 
 export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, currentUserProfile, refreshProfile, addToast } = useApp();
+  const { currentUser, currentUserProfile, refreshProfile, addToast, logout } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
@@ -213,8 +213,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
   // Handle Sign out of all accounts
   const handleSignOutAll = async () => {
     try {
-      await accountService.signOutAll();
-      await refreshProfile();
+      await logout();
       addToast(isHindi ? 'सभी खातों से साइन आउट किया गया' : 'Signed out of all accounts', 'info');
       onClose();
       navigate('home');

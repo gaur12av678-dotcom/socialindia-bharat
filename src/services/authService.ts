@@ -263,7 +263,11 @@ export const authService = {
 
   // Log out
   async logout(): Promise<void> {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.warn('Firebase signOut error:', err);
+    }
   },
 
   // Reset password via email or username

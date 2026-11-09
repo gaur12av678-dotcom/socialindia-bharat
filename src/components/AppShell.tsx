@@ -87,7 +87,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     markNotificationsAsRead,
     addToast,
     refreshProfile,
-    openSwitchAccount
+    openSwitchAccount,
+    logout
   } = useApp();
   const isHindi = language === 'hi';
   const [profileDropdownView, setProfileDropdownView] = useState<'main' | 'accounts'>('main');
@@ -328,9 +329,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const handleSignOut = async () => {
     try {
-      await authService.logout();
       setProfileDropdownOpen(false);
-      addToast('Signed out successfully!', 'info');
+      await logout();
+      addToast(isHindi ? 'सफलतापूर्वक साइन आउट किया गया' : 'Signed out successfully!', 'info');
       navigate('home');
     } catch (err) {
       addToast('Failed to sign out.', 'error');
@@ -450,20 +451,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   >
                     <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
                   </button>
-                  <div className="relative flex-1 flex items-center">
+                  <div className="relative flex-1 flex items-center h-10 px-2 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shadow-xs">
+                    <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0 ml-1.5 mr-2 stroke-[2.2]" />
                     <input
                       type="text"
                       autoFocus
-                      placeholder={t('search_placeholder', 'Search videos, creators...')}
+                      placeholder={isHindi ? 'वीडियो, चैनल और क्रिएटर्स खोजें...' : 'Search videos, channels and creators...'}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full px-4 py-2.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-950 dark:text-white pr-8"
+                      className="w-full bg-transparent text-xs font-bold text-slate-950 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none pr-1"
                     />
                     {searchQuery && (
                       <button
                         type="button"
                         onClick={() => setSearchQuery('')}
-                        className="absolute right-2 text-slate-400 p-1 cursor-pointer"
+                        className="text-slate-400 p-1 mr-1 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -472,10 +474,10 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <button
                     type="button"
                     onClick={() => setVoiceModalOpen(true)}
-                    className="min-w-10 min-h-10 p-2 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
+                    className="min-w-10 min-h-10 p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-full flex items-center justify-center cursor-pointer shrink-0 shadow-xs"
                     title={isHindi ? 'बोलकर खोजें' : 'Voice Search'}
                   >
-                    <Mic className="w-5 h-5" />
+                    <Mic className="w-5 h-5 text-slate-600 dark:text-slate-300 stroke-[2]" />
                   </button>
                   <button 
                     type="submit"
@@ -616,20 +618,24 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 </div>
 
                 {/* Center / Prominent Search bar with YouTube-style Voice Mic & Search History Dropdown */}
-                <div ref={searchContainerRef} className="hidden md:flex flex-1 max-w-2xl mx-auto items-center gap-2 relative">
+                <div ref={searchContainerRef} className="hidden md:flex flex-1 max-w-2xl mx-auto items-center gap-3 relative">
                   <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-                    <div className="relative w-full flex items-center">
+                    <div className="relative w-full flex items-center h-11 px-1.5 rounded-full border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#121215] shadow-xs focus-within:border-slate-300 dark:focus-within:border-slate-700 transition-all">
+                      {/* Left Magnifying Glass Icon matching Capture_9477b767.PNG */}
+                      <Search className="w-4.5 h-4.5 text-slate-400 dark:text-slate-500 shrink-0 ml-3.5 mr-2 pointer-events-none stroke-[2.2]" />
+
                       <input
                         type="text"
-                        placeholder={t('search_placeholder', 'Search videos, creators, categories...')}
+                        placeholder={isHindi ? 'वीडियो, चैनल और क्रिएटर्स खोजें...' : 'Search videos, channels and creators...'}
                         value={searchQuery}
                         onFocus={() => setSearchSuggestionsOpen(true)}
                         onChange={(e) => {
                           setSearchQuery(e.target.value);
                           setSearchSuggestionsOpen(true);
                         }}
-                        className="w-full pl-4 pr-12 py-2 rounded-xl border border-slate-200 dark:border-[#334155] bg-white dark:bg-[#1e293b] text-slate-900 dark:text-[#f8fafc] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#2563eb] text-sm font-medium transition-all"
+                        className="w-full py-2 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none text-sm font-medium pr-2"
                       />
+
                       {searchQuery && (
                         <button
                           type="button"
@@ -637,19 +643,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                             setSearchQuery('');
                             setSearchSuggestionsOpen(true);
                           }}
-                          className="absolute right-12 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 cursor-pointer"
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 mr-1 cursor-pointer transition-colors"
                           title="Clear text"
                         >
                           <X className="w-4 h-4" />
                         </button>
                       )}
+
+                      {/* Right Circular Search Button inside the pill matching Capture_9477b767.PNG */}
                       <button 
                         type="submit"
-                        className="absolute right-1 top-1 bottom-1 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-lg transition-colors cursor-pointer flex items-center justify-center font-semibold text-xs shadow-xs"
+                        className="w-8.5 h-8.5 rounded-full bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer flex items-center justify-center shrink-0 mr-1 active:scale-95"
                         aria-label={t('search_button', 'Search')}
                         title={t('search_button', 'Search')}
                       >
-                        <Search className="w-4 h-4 text-white" />
+                        <Search className="w-4 h-4 stroke-[2.2]" />
                       </button>
                     </div>
 
@@ -772,14 +780,15 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     )}
                   </form>
 
+                  {/* Circular Voice Search Button matching Capture_9477b767.PNG */}
                   <button
                     type="button"
                     onClick={() => setVoiceModalOpen(true)}
-                    className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-[#202124] dark:hover:bg-[#2e3034] text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0 transition-colors cursor-pointer active:scale-95 shadow-xs"
+                    className="w-10 h-10 rounded-full bg-slate-100/90 hover:bg-slate-200/90 dark:bg-[#202124] dark:hover:bg-[#2e3034] text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition-all cursor-pointer active:scale-95 shadow-xs"
                     aria-label={isHindi ? 'बोलकर खोजें' : 'Search with your voice'}
                     title={isHindi ? 'बोलकर खोजें' : 'Search with your voice'}
                   >
-                    <Mic className="w-5 h-5 text-slate-700 dark:text-slate-200" />
+                    <Mic className="w-5 h-5 text-slate-600 dark:text-slate-300 stroke-[2]" />
                   </button>
                 </div>
 
@@ -823,13 +832,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     )}
                   </button>
 
-              {/* Publish Video Button (Primary Action) */}
+              {/* Upload Video Button matching Capture_09ce5585.PNG */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('upload'))}
-                className="hidden sm:flex items-center gap-1.5 px-5 py-2.5 text-base font-bold text-white bg-[#065fd4] hover:bg-[#054fb1] rounded-full transition-all shadow-md cursor-pointer active:scale-98"
+                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-blue-50/80 dark:hover:bg-blue-950/40 text-[#2563eb] dark:text-[#3b82f6] transition-all cursor-pointer active:scale-95 group"
+                title={t('upload_video_btn', 'Upload')}
               >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span>{t('upload_video_btn', 'Publish Video')}</span>
+                <svg 
+                  className="w-5 h-5 fill-[#2563eb] dark:fill-[#3b82f6] text-[#2563eb] dark:text-[#3b82f6] shrink-0 transition-transform group-hover:scale-105" 
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M4 6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5l4 2.5a1 1 0 0 0 1.5-.86V8.86a1 1 0 0 0-1.5-.86L17 10.5V8a2 2 0 0 0-2-2H4z" />
+                </svg>
+                <span className="text-base font-bold text-[#2563eb] dark:text-[#3b82f6] tracking-tight">
+                  Upload
+                </span>
               </button>
 
               {/* Notifications Dropdown */}
