@@ -194,6 +194,15 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
         className="hidden"
       />
 
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-sm font-extrabold text-slate-900 dark:text-white">
+          {isHindi ? 'पोस्ट शेयर करें' : 'Share a photo or video'}
+        </p>
+        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+          {isHindi ? 'पब्लिक' : 'Public'}
+        </span>
+      </div>
+
       {/* Top author row */}
       <div className="flex items-center gap-3 mb-3">
         <UserAvatar
