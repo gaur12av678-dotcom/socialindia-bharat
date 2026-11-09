@@ -165,9 +165,9 @@ export const Subscriptions: React.FC = () => {
       if (selectedCreatorId === creatorId) {
         setSelectedCreatorId(null);
       }
-      addToast(isHindi ? `@${creatorName} की सदस्यता समाप्त की गई` : `Unsubscribed from ${creatorName}`, 'info');
+      addToast(isHindi ? `@${creatorName} को अनफ़ॉलो किया गया` : `Unfollowed ${creatorName}`, 'info');
     } catch (e) {
-      addToast(isHindi ? 'सदस्यता समाप्त करने में विफल।' : 'Failed to unsubscribe.', 'error');
+      addToast(isHindi ? 'अनफ़ॉलो नहीं हो सका।' : 'Failed to unfollow.', 'error');
     } finally {
       setUnsubscribingId(null);
     }
@@ -321,8 +321,8 @@ export const Subscriptions: React.FC = () => {
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs mx-auto">
               {isHindi 
-                ? 'अपने पसंदीदा चैनलों की सदस्यता लें ताकि उनके ताज़ा वीडियो और शॉर्ट्स यहाँ दिखाई दें।' 
-                : 'Subscribe to your favorite creators to see their latest videos, podcasts, and shorts here.'}
+                ? 'अपने पसंदीदा क्रिएटर्स को फ़ॉलो करें ताकि उनके नए वीडियो और क्लिप्स यहाँ दिखाई दें।' 
+                : 'Follow your favorite creators to see their latest videos and clips here.'}
             </p>
           </div>
 
@@ -494,7 +494,7 @@ export const Subscriptions: React.FC = () => {
             { id: 'all', label: isHindi ? 'सभी' : 'All' },
             { id: 'today', label: isHindi ? 'आज' : 'Today' },
             { id: 'videos', label: isHindi ? 'वीडियो' : 'Videos' },
-            { id: 'shorts', label: isHindi ? 'शॉर्ट्स' : 'Shorts' },
+            { id: 'shorts', label: isHindi ? 'क्लिप्स' : 'Clips' },
             { id: 'continue', label: isHindi ? 'देखना जारी रखें' : 'Continue watching' },
             { id: 'unwatched', label: isHindi ? 'अनदेखे' : 'Unwatched' },
           ].map((chip) => (
@@ -778,10 +778,10 @@ export const Subscriptions: React.FC = () => {
               <div className="space-y-0.5">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Users className="w-5 h-5 text-[#065fd4] dark:text-[#3ea6ff]" />
-                  <span>{isHindi ? 'सभी सब्सक्रिप्शन प्रबंधित करें' : 'Manage Subscriptions'}</span>
+                  <span>{isHindi ? 'Following प्रबंधित करें' : 'Manage Subscriptions'}</span>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {followedCreators.length} {isHindi ? 'चैनलों की सदस्यता ली गई है' : 'channels subscribed'}
+                  {followedCreators.length} {isHindi ? 'क्रिएटर्स फ़ॉलो किए गए हैं' : 'creators followed'}
                 </p>
               </div>
 
@@ -904,8 +904,8 @@ export const Subscriptions: React.FC = () => {
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <>
-                            <span className="group-hover/btn:hidden">{isHindi ? 'सब्सक्राइब है' : 'Subscribed'}</span>
-                            <span className="hidden group-hover/btn:inline">{isHindi ? 'सदस्यता रद्द करें' : 'Unsubscribe'}</span>
+                            <span className="group-hover/btn:hidden">{isHindi ? 'फ़ॉलो कर रहे हैं' : 'Subscribed'}</span>
+                            <span className="hidden group-hover/btn:inline">{isHindi ? 'अनफ़ॉलो करें' : 'Unsubscribe'}</span>
                           </>
                         )}
                       </button>

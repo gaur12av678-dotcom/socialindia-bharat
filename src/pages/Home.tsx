@@ -586,7 +586,7 @@ export const Home: React.FC = () => {
         />
       </div>
 
-      {/* 2. Shorts Section (Progressive YouTube-style shelf with algorithmic rotation) */}
+      {/* 2. Clips Section (Progressive vertical-video shelf with algorithmic rotation) */}
       {selectedCategory === 'All' && (loadingShorts || shorts.length > 0) && (
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">

@@ -699,7 +699,7 @@ export const Watch: React.FC = () => {
 
   const handleSubscribeToggle = async () => {
     if (!currentUser || !currentUserProfile) {
-      addToast('Please sign in to subscribe.', 'info');
+      addToast('Please sign in to follow this creator.', 'info');
       return;
     }
     if (isSubscribing) return;
@@ -1438,7 +1438,7 @@ export const Watch: React.FC = () => {
                       ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-300' 
                       : 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/85 dark:hover:bg-slate-200'
                   }`}
-                  title={subscribed ? 'Subscribed' : 'Subscribe'}
+                  title={subscribed ? 'Following' : 'Follow'}
                 >
                   {subscribed ? t('action_subscribed', 'Subscribed') : t('action_subscribe', 'Subscribe')}
                 </button>

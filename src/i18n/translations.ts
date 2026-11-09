@@ -322,8 +322,8 @@ export const translations: Record<LanguageCode, Translations> = {
   en: {
     // Navigation & Shell
     nav_home: 'Home',
-    nav_shorts: 'Shorts',
-    nav_subscriptions: 'Subscriptions',
+    nav_shorts: 'Clips',
+    nav_subscriptions: 'Following',
     nav_history: 'History',
     nav_saved: 'Saved',
     nav_downloads: 'Downloads',
@@ -375,9 +375,9 @@ export const translations: Record<LanguageCode, Translations> = {
     action_save: 'Save',
     action_saved: 'Saved',
     action_report: 'Report',
-    action_subscribe: 'Subscribe',
-    action_subscribed: 'Subscribed',
-    action_unsubscribe: 'Unsubscribe',
+    action_subscribe: 'Follow',
+    action_subscribed: 'Following',
+    action_unsubscribe: 'Unfollow',
     action_remix: 'Remix',
     action_use_sound: 'Use this sound',
 
@@ -420,7 +420,7 @@ export const translations: Record<LanguageCode, Translations> = {
     related_videos: 'Related Videos',
 
     // Shorts UI
-    shorts_swipe_up: 'Swipe up for next short',
+    shorts_swipe_up: 'Swipe up for next clip',
     shorts_sound: 'Sound',
     shorts_original_audio: 'Original Audio',
     shorts_comments: 'Comments',
@@ -470,7 +470,7 @@ export const translations: Record<LanguageCode, Translations> = {
 
     // Channel & Studio
     tab_videos: 'Videos',
-    tab_shorts: 'Shorts',
+    tab_shorts: 'Clips',
     tab_playlists: 'Playlists',
     tab_community: 'Community',
     tab_about: 'About',
@@ -526,8 +526,8 @@ export const translations: Record<LanguageCode, Translations> = {
     saved_title: 'Saved & Playlists',
     saved_empty: 'No saved videos yet. Click "Save" on any video to add it here.',
     saved_watch_later: 'Watch Later',
-    subscriptions_title: 'Subscriptions',
-    subscriptions_empty: 'You have not subscribed to any channels yet.',
+    subscriptions_title: 'Following',
+    subscriptions_empty: 'You are not following any creators yet.',
     trending_title: 'Trending on SocialIndia',
     trending_now: 'Trending Now',
 
@@ -637,8 +637,8 @@ export const translations: Record<LanguageCode, Translations> = {
   hi: {
     // Navigation & Shell (नेविगेशन और शैल)
     nav_home: 'होम',
-    nav_shorts: 'शॉर्ट्स',
-    nav_subscriptions: 'सब्सक्रिप्शन',
+    nav_shorts: 'क्लिप्स',
+    nav_subscriptions: 'Following',
     nav_history: 'इतिहास',
     nav_saved: 'सहेजे गए',
     nav_downloads: 'डाउनलोड्स',
@@ -690,9 +690,9 @@ export const translations: Record<LanguageCode, Translations> = {
     action_save: 'सहेजें',
     action_saved: 'सहेजा गया',
     action_report: 'रिपोर्ट करें',
-    action_subscribe: 'सब्सक्राइब करें',
-    action_subscribed: 'सब्सक्राइब किया गया',
-    action_unsubscribe: 'अनसब्सक्राइब करें',
+    action_subscribe: 'फ़ॉलो करें',
+    action_subscribed: 'फ़ॉलो कर रहे हैं',
+    action_unsubscribe: 'अनफ़ॉलो करें',
     action_remix: 'रीमिक्स',
     action_use_sound: 'यह साउंड इस्तेमाल करें',
 
@@ -735,7 +735,7 @@ export const translations: Record<LanguageCode, Translations> = {
     related_videos: 'संबंधित वीडियो',
 
     // Shorts UI (शॉर्ट्स यूआई)
-    shorts_swipe_up: 'अगले शॉर्ट के लिए ऊपर स्वाइप करें',
+    shorts_swipe_up: 'अगली क्लिप के लिए ऊपर स्वाइप करें',
     shorts_sound: 'साउंड',
     shorts_original_audio: 'मूल ऑडियो',
     shorts_comments: 'टिप्पणियां',
@@ -785,7 +785,7 @@ export const translations: Record<LanguageCode, Translations> = {
 
     // Channel & Studio (चैनल व स्टूडियो)
     tab_videos: 'वीडियो',
-    tab_shorts: 'शॉर्ट्स',
+    tab_shorts: 'क्लिप्स',
     tab_playlists: 'प्लेलिस्ट',
     tab_community: 'कम्युनिटी',
     tab_about: 'के बारे में',
@@ -841,8 +841,8 @@ export const translations: Record<LanguageCode, Translations> = {
     saved_title: 'सहेजे गए वीडियो और प्लेलिस्ट',
     saved_empty: 'अभी कोई वीडियो सहेजा नहीं गया है। किसी भी वीडियो पर "सहेजें" दबाकर यहां जोड़ें।',
     saved_watch_later: 'बाद में देखें (Watch Later)',
-    subscriptions_title: 'सब्सक्रिप्शन',
-    subscriptions_empty: 'आपने अभी तक किसी भी चैनल को सब्सक्राइब नहीं किया है।',
+    subscriptions_title: 'Following',
+    subscriptions_empty: 'आप अभी किसी क्रिएटर को फ़ॉलो नहीं कर रहे हैं।',
     trending_title: 'सोशलइंडिया पर ट्रेंडिंग',
     trending_now: 'अभी ट्रेंडिंग में है',
 

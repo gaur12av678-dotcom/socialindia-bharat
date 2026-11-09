@@ -626,7 +626,7 @@ export const Shorts: React.FC = () => {
   useEffect(() => {
     if (activeShort?.title) {
       const creatorPart = activeShort.creatorDisplayName ? ` - ${activeShort.creatorDisplayName}` : '';
-      document.title = `${activeShort.title}${creatorPart} | Shorts - SocialIndia`;
+      document.title = `${activeShort.title}${creatorPart} | Clips - SocialIndia`;
     }
     return () => {
       document.title = 'SocialIndia';
@@ -710,7 +710,7 @@ export const Shorts: React.FC = () => {
   const handleSubscribeToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUser) {
-      addToast('Please sign in to subscribe to creators.', 'info');
+      addToast('Please sign in to follow creators.', 'info');
       navigate('signin');
       return;
     }
@@ -1300,7 +1300,7 @@ export const Shorts: React.FC = () => {
           </button>
         </div>
 
-        {/* Vertical Shorts Player Container (Full Screen Edge-to-Edge on Mobile) */}
+        {/* Vertical Clips Player Container (Full Screen Edge-to-Edge on Mobile) */}
         <div 
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
@@ -1318,7 +1318,7 @@ export const Shorts: React.FC = () => {
               <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
             </button>
             <span className="text-xs font-black uppercase tracking-wider text-white drop-shadow-md">
-              Shorts
+              Clips
             </span>
           </div>
           
@@ -1659,7 +1659,7 @@ export const Shorts: React.FC = () => {
                 </div>
               </div>
 
-              {/* Subscribe button (Screenshot 2 styling) */}
+              {/* Follow button */}
               {currentUser?.uid !== activeShort.creatorId && (
                 <button
                   onClick={handleSubscribeToggle}
