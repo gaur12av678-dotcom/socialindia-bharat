@@ -388,7 +388,7 @@ export const UploadPage: React.FC = () => {
         <p className="text-xs text-slate-500 dark:text-slate-400 font-bold mt-1.5 max-w-sm mx-auto">
           {isHindi 
             ? 'सोशलइंडिया पर अपने वीडियो, रील्स और शॉर्ट्स लाखों दर्शकों के साथ साझा करें।' 
-            : 'Share your videos, reels and shorts with millions of viewers across SocialIndia.'}
+            : 'Share your videos and clips with viewers across SocialIndia.'}
         </p>
         <button
           onClick={() => navigate('login')}
@@ -676,7 +676,7 @@ export const UploadPage: React.FC = () => {
                       <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
                         <span>{isHindi ? 'अवधि:' : 'Duration:'} {formatDuration(duration)}</span>
                         <span>•</span>
-                        <span>{isShort ? (isHindi ? '⚡ शॉर्ट्स (9:16)' : '⚡ Shorts (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span>
+                        <span>{isShort ? (isHindi ? '⚡ शॉर्ट्स (9:16)' : '⚡ Clips (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span>
                         {selectedVideoFile && (
                           <>
                             <span>•</span>
@@ -871,7 +871,7 @@ export const UploadPage: React.FC = () => {
                     type="text"
                     required
                     maxLength={100}
-                    placeholder={uploadMode === 'short' ? (isHindi ? 'आकर्षक शॉर्ट्स शीर्षक जोड़ें... #shorts' : 'Add catchy short title... #shorts') : (isHindi ? 'आकर्षक वीडियो शीर्षक दर्ज करें...' : 'Enter an engaging video title...')}
+                    placeholder={uploadMode === 'short' ? (isHindi ? 'आकर्षक शॉर्ट्स शीर्षक जोड़ें... #shorts' : 'Add catchy clip title... #shorts') : (isHindi ? 'आकर्षक वीडियो शीर्षक दर्ज करें...' : 'Enter an engaging video title...')}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50/70 dark:bg-[#1e293b] text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#065fd4]/20 focus:border-[#065fd4] font-semibold text-sm transition-all"
@@ -1006,7 +1006,7 @@ export const UploadPage: React.FC = () => {
                 <div className="p-4 bg-slate-50/80 dark:bg-slate-900/60 rounded-2xl border border-slate-200/90 dark:border-slate-800 space-y-2 text-xs text-slate-600 dark:text-slate-400">
                   <p className="truncate">{isHindi ? 'फ़ाइल:' : 'File:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{videoFileName || (isHindi ? 'चुनी गई वीडियो' : 'Selected Video')}</span></p>
                   <p>{isHindi ? 'अवधि:' : 'Duration:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{formatDuration(duration)}</span></p>
-                  <p>{isHindi ? 'प्रारूप:' : 'Format:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{isShort ? (isHindi ? '⚡ शॉर्ट्स (9:16)' : '⚡ Shorts (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span></p>
+                  <p>{isHindi ? 'प्रारूप:' : 'Format:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{isShort ? (isHindi ? '⚡ शॉर्ट्स (9:16)' : '⚡ Clips (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span></p>
                 </div>
 
               </div>
