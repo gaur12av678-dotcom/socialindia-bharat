@@ -171,6 +171,8 @@ function MainAppContent() {
     switch (route.path) {
       case 'home':
         return <Home />;
+      case 'explore':
+        return <CommunityPage />;
       case 'upload':
         return <UploadPage />;
       case 'downloads':
