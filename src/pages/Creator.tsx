@@ -857,19 +857,19 @@ export const CreatorProfile: React.FC = () => {
                   <button
                     onClick={handleSubscribeToggle}
                     disabled={subscribing}
-                    className={`px-6 py-2.5 rounded-full font-extrabold text-xs sm:text-sm tracking-wide transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-60 flex items-center gap-2 shrink-0 ${
-                      subscribed 
-                        ? 'bg-blue-600 dark:bg-[#1E293B] text-white dark:text-white border border-blue-600 dark:border-slate-700 hover:bg-blue-700 dark:hover:bg-slate-700' 
-                        : 'bg-white dark:bg-white text-slate-900 dark:text-black border border-slate-300 dark:border-slate-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 dark:hover:bg-slate-100'
+                    className={`min-w-[112px] justify-center px-6 py-2.5 rounded-full font-extrabold text-xs sm:text-sm tracking-wide transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-60 flex items-center gap-2 shrink-0 ${
+                      subscribed
+                        ? 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700'
+                        : 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white border border-blue-600 dark:border-blue-500'
                     }`}
                   >
                     {subscribed ? (
                       <>
                         <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
-                        <span>{t('action_subscribed', 'Subscribed')}</span>
+                        <span>{isHindi ? 'फ़ॉलो कर रहे हैं' : 'Following'}</span>
                       </>
                     ) : (
-                      <span>{t('action_subscribe', 'Subscribe')}</span>
+                      <span>{isHindi ? 'फ़ॉलो करें' : 'Follow'}</span>
                     )}
                   </button>
                   <button

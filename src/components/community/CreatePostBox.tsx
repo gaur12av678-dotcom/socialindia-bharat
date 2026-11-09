@@ -42,7 +42,7 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
   // Submit state
   const [isPosting, setIsPosting] = useState(false);
 
-  if (!currentUser || !currentUserProfile) {
+  if (!currentUser) {
     return (
       <div className={`bg-white dark:bg-[#121215] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center ${className}`}>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
@@ -114,8 +114,7 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
     setPollOptions(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (isPosting) return;
 
     const trimmedContent = content.trim();
@@ -142,10 +141,10 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
     try {
       await postService.createPost({
         authorId: currentUser.uid,
-        authorUsername: currentUserProfile.username,
-        authorDisplayName: currentUserProfile.displayName || currentUserProfile.username,
-        authorPhotoURL: currentUserProfile.photoURL,
-        authorRole: currentUserProfile.role,
+        authorUsername: currentUserProfile?.username || currentUser.displayName?.trim().replace(/\s+/g, '').toLowerCase() || currentUser.email?.split('@')[0] || currentUser.uid,
+        authorDisplayName: currentUserProfile?.displayName || currentUser.displayName || currentUserProfile?.username || currentUser.email?.split('@')[0] || 'SocialIndia User',
+        authorPhotoURL: currentUserProfile?.photoURL || currentUser.photoURL || '',
+        authorRole: currentUserProfile?.role || 'user',
         content: trimmedContent,
         postType,
         images: postType === 'image' ? images : undefined,
@@ -195,18 +194,27 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
         className="hidden"
       />
 
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-sm font-extrabold text-slate-900 dark:text-white">
+          {isHindi ? 'पोस्ट शेयर करें' : 'Share a photo or video'}
+        </p>
+        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+          {isHindi ? 'पब्लिक' : 'Public'}
+        </span>
+      </div>
+
       {/* Top author row */}
       <div className="flex items-center gap-3 mb-3">
         <UserAvatar
           uid={currentUser.uid}
-          fallbackPhotoURL={currentUserProfile.photoURL}
-          fallbackDisplayName={currentUserProfile.displayName || currentUserProfile.username}
+          fallbackPhotoURL={currentUserProfile?.photoURL || currentUser.photoURL || undefined}
+          fallbackDisplayName={currentUserProfile?.displayName || currentUser.displayName || currentUserProfile?.username || currentUser.email || 'SocialIndia User'}
           size="sm"
           className="w-9 h-9"
         />
         <div className="min-w-0">
           <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-            {currentUserProfile.displayName}
+            {currentUserProfile?.displayName || currentUser.displayName || currentUserProfile?.username || currentUser.email?.split('@')[0] || 'SocialIndia User'}
           </p>
           <p className="text-[10px] text-slate-500 dark:text-slate-400">
             {isHindi ? 'पब्लिक कम्युनिटी पोस्ट' : 'Public Community Post'}
@@ -361,7 +369,7 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
           type="button"
           onClick={handleSubmit}
           disabled={!canSubmit || isPosting}
-          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-full text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:cursor-not-allowed"
+          className="min-w-[92px] justify-center px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-600 disabled:opacity-100 dark:disabled:bg-slate-700 dark:disabled:text-slate-300 text-white rounded-full text-xs font-bold shadow-md shadow-blue-500/20 flex items-center gap-2 cursor-pointer transition-all active:scale-95 disabled:cursor-not-allowed"
         >
           {isPosting ? (
             <>
