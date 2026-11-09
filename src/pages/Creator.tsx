@@ -1077,7 +1077,7 @@ export const CreatorProfile: React.FC = () => {
           className={`pb-3 text-xs sm:text-sm font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer whitespace-nowrap relative px-2 transition-colors ${activeTab === 'shorts' ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}`}
         >
           <Zap className="w-4 h-4 text-red-500 fill-red-500" />
-          <span>{t('tab_shorts', 'Shorts')}</span>
+          <span>{t('tab_shorts', 'Clips')}</span>
           <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{shorts.length}</span>
           {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
@@ -1232,7 +1232,7 @@ export const CreatorProfile: React.FC = () => {
                     {/* Top Red Shorts Badge */}
                     <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs flex items-center gap-1 border border-white/10 pointer-events-none">
                       <Zap className="w-3 h-3 text-red-500 fill-red-500" />
-                      <span className="text-[10px] font-extrabold text-white uppercase tracking-wider">Shorts</span>
+                      <span className="text-[10px] font-extrabold text-white uppercase tracking-wider">Clips</span>
                     </div>
 
                     {/* Hover Play Button */}
@@ -1263,7 +1263,7 @@ export const CreatorProfile: React.FC = () => {
                   <Zap className="w-8 h-8 fill-red-500" />
                 </div>
                 <h4 className="text-base font-bold text-slate-900 dark:text-white">
-                  {isHindi ? 'कोई शॉर्ट्स वीडियो नहीं' : 'No Shorts yet'}
+                  {isHindi ? 'अभी कोई क्लिप नहीं' : 'No Clips yet'}
                 </h4>
                 <p className="text-xs text-slate-500 max-w-sm">
                   {isOwner 
