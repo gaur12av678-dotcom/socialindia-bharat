@@ -470,7 +470,7 @@ export const translations: Record<LanguageCode, Translations> = {
 
     // Channel & Studio
     tab_videos: 'Videos',
-    tab_shorts: 'Shorts',
+    tab_shorts: 'Clips',
     tab_playlists: 'Playlists',
     tab_community: 'Community',
     tab_about: 'About',
@@ -785,7 +785,7 @@ export const translations: Record<LanguageCode, Translations> = {
 
     // Channel & Studio (चैनल व स्टूडियो)
     tab_videos: 'वीडियो',
-    tab_shorts: 'शॉर्ट्स',
+    tab_shorts: 'क्लिप्स',
     tab_playlists: 'प्लेलिस्ट',
     tab_community: 'कम्युनिटी',
     tab_about: 'के बारे में',
