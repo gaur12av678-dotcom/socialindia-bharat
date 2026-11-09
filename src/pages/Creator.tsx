@@ -866,7 +866,7 @@ export const CreatorProfile: React.FC = () => {
                     {subscribed ? (
                       <>
                         <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
-                        <span>{isHindi ? 'Following' : 'Following'}</span>
+                        <span>{isHindi ? 'फ़ॉलो कर रहे हैं' : 'Following'}</span>
                       </>
                     ) : (
                       <span>{isHindi ? 'फ़ॉलो करें' : 'Follow'}</span>
