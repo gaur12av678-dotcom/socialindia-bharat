@@ -5,6 +5,10 @@ on:
   push:
     branches: [main, master]
 
+permissions:
+  contents: write
+  actions: write
+
 jobs:
   build:
     name: Build Android APK
@@ -43,16 +47,53 @@ jobs:
             gradle assembleRelease assembleDebug --no-daemon --stacktrace
           fi
 
+      - name: Free Artifact Storage (Delete Older Artifacts)
+        run: |
+          echo "Cleaning up older artifacts to stay within GitHub free storage quota..."
+          gh api -X GET "repos/${{ github.repository }}/actions/artifacts?per_page=30" --jq '.artifacts[] | .id' 2>/dev/null | tail -n +3 | while read -r id; do
+            if [ -n "$id" ]; then
+              echo "Removing old artifact $id..."
+              gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id" 2>/dev/null || true
+            fi
+          done || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Upload Release APK (Recommended for Sharing)
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: SocialIndia-Release-APK
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: warn
+          retention-days: 1
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: SocialIndia-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
+          retention-days: 1
+
+      - name: Publish to GitHub Releases (Direct Download - No Quota Limit)
+        uses: softprops/action-gh-release@v2
+        continue-on-error: true
+        with:
+          tag_name: latest-apk
+          name: "SocialIndia Android APK (Latest Build)"
+          body: |
+            Automated Android build from commit ${{ github.sha }}.
+            
+            - **Release APK:** `app-release.apk`
+            - **Debug APK:** `app-debug.apk`
+          draft: false
+          prerelease: true
+          files: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
