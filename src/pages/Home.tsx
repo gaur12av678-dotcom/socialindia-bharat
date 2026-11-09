@@ -10,6 +10,7 @@ import { AdCampaign } from '../types';
 import { Flame, Zap, ArrowRight, Play, RotateCw, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
+import { ShortsLogo } from '../components/ShortsLogo';
 
 export const categoriesList = [
   'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy'
@@ -589,11 +590,9 @@ export const Home: React.FC = () => {
       {selectedCategory === 'All' && (loadingShorts || shorts.length > 0) && (
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-red-600 flex items-center justify-center text-white shadow-xs shrink-0">
-                <Zap className="w-3.5 h-3.5 fill-current" />
-              </div>
-              <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
+            <div className="flex items-center gap-2.5">
+              <ShortsLogo className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 drop-shadow-sm" />
+              <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
                 {t('nav_shorts', 'Shorts')}
               </h2>
             </div>
@@ -685,7 +684,7 @@ export const Home: React.FC = () => {
                       />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900 flex flex-col items-center justify-center p-3 text-center pointer-events-none">
-                        <Zap className="w-8 h-8 text-white/50 mb-1" />
+                        <ShortsLogo className="w-8 h-8 mb-1" />
                         <span className="text-[11px] text-white/70 font-semibold truncate max-w-[90%]">{short.title}</span>
                       </div>
                     )}

@@ -4,6 +4,7 @@ import { useRouter } from '../hooks/useRouter';
 import { ToastContainer } from './Toast';
 import { AuthModal } from './AuthModal';
 import { SocialIndiaLogo } from './SocialIndiaLogo';
+import { ShortsLogo } from './ShortsLogo';
 import { 
   Home, 
   ArrowLeft,
@@ -346,7 +347,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const menuItems = [
     { label: t('nav_home', 'Home'), path: 'home', icon: Home },
-    { label: t('nav_shorts', 'Shorts'), path: 'shorts', icon: Zap },
+    { label: t('nav_shorts', 'Shorts'), path: 'shorts', icon: ShortsLogo },
     { label: t('nav_trending', 'Trending'), path: 'trending', icon: TrendingUp },
     { label: t('nav_chat', 'Direct Messages'), path: 'chat', icon: MessageSquare, protected: true },
     { label: t('nav_downloads', 'Downloads'), path: 'downloads', icon: ArrowDownToLine },
@@ -1375,7 +1376,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <Zap className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'text-amber-500 fill-amber-500' : 'text-amber-500/80'}`} />
+                  <ShortsLogo className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'scale-110' : 'opacity-95'}`} />
                   <span className="truncate">{t('nav_shorts', 'Shorts')}</span>
                 </div>
               </button>
@@ -1605,9 +1606,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
             }`}
           >
-            <Zap className={`h-[21px] w-[21px] transition-transform duration-200 ${
-              isShortsPage ? 'fill-current text-white' : 'text-amber-500'
-            }`} />
+            <ShortsLogo className="h-6 w-6 transition-transform duration-200" />
             <span className="text-[11px] font-semibold leading-none">{t('nav_shorts', 'Shorts')}</span>
           </button>
 

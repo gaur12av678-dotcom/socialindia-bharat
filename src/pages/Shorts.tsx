@@ -50,6 +50,7 @@ import { paidVideoService } from '../services/paidVideoService';
 import { SoundLibraryModal } from '../components/SoundLibraryModal';
 import { SoundDetailsModal } from '../components/SoundDetailsModal';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
+import { ShortsLogo } from '../components/ShortsLogo';
 
 declare global {
   interface Window {
@@ -1257,8 +1258,8 @@ export const Shorts: React.FC = () => {
   if (shorts.length === 0 || !activeShort) {
     return (
       <div className="flex flex-col items-center justify-center py-20 px-4 text-center min-h-[calc(100vh-8rem)]">
-        <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 dark:border-blue-900/30 shadow-xs">
-          <Zap className="w-7 h-7 fill-current" />
+        <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950/40 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 dark:border-blue-900/30 shadow-xs">
+          <ShortsLogo className="w-10 h-10" />
         </div>
         <h4 className="text-base font-extrabold text-slate-900 dark:text-[#F8FAFC]">No short videos available yet</h4>
         <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-1 max-w-sm font-medium">

@@ -7,6 +7,7 @@ import { downloadService } from '../services/downloadService';
 import { savedVideoService } from '../services/savedVideoService';
 import { videoService } from '../services/videoService';
 import { UserAvatar } from './UserAvatar';
+import { ShortsLogo } from './ShortsLogo';
 import { userService } from '../services/userService';
 import { playbackProgressService } from '../services/playbackProgressService';
 import { liveBroadcastService } from '../services/liveBroadcastService';
@@ -206,8 +207,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
         )}
         
         {video.isShort && (
-          <div className="absolute top-2 left-2 px-2 py-0.5 bg-red-600 text-white font-black text-[9px] rounded-md uppercase tracking-widest shadow-sm pointer-events-none">
-            Shorts
+          <div className="absolute top-2 left-2 px-2 py-0.5 bg-blue-600 text-white font-black text-[9px] rounded-md uppercase tracking-widest shadow-sm pointer-events-none flex items-center gap-1.5">
+            <ShortsLogo className="w-3 h-3" />
+            <span>Shorts</span>
           </div>
         )}
 
