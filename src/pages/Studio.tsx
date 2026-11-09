@@ -2081,7 +2081,7 @@ export const CreatorStudio: React.FC = () => {
                             }`}
                           >
                             <Zap className="w-4 h-4 text-amber-300" />
-                            <span>⚡ SocialIndia Shorts (9:16)</span>
+                            <span>⚡ SocialIndia Clips (9:16)</span>
                           </button>
                         </div>
                       </div>
@@ -2129,7 +2129,7 @@ export const CreatorStudio: React.FC = () => {
                             <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                               <span>Duration: {formatDuration(duration)}</span>
                               <span>•</span>
-                              <span>{isShort ? '⚡ Shorts (9:16)' : '🎥 Standard (16:9)'}</span>
+                              <span>{isShort ? '⚡ Clips (9:16)' : '🎥 Standard (16:9)'}</span>
                               {selectedVideoFile && (
                                 <>
                                   <span>•</span>
@@ -2541,8 +2541,8 @@ export const CreatorStudio: React.FC = () => {
                           <Zap className="w-4 h-4 stroke-[2.5]" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">SocialIndia Shorts Format</h4>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Publish to the dedicated Shorts swipeable feed (9:16)</p>
+                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">SocialIndia Clips Format</h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Publish to the dedicated Clips swipeable feed (9:16)</p>
                         </div>
                       </div>
 
