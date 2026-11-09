@@ -203,10 +203,9 @@ export const Watch: React.FC = () => {
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
-  const isLiveBroadcastVideoId = videoId === 'live_XGym1ByjKHw' || videoId === 'XGym1ByjKHw';
   const isPlaylistPlayback = Boolean(route.searchParams?.list);
   const [seekToTime, setSeekToTime] = useState<number | undefined>(() => {
-    if (isPlaylistPlayback || cachedInitialVid?.isLive || isLiveBroadcastVideoId) return undefined;
+    if (isPlaylistPlayback || cachedInitialVid?.isLive) return undefined;
     return videoId ? (playbackProgressService.getProgress(videoId, cachedInitialVid?.duration) || undefined) : undefined;
   });
 
@@ -471,7 +470,7 @@ export const Watch: React.FC = () => {
         
         // Resume is only for a regular video opened on its own.
         // Never seek old progress for live broadcasts or playlist playback.
-        const isLiveVideo = Boolean(vid.isLive || videoId === 'live_XGym1ByjKHw' || videoId === 'XGym1ByjKHw');
+        const isLiveVideo = Boolean(vid.isLive);
         if (!isPlaylistPlayback && !isLiveVideo) {
           const localProgress = playbackProgressService.getProgress(videoId, vid.duration);
           if (localProgress > 5) {
@@ -565,7 +564,7 @@ export const Watch: React.FC = () => {
   // Save playback progress on page exit, back button, or tab switch (YouTube Style)
   useEffect(() => {
     const handleSaveCurrentProgress = () => {
-      const isLiveVideo = Boolean(video?.isLive || video?.videoId === 'live_XGym1ByjKHw' || video?.videoId === 'XGym1ByjKHw');
+      const isLiveVideo = Boolean(video?.isLive);
       if (video && !isPlaylistPlayback && !isLiveVideo && lastSavedProgressRef.current > 0) {
         playbackProgressService.saveProgress(video.videoId, lastSavedProgressRef.current, video.duration || 0, currentUser?.uid);
       }
@@ -1277,7 +1276,7 @@ export const Watch: React.FC = () => {
         setReportModalOpen(true);
       }}
       onProgress={(seconds) => {
-        if (video && !isPlaylistPlayback && !video.isLive && !isLiveBroadcastVideoId) {
+        if (video && !isPlaylistPlayback && !video.isLive) {
           lastSavedProgressRef.current = seconds;
           playbackProgressService.saveProgress(video.videoId, seconds, video.duration || 0, currentUser?.uid);
         }
@@ -1383,7 +1382,7 @@ export const Watch: React.FC = () => {
         {/* Video Title and Social Interactions block */}
         <div className="px-3.5 sm:px-0 space-y-4">
           <div className="flex flex-wrap items-start gap-2.5">
-            {(video.isLive || video.videoId === 'live_XGym1ByjKHw' || video.videoId === 'XGym1ByjKHw') && (
+            {video.isLive && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded-lg uppercase tracking-wider shadow-sm shrink-0">
                 <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
                 {isHindi ? 'लाइव' : 'LIVE'}

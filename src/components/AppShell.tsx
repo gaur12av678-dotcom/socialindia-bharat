@@ -832,88 +832,92 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     )}
                   </button>
 
-              {/* Upload Video Button matching Capture_09ce5585.PNG */}
-              <button
-                onClick={() => triggerProtectedAction(() => navigate('upload'))}
-                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-blue-50/80 dark:hover:bg-blue-950/40 text-[#2563eb] dark:text-[#3b82f6] transition-all cursor-pointer active:scale-95 group"
-                title={t('upload_video_btn', 'Upload')}
-              >
-                <svg 
-                  className="w-5 h-5 fill-[#2563eb] dark:fill-[#3b82f6] text-[#2563eb] dark:text-[#3b82f6] shrink-0 transition-transform group-hover:scale-105" 
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M4 6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5l4 2.5a1 1 0 0 0 1.5-.86V8.86a1 1 0 0 0-1.5-.86L17 10.5V8a2 2 0 0 0-2-2H4z" />
-                </svg>
-                <span className="text-base font-bold text-[#2563eb] dark:text-[#3b82f6] tracking-tight">
-                  Upload
-                </span>
-              </button>
-
-              {/* Notifications Dropdown */}
-              <div ref={notifRef} className="relative">
+              {/* Upload Video Button matching Capture_09ce5585.PNG (only when signed in) */}
+              {currentUser && (
                 <button
-                  onClick={() => triggerProtectedAction(() => setNotifDropdownOpen(!notifDropdownOpen))}
-                  className={`p-2 rounded-xl transition-colors cursor-pointer relative ${
-                    isShortsPage
-                      ? 'hover:bg-white/10 text-white'
-                      : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
-                  }`}
-                  aria-label="Notifications"
+                  onClick={() => navigate('upload')}
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-blue-50/80 dark:hover:bg-blue-950/40 text-[#2563eb] dark:text-[#3b82f6] transition-all cursor-pointer active:scale-95 group"
+                  title={t('upload_video_btn', 'Upload')}
                 >
-                  <Bell className="w-5 h-5" />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-1 right-1 w-4 h-4 bg-[#2563eb] text-white border-2 border-white dark:border-[#111827] rounded-full flex items-center justify-center text-[9px] font-black">
-                      {unreadCount}
-                    </span>
-                  )}
+                  <svg 
+                    className="w-5 h-5 fill-[#2563eb] dark:fill-[#3b82f6] text-[#2563eb] dark:text-[#3b82f6] shrink-0 transition-transform group-hover:scale-105" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M4 6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5l4 2.5a1 1 0 0 0 1.5-.86V8.86a1 1 0 0 0-1.5-.86L17 10.5V8a2 2 0 0 0-2-2H4z" />
+                  </svg>
+                  <span className="text-base font-bold text-[#2563eb] dark:text-[#3b82f6] tracking-tight">
+                    Upload
+                  </span>
                 </button>
+              )}
 
-            {notifDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-2xl z-50 overflow-hidden">
-                <div className="p-4 border-b border-slate-100 dark:border-[#334155] flex items-center justify-between">
-                  <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-slate-100">{t('notifications', 'Notifications')}</span>
-                  {unreadCount > 0 && (
-                    <button 
-                      onClick={markNotificationsAsRead}
-                      className="text-xs font-semibold text-[#2563eb] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      {t('mark_all_read', 'Mark all read')}
-                    </button>
-                  )}
-                </div>
-                <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
-                  {notifications.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
-                      {t('no_notifications', 'No notifications yet.')}
-                    </div>
-                  ) : (
-                    notifications.map((n) => (
-                      <div 
-                        key={n.notificationId} 
-                        onClick={() => {
-                          setNotifDropdownOpen(false);
-                          if (n.videoId) navigate('watch', n.videoId);
-                        }}
-                        className={`p-3.5 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] transition-colors cursor-pointer flex gap-3 items-start ${!n.read ? 'bg-[#eff6ff] dark:bg-blue-950/20' : ''}`}
-                      >
-                        <UserAvatar 
-                          fallbackPhotoURL={n.actorPhotoURL}
-                          fallbackDisplayName={n.actorDisplayName || n.actorUsername}
-                          size="xs"
-                          className="w-8 h-8 rounded-full shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-normal">{n.message}</p>
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1">{new Date(n.createdAt).toLocaleDateString()}</span>
-                        </div>
+              {/* Notifications Dropdown (only when signed in) */}
+              {currentUser && (
+                <div ref={notifRef} className="relative">
+                  <button
+                    onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
+                    className={`p-2 rounded-xl transition-colors cursor-pointer relative ${
+                      isShortsPage
+                        ? 'hover:bg-white/10 text-white'
+                        : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
+                    }`}
+                    aria-label="Notifications"
+                  >
+                    <Bell className="w-5 h-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-4 h-4 bg-[#2563eb] text-white border-2 border-white dark:border-[#111827] rounded-full flex items-center justify-center text-[9px] font-black">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notifDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-2xl z-50 overflow-hidden">
+                      <div className="p-4 border-b border-slate-100 dark:border-[#334155] flex items-center justify-between">
+                        <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-slate-100">{t('notifications', 'Notifications')}</span>
+                        {unreadCount > 0 && (
+                          <button 
+                            onClick={markNotificationsAsRead}
+                            className="text-xs font-semibold text-[#2563eb] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            {t('mark_all_read', 'Mark all read')}
+                          </button>
+                        )}
                       </div>
-                    ))
+                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        {notifications.length === 0 ? (
+                          <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
+                            {t('no_notifications', 'No notifications yet.')}
+                          </div>
+                        ) : (
+                          notifications.map((n) => (
+                            <div 
+                              key={n.notificationId} 
+                              onClick={() => {
+                                setNotifDropdownOpen(false);
+                                if (n.videoId) navigate('watch', n.videoId);
+                              }}
+                              className={`p-3.5 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] transition-colors cursor-pointer flex gap-3 items-start ${!n.read ? 'bg-[#eff6ff] dark:bg-blue-950/20' : ''}`}
+                            >
+                              <UserAvatar 
+                                fallbackPhotoURL={n.actorPhotoURL}
+                                fallbackDisplayName={n.actorDisplayName || n.actorUsername}
+                                size="xs"
+                                className="w-8 h-8 rounded-full shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-normal">{n.message}</p>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1">{new Date(n.createdAt).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
           {/* User Account / Profile Area (Hidden on mobile top bar, accessible via YouTube-style 'You' bottom tab) */}
           {currentUser ? (
@@ -1263,71 +1267,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             </div>
           ) : (
             <div ref={guestRef} className="hidden md:flex items-center gap-2 relative">
-              <button
-                onClick={() => setGuestMenuOpen(!guestMenuOpen)}
-                className="p-2 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer text-slate-700 dark:text-slate-300"
-                aria-label="Settings and support"
-              >
-                <MoreVertical className="w-5 h-5" />
-              </button>
-
-              {guestMenuOpen && (
-                <div className="absolute right-0 top-full mt-2.5 w-60 bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-[#27272a] rounded-2xl shadow-[0_12px_42px_rgba(0,0,0,0.12),0_4px_14px_rgba(0,0,0,0.06)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.7)] z-50 overflow-hidden select-none animate-in fade-in zoom-in-95 duration-150 origin-top-right">
-                  <div className="p-1.5">
-                    <button
-                      onClick={() => {
-                        setGuestMenuOpen(false);
-                        navigate('help');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <HelpCircle className="w-4 h-4 text-slate-400 group-hover:text-[#2563eb] transition-colors" />
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1 text-left">
-                        {isHindi ? 'सहायता केंद्र' : 'Help Center'}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setGuestMenuOpen(false);
-                        navigate('feedback');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <MessageSquare className="w-4 h-4 text-slate-400 group-hover:text-[#2563eb] transition-colors" />
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1 text-left">
-                        {isHindi ? 'फ़ीडबैक भेजें' : 'Send Feedback'}
-                      </span>
-                    </button>
-                  </div>
-                  <div className="border-t border-slate-100 dark:border-[#27272a] p-1.5">
-                    <button
-                      onClick={() => {
-                        setGuestMenuOpen(false);
-                        navigate('about');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <Info className="w-4 h-4 text-slate-400 group-hover:text-[#2563eb] transition-colors" />
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1 text-left">
-                        {isHindi ? 'सोशलइंडिया के बारे में' : 'About SocialIndia'}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setGuestMenuOpen(false);
-                        navigate('privacy');
-                      }}
-                      className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <FileText className="w-4 h-4 text-slate-400 group-hover:text-[#2563eb] transition-colors" />
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 flex-1 text-left">
-                        {isHindi ? 'गोपनीयता व शर्तें' : 'Privacy & Terms'}
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <button
                 onClick={() => navigate('login')}
                 className="px-4 sm:px-6 py-1.5 sm:py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-xs sm:text-base rounded-full shadow-md transition-all cursor-pointer active:scale-95 shrink-0"

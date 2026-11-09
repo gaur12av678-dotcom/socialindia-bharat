@@ -16,50 +16,50 @@ export const SocialIndiaLogo: React.FC<SocialIndiaLogoProps> = ({
   forceWhiteText = false
 }) => {
   const containerSizes = {
-    sm: 'w-7 h-7 rounded-lg',
-    md: 'w-9 h-9 rounded-xl',
-    lg: 'w-11 h-11 rounded-2xl',
-    xl: 'w-16 h-16 rounded-3xl'
+    sm: 'w-[25px] h-[18px] rounded-[5px]',
+    md: 'w-[32px] h-[22px] rounded-[7px]',
+    lg: 'w-[40px] h-[28px] rounded-[9px]',
+    xl: 'w-[56px] h-[38px] rounded-[12px]'
   };
 
   const playIconSizes = {
-    sm: 'w-3 h-3 ml-0.5',
-    md: 'w-4 h-4 ml-0.5',
-    lg: 'w-5 h-5 ml-0.5',
-    xl: 'w-7 h-7 ml-1'
+    sm: 'w-2.5 h-2.5',
+    md: 'w-3.5 h-3.5',
+    lg: 'w-4.5 h-4.5',
+    xl: 'w-6 h-6'
   };
 
   const textSizes = {
-    sm: 'text-base',
-    md: 'text-xl',
-    lg: 'text-2xl',
-    xl: 'text-4xl'
+    sm: 'text-base font-extrabold',
+    md: 'text-[19px] sm:text-[20px] font-extrabold',
+    lg: 'text-2xl font-extrabold',
+    xl: 'text-4xl font-extrabold'
   };
 
   return (
     <div 
       onClick={onClick}
-      className={`flex items-center gap-2.5 select-none ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      className={`flex items-center gap-2 select-none group ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
-      {/* Royal Blue rounded box with crisp white play button matching logo.PNG */}
-      <div className={`${containerSizes[size]} bg-[#2563eb] text-white flex items-center justify-center shadow-md shadow-blue-600/25 shrink-0 border border-white/20 transition-transform active:scale-95`}>
+      {/* Royal Blue YouTube-style rounded rectangle with crisp white play button */}
+      <div className={`${containerSizes[size]} bg-[#2563eb] hover:bg-[#1d4ed8] text-white flex items-center justify-center shrink-0 transition-all active:scale-95 shadow-xs`}>
         <svg 
           viewBox="0 0 24 24" 
           fill="#ffffff" 
           className={`${playIconSizes[size]}`}
           style={{ fill: '#ffffff', color: '#ffffff' }}
         >
-          <path d="M8 5.14v13.72a1 1 0 001.5.86l11-6.86a1 1 0 000-1.72l-11-6.86a1 1 0 00-1.5.86z" fill="#ffffff" />
+          <path d="M9.5 7.5L16.5 12L9.5 16.5V7.5Z" fill="#ffffff" />
         </svg>
       </div>
 
       {showText && (
         <span 
-          className={`font-extrabold tracking-tight ${textSizes[size]} flex items-center`}
+          className={`tracking-tight ${textSizes[size]} flex items-center leading-none select-none`}
         >
           <span 
             style={{ color: forceWhiteText ? '#ffffff' : undefined }}
-            className={forceWhiteText ? 'text-white' : 'text-[#0F172A] dark:text-white'}
+            className={forceWhiteText ? 'text-white' : 'text-slate-900 dark:text-white'}
           >
             Social
           </span>

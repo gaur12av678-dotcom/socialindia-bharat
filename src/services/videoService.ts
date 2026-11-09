@@ -91,7 +91,13 @@ function getPersistedVideos(): Video[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((v: any) => v && typeof v.videoId === 'string' && !v.videoId.startsWith('sample-'));
+        return parsed.filter((v: any) => 
+          v && 
+          typeof v.videoId === 'string' && 
+          !v.videoId.startsWith('sample-') &&
+          v.videoId !== 'live_XGym1ByjKHw' &&
+          v.videoId !== 'XGym1ByjKHw'
+        );
       }
     }
   } catch (_) {}
@@ -101,7 +107,8 @@ function getPersistedVideos(): Video[] {
 function savePersistedVideos(videos: Video[]) {
   if (typeof window === 'undefined' || !videos || videos.length === 0) return;
   try {
-    const slice = videos.slice(0, 60);
+    const filtered = videos.filter(v => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
+    const slice = filtered.slice(0, 60);
     const serialized = JSON.stringify(slice);
     sessionStorage.setItem('si_cached_public_videos', serialized);
     localStorage.setItem('si_cached_public_videos', serialized);
@@ -115,7 +122,13 @@ function getPersistedShorts(): Video[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((v: any) => v && typeof v.videoId === 'string' && !v.videoId.startsWith('sample-'));
+        return parsed.filter((v: any) => 
+          v && 
+          typeof v.videoId === 'string' && 
+          !v.videoId.startsWith('sample-') &&
+          v.videoId !== 'live_XGym1ByjKHw' &&
+          v.videoId !== 'XGym1ByjKHw'
+        );
       }
     }
   } catch (_) {}
@@ -125,7 +138,8 @@ function getPersistedShorts(): Video[] {
 function savePersistedShorts(shorts: Video[]) {
   if (typeof window === 'undefined' || !shorts || shorts.length === 0) return;
   try {
-    const slice = shorts.slice(0, 60);
+    const filtered = shorts.filter(v => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
+    const slice = filtered.slice(0, 60);
     const serialized = JSON.stringify(slice);
     sessionStorage.setItem('si_cached_public_shorts', serialized);
     localStorage.setItem('si_cached_public_shorts', serialized);
@@ -137,6 +151,16 @@ export const clearVideoCache = () => {
   memoryVideoDetailCache.clear();
   memorySearchCache.clear();
   inFlightVideoQueryPromises.clear();
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.removeItem('si_cached_public_videos');
+      localStorage.removeItem('si_cached_public_videos');
+      sessionStorage.removeItem('si_cached_public_shorts');
+      localStorage.removeItem('si_cached_public_shorts');
+      sessionStorage.removeItem('si_v_live_XGym1ByjKHw');
+      sessionStorage.removeItem('si_v_XGym1ByjKHw');
+    } catch (_) {}
+  }
 };
 
 export const videoService = {
@@ -673,7 +697,7 @@ export const videoService = {
 
   // Synchronously retrieve cached video in 0ms (no spinner/skeleton delay!)
   getCachedVideo(videoId: string): Video | null {
-    if (!videoId) return null;
+    if (!videoId || videoId === 'live_XGym1ByjKHw' || videoId === 'XGym1ByjKHw') return null;
     const mem = memoryVideoDetailCache.get(videoId);
     if (mem) return mem.data;
     try {
@@ -692,9 +716,7 @@ export const videoService = {
   // Get a specific video with instant memory cache & background revalidation
   async getVideo(videoId: string): Promise<Video | null> {
     if (videoId === 'live_XGym1ByjKHw' || videoId === 'XGym1ByjKHw') {
-      const { liveBroadcastService } = await import('./liveBroadcastService');
-      // Always use the canonical broadcast state, never an old cached LIVE/ended snapshot.
-      return liveBroadcastService.getVideo();
+      return null;
     }
 
     const cached = this.getCachedVideo(videoId);
@@ -852,20 +874,9 @@ export const videoService = {
 
       try {
         const snap = await getDocs(q);
-        let videos = snap.docs.map((d: any) => d.data() as Video);
-        
-        // Ensure Live India broadcast is active in public and news feeds
-        const shouldIncludeLive = filters?.isShort !== true && 
-          (!filters?.creatorId || filters.creatorId === 'user_liveindia_official') &&
-          (!filters?.category || filters.category === 'All' || filters.category === 'News');
-
-        if (shouldIncludeLive) {
-          const { liveBroadcastService } = await import('./liveBroadcastService');
-          const liveVideo = liveBroadcastService.getVideo();
-          if (!videos.some(v => v.videoId === liveVideo.videoId)) {
-            videos = [liveVideo, ...videos];
-          }
-        }
+        let videos = snap.docs
+          .map((d: any) => d.data() as Video)
+          .filter((v: Video) => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
 
         // Sort: Live streams first, then newest first
         const sorted = videos.sort((a: Video, b: Video) => {
@@ -1008,13 +1019,6 @@ export const videoService = {
         }
       });
 
-      // Include Live India broadcast if queried for liveindia channel
-      if ((creatorUsername && creatorUsername.toLowerCase() === 'liveindia') || creatorId === 'user_liveindia_official') {
-        const { liveBroadcastService } = await import('./liveBroadcastService');
-        const liveVideo = liveBroadcastService.getVideo();
-        map.set(liveVideo.videoId, liveVideo);
-      }
-
       const parseTime = (dateVal: any): number => {
         if (!dateVal) return 0;
         if (typeof dateVal === 'number') return dateVal;
@@ -1024,7 +1028,7 @@ export const videoService = {
         return isNaN(t) ? 0 : t;
       };
 
-      const videos = Array.from(map.values());
+      const videos = Array.from(map.values()).filter(v => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
       return videos.sort((a: Video, b: Video) => parseTime(b.createdAt) - parseTime(a.createdAt));
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, 'videos');

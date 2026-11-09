@@ -170,13 +170,12 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   }, [video.videoId, video.videoUrl]);
 
   // Dynamic Live Stream Status (auto-detects when stream ends on YouTube)
-  const isLiveIndiaBroadcast = video.videoId === 'live_XGym1ByjKHw' || video.videoId === 'XGym1ByjKHw';
   const [isLiveStream, setIsLiveStream] = useState<boolean>(() =>
-    Boolean((video.isLive || isLiveIndiaBroadcast) && !liveBroadcastService.isLiveEnded(video.videoId))
+    Boolean(video.isLive && !liveBroadcastService.isLiveEnded(video.videoId))
   );
 
   useEffect(() => {
-    setIsLiveStream(Boolean((video.isLive || isLiveIndiaBroadcast) && !liveBroadcastService.isLiveEnded(video.videoId)));
+    setIsLiveStream(Boolean(video.isLive && !liveBroadcastService.isLiveEnded(video.videoId)));
   }, [video.videoId, video.isLive]);
 
   useEffect(() => {

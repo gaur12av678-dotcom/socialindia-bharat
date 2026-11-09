@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { User, Video } from '../types';
 import { userService } from './userService';
@@ -62,23 +62,11 @@ export const liveBroadcastService = {
   // Use the current in-memory broadcast state.
   // Old localStorage flags can become stale when a broadcast is still active after a reload.
   isLiveEnded(_videoId?: string): boolean {
-    return !LIVE_INDIA_VIDEO.isLive;
+    return true;
   },
 
-  getVideo(): Video {
-    const isEnded = this.isLiveEnded(LIVE_INDIA_VIDEO.videoId);
-    let duration = LIVE_INDIA_VIDEO.duration;
-    if (isEnded && typeof window !== 'undefined') {
-      try {
-        const savedDur = localStorage.getItem(`socialindia_live_duration_${LIVE_INDIA_VIDEO.videoId}`);
-        if (savedDur) duration = Number(savedDur);
-      } catch (_) {}
-    }
-    return {
-      ...LIVE_INDIA_VIDEO,
-      isLive: !isEnded,
-      duration: isEnded ? (duration || 3600) : 0
-    };
+  getVideo(): Video | null {
+    return null;
   },
 
   // Mark the live broadcast as completed - transforms it into a standard recorded video
@@ -93,18 +81,6 @@ export const liveBroadcastService = {
         localStorage.setItem(`socialindia_live_duration_${videoId}`, String(dur));
       } catch (_) {}
     }
-
-    try {
-      const { videoService } = await import('./videoService');
-      const cached = videoService.getCachedVideo(videoId);
-      if (cached) {
-        videoService.cacheVideo({
-          ...cached,
-          isLive: false,
-          duration: dur
-        });
-      }
-    } catch (_) {}
 
     try {
       await setDoc(doc(db, 'videos', videoId), {
@@ -124,7 +100,7 @@ export const liveBroadcastService = {
     }
   },
 
-  // Ensure Live India user profile & video exist in database and local cache
+  // Ensure Live India user profile exists, and purge deleted video from database & storage
   async ensureLiveIndiaSeeded(): Promise<void> {
     if (isSeedingInProgress) return;
     isSeedingInProgress = true;
@@ -144,15 +120,42 @@ export const liveBroadcastService = {
         console.warn('Live India user Firestore seed skipped:', err);
       }
 
-      // 3. Check if Firestore live video exists, seed if missing
+      // 3. Ensure deleted live stream video is purged from Firestore
       try {
-        const videoRef = doc(db, 'videos', LIVE_INDIA_VIDEO.videoId);
-        const videoSnap = await getDoc(videoRef);
-        if (!videoSnap.exists()) {
-          await setDoc(videoRef, LIVE_INDIA_VIDEO, { merge: true });
-        }
-      } catch (err) {
-        console.warn('Live India video Firestore seed skipped:', err);
+        await deleteDoc(doc(db, 'videos', 'live_XGym1ByjKHw'));
+      } catch (_) {}
+      try {
+        await deleteDoc(doc(db, 'videos', 'XGym1ByjKHw'));
+      } catch (_) {}
+
+      // 4. Clean up any stale cached copies from localStorage and sessionStorage
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.removeItem('si_v_live_XGym1ByjKHw');
+          sessionStorage.removeItem('si_v_XGym1ByjKHw');
+          const cleanList = (raw: string | null) => {
+            if (!raw) return null;
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                return JSON.stringify(parsed.filter((v: any) => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw'));
+              }
+            } catch (_) {}
+            return raw;
+          };
+
+          const cleanedVideos = cleanList(localStorage.getItem('si_cached_public_videos'));
+          if (cleanedVideos) {
+            localStorage.setItem('si_cached_public_videos', cleanedVideos);
+            sessionStorage.setItem('si_cached_public_videos', cleanedVideos);
+          }
+
+          const cleanedShorts = cleanList(localStorage.getItem('si_cached_public_shorts'));
+          if (cleanedShorts) {
+            localStorage.setItem('si_cached_public_shorts', cleanedShorts);
+            sessionStorage.setItem('si_cached_public_shorts', cleanedShorts);
+          }
+        } catch (_) {}
       }
     } finally {
       isSeedingInProgress = false;
@@ -174,18 +177,6 @@ export const liveBroadcastService = {
       await setDoc(doc(db, 'users', uid), updatedUser, { merge: true });
     } catch (e) {
       console.warn('Could not sync user profile to Firestore:', e);
-    }
-
-    try {
-      // Also update video creatorId to new UID so creator permissions work
-      const updatedVideo: Video = {
-        ...LIVE_INDIA_VIDEO,
-        creatorId: uid,
-        updatedAt: new Date().toISOString()
-      };
-      await setDoc(doc(db, 'videos', LIVE_INDIA_VIDEO.videoId), updatedVideo, { merge: true });
-    } catch (e) {
-      console.warn('Could not sync video creatorId in Firestore:', e);
     }
 
     return updatedUser;
