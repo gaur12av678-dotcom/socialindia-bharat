@@ -1247,12 +1247,16 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             src={parsedMedia.embedUrl}
             title={video.title}
             frameBorder="0"
-            allow="autoplay; encrypted-media"
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+            allowFullScreen
             onLoad={() => {
               setIsMediaReady(true);
               setIsBuffering(false);
             }}
-            className="w-full h-full"
+            // Drive is cross-origin: its native player must receive clicks and
+            // report its own real duration. Keep it above SocialIndia's custom
+            // click shield and controls, which cannot control a Drive iframe.
+            className="relative z-[60] w-full h-full"
           />
         ) : (
           <video
