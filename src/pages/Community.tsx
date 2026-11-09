@@ -44,10 +44,10 @@ export const CommunityPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              {isHindi ? 'कम्युनिटी पोस्ट फ़ीड' : 'Community Posts'}
+              {isHindi ? 'एक्सप्लोर' : 'Explore'}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {isHindi ? 'क्रिएटर्स के लाइव पोल, फ़ोटो और ताज़ा अपडेट्स' : 'Live polls, photos, and updates from creators across SocialIndia'}
+              {isHindi ? 'फोटो, पोस्ट और पोल के ज़रिए सबके साथ जुड़ें' : 'Share photos, updates and polls with the SocialIndia community'}
             </p>
           </div>
         </div>
