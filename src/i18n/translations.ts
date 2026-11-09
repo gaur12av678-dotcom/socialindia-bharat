@@ -420,7 +420,7 @@ export const translations: Record<LanguageCode, Translations> = {
     related_videos: 'Related Videos',
 
     // Shorts UI
-    shorts_swipe_up: 'Swipe up for next short',
+    shorts_swipe_up: 'Swipe up for next clip',
     shorts_sound: 'Sound',
     shorts_original_audio: 'Original Audio',
     shorts_comments: 'Comments',
@@ -735,7 +735,7 @@ export const translations: Record<LanguageCode, Translations> = {
     related_videos: 'संबंधित वीडियो',
 
     // Shorts UI (शॉर्ट्स यूआई)
-    shorts_swipe_up: 'अगले शॉर्ट के लिए ऊपर स्वाइप करें',
+    shorts_swipe_up: 'अगली क्लिप के लिए ऊपर स्वाइप करें',
     shorts_sound: 'साउंड',
     shorts_original_audio: 'मूल ऑडियो',
     shorts_comments: 'टिप्पणियां',
