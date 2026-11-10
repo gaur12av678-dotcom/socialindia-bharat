@@ -16,7 +16,7 @@ import {
   increment 
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { db, storage, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { getCloudinaryConfigAsync } from './videoService';
 import { CommunityPost, PostComment, PostPoll } from '../types';
 
@@ -275,7 +275,9 @@ export const postService = {
     try {
       if (onProgress) onProgress(30, 'Uploading to secure cloud storage...');
       const cleanName = `${Date.now()}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const fileRef = ref(storage, `posts/${isVideo ? 'videos' : 'images'}/${cleanName}`);
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw new Error('Sign in is required to upload post media.');
+      const fileRef = ref(storage, `posts/${uid}/${isVideo ? 'videos' : 'images'}/${cleanName}`);
       const uploadTask = await uploadBytesResumable(fileRef, blobToUpload, {
         contentType: isVideo ? 'video/mp4' : 'image/jpeg'
       });
@@ -331,7 +333,7 @@ export const postService = {
     return [];
   },
 
-  // Sync any local/offline posts to Firestore cloud database & shared feed
+  // Sync any local/offline posts to the owner-protected Firestore posts collection
   async syncLocalPostsToCloud(): Promise<void> {
     if (typeof window === 'undefined') return;
     try {
@@ -347,9 +349,6 @@ export const postService = {
       if (userPosts.length === 0) return;
 
       for (const post of userPosts) {
-        // Always mirror to shared cloud feed so cross-device sync works seamlessly
-        await this.saveToSharedCloudFeed(post);
-
         try {
           const docRef = doc(db, 'posts', post.postId);
           const snap = await getDoc(docRef);
@@ -539,9 +538,6 @@ export const postService = {
       window.dispatchEvent(new CustomEvent('socialindia:post_created', { detail: { post: newPost } }));
     }
 
-    // Persist to Shared Cloud Feed first (accessible to all signed-in users on Firebase)
-    await this.saveToSharedCloudFeed(newPost);
-
     // Also attempt write to standard posts/{postId} collection in Firestore
     try {
       await setDoc(doc(db, 'posts', postId), firestoreData);
@@ -553,7 +549,7 @@ export const postService = {
     return newPost;
   },
 
-  // Fetch all posts or filtered by author (combining Firestore + shared cloud feed + local synchronization)
+  // Fetch posts from the canonical Firestore collection plus local/offline synchronization
   async getPosts(filter?: { authorId?: string; authorUsername?: string }): Promise<CommunityPost[]> {
     let allPosts: CommunityPost[] = [];
     const deletedIds = getDeletedPostIds();
@@ -580,17 +576,7 @@ export const postService = {
       console.warn('Firestore posts collection read notice:', err);
     }
 
-    // 2. Fetch from shared cloud feed (guaranteed cross-device sync between Mobile and Web)
-    try {
-      const sharedFeed = await this.getFromSharedCloudFeed();
-      for (const p of sharedFeed) {
-        if (!deletedIds.has(p.postId) && !postMap.has(p.postId)) {
-          postMap.set(p.postId, p);
-        }
-      }
-    } catch (err) {
-      console.warn('Shared cloud feed read notice:', err);
-    }
+    // 2. Legacy adminSettings feed is intentionally read-only; canonical posts live in posts/{postId}.
 
     // 3. Add local user posts (optimistic / offline cache)
     const local = getLocalPosts();
@@ -786,17 +772,6 @@ export const postService = {
       console.warn('Could not delete post from Firestore posts collection:', err);
     }
 
-    try {
-      const feedRef = doc(db, 'adminSettings', 'community_feed');
-      const snap = await getDoc(feedRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        if (Array.isArray(data.posts)) {
-          const filtered = data.posts.filter((p: CommunityPost) => p.postId !== postId);
-          await setDoc(feedRef, { posts: filtered, updatedAt: new Date().toISOString() });
-        }
-      }
-    } catch {}
   },
 
   // Toggle Like on a post (YouTube Thumbs Up)

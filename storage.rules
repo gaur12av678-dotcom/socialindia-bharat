@@ -1,41 +1,56 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-
-    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
-    
+
     function isOwner(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Video uploads: max 100MB (104857600 bytes), must be video/ content type
-    match /videos/{allPaths=**} {
-      allow read: if true;
-      allow write: if true;
+    function validImage(maxBytes) {
+      return request.resource != null &&
+        request.resource.size <= maxBytes &&
+        request.resource.contentType.matches('image/.*');
     }
 
-    // Thumbnail uploads: max 10MB
-    match /thumbnails/{allPaths=**} {
-      allow read: if true;
-      allow write: if true;
+    function validVideo(maxBytes) {
+      return request.resource != null &&
+        request.resource.size <= maxBytes &&
+        request.resource.contentType.matches('video/.*');
     }
 
-    // Community Post media uploads (photos and videos)
-    match /posts/{allPaths=**} {
+    // Existing media remains publicly readable. New uploads must be stored
+    // beneath the authenticated owner's UID.
+    match /videos/{uid}/{allPaths=**} {
       allow read: if true;
-      allow write: if true;
+      allow create, update: if isOwner(uid) && validVideo(104857600);
+      allow delete: if isOwner(uid);
     }
 
-    // Avatar / Profile uploads: max 5MB (5242880 bytes), must be image/ content type
-    match /avatars/{allPaths=**} {
+    match /thumbnails/{uid}/{allPaths=**} {
       allow read: if true;
-      allow write: if true;
+      allow create, update: if isOwner(uid) && validImage(10485760);
+      allow delete: if isOwner(uid);
     }
 
-    // Default deny catch-all for everything else
+    match /posts/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isOwner(uid) && request.resource != null &&
+        request.resource.size <= 104857600 &&
+        (request.resource.contentType.matches('image/.*') ||
+         request.resource.contentType.matches('video/.*'));
+      allow delete: if isOwner(uid);
+    }
+
+    match /avatars/{uid}/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if isOwner(uid) && validImage(5242880);
+      allow delete: if isOwner(uid);
+    }
+
+    // Keep legacy media readable, but never allow new unscoped uploads.
     match /{allPaths=**} {
       allow read: if true;
       allow write: if false;

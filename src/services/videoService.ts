@@ -13,7 +13,7 @@ import {
   increment 
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, UploadTaskSnapshot } from 'firebase/storage';
-import { db, storage, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { Video } from '../types';
 import { userService } from './userService';
 import { trashService } from './trashService';
@@ -237,7 +237,9 @@ export const videoService = {
     // Direct Firebase Storage Fallback
     try {
       if (onProgress) onProgress(10, 'Uploading video to secure storage...');
-      const url = await this.uploadToFirebase(file, 'videos', (pct) => {
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw new Error('Sign in is required to upload videos.');
+      const url = await this.uploadToFirebase(file, `videos/${uid}`, (pct) => {
         if (onProgress) onProgress(pct, `Uploading video... ${pct}%`);
       });
       return { videoUrl: url };
@@ -490,7 +492,9 @@ export const videoService = {
     // Fallback to Firebase Storage
     try {
       const filename = `thumb_${Date.now()}.jpg`;
-      const fileRef = ref(storage, `thumbnails/${filename}`);
+      const uid = auth.currentUser?.uid;
+      if (!uid) throw new Error('Sign in is required to upload thumbnails.');
+      const fileRef = ref(storage, `thumbnails/${uid}/${filename}`);
       const uploadTask = await uploadBytesResumable(fileRef, fileOrBlob, { contentType: 'image/jpeg' });
       return await getDownloadURL(uploadTask.ref);
     } catch (fbErr) {

@@ -4,9 +4,10 @@ service cloud.firestore {
 
 
 match /adminSettings/{docId} {
-  allow read: if true;
-  allow write: if request.auth != null;
-}
+      // Public configuration/feed documents remain readable; only admins may change them.
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // Default deny catch-all safety net
     match /{document=**} {
@@ -38,14 +39,11 @@ match /adminSettings/{docId} {
         request.resource.data.role == 'user';
 
       // Update allowed by owner (protecting role and status), admin, or wallet/bonus balance/follower updates
-      allow update: if (isOwner(uid) && 
-        !(request.resource.data.diff(resource.data).affectedKeys().hasAny([
-          'role', 'status'
-        ]))) || isAdmin() || (
-          isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'walletBalance', 'mainBalance', 'bonusBalance', 'isMonetized', 'monetizationStatus', 'points', 'upiId', 'updatedAt', 'followersCount', 'followingCount'
-          ])
-        );
+      allow update: if (isOwner(uid) &&
+        !(request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status']))) || isAdmin() ||
+        (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'followersCount', 'followingCount', 'videosCount', 'updatedAt'
+        ]));
 
       // Only admins can delete profiles
       allow delete: if isAdmin();
@@ -84,9 +82,9 @@ match /adminSettings/{docId} {
 
     // --- WITHDRAWAL / PAYOUT REQUESTS COLLECTION ---
     match /withdrawal_requests/{requestId} {
-      allow read: if isSignedIn();
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
 
     // --- VIDEOS COLLECTION ---
@@ -96,15 +94,11 @@ match /adminSettings/{docId} {
       allow create: if isSignedIn() && 
         request.resource.data.creatorId == request.auth.uid;
         
-      allow update: if (isSignedIn() && (
-        resource.data.creatorId == request.auth.uid || 
+      allow update: if isSignedIn() && (
+        resource.data.creatorId == request.auth.uid ||
         isAdmin() ||
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'viewsCount', 'likesCount', 'commentsCount', 'sharesCount', 'paidSalesCount', 'paidEarnings'
-        ])
-      )) || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'viewsCount', 'sharesCount'
+          'viewsCount', 'likesCount', 'commentsCount', 'sharesCount'
         ])
       );
 
@@ -116,14 +110,12 @@ match /adminSettings/{docId} {
       // Video comments subcollection
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isSignedIn();
+        allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || request.resource.data.userId == request.auth.uid);
         allow update: if isSignedIn() && (
-          resource.data.uid == request.auth.uid || 
-          resource.data.userId == request.auth.uid || 
-          isAdmin() ||
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'likesCount', 'dislikesCount', 'hasCreatorHeart', 'heartedAt', 'isPinned', 'pinnedAt', 'text', 'updatedAt'
-          ])
+          ((resource.data.uid == request.auth.uid || resource.data.userId == request.auth.uid) &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'userId', 'videoId', 'commentId', 'createdAt'])) ||
+          ((isAdmin() || get(/databases/$(database)/documents/videos/$(videoId)).data.creatorId == request.auth.uid) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasCreatorHeart', 'heartedAt', 'isPinned', 'pinnedAt', 'updatedAt']))
         );
         allow delete: if isSignedIn() && (
           resource.data.uid == request.auth.uid || 
@@ -135,20 +127,23 @@ match /adminSettings/{docId} {
         // Comment likes subcollection
         match /likes/{userId} {
           allow read: if true;
-          allow write: if isSignedIn();
+          allow create: if isSignedIn() && userId == request.auth.uid;
+          allow delete: if isSignedIn() && userId == request.auth.uid;
         }
 
         // Comment dislikes subcollection
         match /dislikes/{userId} {
           allow read: if true;
-          allow write: if isSignedIn();
+          allow create: if isSignedIn() && userId == request.auth.uid;
+          allow delete: if isSignedIn() && userId == request.auth.uid;
         }
       }
 
       // Video likes subcollection
       match /likes/{userId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow create: if isSignedIn() && userId == request.auth.uid;
+        allow delete: if isSignedIn() && userId == request.auth.uid;
       }
     }
 
@@ -168,25 +163,25 @@ match /adminSettings/{docId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || isAdmin()
       );
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
     // --- COMMENTS COLLECTION ---
     match /comments/{commentId} {
       allow read: if true;
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || request.resource.data.uid == request.auth.uid);
       allow update, delete: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || isAdmin()
+        resource.data.userId == request.auth.uid || resource.data.uid == request.auth.uid || isAdmin()
       );
     }
 
     // --- LIKES COLLECTION ---
     match /likes/{likeId} {
       allow read: if true;
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || request.resource.data.uid == request.auth.uid);
       allow delete: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || isAdmin()
+        resource.data.userId == request.auth.uid || resource.data.uid == request.auth.uid || isAdmin()
       );
     }
 
@@ -225,7 +220,8 @@ match /adminSettings/{docId} {
     // --- SOUNDS LIBRARY COLLECTION ---
     match /sounds/{soundId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.creatorUid == request.auth.uid;
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.creatorUid == request.auth.uid);
     }
 
     // --- TRASH VAULT COLLECTION ---
@@ -237,17 +233,11 @@ match /adminSettings/{docId} {
     match /ad_campaigns/{adId} {
       allow read: if true;
       allow create: if isSignedIn();
-      allow update: if (isSignedIn() && (
-        resource.data.creatorUid == request.auth.uid || 
-        resource.data.userId == request.auth.uid || 
+      allow update: if isSignedIn() && (
+        resource.data.creatorUid == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
         isAdmin() ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'impressions', 'clicks', 'results', 'spent', 'updatedAt'
-        ])
-      )) || (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'impressions', 'clicks', 'results', 'spent', 'updatedAt'
-        ])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['impressions', 'clicks', 'results', 'updatedAt'])
       );
       allow delete: if isSignedIn() && (
         resource.data.creatorUid == request.auth.uid || 
@@ -283,24 +273,26 @@ match /adminSettings/{docId} {
     // --- COMMUNITY POSTS & POLLS COLLECTION ---
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isSignedIn() || (
-        request.resource.data.authorId is string && 
-        request.resource.data.authorId.size() > 0
-      );
-      allow update: if true;
-      allow delete: if isSignedIn() && (
-        resource.data.authorId == request.auth.uid || 
-        resource.data.userId == request.auth.uid || 
-        isAdmin()
-      );
+      allow create: if isSignedIn() &&
+        request.resource.data.authorId == request.auth.uid &&
+        request.resource.data.postId == postId &&
+        request.resource.data.keys().hasAll(['authorId', 'postId', 'content', 'createdAt']);
+      allow update: if isAdmin() ||
+        (isSignedIn() && resource.data.authorId == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['authorId', 'postId', 'createdAt'])) ||
+        (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'dislikesCount', 'commentsCount', 'sharesCount', 'poll', 'updatedAt']));
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.authorId == request.auth.uid);
 
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isSignedIn() || (
-          request.resource.data.authorId is string || 
-          request.resource.data.uid is string
-        );
-        allow update, delete: if true;
+        allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid &&
+          request.resource.data.postId == postId;
+        allow update: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'postId', 'commentId', 'createdAt']));
+        allow delete: if isAdmin() || (isSignedIn() && (
+          resource.data.uid == request.auth.uid ||
+          get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid
+        ));
       }
     }
 
