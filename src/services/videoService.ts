@@ -104,12 +104,42 @@ function getPersistedVideos(): Video[] {
   return [];
 }
 
+function cleanVideoForPersistence(v: Video): Video {
+  return {
+    videoId: v.videoId,
+    title: v.title || '',
+    description: (v.description || '').slice(0, 120),
+    videoUrl: v.videoUrl || '',
+    thumbnailUrl: v.thumbnailUrl || '',
+    duration: v.duration || 0,
+    creatorId: v.creatorId || '',
+    creatorUsername: v.creatorUsername || '',
+    creatorDisplayName: v.creatorDisplayName || '',
+    creatorPhotoURL: v.creatorPhotoURL || '',
+    category: v.category || 'Other',
+    tags: (v.tags || []).slice(0, 4),
+    visibility: 'public',
+    viewsCount: v.viewsCount || 0,
+    likesCount: v.likesCount || 0,
+    commentsCount: v.commentsCount || 0,
+    sharesCount: v.sharesCount || 0,
+    isShort: Boolean(v.isShort),
+    status: 'published',
+    isLive: Boolean(v.isLive),
+    liveViewers: v.liveViewers || 0,
+    createdAt: v.createdAt || new Date().toISOString(),
+    updatedAt: v.updatedAt || new Date().toISOString(),
+  };
+}
+
 function savePersistedVideos(videos: Video[]) {
   if (typeof window === 'undefined' || !videos || videos.length === 0) return;
   try {
-    const filtered = videos.filter(v => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
-    const slice = filtered.slice(0, 60);
-    const serialized = JSON.stringify(slice);
+    const filtered = videos
+      .filter(v => v && v.videoId && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw')
+      .slice(0, 45)
+      .map(cleanVideoForPersistence);
+    const serialized = JSON.stringify(filtered);
     sessionStorage.setItem('si_cached_public_videos', serialized);
     localStorage.setItem('si_cached_public_videos', serialized);
   } catch (_) {}
@@ -138,9 +168,11 @@ function getPersistedShorts(): Video[] {
 function savePersistedShorts(shorts: Video[]) {
   if (typeof window === 'undefined' || !shorts || shorts.length === 0) return;
   try {
-    const filtered = shorts.filter(v => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
-    const slice = filtered.slice(0, 60);
-    const serialized = JSON.stringify(slice);
+    const filtered = shorts
+      .filter(v => v && v.videoId && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw')
+      .slice(0, 30)
+      .map(cleanVideoForPersistence);
+    const serialized = JSON.stringify(filtered);
     sessionStorage.setItem('si_cached_public_shorts', serialized);
     localStorage.setItem('si_cached_public_shorts', serialized);
   } catch (_) {}
@@ -921,6 +953,116 @@ export const videoService = {
 
     inFlightVideoQueryPromises.set(cacheKey, queryPromise);
     return queryPromise;
+  },
+
+  // Progressive public video loader for ultra-fast homepage boot:
+  // 1. Immediately returns cached videos if available (0ms)
+  // 2. Rapidly queries a fast initial batch (6-8 videos) in ~150-250ms and notifies onBatch
+  // 3. Immediately follows up with the remaining batch in background and notifies onBatch
+  async getVideosProgressive(
+    filters?: { category?: string; creatorId?: string; isShort?: boolean; limit?: number },
+    onBatch?: (batch: Video[], isFirstBatch: boolean) => void
+  ): Promise<Video[]> {
+    // 1. Instant cache notification (0ms)
+    const cached = this.getCachedVideos(filters);
+    if (cached && cached.length > 0 && onBatch) {
+      onBatch(cached, true);
+    }
+
+    const cacheKey = `${filters?.category || 'All'}_${filters?.creatorId || 'all'}_${filters?.isShort !== undefined ? filters.isShort : 'all'}`;
+    const mem = memoryVideoCache.get(cacheKey);
+    if (mem && Date.now() - mem.timestamp < CACHE_TTL_MS) {
+      if (onBatch) onBatch(mem.data, false);
+      return mem.data;
+    }
+
+    let baseQ = query(collection(db, 'videos'), where('visibility', '==', 'public'));
+    if (filters?.category && filters.category !== 'All') {
+      baseQ = query(baseQ, where('category', '==', filters.category));
+    }
+    if (filters?.creatorId) {
+      baseQ = query(baseQ, where('creatorId', '==', filters.creatorId));
+    }
+    if (filters?.isShort !== undefined) {
+      baseQ = query(baseQ, where('isShort', '==', filters.isShort));
+    }
+
+    const targetLimit = filters?.limit || (filters?.isShort ? 25 : 60);
+    const fastLimit = Math.min(8, targetLimit);
+
+    try {
+      // Step A: Ultra-fast initial batch (8 documents) for immediate rendering
+      const fastQ = query(baseQ, limit(fastLimit));
+      const fastSnap = await getDocs(fastQ);
+      
+      const fastDocs = fastSnap.docs
+        .map((d: any) => d.data() as Video)
+        .filter((v: Video) => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
+
+      const fastSorted = fastDocs.sort((a: Video, b: Video) => {
+        if (a.isLive && !b.isLive) return -1;
+        if (!a.isLive && b.isLive) return 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      if (fastSorted.length > 0) {
+        fastSorted.forEach(v => {
+          if (v.videoId) this.cacheVideo(v);
+        });
+        if (onBatch) {
+          onBatch(fastSorted, true);
+        }
+      }
+
+      // Step B: If fast batch already got all items or targetLimit was small, we're done
+      if (fastSorted.length >= targetLimit) {
+        memoryVideoCache.set(cacheKey, { data: fastSorted, timestamp: Date.now() });
+        return fastSorted;
+      }
+
+      // Step C: Full query to retrieve the complete feed in background
+      const fullQ = query(baseQ, limit(targetLimit));
+      const fullSnap = await getDocs(fullQ);
+
+      const fullDocs = fullSnap.docs
+        .map((d: any) => d.data() as Video)
+        .filter((v: Video) => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
+
+      const fullSorted = fullDocs.sort((a: Video, b: Video) => {
+        if (a.isLive && !b.isLive) return -1;
+        if (!a.isLive && b.isLive) return 1;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      memoryVideoCache.set(cacheKey, { data: fullSorted, timestamp: Date.now() });
+
+      if (!filters?.creatorId && (!filters?.category || filters.category === 'All')) {
+        if (filters?.isShort === true) {
+          savePersistedShorts(fullSorted);
+        } else if (filters?.isShort === false) {
+          savePersistedVideos(fullSorted);
+        } else {
+          savePersistedVideos(fullSorted.filter(v => !v.isShort));
+          const onlyShorts = fullSorted.filter(v => Boolean(v.isShort));
+          if (onlyShorts.length > 0) {
+            savePersistedShorts(onlyShorts);
+          }
+        }
+      }
+
+      fullSorted.forEach(v => {
+        if (v.videoId) this.cacheVideo(v);
+      });
+
+      if (onBatch) {
+        onBatch(fullSorted, false);
+      }
+
+      return fullSorted;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.LIST, 'videos');
+      return this.getCachedVideos(filters);
+    }
   },
 
   // Search videos across titles, description, creators, tags, category with instant query cache

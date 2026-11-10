@@ -246,22 +246,24 @@ export const Home: React.FC = () => {
       setLoading(true);
     }
     try {
-      // Fetch public videos with limit 60 for ultra-fast response
-      const data = await videoService.getVideos({
-        isShort: false,
-        limit: 60
-      });
-      
-      masterVideosRef.current = data;
-      persistentMasterVideos = data;
+      await videoService.getVideosProgressive(
+        { isShort: false, limit: 60 },
+        (batch, isFirstBatch) => {
+          if (!batch || batch.length === 0) return;
 
-      const filtered = getFilteredVideosForCategory(selectedCategory, data);
-      const ranked = recommendationService.rankAndFilterVideos(filtered, {
-        userUid: currentUser?.uid
-      });
+          masterVideosRef.current = batch;
+          persistentMasterVideos = batch;
 
-      setVideos(ranked);
-      hasLoadedHomeOnce = true;
+          const filtered = getFilteredVideosForCategory(selectedCategory, batch);
+          const ranked = recommendationService.rankAndFilterVideos(filtered, {
+            userUid: currentUser?.uid
+          });
+
+          setVideos(ranked);
+          setLoading(false); // Instantly dismiss skeleton as soon as initial batch arrives!
+          hasLoadedHomeOnce = true;
+        }
+      );
     } catch (err) {
       console.error(err);
       if (videos.length === 0 && masterVideosRef.current.length === 0) {
@@ -277,17 +279,21 @@ export const Home: React.FC = () => {
       setLoadingShorts(true);
     }
     try {
-      const shortsData = await videoService.getVideos({
-        isShort: true,
-        limit: 25
-      });
-      const rankedShorts = recommendationService.getShortsRecommendations({
-        allShorts: shortsData,
-        userUid: currentUser?.uid,
-        limit: 15
-      });
-      setShorts(rankedShorts);
-      persistentHomeShorts = rankedShorts;
+      await videoService.getVideosProgressive(
+        { isShort: true, limit: 20 },
+        (shortsBatch, isFirstBatch) => {
+          if (!shortsBatch || shortsBatch.length === 0) return;
+          const rankedShorts = recommendationService.getShortsRecommendations({
+            allShorts: shortsBatch,
+            userUid: currentUser?.uid,
+            limit: 15
+          });
+          setShorts(rankedShorts);
+          persistentHomeShorts = rankedShorts;
+          setLoadingShorts(false);
+          setTimeout(checkShortsScroll, 100);
+        }
+      );
     } catch (err) {
       console.error(err);
       if (shorts.length === 0) {
@@ -738,17 +744,18 @@ export const Home: React.FC = () => {
                     navigate('shorts', short.videoId);
                   }}
                   style={{
-                    animationDelay: `${Math.min(idx, 8) * 60}ms`,
+                    animationDelay: `${Math.min(idx, 8) * 45}ms`,
                     animationFillMode: 'both'
                   }}
-                  className="w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 group relative block cursor-pointer select-none transition-transform active:scale-[0.98]"
+                  className="yt-card-animate w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 group relative block cursor-pointer select-none transition-transform active:scale-[0.98]"
                 >
                   <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-slate-900 shadow-md">
                     {short.thumbnailUrl ? (
                       <img 
                         src={short.thumbnailUrl} 
                         alt={short.title} 
-                        loading="lazy"
+                        loading={idx < 4 ? 'eager' : 'lazy'}
+                        fetchPriority={idx < 4 ? 'high' : 'auto'}
                         draggable={false}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none" 
                       />

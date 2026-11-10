@@ -107,7 +107,7 @@ jobs:
               ],
               "headers": [
                 {
-                  "source": "/sitemap.xml",
+                  "source": "**/sitemap.xml",
                   "headers": [
                     { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
@@ -115,7 +115,7 @@ jobs:
                   ]
                 },
                 {
-                  "source": "/video-sitemap.xml",
+                  "source": "**/video-sitemap.xml",
                   "headers": [
                     { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
@@ -123,7 +123,7 @@ jobs:
                   ]
                 },
                 {
-                  "source": "/sitemap_index.xml",
+                  "source": "**/sitemap_index.xml",
                   "headers": [
                     { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
@@ -131,7 +131,7 @@ jobs:
                   ]
                 },
                 {
-                  "source": "/robots.txt",
+                  "source": "**/robots.txt",
                   "headers": [
                     { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },

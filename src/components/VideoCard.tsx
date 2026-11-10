@@ -32,12 +32,15 @@ const creatorVerificationCache: Record<string, CacheEntry> = {};
 
 interface VideoCardProps {
   video: Video;
+  index?: number;
+  priority?: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority = false }) => {
   const { navigate } = useRouter();
   const { currentUser, addToast } = useApp();
   const { t, isHindi, formatTime } = useTranslation();
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [isVerified, setIsVerified] = useState<boolean>(() => {
     if (!video.creatorId) return false;
     const cached = creatorVerificationCache[video.creatorId];
@@ -174,7 +177,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
 
   return (
     <div 
-      className="group flex flex-col transition-all duration-200 w-full"
+      style={{
+        animationDelay: `${Math.min(index, 12) * 45}ms`
+      }}
+      className="yt-card-animate group flex flex-col transition-all duration-200 w-full"
     >
       {/* Thumbnail area with duration badge (wrapped in anchor tag with draggable image disabled so dragging transfers the video watch link, opening the actual video page with title & creator!) */}
       <a
@@ -182,15 +188,27 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
         onClick={handleCardClick}
         draggable={true}
         title={video.title}
-        className={`relative block w-full ${video.isShort ? 'aspect-[9/16] max-w-[240px]' : 'aspect-video'} bg-slate-900 dark:bg-[#1e293b] shrink-0 rounded-2xl overflow-hidden shadow-xs border border-slate-100 dark:border-slate-800/80 cursor-pointer`}
+        className={`relative block w-full ${video.isShort ? 'aspect-[9/16] max-w-[240px]' : 'aspect-video'} bg-slate-100 dark:bg-[#1a2333] shrink-0 rounded-2xl overflow-hidden shadow-xs border border-slate-100 dark:border-slate-800/80 cursor-pointer`}
       >
+        {/* Progressive shimmer placeholder while image loads */}
+        {!imageLoaded && (
+          <div className="absolute inset-0 bg-slate-200 dark:bg-slate-800 animate-pulse flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-700/50" />
+          </div>
+        )}
+
         <img 
           src={video.thumbnailUrl} 
           alt={video.title} 
-          loading="lazy"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : 'auto'}
           draggable={false}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none select-none"
+          onLoad={() => setImageLoaded(true)}
+          className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 pointer-events-none select-none ${
+            imageLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
           onError={(e) => {
+            setImageLoaded(true);
             const ytThumb = extractYoutubeThumbnail(video.videoUrl);
             e.currentTarget.src = ytThumb || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
           }}

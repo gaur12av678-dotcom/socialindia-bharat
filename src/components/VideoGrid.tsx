@@ -32,7 +32,11 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     return (
       <div className={gridColsClass}>
         {Array.from({ length: 6 }).map((_, idx) => (
-          <div key={idx} className="flex flex-col space-y-3 animate-pulse">
+          <div 
+            key={idx} 
+            style={{ animationDelay: `${idx * 70}ms` }}
+            className="flex flex-col space-y-3 animate-pulse"
+          >
             {/* Thumbnail skeleton with duration badge */}
             <div className="aspect-video bg-[#dbe2ee] dark:bg-slate-800 rounded-2xl relative overflow-hidden shadow-xs">
               <div className="absolute bottom-2.5 right-2.5 h-4 w-9 bg-[#bcc8dc] dark:bg-slate-700 rounded-md" />
@@ -98,7 +102,11 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
               onDismiss={onDismissAd} 
             />
           )}
-          <VideoCard video={video} />
+          <VideoCard 
+            video={video} 
+            index={idx}
+            priority={idx < 4}
+          />
         </React.Fragment>
       ))}
 
