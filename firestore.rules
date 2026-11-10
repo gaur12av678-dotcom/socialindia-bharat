@@ -112,8 +112,8 @@ match /adminSettings/{docId} {
         allow read: if true;
         allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || request.resource.data.userId == request.auth.uid);
         allow update: if isSignedIn() && (
-          resource.data.uid == request.auth.uid ||
-          resource.data.userId == request.auth.uid ||
+          ((resource.data.uid == request.auth.uid || resource.data.userId == request.auth.uid) &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'userId', 'videoId', 'commentId', 'createdAt'])) ||
           ((isAdmin() || get(/databases/$(database)/documents/videos/$(videoId)).data.creatorId == request.auth.uid) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasCreatorHeart', 'heartedAt', 'isPinned', 'pinnedAt', 'updatedAt']))
         );
@@ -163,7 +163,7 @@ match /adminSettings/{docId} {
       allow read: if isSignedIn() && (
         resource.data.userId == request.auth.uid || isAdmin()
       );
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
@@ -287,7 +287,8 @@ match /adminSettings/{docId} {
         allow read: if true;
         allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid &&
           request.resource.data.postId == postId;
-        allow update: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
+        allow update: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'postId', 'commentId', 'createdAt']));
         allow delete: if isAdmin() || (isSignedIn() && (
           resource.data.uid == request.auth.uid ||
           get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid
