@@ -549,7 +549,7 @@ export const postService = {
     return newPost;
   },
 
-  // Fetch all posts or filtered by author (combining Firestore + shared cloud feed + local synchronization)
+  // Fetch posts from the canonical Firestore collection plus local/offline synchronization
   async getPosts(filter?: { authorId?: string; authorUsername?: string }): Promise<CommunityPost[]> {
     let allPosts: CommunityPost[] = [];
     const deletedIds = getDeletedPostIds();
@@ -576,17 +576,7 @@ export const postService = {
       console.warn('Firestore posts collection read notice:', err);
     }
 
-    // 2. Fetch from shared cloud feed (guaranteed cross-device sync between Mobile and Web)
-    try {
-      const sharedFeed = await this.getFromSharedCloudFeed();
-      for (const p of sharedFeed) {
-        if (!deletedIds.has(p.postId) && !postMap.has(p.postId)) {
-          postMap.set(p.postId, p);
-        }
-      }
-    } catch (err) {
-      console.warn('Shared cloud feed read notice:', err);
-    }
+    // 2. Legacy adminSettings feed is intentionally read-only; canonical posts live in posts/{postId}.
 
     // 3. Add local user posts (optimistic / offline cache)
     const local = getLocalPosts();
