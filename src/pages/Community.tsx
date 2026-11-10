@@ -26,6 +26,19 @@ export const CommunityPage: React.FC = () => {
 
   useEffect(() => {
     loadPosts();
+
+    const handlePostCreated = (e: any) => {
+      if (e.detail?.post) {
+        setPosts(prev => [e.detail.post, ...prev.filter(p => p.postId !== e.detail.post.postId)]);
+      } else {
+        loadPosts();
+      }
+    };
+
+    window.addEventListener('socialindia:post_created', handlePostCreated);
+    return () => {
+      window.removeEventListener('socialindia:post_created', handlePostCreated);
+    };
   }, []);
 
   const filteredPosts = posts.filter(p => {

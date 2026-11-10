@@ -15,18 +15,11 @@ export const SocialIndiaLogo: React.FC<SocialIndiaLogoProps> = ({
   onClick,
   forceWhiteText = false
 }) => {
-  const containerSizes = {
-    sm: 'w-[25px] h-[18px] rounded-[5px]',
-    md: 'w-[32px] h-[22px] rounded-[7px]',
-    lg: 'w-[40px] h-[28px] rounded-[9px]',
-    xl: 'w-[56px] h-[38px] rounded-[12px]'
-  };
-
-  const playIconSizes = {
-    sm: 'w-2.5 h-2.5',
-    md: 'w-3.5 h-3.5',
-    lg: 'w-4.5 h-4.5',
-    xl: 'w-6 h-6'
+  const iconSizes = {
+    sm: 'w-6 h-6',
+    md: 'w-7.5 h-7.5 sm:w-8 sm:h-8',
+    lg: 'w-9 h-9 sm:w-10 sm:h-10',
+    xl: 'w-12 h-12 sm:w-14 sm:h-14'
   };
 
   const textSizes = {
@@ -41,17 +34,13 @@ export const SocialIndiaLogo: React.FC<SocialIndiaLogoProps> = ({
       onClick={onClick}
       className={`flex items-center gap-2 select-none group ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
-      {/* Royal Blue YouTube-style rounded rectangle with crisp white play button */}
-      <div className={`${containerSizes[size]} bg-[#2563eb] hover:bg-[#1d4ed8] text-white flex items-center justify-center shrink-0 transition-all active:scale-95 shadow-xs`}>
-        <svg 
-          viewBox="0 0 24 24" 
-          fill="#ffffff" 
-          className={`${playIconSizes[size]}`}
-          style={{ fill: '#ffffff', color: '#ffffff' }}
-        >
-          <path d="M9.5 7.5L16.5 12L9.5 16.5V7.5Z" fill="#ffffff" />
-        </svg>
-      </div>
+      {/* Official SocialIndia Logo Icon */}
+      <img 
+        src="/assets/aistudio/android-chrome-512x512_8c57eb18.png"
+        alt="SocialIndia"
+        className={`${iconSizes[size]} object-contain shrink-0 transition-transform duration-200 group-hover:scale-105 active:scale-95 drop-shadow-xs`}
+        draggable={false}
+      />
 
       {showText && (
         <span 

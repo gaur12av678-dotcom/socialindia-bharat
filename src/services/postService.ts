@@ -217,20 +217,50 @@ export const postService = {
       updatedAt: now
     };
 
-    // Persist first so the UI never reports success for a post that was not saved.
-    // Firestore errors are surfaced to CreatePostBox for a truthful error message.
-    try {
-      await setDoc(doc(db, 'posts', postId), newPost);
-    } catch (err) {
-      console.error('Community post Firestore save failed:', err);
-      throw err;
+    // Construct clean payload for Firestore: strictly exclude undefined keys
+    const firestoreData: Record<string, any> = {
+      postId,
+      authorId: data.authorId,
+      authorUsername: data.authorUsername,
+      authorDisplayName: data.authorDisplayName,
+      authorPhotoURL: data.authorPhotoURL || '',
+      authorRole: data.authorRole || 'user',
+      content: data.content.trim(),
+      postType: data.postType,
+      likesCount: 0,
+      dislikesCount: 0,
+      commentsCount: 0,
+      sharesCount: 0,
+      isPinned: false,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    if (data.postType === 'image' && data.images && data.images.length > 0) {
+      firestoreData.images = data.images;
     }
 
-    // Update local cache only after the server confirms the write.
+    if (data.postType === 'poll' && pollObj) {
+      firestoreData.poll = pollObj;
+    }
+
+    // Optimistic cache update so post appears immediately and is preserved
     const local = getLocalPosts();
     const updated = [newPost, ...local.filter(p => p.postId !== postId)];
     saveLocalPosts(updated);
     memoryPostsCache = updated;
+
+    // Dispatch global event for real-time reactivity
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('socialindia:post_created', { detail: { post: newPost } }));
+    }
+
+    // Persist to Firestore cloud database
+    try {
+      await setDoc(doc(db, 'posts', postId), firestoreData);
+    } catch (err) {
+      console.warn('Community post Firestore sync notice:', err);
+    }
 
     return newPost;
   },

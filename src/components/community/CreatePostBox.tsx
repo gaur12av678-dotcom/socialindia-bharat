@@ -41,8 +41,16 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
 
   // Submit state
   const [isPosting, setIsPosting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  if (!currentUser) {
+  const activeUser = currentUser || (currentUserProfile?.uid ? {
+    uid: currentUserProfile.uid,
+    displayName: currentUserProfile.displayName,
+    photoURL: currentUserProfile.photoURL,
+    email: currentUserProfile.email
+  } : null);
+
+  if (!activeUser) {
     return (
       <div className={`bg-white dark:bg-[#121215] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-center ${className}`}>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
@@ -63,21 +71,22 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
     if (!files || files.length === 0) return;
 
     if (images.length + files.length > 4) {
-      addToast(isHindi ? 'आप एक पोस्ट में अधिकतम 4 इमेजेस जोड़ सकते हैं।' : 'You can attach up to 4 images per post.', 'error');
+      setStatusMsg({ text: isHindi ? 'आप एक पोस्ट में अधिकतम 4 इमेजेस जोड़ सकते हैं।' : 'You can attach up to 4 images per post.', type: 'error' });
       return;
     }
 
     setIsProcessingImage(true);
+    setStatusMsg(null);
     try {
       const compressedList: string[] = [];
       for (let i = 0; i < files.length; i++) {
-        const compressed = await compressImage(files[i], 1200, 1200, 0.82);
+        const compressed = await compressImage(files[i], 800, 800, 0.75);
         compressedList.push(compressed);
       }
       setImages(prev => [...prev, ...compressedList].slice(0, 4));
       setPostType('image');
     } catch {
-      addToast(isHindi ? 'इमेज प्रोसेस करने में विफल।' : 'Failed to process image file.', 'error');
+      setStatusMsg({ text: isHindi ? 'इमेज प्रोसेस करने में विफल।' : 'Failed to process image file.', type: 'error' });
     } finally {
       setIsProcessingImage(false);
     }
@@ -100,7 +109,7 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
 
   const handleAddPollOption = () => {
     if (pollOptions.length >= 5) {
-      addToast(isHindi ? 'अधिकतम 5 पोल विकल्प जोड़ सकते हैं।' : 'Maximum 5 poll options allowed.', 'info');
+      setStatusMsg({ text: isHindi ? 'अधिकतम 5 पोल विकल्प जोड़ सकते हैं।' : 'Maximum 5 poll options allowed.', type: 'error' });
       return;
     }
     setPollOptions(prev => [...prev, '']);
@@ -108,7 +117,7 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
 
   const handleRemovePollOption = (index: number) => {
     if (pollOptions.length <= 2) {
-      addToast(isHindi ? 'पोल में कम से कम 2 विकल्प होने चाहिए।' : 'A poll requires at least 2 options.', 'info');
+      setStatusMsg({ text: isHindi ? 'पोल में कम से कम 2 विकल्प होने चाहिए।' : 'A poll requires at least 2 options.', type: 'error' });
       return;
     }
     setPollOptions(prev => prev.filter((_, i) => i !== index));
@@ -120,38 +129,43 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
     const trimmedContent = content.trim();
 
     if (!trimmedContent && postType === 'text') {
-      addToast(isHindi ? 'कृपया पोस्ट में कुछ टेक्स्ट लिखें।' : 'Please enter post content.', 'error');
+      setStatusMsg({ text: isHindi ? 'कृपया पोस्ट में कुछ टेक्स्ट लिखें।' : 'Please enter post content.', type: 'error' });
       return;
     }
 
     if (postType === 'poll') {
       const validOptions = pollOptions.map(o => o.trim()).filter(Boolean);
       if (validOptions.length < 2) {
-        addToast(isHindi ? 'पोल के लिए कम से कम 2 विकल्प लिखें।' : 'Please fill in at least 2 poll options.', 'error');
+        setStatusMsg({ text: isHindi ? 'पोल के लिए कम से कम 2 विकल्प लिखें।' : 'Please fill in at least 2 poll options.', type: 'error' });
         return;
       }
     }
 
     if (postType === 'image' && images.length === 0) {
-      addToast(isHindi ? 'कृपया कम से कम एक इमेज जोड़ें।' : 'Please attach an image.', 'error');
+      setStatusMsg({ text: isHindi ? 'कृपया कम से कम एक इमेज जोड़ें।' : 'Please attach an image.', type: 'error' });
       return;
     }
 
     setIsPosting(true);
+    setStatusMsg(null);
     try {
       await postService.createPost({
-        authorId: currentUser.uid,
-        authorUsername: currentUserProfile?.username || currentUser.displayName?.trim().replace(/\s+/g, '').toLowerCase() || currentUser.email?.split('@')[0] || currentUser.uid,
-        authorDisplayName: currentUserProfile?.displayName || currentUser.displayName || currentUserProfile?.username || currentUser.email?.split('@')[0] || 'SocialIndia User',
-        authorPhotoURL: currentUserProfile?.photoURL || currentUser.photoURL || '',
+        authorId: activeUser.uid,
+        authorUsername: currentUserProfile?.username || (activeUser.displayName ? activeUser.displayName.trim().replace(/\s+/g, '').toLowerCase() : '') || activeUser.email?.split('@')[0] || activeUser.uid,
+        authorDisplayName: currentUserProfile?.displayName || activeUser.displayName || currentUserProfile?.username || activeUser.email?.split('@')[0] || 'SocialIndia User',
+        authorPhotoURL: currentUserProfile?.photoURL || activeUser.photoURL || '',
         authorRole: currentUserProfile?.role || 'user',
         content: trimmedContent,
         postType,
-        images: postType === 'image' ? images : undefined,
+        images: postType === 'image' && images.length > 0 ? images : undefined,
         pollOptions: postType === 'poll' ? pollOptions.map(o => o.trim()).filter(Boolean) : undefined
       });
 
-      addToast(isHindi ? '🎉 कम्युनिटी पोस्ट सफलतापूर्वक प्रकाशित हो गई!' : '🎉 Community post published successfully!', 'success');
+      setStatusMsg({
+        text: isHindi ? '🎉 कम्युनिटी पोस्ट सफलतापूर्वक प्रकाशित हो गई!' : '🎉 Community post published successfully!',
+        type: 'success'
+      });
+      setTimeout(() => setStatusMsg(null), 4000);
       
       // Reset form
       setContent('');
@@ -163,12 +177,12 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
     } catch (err: any) {
       console.error('Community post publish failed:', err);
       const errorCode = typeof err?.code === 'string' ? err.code : '';
-      addToast(
-        isHindi
-          ? `पोस्ट सेव नहीं हुई। कृपया दोबारा कोशिश करें। ${errorCode}`.trim()
-          : `Post could not be saved. Please try again. ${errorCode}`.trim(),
-        'error'
-      );
+      setStatusMsg({
+        text: isHindi
+          ? `पोस्ट सेव करने में त्रुटि हुई। ${errorCode}`.trim()
+          : `Error saving post. ${errorCode}`.trim(),
+        type: 'error'
+      });
     } finally {
       setIsPosting(false);
     }
@@ -206,15 +220,15 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
       {/* Top author row */}
       <div className="flex items-center gap-3 mb-3">
         <UserAvatar
-          uid={currentUser.uid}
-          fallbackPhotoURL={currentUserProfile?.photoURL || currentUser.photoURL || undefined}
-          fallbackDisplayName={currentUserProfile?.displayName || currentUser.displayName || currentUserProfile?.username || currentUser.email || 'SocialIndia User'}
+          uid={activeUser.uid}
+          fallbackPhotoURL={currentUserProfile?.photoURL || activeUser.photoURL || undefined}
+          fallbackDisplayName={currentUserProfile?.displayName || activeUser.displayName || currentUserProfile?.username || activeUser.email || 'SocialIndia User'}
           size="sm"
           className="w-9 h-9"
         />
         <div className="min-w-0">
           <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-            {currentUserProfile?.displayName || currentUser.displayName || currentUserProfile?.username || currentUser.email?.split('@')[0] || 'SocialIndia User'}
+            {currentUserProfile?.displayName || activeUser.displayName || currentUserProfile?.username || activeUser.email?.split('@')[0] || 'SocialIndia User'}
           </p>
           <p className="text-[10px] text-slate-500 dark:text-slate-400">
             {isHindi ? 'पब्लिक कम्युनिटी पोस्ट' : 'Public Community Post'}
@@ -384,6 +398,18 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
           )}
         </button>
       </div>
+
+      {/* Inline Feedback Banner */}
+      {statusMsg && (
+        <div className={`mt-3 p-3 rounded-xl text-xs font-bold flex items-center gap-2 animate-slide-in ${
+          statusMsg.type === 'success' 
+            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' 
+            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+        }`}>
+          {statusMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" /> : <X className="w-4 h-4 shrink-0 text-rose-500" />}
+          <span className="flex-1">{statusMsg.text}</span>
+        </div>
+      )}
     </div>
   );
 };

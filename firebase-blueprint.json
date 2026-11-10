@@ -209,6 +209,48 @@
         "read": { "type": "boolean" }
       },
       "required": ["senderId", "receiverId", "createdAt"]
+    },
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "Community post, photo, or poll shared by creators and users",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorUsername": { "type": "string" },
+        "authorDisplayName": { "type": "string" },
+        "authorPhotoURL": { "type": "string" },
+        "authorRole": { "type": "string" },
+        "content": { "type": "string", "maxLength": 5000 },
+        "postType": { "type": "string", "enum": ["text", "image", "poll"] },
+        "images": { "type": "array" },
+        "poll": { "type": "object" },
+        "likesCount": { "type": "integer" },
+        "dislikesCount": { "type": "integer" },
+        "commentsCount": { "type": "integer" },
+        "sharesCount": { "type": "integer" },
+        "isPinned": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["postId", "authorId", "authorUsername", "authorDisplayName", "content", "postType", "likesCount", "dislikesCount", "commentsCount", "sharesCount", "createdAt", "updatedAt"]
+    },
+    "PostComment": {
+      "title": "PostComment",
+      "description": "A comment on a community post",
+      "type": "object",
+      "properties": {
+        "commentId": { "type": "string" },
+        "postId": { "type": "string" },
+        "uid": { "type": "string" },
+        "username": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "text": { "type": "string", "maxLength": 1000 },
+        "likesCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["commentId", "postId", "uid", "username", "displayName", "text", "likesCount", "createdAt"]
     }
   },
   "firestore": {
@@ -259,6 +301,14 @@
     "chats/{messageId}": {
       "schema": "ChatMessage",
       "description": "Direct chat messages between users"
+    },
+    "posts/{postId}": {
+      "schema": "CommunityPost",
+      "description": "Community posts, photos, and polls shared by creators and users"
+    },
+    "posts/{postId}/comments/{commentId}": {
+      "schema": "PostComment",
+      "description": "Comments on community posts"
     }
   }
 }
