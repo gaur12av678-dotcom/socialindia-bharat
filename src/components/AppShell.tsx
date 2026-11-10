@@ -1411,14 +1411,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <span className="truncate">{t('nav_chat', 'Messages & Chat')}</span>
                 </div>
               </button>
-
-              <button
-                onClick={() => triggerProtectedAction(() => navigate('community'))}
-                className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer group ${route.path === 'community' || route.path === 'posts' ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'}`}
-              >
-                <Users className="w-[18px] h-[18px] shrink-0" />
-                <span>{isHindi ? 'कम्युनिटीज़' : 'Communities'}</span>
-              </button>
             </div>
 
             <div className="h-px bg-slate-200/70 dark:bg-slate-800/70" />

@@ -1,11 +1,13 @@
 // SocialIndia Real Offline Service Worker
-const VERSION = '1.0.0';
+const VERSION = '1.0.2';
 const CACHE_NAME = `socialindia-shell-v${VERSION}`;
 
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/logo.svg',
+  '/socialindia-logo.png',
+  '/socialindia-icon.png',
   '/manifest.json'
 ];
 

@@ -22,6 +22,13 @@ export const SocialIndiaLogo: React.FC<SocialIndiaLogoProps> = ({
     xl: 'w-12 h-12 sm:w-14 sm:h-14'
   };
 
+  const fullLogoHeights = {
+    sm: 'h-10',
+    md: 'h-11 sm:h-12',
+    lg: 'h-14 sm:h-16',
+    xl: 'h-20 sm:h-24'
+  };
+
   const textSizes = {
     sm: 'text-base font-extrabold',
     md: 'text-[19px] sm:text-[20px] font-extrabold',
@@ -34,31 +41,58 @@ export const SocialIndiaLogo: React.FC<SocialIndiaLogoProps> = ({
       onClick={onClick}
       className={`flex items-center gap-2 select-none group ${onClick ? 'cursor-pointer' : ''} ${className}`}
     >
-      {/* Official SocialIndia Logo Icon */}
-      <img 
-        src="/assets/aistudio/android-chrome-512x512_8c57eb18.png"
-        alt="SocialIndia"
-        className={`${iconSizes[size]} object-contain shrink-0 transition-transform duration-200 group-hover:scale-105 active:scale-95 drop-shadow-xs`}
-        draggable={false}
-      />
+      {showText && !forceWhiteText ? (
+        <>
+          {/* Light mode: official full uncropped transparent logo */}
+          <img
+            src="/socialindia-logo.png"
+            alt="SocialIndia"
+            className={`${fullLogoHeights[size]} w-auto object-contain shrink-0 transition-transform duration-200 group-hover:scale-[1.02] active:scale-95 dark:hidden`}
+            draggable={false}
+          />
+          {/* Dark mode: balanced icon + high-contrast wordmark */}
+          <div className="hidden dark:flex items-center gap-2">
+            <img 
+              src="/socialindia-icon.png"
+              alt="SocialIndia"
+              className={`${iconSizes[size]} object-contain shrink-0 transition-transform duration-200 group-hover:scale-105 active:scale-95 drop-shadow-xs`}
+              draggable={false}
+            />
+            <span className={`tracking-tight ${textSizes[size]} flex items-center leading-none select-none`}>
+              <span className="text-white">Social</span>
+              <span className="text-[#3b82f6]">India</span>
+            </span>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Official SocialIndia Logo Icon */}
+          <img 
+            src="/socialindia-icon.png"
+            alt="SocialIndia"
+            className={`${iconSizes[size]} object-contain shrink-0 transition-transform duration-200 group-hover:scale-105 active:scale-95 drop-shadow-xs`}
+            draggable={false}
+          />
 
-      {showText && (
-        <span 
-          className={`tracking-tight ${textSizes[size]} flex items-center leading-none select-none`}
-        >
-          <span 
-            style={{ color: forceWhiteText ? '#ffffff' : undefined }}
-            className={forceWhiteText ? 'text-white' : 'text-slate-900 dark:text-white'}
-          >
-            Social
-          </span>
-          <span 
-            style={{ color: forceWhiteText ? '#93C5FD' : undefined }}
-            className={forceWhiteText ? 'text-[#93C5FD]' : 'text-[#2563EB] dark:text-[#3b82f6]'}
-          >
-            India
-          </span>
-        </span>
+          {showText && (
+            <span 
+              className={`tracking-tight ${textSizes[size]} flex items-center leading-none select-none`}
+            >
+              <span 
+                style={{ color: forceWhiteText ? '#ffffff' : undefined }}
+                className={forceWhiteText ? 'text-white' : 'text-slate-900 dark:text-white'}
+              >
+                Social
+              </span>
+              <span 
+                style={{ color: forceWhiteText ? '#93C5FD' : undefined }}
+                className={forceWhiteText ? 'text-[#93C5FD]' : 'text-[#235DE5] dark:text-[#3b82f6]'}
+              >
+                India
+              </span>
+            </span>
+          )}
+        </>
       )}
     </div>
   );

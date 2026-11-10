@@ -8,6 +8,11 @@ import {
   deleteDoc, 
   query, 
   where, 
+  orderBy,
+  limit,
+  startAfter,
+  QueryDocumentSnapshot,
+  DocumentData,
   increment 
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -32,7 +37,6 @@ export const DEFAULT_COMMUNITY_POSTS: CommunityPost[] = [
     dislikesCount: 12,
     commentsCount: 89,
     sharesCount: 154,
-    isPinned: true,
     createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
     updatedAt: new Date(Date.now() - 3600000 * 5).toISOString()
   },
@@ -177,8 +181,10 @@ export const postService = {
     authorPhotoURL?: string;
     authorRole?: string;
     content: string;
-    postType: 'text' | 'image' | 'poll';
+    postType: 'text' | 'image' | 'video' | 'poll';
     images?: string[];
+    videoUrl?: string;
+    videoThumbnailUrl?: string;
     pollOptions?: string[];
   }): Promise<CommunityPost> {
     const postId = this.generateId();
@@ -207,6 +213,8 @@ export const postService = {
       content: data.content.trim(),
       postType: data.postType,
       images: data.images && data.images.length > 0 ? data.images : undefined,
+      videoUrl: data.videoUrl || undefined,
+      videoThumbnailUrl: data.videoThumbnailUrl || undefined,
       poll: pollObj,
       likesCount: 0,
       dislikesCount: 0,
@@ -238,6 +246,13 @@ export const postService = {
 
     if (data.postType === 'image' && data.images && data.images.length > 0) {
       firestoreData.images = data.images;
+    }
+
+    if (data.postType === 'video' && data.videoUrl) {
+      firestoreData.videoUrl = data.videoUrl;
+      if (data.videoThumbnailUrl) {
+        firestoreData.videoThumbnailUrl = data.videoThumbnailUrl;
+      }
     }
 
     if (data.postType === 'poll' && pollObj) {
@@ -294,8 +309,6 @@ export const postService = {
 
     // Sort newest first
     allPosts.sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
@@ -310,6 +323,115 @@ export const postService = {
     }
 
     return allPosts;
+  },
+
+  // Fetch a single page of posts (cursor-based Firestore pagination + local slice fallback)
+  async getPostsPage(options?: {
+    pageSize?: number;
+    cursor?: QueryDocumentSnapshot<DocumentData> | null;
+    localOffset?: number;
+    postType?: 'all' | 'video' | 'image' | 'poll';
+  }): Promise<{
+    posts: CommunityPost[];
+    cursor: QueryDocumentSnapshot<DocumentData> | null;
+    hasMore: boolean;
+    source: 'firestore' | 'local';
+    nextLocalOffset: number;
+  }> {
+    const pageSize = options?.pageSize ?? 5;
+    const postType = options?.postType ?? 'all';
+    let currentCursor = options?.cursor ?? null;
+    const localOffset = options?.localOffset ?? 0;
+
+    try {
+      const collected: CommunityPost[] = [];
+      const chunkLimit = postType === 'all' ? pageSize : Math.max(pageSize * 2, 10);
+      let firestoreExhausted = false;
+      let anySnapshotFound = Boolean(currentCursor);
+
+      // Scan up to 3 ordered chunks when filtering by postType so we avoid composite-index errors
+      const maxChunks = postType === 'all' ? 1 : 3;
+      for (let i = 0; i < maxChunks; i++) {
+        const q = currentCursor
+          ? query(
+              collection(db, 'posts'),
+              orderBy('createdAt', 'desc'),
+              startAfter(currentCursor),
+              limit(chunkLimit)
+            )
+          : query(
+              collection(db, 'posts'),
+              orderBy('createdAt', 'desc'),
+              limit(chunkLimit)
+            );
+
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          firestoreExhausted = true;
+          break;
+        }
+
+        anySnapshotFound = true;
+        currentCursor = snap.docs[snap.docs.length - 1];
+        const batch = snap.docs.map(d => d.data() as CommunityPost);
+        const matching = postType === 'all'
+          ? batch
+          : batch.filter(p => p.postType === postType);
+
+        collected.push(...matching);
+
+        if (snap.docs.length < chunkLimit) {
+          firestoreExhausted = true;
+          break;
+        }
+
+        if (collected.length >= pageSize) {
+          break;
+        }
+      }
+
+      if (anySnapshotFound) {
+        // When we reach the end of Firestore posts, append any missing curated defaults on the final page
+        if (firestoreExhausted) {
+          const seen = new Set(collected.map(p => p.postId));
+          const matchingDefaults = DEFAULT_COMMUNITY_POSTS.filter(
+            def => !seen.has(def.postId) && (postType === 'all' || def.postType === postType)
+          );
+          if (!options?.cursor) {
+            collected.push(...matchingDefaults);
+          }
+        }
+
+        return {
+          posts: collected,
+          cursor: currentCursor,
+          hasMore: !firestoreExhausted,
+          source: 'firestore',
+          nextLocalOffset: 0
+        };
+      }
+    } catch (err) {
+      console.warn('Paginated posts Firestore fallback:', err);
+    }
+
+    // Local cache / defaults paginated fallback (also ensures small batches offline)
+    const localAll = [...getLocalPosts()].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    const filteredLocal = postType === 'all'
+      ? localAll
+      : localAll.filter(p => p.postType === postType);
+
+    const pageSlice = filteredLocal.slice(localOffset, localOffset + pageSize);
+    const nextLocalOffset = localOffset + pageSlice.length;
+
+    return {
+      posts: pageSlice,
+      cursor: null,
+      hasMore: nextLocalOffset < filteredLocal.length,
+      source: 'local',
+      nextLocalOffset
+    };
   },
 
   // Delete a post

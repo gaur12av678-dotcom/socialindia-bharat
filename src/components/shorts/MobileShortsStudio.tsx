@@ -699,7 +699,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                   </button>
                   <button
                     onClick={() => galleryInputRef.current?.click()}
-                    className="w-full py-2.5 bg-white/15 hover:bg-white/20 text-white text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 bg-[#262626] hover:bg-[#363636] text-white border border-white/20 text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1.5"
                   >
                     <ImageIcon className="w-4 h-4" />
                     <span>{isHindi ? 'गैलरी से वीडियो चुनें' : 'Choose from Gallery'}</span>

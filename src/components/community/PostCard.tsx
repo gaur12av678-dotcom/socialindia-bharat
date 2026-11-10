@@ -18,7 +18,6 @@ import {
   CheckCircle2, 
   Send, 
   Check, 
-  Pin,
   ExternalLink,
   X,
   Loader2
@@ -58,8 +57,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
   const [menuOpen, setMenuOpen] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
-  const isAuthor = currentUser?.uid === post.authorId;
-  const isAdmin = currentUserProfile?.role === 'admin';
+  const isAuthor = Boolean(currentUser?.uid && currentUser.uid === post.authorId);
 
   // Synchronize user reactions & poll votes
   useEffect(() => {
@@ -178,7 +176,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
   };
 
   const handleDeletePost = async () => {
-    if (!currentUser) return;
+    if (!currentUser || !isAuthor) return;
     const confirmDelete = window.confirm(isHindi ? 'क्या आप इस पोस्ट को हटाना चाहते हैं?' : 'Are you sure you want to delete this community post?');
     if (!confirmDelete) return;
 
@@ -271,12 +269,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
               </span>
               <span>•</span>
               <span className="shrink-0">{formatTimeAgo(post.createdAt)}</span>
-              {post.isPinned && (
-                <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 text-[10px] font-bold ml-1 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded-md">
-                  <Pin className="w-2.5 h-2.5 rotate-45 fill-current" />
-                  <span>Pinned</span>
-                </span>
-              )}
             </div>
           </div>
         </div>
@@ -301,7 +293,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
                 <span>{isHindi ? 'शेयर करें' : 'Share'}</span>
               </button>
 
-              {(isAuthor || isAdmin) && (
+              {isAuthor && (
                 <button
                   onClick={handleDeletePost}
                   className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 text-left cursor-pointer"
@@ -339,6 +331,20 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
               />
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 3b. Media: Instagram-style Video Post */}
+      {post.postType === 'video' && post.videoUrl && (
+        <div className="mb-3.5 rounded-xl overflow-hidden border border-slate-200/80 dark:border-slate-800/80 bg-black">
+          <video
+            src={post.videoUrl}
+            poster={post.videoThumbnailUrl || undefined}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full max-h-[520px] object-contain bg-black"
+          />
         </div>
       )}
 
@@ -513,7 +519,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
                         <span className="text-[10px] text-slate-400">@{c.username}</span>
                         <span className="text-[10px] text-slate-400">• {formatTimeAgo(c.createdAt)}</span>
                       </div>
-                      {(currentUser?.uid === c.uid || isAuthor || isAdmin) && (
+                      {(currentUser?.uid === c.uid || isAuthor) && (
                         <button
                           onClick={() => handleDeleteComment(c.commentId)}
                           className="opacity-0 group-hover/comm:opacity-100 p-1 text-slate-400 hover:text-rose-500 transition-opacity"

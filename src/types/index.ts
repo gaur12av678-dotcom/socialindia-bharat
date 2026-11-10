@@ -410,7 +410,7 @@ export interface WithdrawalRequest {
   updatedAt: string;
 }
 
-export type PostType = 'text' | 'image' | 'poll';
+export type PostType = 'text' | 'image' | 'video' | 'poll';
 
 export interface PollOption {
   id: string;
@@ -434,6 +434,8 @@ export interface CommunityPost {
   content: string;
   postType: PostType;
   images?: string[];
+  videoUrl?: string;
+  videoThumbnailUrl?: string;
   poll?: PostPoll;
   likesCount: number;
   dislikesCount: number;
