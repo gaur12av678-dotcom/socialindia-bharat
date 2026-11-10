@@ -145,13 +145,19 @@ jobs:
                   "destination": "/index.html"
                 }
               ]
+            },
+            "firestore": {
+              "rules": "firestore.rules"
+            },
+            "storage": {
+              "rules": "storage.rules"
             }
           }
           JSON
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy to Firebase Hosting
+      - name: Deploy to Firebase Hosting and Security Rules
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "::error::FIREBASE_SERVICE_ACCOUNT secret is missing or empty in GitHub Secrets!"
@@ -176,7 +182,7 @@ jobs:
           echo "Deploying to Firebase project: $PROJECT_ID (target site: socialindia)..."
 
           firebase target:apply hosting socialindia socialindia --project "$PROJECT_ID" || true
-          firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
+          firebase deploy --only hosting:socialindia,firestore:rules,storage:rules --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting,firestore:rules,storage:rules --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
 
           rm -f sa_key.json
         env:

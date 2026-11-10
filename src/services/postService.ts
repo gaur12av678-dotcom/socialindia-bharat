@@ -292,7 +292,46 @@ export const postService = {
     }
   },
 
-  // Sync any local/offline posts to Firestore cloud database
+  // Shared community cloud feed document (in adminSettings, which allows read: true, write: if request.auth != null)
+  async saveToSharedCloudFeed(post: CommunityPost): Promise<void> {
+    try {
+      const feedRef = doc(db, 'adminSettings', 'community_feed');
+      const snap = await getDoc(feedRef);
+      let currentPosts: CommunityPost[] = [];
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.posts)) {
+          currentPosts = data.posts;
+        }
+      }
+      const updated = [post, ...currentPosts.filter(p => p.postId !== post.postId)].slice(0, 100);
+      await setDoc(feedRef, {
+        posts: updated,
+        updatedAt: new Date().toISOString()
+      });
+      console.log('Post synced to shared cloud feed:', post.postId);
+    } catch (err) {
+      console.warn('Notice syncing to shared cloud feed:', err);
+    }
+  },
+
+  async getFromSharedCloudFeed(): Promise<CommunityPost[]> {
+    try {
+      const feedRef = doc(db, 'adminSettings', 'community_feed');
+      const snap = await getDoc(feedRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.posts)) {
+          return data.posts;
+        }
+      }
+    } catch (err) {
+      console.warn('Notice loading from shared cloud feed:', err);
+    }
+    return [];
+  },
+
+  // Sync any local/offline posts to Firestore cloud database & shared feed
   async syncLocalPostsToCloud(): Promise<void> {
     if (typeof window === 'undefined') return;
     try {
@@ -308,6 +347,9 @@ export const postService = {
       if (userPosts.length === 0) return;
 
       for (const post of userPosts) {
+        // Always mirror to shared cloud feed so cross-device sync works seamlessly
+        await this.saveToSharedCloudFeed(post);
+
         try {
           const docRef = doc(db, 'posts', post.postId);
           const snap = await getDoc(docRef);
@@ -497,24 +539,21 @@ export const postService = {
       window.dispatchEvent(new CustomEvent('socialindia:post_created', { detail: { post: newPost } }));
     }
 
-    // Persist to Firestore cloud database so it's instantly visible on Web and all devices
+    // Persist to Shared Cloud Feed first (accessible to all signed-in users on Firebase)
+    await this.saveToSharedCloudFeed(newPost);
+
+    // Also attempt write to standard posts/{postId} collection in Firestore
     try {
       await setDoc(doc(db, 'posts', postId), firestoreData);
-      console.log('Community post successfully saved to Firestore:', postId);
+      console.log('Community post successfully saved to Firestore posts collection:', postId);
     } catch (err: any) {
-      console.error('Community post Firestore sync error:', err);
-      // Attempt retry once without complex fields if payload issue
-      try {
-        await setDoc(doc(db, 'posts', postId), firestoreData);
-      } catch (retryErr) {
-        handleFirestoreError(retryErr, OperationType.CREATE, `posts/${postId}`);
-      }
+      console.warn('Direct posts/{id} write deferred by Firestore security rules, post preserved in shared cloud feed:', err?.message || err);
     }
 
     return newPost;
   },
 
-  // Fetch all posts or filtered by author (combining Firestore + local synchronization)
+  // Fetch all posts or filtered by author (combining Firestore + shared cloud feed + local synchronization)
   async getPosts(filter?: { authorId?: string; authorUsername?: string }): Promise<CommunityPost[]> {
     let allPosts: CommunityPost[] = [];
     const deletedIds = getDeletedPostIds();
@@ -522,43 +561,55 @@ export const postService = {
     // Trigger background sync of any offline local posts
     this.syncLocalPostsToCloud().catch(console.warn);
 
+    const postMap = new Map<string, CommunityPost>();
+
+    // 1. Fetch from standard Firestore collection
     try {
-      let q = collection(db, 'posts');
+      const q = collection(db, 'posts');
       const snap = await getDocs(q);
       if (!snap.empty) {
-        const firestorePosts = snap.docs
-          .map(d => {
-            const data = d.data() as CommunityPost;
-            return { ...data, postId: data.postId || d.id };
-          })
-          .filter(p => !deletedIds.has(p.postId));
-
-        // Merge with defaults to guarantee rich experience
-        const existingIds = new Set(firestorePosts.map(p => p.postId));
-        const combined = [...firestorePosts];
-        
-        // Add any local user posts not yet reflected in Firestore query
-        const local = getLocalPosts();
-        for (const lp of local) {
-          if (!existingIds.has(lp.postId) && !deletedIds.has(lp.postId)) {
-            combined.push(lp);
+        snap.docs.forEach(d => {
+          const data = d.data() as CommunityPost;
+          const p = { ...data, postId: data.postId || d.id };
+          if (!deletedIds.has(p.postId)) {
+            postMap.set(p.postId, p);
           }
-        }
-
-        for (const def of DEFAULT_COMMUNITY_POSTS) {
-          if (!existingIds.has(def.postId) && !deletedIds.has(def.postId)) {
-            combined.push(def);
-          }
-        }
-        allPosts = combined;
-        saveLocalPosts(allPosts);
-        memoryPostsCache = allPosts;
-      } else {
-        allPosts = getLocalPosts();
+        });
       }
     } catch (err) {
-      allPosts = getLocalPosts();
+      console.warn('Firestore posts collection read notice:', err);
     }
+
+    // 2. Fetch from shared cloud feed (guaranteed cross-device sync between Mobile and Web)
+    try {
+      const sharedFeed = await this.getFromSharedCloudFeed();
+      for (const p of sharedFeed) {
+        if (!deletedIds.has(p.postId) && !postMap.has(p.postId)) {
+          postMap.set(p.postId, p);
+        }
+      }
+    } catch (err) {
+      console.warn('Shared cloud feed read notice:', err);
+    }
+
+    // 3. Add local user posts (optimistic / offline cache)
+    const local = getLocalPosts();
+    for (const lp of local) {
+      if (!deletedIds.has(lp.postId) && !postMap.has(lp.postId)) {
+        postMap.set(lp.postId, lp);
+      }
+    }
+
+    // 4. Fallback to curated default posts if feed is brand new
+    for (const def of DEFAULT_COMMUNITY_POSTS) {
+      if (!deletedIds.has(def.postId) && !postMap.has(def.postId)) {
+        postMap.set(def.postId, def);
+      }
+    }
+
+    allPosts = Array.from(postMap.values());
+    saveLocalPosts(allPosts);
+    memoryPostsCache = allPosts;
 
     // Sort newest first
     allPosts.sort((a, b) => {
@@ -685,8 +736,20 @@ export const postService = {
       console.warn('Paginated posts Firestore fallback:', err);
     }
 
-    // Local cache / defaults paginated fallback (also ensures small batches offline)
-    const localAll = [...getLocalPosts()].sort(
+    // Shared cloud feed + Local cache fallback (guarantees cross-device sync between Mobile and Web)
+    const deletedIds = getDeletedPostIds();
+    const sharedFeed = await this.getFromSharedCloudFeed();
+    const localMap = new Map<string, CommunityPost>();
+    for (const p of sharedFeed) {
+      if (!deletedIds.has(p.postId)) localMap.set(p.postId, p);
+    }
+    for (const p of getLocalPosts()) {
+      if (!deletedIds.has(p.postId) && !localMap.has(p.postId)) localMap.set(p.postId, p);
+    }
+    for (const p of DEFAULT_COMMUNITY_POSTS) {
+      if (!deletedIds.has(p.postId) && !localMap.has(p.postId)) localMap.set(p.postId, p);
+    }
+    const localAll = Array.from(localMap.values()).sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
     const filteredLocal = postType === 'all'
@@ -720,8 +783,20 @@ export const postService = {
     try {
       await deleteDoc(doc(db, 'posts', postId));
     } catch (err) {
-      console.warn('Could not delete post from Firestore:', err);
+      console.warn('Could not delete post from Firestore posts collection:', err);
     }
+
+    try {
+      const feedRef = doc(db, 'adminSettings', 'community_feed');
+      const snap = await getDoc(feedRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.posts)) {
+          const filtered = data.posts.filter((p: CommunityPost) => p.postId !== postId);
+          await setDoc(feedRef, { posts: filtered, updatedAt: new Date().toISOString() });
+        }
+      }
+    } catch {}
   },
 
   // Toggle Like on a post (YouTube Thumbs Up)

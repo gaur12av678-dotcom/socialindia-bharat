@@ -22,18 +22,11 @@ import {
   X, 
   Loader2, 
   Sparkles,
-  Flame,
-  Clock,
-  ArrowRight,
-  Filter,
-  CheckCircle2,
   ExternalLink,
-  ShieldCheck,
-  User as UserIcon,
-  Play
+  User as UserIcon
 } from 'lucide-react';
 
-type SubscriptionsFilter = 'all' | 'today' | 'videos' | 'shorts' | 'live' | 'continue' | 'unwatched';
+type SubscriptionsFilter = 'all' | 'today' | 'videos' | 'shorts' | 'continue' | 'unwatched';
 type ViewMode = 'grid' | 'list';
 type BellState = 'all' | 'personalized' | 'none';
 
@@ -42,6 +35,104 @@ interface SubscriptionsProps {
   onSwitchToAll?: () => void;
 }
 
+const OFFICIAL_SOCIALINDIA_UID = 'RTUVtjrw5sPWaiq10OIMiloF8HQ2';
+
+// Check if an ID or username refers to the official SocialIndia channel
+const isOfficialSocialIndia = (val?: string): boolean => {
+  if (!val) return false;
+  const clean = val.toLowerCase().trim().replace(/^@/, '');
+  return clean === 'socialindia' || clean === OFFICIAL_SOCIALINDIA_UID.toLowerCase();
+};
+
+// Check if a video belongs to a specific creator (handles UIDs, handles, and official aliases)
+const doesVideoBelongToCreator = (
+  video: Video,
+  creatorId: string,
+  creatorUsername?: string
+): boolean => {
+  const vId = (video.creatorId || '').toLowerCase().trim();
+  const vUser = (video.creatorUsername || '').toLowerCase().trim().replace(/^@/, '');
+  const targetId = (creatorId || '').toLowerCase().trim();
+  const targetUser = (creatorUsername || '').toLowerCase().trim().replace(/^@/, '');
+
+  if (targetId && (vId === targetId || vUser === targetId)) return true;
+  if (targetUser && (vUser === targetUser || vId === targetUser)) return true;
+
+  if (
+    (isOfficialSocialIndia(targetId) || isOfficialSocialIndia(targetUser)) &&
+    (isOfficialSocialIndia(vId) || isOfficialSocialIndia(vUser))
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
+// Check if a video belongs to any of the user's followed creators
+const doesVideoBelongToSubscriptions = (
+  video: Video,
+  subscriptions: Subscription[]
+): boolean => {
+  if (!subscriptions || subscriptions.length === 0) return false;
+  return subscriptions.some(sub => 
+    doesVideoBelongToCreator(video, sub.creatorId, sub.creatorUsername)
+  );
+};
+
+// YouTube-Grade Responsive Skeletons
+const SubscriptionsGridSkeleton: React.FC = () => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 animate-pulse">
+    {[...Array(6)].map((_, i) => (
+      <div key={i} className="space-y-3">
+        <div className="relative aspect-video bg-slate-200 dark:bg-[#272727] rounded-2xl overflow-hidden">
+          <div className="absolute bottom-2 right-2 w-10 h-4 bg-slate-300 dark:bg-[#333333] rounded" />
+        </div>
+        <div className="flex gap-3 px-1">
+          <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-[#272727] shrink-0" />
+          <div className="flex-1 space-y-2 pt-0.5">
+            <div className="h-4 bg-slate-200 dark:bg-[#272727] rounded-md w-11/12" />
+            <div className="h-3.5 bg-slate-200 dark:bg-[#272727] rounded-md w-2/3" />
+            <div className="h-3 bg-slate-200 dark:bg-[#272727] rounded-md w-1/3 pt-1" />
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const SubscriptionsListSkeleton: React.FC = () => (
+  <div className="space-y-4 animate-pulse">
+    {[...Array(4)].map((_, i) => (
+      <div
+        key={i}
+        className="bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-4"
+      >
+        <div className="w-full sm:w-64 aspect-video bg-slate-200 dark:bg-[#272727] rounded-xl shrink-0" />
+        <div className="flex-1 space-y-3 pt-1">
+          <div className="h-5 bg-slate-200 dark:bg-[#272727] rounded-md w-5/6" />
+          <div className="h-3.5 bg-slate-200 dark:bg-[#272727] rounded-md w-1/3" />
+          <div className="flex items-center gap-2 pt-1">
+            <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-[#272727]" />
+            <div className="h-3 bg-slate-200 dark:bg-[#272727] rounded w-24" />
+          </div>
+          <div className="h-3 bg-slate-200 dark:bg-[#272727] rounded w-full hidden sm:block" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const SubscriptionsCarouselSkeleton: React.FC = () => (
+  <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1 animate-pulse">
+    {[...Array(7)].map((_, i) => (
+      <div key={i} className="flex flex-col items-center gap-1.5 shrink-0">
+        <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-slate-200 dark:bg-[#272727]" />
+        <div className="w-12 h-2.5 bg-slate-200 dark:bg-[#272727] rounded" />
+      </div>
+    ))}
+  </div>
+);
+
 export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, onSwitchToAll }) => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { navigate } = useRouter();
@@ -49,17 +140,23 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
   const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
 
   // Instant synchronous cache initialization (0ms initial render)
-  const cachedSubs = activeUid ? subscriptionService.getCachedSubscriptions(activeUid) : [];
-  const cachedCreatorIds = useMemo(() => new Set(cachedSubs.map(s => s.creatorId)), [cachedSubs]);
-  const cachedSubsVideos = useMemo(() => {
-    if (cachedCreatorIds.size === 0) return [];
-    return videoService.getCachedVideos().filter(v => cachedCreatorIds.has(v.creatorId));
-  }, [cachedCreatorIds]);
+  const cachedSubs = useMemo(() => {
+    return activeUid ? subscriptionService.getCachedSubscriptions(activeUid) : [];
+  }, [activeUid]);
+
+  const initialCachedVideos = useMemo(() => {
+    const list = videoService.getCachedVideos();
+    if (list.length > 0 && cachedSubs.length > 0) {
+      return list.filter(v => doesVideoBelongToSubscriptions(v, cachedSubs));
+    }
+    return [];
+  }, [cachedSubs]);
 
   // Main state
-  const [videos, setVideos] = useState<Video[]>(() => cachedSubsVideos);
   const [followedCreators, setFollowedCreators] = useState<Subscription[]>(() => cachedSubs);
-  const [loading, setLoading] = useState<boolean>(() => cachedSubs.length === 0);
+  const [allVideos, setAllVideos] = useState<Video[]>(() => videoService.getCachedVideos());
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(() => initialCachedVideos.length === 0);
+  const [isFilterSwitching, setIsFilterSwitching] = useState<boolean>(false);
   
   // Following feed filters
   const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null);
@@ -113,44 +210,50 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
     addToast(label, 'info');
   };
 
-  // Fetch subscriptions and feed in background
+  // Smooth filter & creator selection with micro skeleton feedback
+  const handleSelectCreator = (creatorId: string | null) => {
+    if (selectedCreatorId === creatorId) return;
+    setIsFilterSwitching(true);
+    setSelectedCreatorId(creatorId);
+    setTimeout(() => setIsFilterSwitching(false), 150);
+  };
+
+  const handleSelectFilter = (filter: SubscriptionsFilter) => {
+    if (activeFilter === filter) return;
+    setIsFilterSwitching(true);
+    setActiveFilter(filter);
+    setTimeout(() => setIsFilterSwitching(false), 150);
+  };
+
+  // Fetch subscriptions and feed in background with PARALLEL execution (zero waterfall delay)
   useEffect(() => {
-    if (!activeUid) return;
+    if (!activeUid) {
+      setIsInitialLoading(false);
+      return;
+    }
 
     let isMounted = true;
 
     const loadSubscriptionsFeed = async () => {
-      if (followedCreators.length === 0) {
-        setLoading(true);
-      }
       try {
-        const subs = currentUser?.uid
-          ? await subscriptionService.getSubscriptions(currentUser.uid)
-          : subscriptionService.getCachedSubscriptions(activeUid);
+        // Run both network queries in parallel to eliminate waterfall delay
+        const [subs, fetchedVideos] = await Promise.all([
+          currentUser?.uid
+            ? subscriptionService.getSubscriptions(currentUser.uid)
+            : Promise.resolve(subscriptionService.getCachedSubscriptions(activeUid)),
+          videoService.getVideos()
+        ]);
+
         if (!isMounted) return;
+
         setFollowedCreators(subs);
-
-        if (subs.length === 0) {
-          setVideos([]);
-          setLoading(false);
-          return;
-        }
-
-        const creatorIds = new Set(subs.map(s => s.creatorId));
-        
-        // Fetch all public videos and filter
-        const allVideos = await videoService.getVideos();
-        if (!isMounted) return;
-        const filtered = allVideos.filter(v => creatorIds.has(v.creatorId));
-        setVideos(filtered);
-
+        setAllVideos(fetchedVideos);
       } catch (err) {
-        console.error(err);
-        if (videos.length === 0) {
-          addToast(isHindi ? 'सब्सक्रिप्शन फ़ीड लोड करने में विफल।' : 'Failed to load subscriptions feed.', 'error');
-        }
+        console.error('Failed to load subscriptions feed:', err);
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setIsInitialLoading(false);
+        }
       }
     };
 
@@ -175,7 +278,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
       await subscriptionService.toggleSubscription(currentUser.uid, creatorId, { displayName: creatorName }, false);
       const updated = followedCreators.filter(c => c.creatorId !== creatorId);
       setFollowedCreators(updated);
-      setVideos(prev => prev.filter(v => v.creatorId !== creatorId));
       if (selectedCreatorId === creatorId) {
         setSelectedCreatorId(null);
       }
@@ -187,49 +289,87 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
     }
   };
 
-  // Filtered videos based on Selected Creator & YouTube Filter Chips
-  const filteredVideos = useMemo(() => {
-    let result = videos;
+  // Videos belonging to any subscribed creator
+  const followedVideos = useMemo(() => {
+    if (followedCreators.length === 0) return [];
+    return allVideos.filter(v => doesVideoBelongToSubscriptions(v, followedCreators));
+  }, [allVideos, followedCreators]);
 
-    // 1. Filter by specific creator if selected
-    if (selectedCreatorId) {
-      result = result.filter(v => v.creatorId === selectedCreatorId);
+  // Selected Creator Profile details
+  const selectedCreator = useMemo(() => {
+    if (!selectedCreatorId) return null;
+    return followedCreators.find(c => 
+      c.creatorId === selectedCreatorId || 
+      (c.creatorUsername && c.creatorUsername.toLowerCase() === selectedCreatorId.toLowerCase())
+    );
+  }, [selectedCreatorId, followedCreators]);
+
+  // Videos scoped to selected creator (or all followed creators)
+  const scopedVideos = useMemo(() => {
+    if (!selectedCreator) return followedVideos;
+    return allVideos.filter(v => 
+      doesVideoBelongToCreator(v, selectedCreator.creatorId, selectedCreator.creatorUsername)
+    );
+  }, [selectedCreator, allVideos, followedVideos]);
+
+  // Filtered videos based on Selected Creator & YouTube Filter Chips with Graceful Fallback
+  const { filteredVideos, hasFilterFallback, fallbackFilterName } = useMemo(() => {
+    if (scopedVideos.length === 0) {
+      return { filteredVideos: [], hasFilterFallback: false, fallbackFilterName: '' };
     }
 
-    // 2. Filter by YouTube chip
     const now = Date.now();
     const oneDayAgo = now - 24 * 60 * 60 * 1000;
 
+    let result: Video[] = [];
+
     switch (activeFilter) {
       case 'today':
-        return result.filter(v => {
+        result = scopedVideos.filter(v => {
           const vDate = v.createdAt ? new Date(v.createdAt).getTime() : 0;
           return vDate >= oneDayAgo;
         });
+        break;
       case 'videos':
-        return result.filter(v => !v.isShort && (v.duration || 0) > 60);
+        result = scopedVideos.filter(v => !v.isShort && (v.duration || 0) > 60);
+        break;
       case 'shorts':
-        return result.filter(v => v.isShort || (v.duration || 0) <= 60 || (v.title || '').toLowerCase().includes('#shorts'));
+        result = scopedVideos.filter(v => v.isShort || (v.duration || 0) <= 60 || (v.title || '').toLowerCase().includes('#shorts'));
+        break;
       case 'continue':
-        return result.filter(v => {
+        result = scopedVideos.filter(v => {
           const pct = playbackProgressService.getProgressPercent(v.videoId, v.duration);
           return pct > 5 && pct < 90;
         });
+        break;
       case 'unwatched':
-        return result.filter(v => {
+        result = scopedVideos.filter(v => {
           const pct = playbackProgressService.getProgressPercent(v.videoId, v.duration);
           return pct === 0;
         });
+        break;
       case 'all':
       default:
-        return result;
+        result = scopedVideos;
+        break;
     }
-  }, [videos, selectedCreatorId, activeFilter]);
+
+    // Graceful Fallback: When a narrow filter like 'today', 'continue', or 'unwatched' has 0 matches,
+    // don't leave the user facing an ugly empty state error box. Show the followed videos with a polite banner!
+    if (result.length === 0 && scopedVideos.length > 0 && activeFilter !== 'all') {
+      return {
+        filteredVideos: scopedVideos,
+        hasFilterFallback: true,
+        fallbackFilterName: activeFilter
+      };
+    }
+
+    return { filteredVideos: result, hasFilterFallback: false, fallbackFilterName: '' };
+  }, [scopedVideos, activeFilter]);
 
   // Chronological Grouping (YouTube Feed Organization: Today, Yesterday, This Week, Older)
   const chronologicalGroups = useMemo(() => {
-    if (selectedCreatorId || activeFilter === 'shorts') {
-      // Don't group by time if looking at a single creator or shorts tab
+    if (selectedCreatorId || activeFilter === 'shorts' || hasFilterFallback) {
       return null;
     }
 
@@ -273,13 +413,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
     }
 
     return groups.length > 0 ? groups : null;
-  }, [filteredVideos, selectedCreatorId, activeFilter, isHindi]);
-
-  // Selected Creator Profile details
-  const selectedCreator = useMemo(() => {
-    if (!selectedCreatorId) return null;
-    return followedCreators.find(c => c.creatorId === selectedCreatorId);
-  }, [selectedCreatorId, followedCreators]);
+  }, [filteredVideos, selectedCreatorId, activeFilter, hasFilterFallback, isHindi]);
 
   // =========================================================================
   // VIEW: NOT SIGNED IN (YouTube Authentic Empty State)
@@ -288,7 +422,6 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
     return (
       <div className="min-h-[75vh] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white dark:bg-[#181818] border border-slate-200 dark:border-slate-800 rounded-[28px] p-8 sm:p-10 text-center space-y-5 shadow-xs">
-          {/* YouTube Iconic Subscription Bell Ring Circle */}
           <div className="relative w-20 h-20 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900/60 flex items-center justify-center text-[#065fd4] dark:text-[#3ea6ff] mx-auto shadow-sm">
             <BellRing className="w-10 h-10 animate-pulse stroke-[1.8]" />
           </div>
@@ -319,9 +452,9 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
   }
 
   // =========================================================================
-  // VIEW: SIGNED IN WITH 0 SUBSCRIPTIONS (YouTube Empty State)
+  // VIEW: SIGNED IN WITH 0 SUBSCRIPTIONS (Only after loading is fully completed)
   // =========================================================================
-  if (!loading && followedCreators.length === 0) {
+  if (!isInitialLoading && followedCreators.length === 0) {
     return (
       <div className="min-h-[75vh] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white dark:bg-[#181818] border border-slate-200 dark:border-slate-800 rounded-[28px] p-8 sm:p-10 text-center space-y-5 shadow-xs">
@@ -370,71 +503,78 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
       <section className={`bg-white dark:bg-[#121212] border-b border-slate-200 dark:border-slate-800/80 shadow-xs ${embedded ? 'relative z-10' : 'sticky top-14 sm:top-16 z-30'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 overflow-x-auto no-scrollbar">
           
-          {/* "All" Avatar Button */}
-          <button
-            type="button"
-            onClick={() => setSelectedCreatorId(null)}
-            className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer focus:outline-none"
-          >
-            <div className={`w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all ${
-              selectedCreatorId === null
-                ? 'bg-[#065fd4] text-white ring-2 ring-[#065fd4] ring-offset-2 dark:ring-offset-[#121212] shadow-sm'
-                : 'bg-slate-100 dark:bg-[#272727] text-slate-700 dark:text-slate-300 group-hover:bg-slate-200 dark:group-hover:bg-[#333333]'
-            }`}>
-              <Users className="w-6 h-6" />
-            </div>
-            <span className={`text-[11px] font-semibold truncate max-w-[64px] ${
-              selectedCreatorId === null ? 'text-[#065fd4] dark:text-[#3ea6ff]' : 'text-slate-600 dark:text-slate-400'
-            }`}>
-              {isHindi ? 'सभी' : 'All'}
-            </span>
-          </button>
-
-          {/* Subscribed Creators Horizontal List with YouTube unread blue dot */}
-          {followedCreators.map((sub) => {
-            const isSelected = selectedCreatorId === sub.creatorId;
-            return (
+          {isInitialLoading && followedCreators.length === 0 ? (
+            <SubscriptionsCarouselSkeleton />
+          ) : (
+            <>
+              {/* "All" Avatar Button */}
               <button
-                key={sub.creatorId}
                 type="button"
-                onClick={() => setSelectedCreatorId(isSelected ? null : sub.creatorId)}
-                className="relative flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer focus:outline-none"
+                onClick={() => handleSelectCreator(null)}
+                className="flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer focus:outline-none"
               >
-                <div className="relative">
-                  <UserAvatar
-                    uid={sub.creatorId}
-                    fallbackPhotoURL={sub.creatorPhotoURL}
-                    fallbackDisplayName={sub.creatorDisplayName || sub.creatorUsername}
-                    size="lg"
-                    className={`w-13 h-13 sm:w-14 sm:h-14 transition-all shadow-xs ${
-                      isSelected
-                        ? 'ring-2 ring-[#065fd4] dark:ring-[#3ea6ff] ring-offset-2 dark:ring-offset-[#121212] scale-105'
-                        : 'group-hover:ring-2 group-hover:ring-slate-300 dark:group-hover:ring-slate-700'
-                    }`}
-                  />
-                  {/* YouTube Unread Blue Dot Indicator */}
-                  <span className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-[#065fd4] dark:bg-[#3ea6ff] ring-2 ring-white dark:ring-[#121212]" />
-                </div>
-                <span className={`text-[11px] font-medium truncate max-w-[68px] ${
-                  isSelected ? 'text-[#065fd4] dark:text-[#3ea6ff] font-bold' : 'text-slate-700 dark:text-slate-300'
+                <div className={`w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all ${
+                  selectedCreatorId === null
+                    ? 'bg-[#065fd4] text-white ring-2 ring-[#065fd4] ring-offset-2 dark:ring-offset-[#121212] shadow-sm'
+                    : 'bg-slate-100 dark:bg-[#272727] text-slate-700 dark:text-slate-300 group-hover:bg-slate-200 dark:group-hover:bg-[#333333]'
                 }`}>
-                  {sub.creatorDisplayName || sub.creatorUsername}
+                  <Users className="w-6 h-6" />
+                </div>
+                <span className={`text-[11px] font-semibold truncate max-w-[64px] ${
+                  selectedCreatorId === null ? 'text-[#065fd4] dark:text-[#3ea6ff]' : 'text-slate-600 dark:text-slate-400'
+                }`}>
+                  {isHindi ? 'सभी' : 'All'}
                 </span>
               </button>
-            );
-          })}
 
-          {/* Manage Channels Pill Button (YouTube Mobile / Web) */}
-          <div className="shrink-0 pl-1">
-            <button
-              type="button"
-              onClick={() => setShowManageModal(true)}
-              className="h-10 px-4 rounded-full border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-[#065fd4] dark:text-[#3ea6ff] transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-            >
-              <span>{isHindi ? 'प्रबंधित करें' : 'Manage'}</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+              {/* Subscribed Creators Horizontal List with YouTube unread blue dot */}
+              {followedCreators.map((sub) => {
+                const isSelected = selectedCreatorId === sub.creatorId || 
+                  (sub.creatorUsername && selectedCreatorId === sub.creatorUsername);
+                return (
+                  <button
+                    key={sub.creatorId}
+                    type="button"
+                    onClick={() => handleSelectCreator(isSelected ? null : sub.creatorId)}
+                    className="relative flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer focus:outline-none"
+                  >
+                    <div className="relative">
+                      <UserAvatar
+                        uid={sub.creatorId}
+                        fallbackPhotoURL={sub.creatorPhotoURL}
+                        fallbackDisplayName={sub.creatorDisplayName || sub.creatorUsername}
+                        size="lg"
+                        className={`w-13 h-13 sm:w-14 sm:h-14 transition-all shadow-xs ${
+                          isSelected
+                            ? 'ring-2 ring-[#065fd4] dark:ring-[#3ea6ff] ring-offset-2 dark:ring-offset-[#121212] scale-105'
+                            : 'group-hover:ring-2 group-hover:ring-slate-300 dark:group-hover:ring-slate-700'
+                        }`}
+                      />
+                      {/* YouTube Unread Blue Dot Indicator */}
+                      <span className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full bg-[#065fd4] dark:bg-[#3ea6ff] ring-2 ring-white dark:ring-[#121212]" />
+                    </div>
+                    <span className={`text-[11px] font-medium truncate max-w-[68px] ${
+                      isSelected ? 'text-[#065fd4] dark:text-[#3ea6ff] font-bold' : 'text-slate-700 dark:text-slate-300'
+                    }`}>
+                      {sub.creatorDisplayName || sub.creatorUsername}
+                    </span>
+                  </button>
+                );
+              })}
+
+              {/* Manage Channels Pill Button (YouTube Mobile / Web) */}
+              <div className="shrink-0 pl-1">
+                <button
+                  type="button"
+                  onClick={() => setShowManageModal(true)}
+                  className="h-10 px-4 rounded-full border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-[#065fd4] dark:text-[#3ea6ff] transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                >
+                  <span>{isHindi ? 'प्रबंधित करें' : 'Manage'}</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </>
+          )}
 
         </div>
       </section>
@@ -453,7 +593,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
             {selectedCreator && (
               <button
                 type="button"
-                onClick={() => navigate('creator', selectedCreator.creatorUsername)}
+                onClick={() => navigate('creator', selectedCreator.creatorUsername || selectedCreator.creatorId)}
                 className="text-xs font-semibold text-[#065fd4] dark:text-[#3ea6ff] hover:underline cursor-pointer flex items-center gap-1"
               >
                 <span>{isHindi ? 'चैनल पर जाएं' : 'View channel'}</span>
@@ -515,10 +655,10 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
             <button
               type="button"
               key={chip.id}
-              onClick={() => setActiveFilter(chip.id as SubscriptionsFilter)}
+              onClick={() => handleSelectFilter(chip.id as SubscriptionsFilter)}
               className={`px-3.5 py-1.5 rounded-full border text-xs shrink-0 transition-colors cursor-pointer ${
                 activeFilter === chip.id
-                  ? 'yt-chip-active shadow-xs'
+                  ? 'yt-chip-active shadow-xs font-semibold'
                   : 'yt-chip-inactive'
               }`}
             >
@@ -534,14 +674,34 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
       {/* ========================================================================= */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3">
         
-        {loading && videos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 space-y-3">
-            <Loader2 className="w-8 h-8 animate-spin text-[#065fd4] dark:text-[#3ea6ff]" />
-            <p className="text-xs text-slate-500 font-medium">
-              {isHindi ? 'सब्सक्रिप्शन लोड हो रहे हैं...' : 'Loading subscriptions...'}
-            </p>
+        {/* Filter Fallback Informational Banner (Preventing Empty Frustration) */}
+        {hasFilterFallback && !isFilterSwitching && (
+          <div className="mb-5 p-3.5 bg-blue-50/90 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-900/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in">
+            <div className="flex items-center gap-2.5 text-blue-900 dark:text-blue-200">
+              <Sparkles className="w-4 h-4 text-[#065fd4] dark:text-[#3ea6ff] shrink-0" />
+              <span>
+                {isHindi 
+                  ? `इस फ़िल्टर के लिए कोई वीडियो नहीं मिला। आपके द्वारा फ़ॉलो किए गए चैनलों के हालिया वीडियो दिखाए जा रहे हैं:`
+                  : `No uploads matched '${fallbackFilterName}'. Showing latest videos from your subscriptions:`}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSelectFilter('all')}
+              className="self-start sm:self-auto px-3.5 py-1 rounded-full bg-[#065fd4] hover:bg-[#054fb1] text-white font-semibold transition-colors cursor-pointer whitespace-nowrap shadow-xs"
+            >
+              {isHindi ? 'सभी देखें' : 'View All'}
+            </button>
           </div>
+        )}
+
+        {/* LOADING & SKELETON STATE */}
+        {isInitialLoading && scopedVideos.length === 0 ? (
+          viewMode === 'list' ? <SubscriptionsListSkeleton /> : <SubscriptionsGridSkeleton />
+        ) : isFilterSwitching ? (
+          viewMode === 'list' ? <SubscriptionsListSkeleton /> : <SubscriptionsGridSkeleton />
         ) : filteredVideos.length === 0 ? (
+          /* Real Empty State (Only if genuinely no videos exist for followed creators) */
           <div className="py-20 text-center bg-white dark:bg-[#181818] rounded-2xl border border-slate-200 dark:border-slate-800 p-8 space-y-3">
             <Users className="w-10 h-10 text-slate-400 mx-auto" />
             <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
@@ -549,18 +709,28 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
             </h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
               {selectedCreator 
-                ? (isHindi ? `${selectedCreator.creatorDisplayName} ने इस फ़िल्टर के लिए कोई वीडियो अपलोड नहीं किया है।` : `No videos found for this creator with the selected filter.`)
-                : (isHindi ? 'इस फ़िल्टर से मेल खाता कोई नया वीडियो नहीं मिला।' : 'No new videos found matching this filter.')}
+                ? (isHindi ? `${selectedCreator.creatorDisplayName || selectedCreator.creatorUsername} ने अभी तक कोई वीडियो अपलोड नहीं किया है।` : `No videos uploaded yet by this creator.`)
+                : (isHindi ? 'आपके द्वारा फ़ॉलो किए गए क्रिएटर्स ने अभी कोई वीडियो प्रकाशित नहीं किया है।' : 'Creators you follow haven’t uploaded any videos yet.')}
             </p>
-            <button
-              onClick={() => {
-                setActiveFilter('all');
-                setSelectedCreatorId(null);
-              }}
-              className="mt-2 text-xs font-semibold text-[#065fd4] dark:text-[#3ea6ff] hover:underline cursor-pointer"
-            >
-              {isHindi ? 'सभी वीडियो देखें' : 'View all videos'}
-            </button>
+            <div className="pt-2 flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCreatorId(null);
+                  setActiveFilter('all');
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+              >
+                {isHindi ? 'सभी देखें' : 'Reset filter'}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('trending')}
+                className="px-4 py-2 text-xs font-semibold rounded-full bg-[#065fd4] hover:bg-[#054fb1] text-white transition-colors cursor-pointer"
+              >
+                {isHindi ? 'ट्रेंडिंग वीडियो खोजें' : 'Explore Trending'}
+              </button>
+            </div>
           </div>
         ) : chronologicalGroups ? (
           /* ======================================================================= */
@@ -589,7 +759,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                           key={video.videoId}
                           className="bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all group shadow-xs"
                         >
-                          {/* Thumbnail (Draggable Link) */}
+                          {/* Thumbnail */}
                           <a
                             href={watchUrl}
                             draggable={true}
@@ -691,7 +861,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                     key={video.videoId}
                     className="bg-white dark:bg-[#181818] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row gap-4 hover:border-slate-300 dark:hover:border-slate-700 transition-all group shadow-xs"
                   >
-                    {/* Thumbnail (Draggable Link) */}
+                    {/* Thumbnail */}
                     <a
                       href={watchUrl}
                       draggable={true}
@@ -827,7 +997,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                     <div 
                       onClick={() => {
                         setShowManageModal(false);
-                        navigate('creator', creator.creatorUsername);
+                        navigate('creator', creator.creatorUsername || creator.creatorId);
                       }}
                       className="flex items-center gap-3 min-w-0 cursor-pointer group"
                     >
@@ -843,7 +1013,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                           {creator.creatorDisplayName || creator.creatorUsername}
                         </div>
                         <div className="text-xs text-slate-500 truncate">
-                          @{creator.creatorUsername}
+                          @{creator.creatorUsername || 'creator'}
                         </div>
                       </div>
                     </div>
@@ -912,7 +1082,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                       <button
                         type="button"
                         disabled={unsubscribingId === creator.creatorId}
-                        onClick={() => handleUnsubscribe(creator.creatorId, creator.creatorDisplayName || creator.creatorUsername)}
+                        onClick={() => handleUnsubscribe(creator.creatorId, creator.creatorDisplayName || creator.creatorUsername || 'Creator')}
                         className="h-8 px-3.5 rounded-full bg-slate-100 hover:bg-rose-50 hover:text-rose-600 dark:bg-[#272727] dark:hover:bg-rose-950/40 dark:hover:text-rose-400 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer group/btn"
                       >
                         {unsubscribingId === creator.creatorId ? (
@@ -952,3 +1122,4 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
     </div>
   );
 };
+
