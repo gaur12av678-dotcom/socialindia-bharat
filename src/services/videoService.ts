@@ -213,7 +213,7 @@ export const videoService = {
         // Cloudinary Free Account strictly limits video files to 100MB (104,857,600 bytes)
         if (file.size > 104857600) {
           const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-          throw new Error(`File size too large (${sizeMB}MB). Cloudinary Free accounts strictly limit video files to 100MB (104,857,600 bytes). For larger videos, please use the "Paste Video Link" tab (supports Google Drive & YouTube with unlimited size).`);
+          throw new Error(`File size too large (${sizeMB}MB). Video files are limited to 100MB.`);
         }
 
         console.log(`Starting high-speed video upload to Cloudinary (${cloudName}): ${file.name} (${file.size} bytes)`);
@@ -408,7 +408,7 @@ export const videoService = {
             const err = JSON.parse(xhr.responseText);
             if (err.error?.message) {
               if (err.error.message.includes('File size too large') || err.error.message.includes('104857600') || err.error.message.includes('account limit')) {
-                errMsg = 'Video file size exceeds direct upload limit (100MB). For larger videos, please use the "Paste Video Link" tab (supports Google Drive & YouTube with unlimited size).';
+                errMsg = 'Video file size exceeds direct upload limit (100MB).';
               } else {
                 errMsg = err.error.message;
               }
@@ -841,8 +841,8 @@ export const videoService = {
   },
 
   // Synchronous 0ms retrieval of cached videos for instant page boot
-  getCachedVideos(filters?: { category?: string; creatorId?: string; isShort?: boolean }): Video[] {
-    const cacheKey = `${filters?.category || 'All'}_${filters?.creatorId || 'all'}_${filters?.isShort !== undefined ? filters.isShort : 'all'}`;
+  getCachedVideos(filters?: { category?: string; creatorId?: string; creatorUsername?: string; isShort?: boolean }): Video[] {
+    const cacheKey = `${filters?.category || 'All'}_${filters?.creatorId || filters?.creatorUsername || 'all'}_${filters?.isShort !== undefined ? filters.isShort : 'all'}`;
     const mem = memoryVideoCache.get(cacheKey);
     if (mem && mem.data.length > 0) return mem.data;
 
@@ -865,8 +865,13 @@ export const videoService = {
     if (filters?.category && filters.category !== 'All') {
       filtered = filtered.filter(v => v.category === filters.category);
     }
-    if (filters?.creatorId) {
-      filtered = filtered.filter(v => v.creatorId === filters.creatorId);
+    if (filters?.creatorId || filters?.creatorUsername) {
+      const cleanUsername = filters.creatorUsername ? filters.creatorUsername.toLowerCase().replace(/^@/, '') : '';
+      filtered = filtered.filter(v => {
+        if (filters.creatorId && v.creatorId === filters.creatorId) return true;
+        if (cleanUsername && v.creatorUsername && v.creatorUsername.toLowerCase().replace(/^@/, '') === cleanUsername) return true;
+        return false;
+      });
     }
     if (filters?.isShort !== undefined) {
       filtered = filtered.filter(v => Boolean(v.isShort) === filters.isShort);
@@ -1171,7 +1176,13 @@ export const videoService = {
       };
 
       const videos = Array.from(map.values()).filter(v => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
-      return videos.sort((a: Video, b: Video) => parseTime(b.createdAt) - parseTime(a.createdAt));
+      const sorted = videos.sort((a: Video, b: Video) => parseTime(b.createdAt) - parseTime(a.createdAt));
+      sorted.forEach(v => {
+        if (v && v.videoId) {
+          memoryVideoDetailCache.set(v.videoId, { data: v, timestamp: Date.now() });
+        }
+      });
+      return sorted;
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, 'videos');
       return [];

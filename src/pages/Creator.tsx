@@ -128,11 +128,30 @@ export const CreatorProfile: React.FC = () => {
     }
     return null;
   });
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [shorts, setShorts] = useState<Video[]>([]);
+  const [videos, setVideos] = useState<Video[]>(() => {
+    if (creator?.uid) {
+      const cachedVids = videoService.getCachedVideos({ creatorId: creator.uid, creatorUsername: creator.username });
+      return cachedVids.filter(v => v.visibility === 'public' && !v.isShort);
+    }
+    return [];
+  });
+  const [shorts, setShorts] = useState<Video[]>(() => {
+    if (creator?.uid) {
+      const cachedVids = videoService.getCachedVideos({ creatorId: creator.uid, creatorUsername: creator.username });
+      return cachedVids.filter(v => v.visibility === 'public' && v.isShort);
+    }
+    return [];
+  });
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState(!creator);
+  const [loadingContent, setLoadingContent] = useState<boolean>(() => {
+    if (creator?.uid) {
+      const cachedVids = videoService.getCachedVideos({ creatorId: creator.uid, creatorUsername: creator.username });
+      return cachedVids.length === 0;
+    }
+    return true;
+  });
 
   const resolveTab = (subTabStr?: string): 'videos' | 'shorts' | 'playlists' | 'posts' | 'about' => {
     const raw = (subTabStr || '').toLowerCase().trim();
@@ -291,6 +310,7 @@ export const CreatorProfile: React.FC = () => {
     // If not logged in and no param, we show the sign in view directly
     if (!targetUsername && !currentUser) {
       setLoading(false);
+      setLoadingContent(false);
       return;
     }
 
@@ -306,6 +326,7 @@ export const CreatorProfile: React.FC = () => {
         setShorts([]);
         setPlaylists([]);
         setPosts([]);
+        setLoadingContent(true);
         setActiveTab(resolveTab(route.subTab || route.searchParams?.tab));
       }
 
@@ -319,16 +340,20 @@ export const CreatorProfile: React.FC = () => {
           setSubscribed(subscriptionService.isSubscribedSync(activeUid, cached.uid, cached.username));
         }
         // Instantly seed creator videos from local cache for THIS specific user
-        const cachedCreatorVids = videoService.getCachedVideos({ creatorId: cached.uid });
+        const cachedCreatorVids = videoService.getCachedVideos({ creatorId: cached.uid, creatorUsername: cached.username });
         if (cachedCreatorVids.length > 0) {
           const publicVids = cachedCreatorVids.filter(v => v.visibility === 'public');
           setVideos(publicVids.filter(v => !v.isShort));
           setShorts(publicVids.filter(v => v.isShort));
+          setLoadingContent(false);
+        } else {
+          setLoadingContent(true);
         }
       } else {
         // Critical: Clear previous creator data so old user's profile is not shown while loading
         setCreator(null);
         setLoading(true);
+        setLoadingContent(true);
       }
 
       try {
@@ -418,6 +443,7 @@ export const CreatorProfile: React.FC = () => {
         if (!uProfile) {
           if (!cached) setCreator(null);
           setLoading(false);
+          setLoadingContent(false);
           return;
         }
 
@@ -457,12 +483,16 @@ export const CreatorProfile: React.FC = () => {
           if (postsResult.status === 'fulfilled') {
             setPosts(postsResult.value);
           }
+          setLoadingContent(false);
         }
 
       } catch (err) {
         console.error('Failed to load creator profile:', err);
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setLoadingContent(false);
+        }
       }
     };
 
@@ -1081,7 +1111,9 @@ export const CreatorProfile: React.FC = () => {
         >
           <VideoIcon className="w-4 h-4" />
           <span>{t('tab_videos', 'Videos')}</span>
-          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{videos.length}</span>
+          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
+            {loadingContent && videos.length === 0 ? (creator?.videosCount !== undefined ? creator.videosCount : '...') : videos.length}
+          </span>
           {activeTab === 'videos' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
 
@@ -1093,7 +1125,9 @@ export const CreatorProfile: React.FC = () => {
         >
           <Zap className="w-4 h-4 text-red-500 fill-red-500" />
           <span>{t('tab_shorts', 'Clips')}</span>
-          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{shorts.length}</span>
+          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
+            {loadingContent && shorts.length === 0 ? '...' : shorts.length}
+          </span>
           {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
 
@@ -1105,7 +1139,9 @@ export const CreatorProfile: React.FC = () => {
         >
           <Bookmark className="w-4 h-4" />
           <span>{t('tab_playlists', 'Playlists')}</span>
-          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{channelPlaylists.length}</span>
+          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
+            {loadingContent && channelPlaylists.length === 0 ? '...' : channelPlaylists.length}
+          </span>
           {activeTab === 'playlists' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
 
@@ -1117,7 +1153,9 @@ export const CreatorProfile: React.FC = () => {
         >
           <MessageSquare className="w-4 h-4" />
           <span>{isHindi ? 'कम्युनिटी' : 'Community'}</span>
-          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{posts.length}</span>
+          <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
+            {loadingContent && posts.length === 0 ? '...' : posts.length}
+          </span>
           {activeTab === 'posts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
 
@@ -1139,7 +1177,7 @@ export const CreatorProfile: React.FC = () => {
         {activeTab === 'videos' && (
           <div className="space-y-4">
             {/* YouTube-style Filter Chips */}
-            {videos.length > 0 && (
+            {(videos.length > 0 || loadingContent) && (
               <div className="flex items-center gap-2 pb-1">
                 <button
                   type="button"
@@ -1178,7 +1216,9 @@ export const CreatorProfile: React.FC = () => {
               </div>
             )}
 
-            {sortedVideos.length > 0 ? (
+            {loadingContent ? (
+              <VideoGrid videos={[]} loading={true} />
+            ) : sortedVideos.length > 0 ? (
               <VideoGrid videos={sortedVideos} loading={false} />
             ) : (
               <div className="py-20 text-center flex flex-col items-center justify-center space-y-3">
@@ -1211,20 +1251,37 @@ export const CreatorProfile: React.FC = () => {
         {/* SHORTS TAB (YouTube 9:16 Vertical Grid) */}
         {activeTab === 'shorts' && (
           <div className="space-y-4">
-            {shorts.length > 0 ? (
+            {loadingContent ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-                {shorts.map((short) => (
+                {Array.from({ length: 5 }).map((_, idx) => (
+                  <div
+                    key={idx}
+                    style={{ animationDelay: `${idx * 70}ms` }}
+                    className="rounded-2xl overflow-hidden aspect-[9/16] bg-[#dbe2ee] dark:bg-slate-800 animate-pulse relative p-3 flex flex-col justify-between shadow-xs"
+                  >
+                    <div className="w-12 h-4 bg-[#bcc8dc] dark:bg-slate-700 rounded-md" />
+                    <div className="space-y-2">
+                      <div className="h-3.5 bg-[#bcc8dc] dark:bg-slate-700 rounded-md w-[85%]" />
+                      <div className="h-2.5 bg-[#bcc8dc] dark:bg-slate-700 rounded-md w-[50%]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : shorts.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {shorts.map((short, idx) => (
                   <a
                     key={short.videoId}
                     href={`#/shorts/${short.videoId}`}
                     draggable={true}
                     title={short.title}
+                    style={{ animationDelay: `${idx * 40}ms` }}
                     onClick={(e) => {
                       if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
                       e.preventDefault();
                       navigate('shorts', short.videoId);
                     }}
-                    className="group relative block rounded-2xl overflow-hidden aspect-[9/16] bg-slate-900 cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+                    className="group relative block rounded-2xl overflow-hidden aspect-[9/16] bg-slate-900 cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 yt-card-animate"
                   >
                     {/* Thumbnail Image with draggable disabled so dragging transfers link to short */}
                     {short.thumbnailUrl ? (
@@ -1303,7 +1360,19 @@ export const CreatorProfile: React.FC = () => {
         {/* PLAYLISTS TAB */}
         {activeTab === 'playlists' && (
           <div className="space-y-4">
-            {channelPlaylists.length > 0 ? (
+            {loadingContent ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Array.from({ length: 3 }).map((_, idx) => (
+                  <div key={idx} style={{ animationDelay: `${idx * 80}ms` }} className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs animate-pulse">
+                    <div className="aspect-video bg-[#dbe2ee] dark:bg-slate-800" />
+                    <div className="p-4 space-y-2">
+                      <div className="h-4 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[75%]" />
+                      <div className="h-3 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[50%]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : channelPlaylists.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {channelPlaylists.map(pl => {
                   const plTargetUrl = pl.videoIds && pl.videoIds.length > 0 
@@ -1401,7 +1470,25 @@ export const CreatorProfile: React.FC = () => {
               </div>
             )}
 
-            {posts.length === 0 ? (
+            {loadingContent ? (
+              <div className="space-y-4">
+                {Array.from({ length: 2 }).map((_, idx) => (
+                  <div key={idx} style={{ animationDelay: `${idx * 100}ms` }} className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl p-5 space-y-4 shadow-xs animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#dbe2ee] dark:bg-slate-800 shrink-0" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-36" />
+                        <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-24" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[90%]" />
+                      <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[70%]" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : posts.length === 0 ? (
               <div className="py-20 text-center flex flex-col items-center justify-center space-y-3">
                 <div className="w-16 h-16 rounded-3xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400">
                   <MessageSquare className="w-8 h-8" />

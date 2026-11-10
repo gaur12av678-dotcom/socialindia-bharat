@@ -272,8 +272,8 @@ export const UploadPage: React.FC = () => {
       return;
     }
 
-    if (!videoUrl && !selectedVideoFile) {
-      addToast('Please select a video file from your device first.', 'error');
+    if (!selectedVideoFile) {
+      addToast(isHindi ? 'कृपया पहले अपनी डिवाइस से एक वीडियो फ़ाइल चुनें।' : 'Please select a video file from your device first.', 'error');
       setCurrentStep(1);
       return;
     }
@@ -496,7 +496,7 @@ export const UploadPage: React.FC = () => {
             const isActive = currentStep === s.step;
             const isDone = currentStep > s.step;
             const Icon = s.icon;
-            const canNavigate = !isPublishing && (s.step < currentStep || (s.step === 2 && (selectedVideoFile || videoUrl)));
+            const canNavigate = !isPublishing && (s.step < currentStep || (s.step === 2 && Boolean(selectedVideoFile)));
 
             return (
               <React.Fragment key={s.step}>
@@ -616,30 +616,6 @@ export const UploadPage: React.FC = () => {
                 className="hidden" 
               />
 
-              {/* Mobile Shorts Quick Camera Studio Banner */}
-              <div className="md:hidden flex items-center justify-between p-3.5 bg-gradient-to-r from-rose-500/15 via-red-500/10 to-transparent border border-rose-500/25 rounded-2xl shadow-xs">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-rose-500/30">
-                    <Zap className="w-5 h-5 fill-current" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-black text-slate-900 dark:text-white truncate">
-                      {isHindi ? 'कैमरे से लाइव शॉर्ट रिकॉर्ड करें' : 'Record Short with Camera'}
-                    </p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                      {isHindi ? 'फ़िल्टर, टाइमर, ट्रिम और बैकग्राउंड संगीत' : 'Camera effects, timer, trim & sound mix'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.dispatchEvent(new CustomEvent('socialindia:open-shorts-studio'))}
-                  className="px-3.5 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-black shrink-0 shadow-sm cursor-pointer active:scale-95 transition-all ml-2"
-                >
-                  {isHindi ? 'कैमरा खोलें' : 'Open Camera'}
-                </button>
-              </div>
-
               {videoPreviewUrl ? (
                 /* Video Selected Preview Block */
                 <div className="space-y-5 max-w-2xl mx-auto">
@@ -755,62 +731,6 @@ export const UploadPage: React.FC = () => {
                     <span>{isHindi ? 'डिवाइस से मीडिया चुनें' : 'Select Media from Device'}</span>
                   </button>
 
-                  {/* Publish from a shareable video link (including Google Drive) */}
-                  <div className="mt-7 w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:p-5 text-left space-y-3">
-                    <div>
-                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
-                        {isHindi ? 'या वीडियो लिंक से जोड़ें' : 'Or add a video using a link'}
-                      </h4>
-                      <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {isHindi ? 'Google Drive, YouTube या direct MP4 लिंक पेस्ट करें।' : 'Paste a Google Drive, YouTube, or direct MP4 video link.'}
-                      </p>
-                    </div>
-                    <input
-                      type="url"
-                      value={videoUrl}
-                      onChange={(e) => {
-                        setVideoUrl(e.target.value);
-                        if (e.target.value.trim()) {
-                          setSelectedVideoFile(null);
-                          setVideoPreviewUrl('');
-                          setVideoFileName('');
-                        }
-                      }}
-                      placeholder="https://drive.google.com/file/d/..."
-                      disabled={isPublishing}
-                      className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:border-[#065fd4] focus:ring-2 focus:ring-blue-500/20"
-                    />
-                    {videoUrl.trim() && (() => {
-                      const parsed = parseVideoUrl(videoUrl);
-                      if (parsed.type === 'unsupported' || !parsed.embedUrl) {
-                        return <p className="text-xs text-red-600 dark:text-red-400">{isHindi ? 'यह वीडियो लिंक समर्थित नहीं है।' : 'This video link is not supported.'}</p>;
-                      }
-                      return (
-                        <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-black">
-                          <div className="aspect-video">
-                            {parsed.type === 'direct' ? (
-                              <video src={parsed.embedUrl} controls playsInline className="w-full h-full object-contain" />
-                            ) : (
-                              <iframe
-                                src={parsed.embedUrl}
-                                title="SocialIndia video link preview"
-                                className="w-full h-full"
-                                allow="autoplay; encrypted-media; picture-in-picture"
-                                allowFullScreen
-                                referrerPolicy="strict-origin-when-cross-origin"
-                              />
-                            )}
-                          </div>
-                          <p className="px-3 py-2 text-[11px] text-slate-300">
-                            {parsed.type === 'drive' ? (isHindi ? 'Google Drive वीडियो प्रीव्यू' : 'Google Drive video preview') : parsed.type === 'youtube' ? 'YouTube preview' : (isHindi ? 'वीडियो प्रीव्यू' : 'Video preview')}
-                          </p>
-                        </div>
-                      );
-                    })()}
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {isHindi ? 'Google Drive में General access को Anyone with the link रखें, ताकि वीडियो चल सके।' : 'For Google Drive, set General access to Anyone with the link so the embedded video can play.'}
-                    </p>
-                  </div>
 
                   {/* Supported Formats & Max Size Bar */}
                   <div className="flex items-center justify-center gap-2.5 flex-wrap mt-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
