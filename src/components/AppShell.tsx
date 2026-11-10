@@ -1705,7 +1705,15 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         onClose={() => setCreateActionSheetOpen(false)}
         onCreateShort={() => setMobileShortsStudioOpen(true)}
         onUploadVideo={() => navigate('upload', undefined, { mode: 'video' })}
-        onCreatePost={() => navigate('upload', undefined, { mode: 'post' })}
+        onCreatePost={() => {
+          setCreateActionSheetOpen(false);
+          if (!activeUid) {
+            setAuthModalOpen(true);
+            return;
+          }
+          const handle = currentUserProfile?.username || (currentUser?.email ? currentUser.email.split('@')[0] : (currentUser?.uid || activeUid));
+          navigate('creator', handle, { tab: 'posts' });
+        }}
       />
 
       {/* MOBILE DEDICATED YOUTUBE SHORTS CREATION STUDIO */}

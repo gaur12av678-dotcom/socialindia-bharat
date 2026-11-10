@@ -296,6 +296,7 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
 
       {/* Pill Input */}
       <input
+        id="community-post-input"
         type="text"
         value={content}
         onChange={(e) => setContent(e.target.value)}

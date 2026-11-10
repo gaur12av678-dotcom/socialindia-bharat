@@ -1,13 +1,10 @@
 import React, { useEffect } from 'react';
 import { 
-  Zap, 
-  Video, 
-  FileText, 
-  X, 
-  ChevronRight,
-  Sparkles,
-  Camera
+  Upload, 
+  SquarePen, 
+  X
 } from 'lucide-react';
+import { ShortsLogo } from '../ShortsLogo';
 import { useTranslation } from '../../i18n';
 
 interface CreateActionSheetProps {
@@ -18,6 +15,11 @@ interface CreateActionSheetProps {
   onCreatePost: () => void;
 }
 
+/**
+ * YouTube-style Mobile Create Action Sheet
+ * Clean bottom sheet with circular action buttons, authentic Shorts logo,
+ * and direct routing to video upload, shorts studio, and profile post creation.
+ */
 export const CreateActionSheet: React.FC<CreateActionSheetProps> = ({
   isOpen,
   onClose,
@@ -25,7 +27,7 @@ export const CreateActionSheet: React.FC<CreateActionSheetProps> = ({
   onUploadVideo,
   onCreatePost,
 }) => {
-  const { t, isHindi } = useTranslation();
+  const { isHindi } = useTranslation();
 
   // Close on Escape key
   useEffect(() => {
@@ -54,69 +56,56 @@ export const CreateActionSheet: React.FC<CreateActionSheetProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      {/* Dimmed Backdrop */}
+      {/* Dimmed YouTube-style Backdrop */}
       <div 
         className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Slide-Up Bottom Sheet */}
-      <div className="relative w-full max-w-lg bg-white dark:bg-[#18181b] rounded-t-3xl border-t border-slate-200 dark:border-slate-800 shadow-2xl p-5 pb-8 space-y-4 z-10 animate-in slide-in-from-bottom duration-300">
-        
-        {/* Grab Handle */}
-        <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto" />
+      <div 
+        role="dialog"
+        aria-modal="true"
+        aria-label={isHindi ? 'बनाएं' : 'Create'}
+        className="relative w-full max-w-lg bg-white dark:bg-[#212121] rounded-t-[24px] shadow-2xl pt-2 pb-8 sm:pb-6 z-10 animate-in slide-in-from-bottom duration-200 border-t border-slate-100 dark:border-white/5"
+      >
+        {/* Grab Handle Pill */}
+        <div className="w-10 h-1 bg-slate-300 dark:bg-[#717171] rounded-full mx-auto mt-1 mb-2" />
 
-        {/* Sheet Header */}
-        <div className="flex items-center justify-between pb-1">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
-              <Sparkles className="w-3.5 h-3.5" />
-            </div>
-            <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
-              {isHindi ? 'नया कंटेंट बनाएं' : 'Create'}
-            </h3>
-          </div>
+        {/* Header: Title & Close Button */}
+        <div className="flex items-center justify-between px-5 py-2">
+          <h2 className="text-[17px] font-bold text-slate-900 dark:text-[#f1f1f1] tracking-tight">
+            {isHindi ? 'बनाएं' : 'Create'}
+          </h2>
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-            aria-label="Close"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#383838] transition-colors cursor-pointer"
+            aria-label={isHindi ? 'बंद करें' : 'Close'}
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5 stroke-[2.2]" />
           </button>
         </div>
 
-        {/* Action Options List */}
-        <div className="space-y-2.5 pt-1">
+        {/* Action Options List (YouTube standard rows with 48px circle icons) */}
+        <div className="mt-1 space-y-0.5 px-2">
           
-          {/* 1. Create a Short (Dedicated YouTube Shorts Style Studio) */}
+          {/* 1. Create a Short (With official SocialIndia Clips / Shorts logo) */}
           <button
             onClick={() => {
               onClose();
               onCreateShort();
             }}
-            className="w-full flex items-center justify-between p-3.5 bg-gradient-to-r from-rose-500/10 via-red-500/5 to-transparent hover:from-rose-500/20 rounded-2xl border border-rose-200/80 dark:border-rose-900/40 text-left transition-all active:scale-98 cursor-pointer group"
+            className="w-full flex items-center gap-4 px-3.5 py-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-[#303030] active:bg-slate-200 dark:active:bg-[#383838] text-left transition-colors cursor-pointer group"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-500 text-white flex items-center justify-center shadow-md shadow-rose-500/20 shrink-0 group-hover:scale-105 transition-transform">
-                <Zap className="w-6 h-6 fill-current" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-black text-slate-900 dark:text-white">
-                    {isHindi ? 'शॉर्ट बनाएं' : 'Create a Short'}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500 text-white uppercase tracking-wider">
-                    {isHindi ? 'कैमरा' : 'Camera'}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
-                  {isHindi 
-                    ? 'कैमरे से रिकॉर्ड करें या गैलरी से 60s तक का शॉर्ट चुनें' 
-                    : 'Record live with camera or pick from gallery'}
-                </p>
-              </div>
+            <div className="w-12 h-12 rounded-full bg-blue-50/80 dark:bg-blue-950/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform text-[#235DE5]">
+              <ShortsLogo className="w-6 h-6" fill="#235DE5" />
             </div>
-            <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-rose-500 transition-colors shrink-0" />
+            <div className="min-w-0 flex-1">
+              <span className="text-[15px] font-medium text-slate-900 dark:text-[#f1f1f1] block">
+                {isHindi ? 'शॉर्ट्स बनाएं' : 'Create a Short'}
+              </span>
+            </div>
           </button>
 
           {/* 2. Upload a Video */}
@@ -125,54 +114,37 @@ export const CreateActionSheet: React.FC<CreateActionSheetProps> = ({
               onClose();
               onUploadVideo();
             }}
-            className="w-full flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/80 hover:bg-blue-50/50 dark:hover:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-800 text-left transition-all active:scale-98 cursor-pointer group"
+            className="w-full flex items-center gap-4 px-3.5 py-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-[#303030] active:bg-slate-200 dark:active:bg-[#383838] text-left transition-colors cursor-pointer group"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-2xl bg-[#2563eb] text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0 group-hover:scale-105 transition-transform">
-                <Video className="w-6 h-6 stroke-[2.2]" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-sm font-black text-slate-900 dark:text-white">
-                  {isHindi ? 'वीडियो अपलोड करें' : 'Upload a Video'}
-                </span>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
-                  {isHindi 
-                    ? 'लंबा वीडियो, ट्यूटोरियल या ब्लॉग पोस्ट करें' 
-                    : 'Publish regular or landscape video with monetization'}
-                </p>
-              </div>
+            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-[#2f2f2f] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform text-slate-800 dark:text-slate-100">
+              <Upload className="w-6 h-6 stroke-[1.9]" />
             </div>
-            <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors shrink-0" />
+            <div className="min-w-0 flex-1">
+              <span className="text-[15px] font-medium text-slate-900 dark:text-[#f1f1f1] block">
+                {isHindi ? 'वीडियो अपलोड करें' : 'Upload a video'}
+              </span>
+            </div>
           </button>
 
-          {/* 3. Create a Community Post */}
+          {/* 3. Create a Post (Routes to profile community tab) */}
           <button
             onClick={() => {
               onClose();
               onCreatePost();
             }}
-            className="w-full flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/80 hover:bg-amber-50/50 dark:hover:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-800 text-left transition-all active:scale-98 cursor-pointer group"
+            className="w-full flex items-center gap-4 px-3.5 py-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-[#303030] active:bg-slate-200 dark:active:bg-[#383838] text-left transition-colors cursor-pointer group"
           >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/20 shrink-0 group-hover:scale-105 transition-transform">
-                <FileText className="w-6 h-6 stroke-[2.2]" />
-              </div>
-              <div className="min-w-0">
-                <span className="text-sm font-black text-slate-900 dark:text-white">
-                  {isHindi ? 'कम्युनिटी पोस्ट बनाएं' : 'Create a Post'}
-                </span>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">
-                  {isHindi 
-                    ? 'फ़ोटो, पोल या विचार अपने सब्सक्राइबर्स से साझा करें' 
-                    : 'Share photo, poll, or announcement with community'}
-                </p>
-              </div>
+            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-[#2f2f2f] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform text-slate-800 dark:text-slate-100">
+              <SquarePen className="w-6 h-6 stroke-[1.9]" />
             </div>
-            <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-amber-500 transition-colors shrink-0" />
+            <div className="min-w-0 flex-1">
+              <span className="text-[15px] font-medium text-slate-900 dark:text-[#f1f1f1] block">
+                {isHindi ? 'पोस्ट बनाएं' : 'Create a post'}
+              </span>
+            </div>
           </button>
 
         </div>
-
       </div>
     </div>
   );

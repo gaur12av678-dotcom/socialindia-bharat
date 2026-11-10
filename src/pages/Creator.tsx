@@ -151,7 +151,21 @@ export const CreatorProfile: React.FC = () => {
 
   // Keep activeTab in sync with route subTab or searchParams if user navigates or uses Back/Forward
   useEffect(() => {
-    setActiveTab(resolveTab(route.subTab || route.searchParams?.tab));
+    const nextTab = resolveTab(route.subTab || route.searchParams?.tab);
+    setActiveTab(nextTab);
+    if (nextTab === 'posts') {
+      const scrollTimer = setTimeout(() => {
+        const box = document.getElementById('creator-post-creation-box');
+        if (box) {
+          box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const input = document.getElementById('community-post-input');
+          if (input) {
+            (input as HTMLInputElement).focus();
+          }
+        }
+      }, 250);
+      return () => clearTimeout(scrollTimer);
+    }
   }, [route.subTab, route.searchParams?.tab]);
 
   const handleTabChange = (newTab: 'videos' | 'shorts' | 'playlists' | 'posts' | 'about') => {
@@ -1378,11 +1392,13 @@ export const CreatorProfile: React.FC = () => {
         {activeTab === 'posts' && (
           <div className="max-w-2xl mx-auto space-y-5">
             {isOwner && (
-              <CreatePostBox 
-                onPostCreated={() => {
-                  postService.getPosts({ authorId: creator.uid }).then(setPosts);
-                }} 
-              />
+              <div id="creator-post-creation-box" className="scroll-mt-20">
+                <CreatePostBox 
+                  onPostCreated={() => {
+                    postService.getPosts({ authorId: creator.uid }).then(setPosts);
+                  }} 
+                />
+              </div>
             )}
 
             {posts.length === 0 ? (
