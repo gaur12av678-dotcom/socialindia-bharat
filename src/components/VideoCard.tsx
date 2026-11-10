@@ -336,13 +336,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
 
               <button
                 onClick={() => {
+                  setShowMenu(false);
                   if (!currentUser) {
                     addToast(isHindi ? 'वीडियो सहेजने के लिए कृपया साइन इन करें' : 'Please sign in to save videos', 'info');
-                  } else {
-                    savedVideoService.saveVideo(currentUser.uid, video);
-                    addToast(isHindi ? 'प्लेलिस्ट में सहेजा गया!' : 'Saved to playlist!', 'success');
+                    navigate('signin');
+                    return;
                   }
-                  setShowMenu(false);
+                  savedVideoService.saveVideo(currentUser.uid, video);
+                  addToast(isHindi ? 'प्लेलिस्ट में सहेजा गया!' : 'Saved to playlist!', 'success');
                 }}
                 className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
               >
@@ -352,13 +353,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
 
               <button
                 onClick={() => {
+                  setShowMenu(false);
                   if (!currentUser) {
                     addToast(isHindi ? 'वीडियो सहेजने के लिए कृपया साइन इन करें' : 'Please sign in to save videos', 'info');
-                  } else {
-                    savedVideoService.saveVideo(currentUser.uid, video);
-                    addToast(isHindi ? 'बाद में देखने के लिए सहेजा गया!' : 'Saved to Watch Later!', 'success');
+                    navigate('signin');
+                    return;
                   }
-                  setShowMenu(false);
+                  savedVideoService.saveVideo(currentUser.uid, video);
+                  addToast(isHindi ? 'बाद में देखने के लिए सहेजा गया!' : 'Saved to Watch Later!', 'success');
                 }}
                 className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
               >

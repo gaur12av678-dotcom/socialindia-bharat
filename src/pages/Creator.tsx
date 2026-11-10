@@ -96,6 +96,7 @@ export const CreatorProfile: React.FC = () => {
   const { route, navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast, loading: appLoading, refreshProfile, updateUserProfileState } = useApp();
   const { t, isHindi } = useTranslation();
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
   
   // Resolve target username safely (remove leading @ and fallback to current logged-in profile if empty)
   const rawParam = route.param;
@@ -166,12 +167,18 @@ export const CreatorProfile: React.FC = () => {
   };
 
   const [subscribed, setSubscribed] = useState(() => {
-    if (currentUser && creator) {
-      return subscriptionService.isSubscribedSync(currentUser.uid, creator.uid);
+    if (activeUid && creator) {
+      return subscriptionService.isSubscribedSync(activeUid, creator.uid, creator.username);
     }
     return false;
   });
   const [subscribing, setSubscribing] = useState(false);
+
+  // Immediately re-sync Follow state when activeUid or creator hydrates on reload
+  useEffect(() => {
+    if (!activeUid || !creator?.uid) return;
+    setSubscribed(subscriptionService.isSubscribedSync(activeUid, creator.uid, creator.username));
+  }, [activeUid, creator?.uid, creator?.username]);
 
   // Banner Customization Modal State
   const [bannerModalOpen, setBannerModalOpen] = useState(false);
@@ -294,8 +301,8 @@ export const CreatorProfile: React.FC = () => {
         setCreator(cached);
         setBannerPreview(cached.bannerURL || '');
         setLoading(false);
-        if (currentUser) {
-          setSubscribed(subscriptionService.isSubscribedSync(currentUser.uid, cached.uid));
+        if (activeUid) {
+          setSubscribed(subscriptionService.isSubscribedSync(activeUid, cached.uid, cached.username));
         }
         // Instantly seed creator videos from local cache for THIS specific user
         const cachedCreatorVids = videoService.getCachedVideos({ creatorId: cached.uid });
@@ -405,7 +412,9 @@ export const CreatorProfile: React.FC = () => {
 
         // Fetch subscriptions, videos, playlists, and community posts in PARALLEL (No waterfall!)
         const [subResult, vidsResult, plsResult, postsResult] = await Promise.allSettled([
-          currentUser ? subscriptionService.isSubscribed(currentUser.uid, uProfile.uid) : Promise.resolve(false),
+          currentUser
+            ? subscriptionService.isSubscribed(currentUser.uid, uProfile.uid, uProfile.username)
+            : Promise.resolve(activeUid ? subscriptionService.isSubscribedSync(activeUid, uProfile.uid, uProfile.username) : false),
           videoService.getCreatorVideos(uProfile.uid, uProfile.username),
           playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName),
           postService.getPosts({ authorId: uProfile.uid })
@@ -446,7 +455,7 @@ export const CreatorProfile: React.FC = () => {
     loadCreatorProfile();
 
     return () => { isMounted = false; };
-  }, [targetUsername, rawParam, currentUser?.uid]);
+  }, [targetUsername, rawParam, activeUid, currentUser?.uid]);
 
   // Loading skeleton
   if (loading && !creator) {
@@ -561,7 +570,7 @@ export const CreatorProfile: React.FC = () => {
   };
 
   const handleSubscribeToggle = async () => {
-    if (!currentUser || !currentUserProfile) {
+    if (!currentUser) {
       addToast('Please sign in to subscribe to this channel.', 'info');
       navigate('signin');
       return;
@@ -584,9 +593,7 @@ export const CreatorProfile: React.FC = () => {
       }, nextSub);
       setSubscribed(isSub);
     } catch (err) {
-      setSubscribed(previousSub);
-      setCreator(prev => prev ? { ...prev, followersCount: Math.max(0, (prev.followersCount || 0) + (previousSub ? 1 : -1)) } : null);
-      addToast('Subscription change failed.', 'error');
+      console.warn('Creator subscription sync warning:', err);
     } finally {
       setSubscribing(false);
     }

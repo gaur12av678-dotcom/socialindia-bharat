@@ -191,9 +191,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !currentUserProfile) {
+    if (!currentUser) {
       addToast(isHindi ? 'कमेंट करने के लिए कृपया साइन इन करें।' : 'Please sign in to comment.', 'info');
-      navigate('login');
+      navigate('signin');
       return;
     }
     const text = commentInput.trim();
@@ -203,9 +203,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
     try {
       const newComment = await postService.addComment(post.postId, {
         uid: currentUser.uid,
-        username: currentUserProfile.username,
-        displayName: currentUserProfile.displayName,
-        photoURL: currentUserProfile.photoURL,
+        username: currentUserProfile?.username || currentUser.email?.split('@')[0] || 'user',
+        displayName: currentUserProfile?.displayName || currentUser.displayName || 'User',
+        photoURL: currentUserProfile?.photoURL || currentUser.photoURL || '',
         text
       });
       setComments(prev => [newComment, ...prev]);

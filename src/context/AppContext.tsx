@@ -282,24 +282,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       setLoading(true);
       if (user) {
-        try {
-          await user.reload();
-        } catch {}
-
-        const isRealEmail = user.email && !user.email.endsWith('@socialindia.com');
+        const isRealEmail = Boolean(user.email && !user.email.endsWith('@socialindia.com'));
         if (isRealEmail && !user.emailVerified) {
-          console.warn('Unverified user session detected. Signing out:', user.email);
-          await authService.logout();
-          setCurrentUser(null);
-          setCurrentUserProfile(null);
-          localStorage.removeItem('socialindia_cached_profile');
-          accountService.removeAccount(user.uid);
-          setLoading(false);
-          return;
+          try {
+            await user.reload();
+          } catch {}
+          if (!user.emailVerified) {
+            console.warn('Unverified user session detected. Signing out:', user.email);
+            await authService.logout();
+            setCurrentUser(null);
+            setCurrentUserProfile(null);
+            localStorage.removeItem('socialindia_cached_profile');
+            accountService.removeAccount(user.uid);
+            setLoading(false);
+            return;
+          }
         }
 
+        // Immediately publish authenticated user so UI & Follow/Like states never reset on reload
         setCurrentUser(user);
-        // Fetch fresh public profile from Firestore
+        setLoading(false);
+
+        // Fetch fresh public profile from Firestore in background
         try {
           let profile = await userService.getUserProfile(user.uid, true);
           if (!profile) {
@@ -309,7 +313,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setCurrentUserProfile(profile);
             localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
             accountService.syncCurrentProfile(profile);
-            await userService.ensureDefaultSubscription(user.uid);
+            userService.ensureDefaultSubscription(user.uid).catch(() => {});
           }
         } catch (err) {
           console.warn('Profile fetch warning on auth change:', err);

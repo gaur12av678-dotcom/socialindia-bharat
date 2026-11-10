@@ -66,6 +66,8 @@ export const Watch: React.FC = () => {
   const { t, isHindi, formatTime } = useTranslation();
   const videoId = route.param || route.searchParams?.v || route.searchParams?.id;
 
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
+
   // Instant synchronous cache resolution (0ms, no loading spinner flash!)
   const cachedInitialVid = videoService.getCachedVideo(videoId);
   const [video, setVideo] = useState<Video | null>(() => cachedInitialVid);
@@ -75,7 +77,9 @@ export const Watch: React.FC = () => {
     }
     return null;
   });
-  const [comments, setComments] = useState<Comment[]>([]);
+  const COMMENTS_PAGE_SIZE = 8;
+  const [comments, setComments] = useState<Comment[]>(() => (videoId ? commentService.getCachedComments(videoId) : []));
+  const [visibleCommentsCount, setVisibleCommentsCount] = useState<number>(COMMENTS_PAGE_SIZE);
   const [newCommentText, setNewCommentText] = useState('');
   const [candidateVideoPool, setCandidateVideoPool] = useState<Video[]>(() => {
     return videoService.getCachedVideos({ isShort: false });
@@ -88,12 +92,14 @@ export const Watch: React.FC = () => {
   // Status states - instantly ready if video was in cache
   const [loading, setLoading] = useState<boolean>(() => !cachedInitialVid);
   const [liked, setLiked] = useState<boolean>(() => {
-    return !!(currentUser?.uid && videoId && likeService.hasLikedSync(videoId, currentUser.uid));
+    return !!(activeUid && videoId && likeService.hasLikedSync(videoId, activeUid));
   });
   const [disliked, setDisliked] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState<boolean>(() => {
+    return !!(activeUid && videoId && savedVideoService.isSavedSync(activeUid, videoId));
+  });
   const [subscribed, setSubscribed] = useState<boolean>(() => {
-    return !!(currentUser?.uid && cachedInitialVid?.creatorId && subscriptionService.isSubscribedSync(currentUser.uid, cachedInitialVid.creatorId));
+    return !!(activeUid && cachedInitialVid?.creatorId && subscriptionService.isSubscribedSync(activeUid, cachedInitialVid.creatorId, cachedInitialVid.creatorUsername));
   });
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [isPostingComment, setIsPostingComment] = useState(false);
@@ -404,9 +410,29 @@ export const Watch: React.FC = () => {
     if (!videoId) return;
 
     let isMounted = true;
+    lastSavedProgressRef.current = 0;
 
     const loadVideoDetails = async () => {
       const cached = videoService.getCachedVideo(videoId);
+      setSeekToTime(
+        !isPlaylistPlayback && !cached?.isLive
+          ? (playbackProgressService.getProgress(videoId, cached?.duration) || undefined)
+          : undefined
+      );
+      setVisibleCommentsCount(COMMENTS_PAGE_SIZE);
+      setComments(commentService.getCachedComments(videoId));
+
+      // Fetch comments IMMEDIATELY in parallel with video details (no waterfall delay!)
+      commentService.getComments(videoId).then(commList => {
+        if (!isMounted) return;
+        setComments(prev => {
+          const seen = new Set(commList.map(c => c.commentId));
+          const pending = prev.filter(c => c.commentId.startsWith('temp-') && !seen.has(c.commentId));
+          return [...pending, ...commList];
+        });
+        setVideo(prev => prev ? { ...prev, commentsCount: Math.max(prev.commentsCount || 0, commList.length) } : prev);
+      }).catch(console.error);
+
       if (cached) {
         setVideo(cached);
         setLoading(false);
@@ -418,7 +444,6 @@ export const Watch: React.FC = () => {
         // Do not leave the previous video's details visible while a new route loads.
         setVideo(null);
         setCreator(null);
-        setComments([]);
         setLoading(true);
       }
       try {
@@ -468,23 +493,12 @@ export const Watch: React.FC = () => {
         videoService.incrementViewCount(videoId).catch(console.error);
         recommendationService.recordVideoWatch(videoId, currentUser?.uid);
         
-        // Resume is only for a regular video opened on its own.
-        // Never seek old progress for live broadcasts or playlist playback.
+        // Resume is only for the last 3 watched regular videos opened on their own.
+        // Never seek old progress for live broadcasts, playlist playback, or older videos outside the last 3.
         const isLiveVideo = Boolean(vid.isLive);
         if (!isPlaylistPlayback && !isLiveVideo) {
           const localProgress = playbackProgressService.getProgress(videoId, vid.duration);
-          if (localProgress > 5) {
-            setSeekToTime(localProgress);
-          }
-          if (currentUser) {
-            historyService.getHistory(currentUser.uid).then(history => {
-              playbackProgressService.syncFromHistoryItems(history);
-              const item = history.find(h => h.videoId === videoId);
-              if (item && item.progressSeconds && item.progressSeconds > 5) {
-                setSeekToTime(item.progressSeconds);
-              }
-            }).catch(console.error);
-          }
+          setSeekToTime(localProgress > 5 ? localProgress : undefined);
         } else {
           setSeekToTime(undefined);
           // Clear only stale progress for the live broadcast itself.
@@ -516,10 +530,6 @@ export const Watch: React.FC = () => {
           if (isMounted) setIsDownloaded(isD);
         }).catch(console.error);
 
-        commentService.getComments(videoId).then(commList => {
-          if (isMounted) setComments(commList);
-        }).catch(console.error);
-
         // Fetch full library of public videos for sidebar recommendation algorithm
         videoService.getVideos({ isShort: false, limit: 120 }).then(pool => {
           if (isMounted && pool.length > 0) {
@@ -542,24 +552,55 @@ export const Watch: React.FC = () => {
 
   // Separate non-blocking user interaction checks (liked, saved, subscribed, history)
   useEffect(() => {
-    if (!videoId || !currentUser?.uid) return;
+    if (!videoId || !activeUid) {
+      setLiked(false);
+      setSaved(false);
+      setSubscribed(false);
+      return;
+    }
     let isMounted = true;
 
-    if (video) {
-      historyService.addToHistory(currentUser.uid, video).catch(console.error);
-    }
-    likeService.hasLiked(videoId, currentUser.uid).then(isL => isMounted && setLiked(isL)).catch(console.error);
-    savedVideoService.isSaved(currentUser.uid, videoId).then(isS => isMounted && setSaved(isS)).catch(console.error);
+    // Synchronous instant state from local cache before async revalidation (prevents Follow reset flash on reload)
+    setLiked(likeService.hasLikedSync(videoId, activeUid));
+    setSaved(savedVideoService.isSavedSync(activeUid, videoId));
     if (video?.creatorId) {
-      subscriptionService.isSubscribed(currentUser.uid, video.creatorId).then(isSub => isMounted && setSubscribed(isSub)).catch(console.error);
+      setSubscribed(subscriptionService.isSubscribedSync(activeUid, video.creatorId, video.creatorUsername));
     }
-    // Award 2 points for watching quietly
-    userService.awardPoints(currentUser.uid, 2).catch(console.error);
+
+    if (currentUser?.uid) {
+      if (video) {
+        if (!isPlaylistPlayback && !video.isLive) {
+          // Fetch history BEFORE calling addToHistory so older videos aren't promoted into top 3 before checking resume
+          historyService.getHistory(currentUser.uid)
+            .then(history => {
+              if (!isMounted) return;
+              playbackProgressService.syncFromHistoryItems(history);
+              const allowedProgress = playbackProgressService.getProgress(videoId, video.duration);
+              setSeekToTime(allowedProgress > 5 ? allowedProgress : undefined);
+              historyService.addToHistory(currentUser.uid, video, allowedProgress).catch(console.error);
+            })
+            .catch(() => {
+              historyService.addToHistory(currentUser.uid, video, playbackProgressService.getProgress(videoId, video.duration)).catch(console.error);
+            });
+        } else {
+          historyService.addToHistory(currentUser.uid, video, 0).catch(console.error);
+        }
+      }
+      likeService.hasLiked(videoId, currentUser.uid).then(isL => isMounted && setLiked(isL)).catch(console.error);
+      savedVideoService.isSaved(currentUser.uid, videoId).then(isS => isMounted && setSaved(isS)).catch(console.error);
+      if (video?.creatorId) {
+        subscriptionService.isSubscribed(currentUser.uid, video.creatorId, video.creatorUsername)
+          .then(isSub => isMounted && setSubscribed(isSub))
+          .catch(console.error);
+      }
+      // Award 2 points for watching quietly
+      userService.awardPoints(currentUser.uid, 2).catch(console.error);
+    }
 
     return () => {
       isMounted = false;
     };
-  }, [videoId, currentUser?.uid, video?.creatorId]);
+  }, [videoId, activeUid, currentUser?.uid, video?.videoId, video?.creatorId, video?.creatorUsername]);
 
   // Save playback progress on page exit, back button, or tab switch (YouTube Style)
   useEffect(() => {
@@ -633,14 +674,36 @@ export const Watch: React.FC = () => {
 
   const parsedMedia = parseVideoUrl(video.videoUrl);
 
+  const effectiveUserProfile: User | null = currentUser
+    ? (currentUserProfile || {
+        uid: currentUser.uid,
+        username: currentUser.email?.split('@')[0] || 'user',
+        displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        photoURL: currentUser.photoURL || '',
+        role: 'user',
+        isVerified: false,
+        isPro: false,
+        status: 'active',
+        followersCount: 0,
+        followingCount: 0,
+        videosCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+    : null;
+
   const handleLikeToggle = async () => {
-    if (!currentUser || !currentUserProfile) {
+    if (!currentUser || !effectiveUserProfile) {
       addToast('Please sign in to like videos.', 'info');
+      navigate('signin');
       return;
     }
 
     const previouslyLiked = liked;
-    
+    if (!previouslyLiked && disliked) {
+      setDisliked(false);
+    }
+
     // Optimistic Update (INSTANT reaction!)
     setLiked(!previouslyLiked);
     setVideo(prev => {
@@ -659,47 +722,40 @@ export const Watch: React.FC = () => {
         // Award 5 points for liking video quietly in background
         userService.awardPoints(currentUser.uid, 5).catch(console.error);
 
-        notificationService.createNotification(video.creatorId, currentUserProfile, 'like', {
+        notificationService.createNotification(video.creatorId, effectiveUserProfile, 'like', {
           videoId: video.videoId,
           videoTitle: video.title
         }).catch(console.error);
       }
     } catch (err) {
-      // Rollback on failure
-      setLiked(previouslyLiked);
-      setVideo(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          likesCount: prev.likesCount + (previouslyLiked ? 1 : -1)
-        };
-      });
-      addToast('Failed to complete like operation.', 'error');
+      console.warn('Like sync warning:', err);
     }
   };
 
   const handleSaveToggle = async () => {
     if (!currentUser) {
       addToast('Please sign in to save videos.', 'info');
+      navigate('signin');
       return;
     }
 
+    const nextSaved = !saved;
+    setSaved(nextSaved);
     try {
-      if (saved) {
+      if (!nextSaved) {
         await savedVideoService.unsaveVideo(currentUser.uid, video.videoId);
-        setSaved(false);
       } else {
         await savedVideoService.saveVideo(currentUser.uid, video);
-        setSaved(true);
       }
     } catch (err) {
-      addToast('Failed to save video.', 'error');
+      console.warn('Save sync warning:', err);
     }
   };
 
   const handleSubscribeToggle = async () => {
-    if (!currentUser || !currentUserProfile) {
+    if (!currentUser || !effectiveUserProfile) {
       addToast('Please sign in to follow this creator.', 'info');
+      navigate('signin');
       return;
     }
     if (isSubscribing) return;
@@ -724,16 +780,10 @@ export const Watch: React.FC = () => {
       setSubscribed(isSub);
 
       if (isSub) {
-        notificationService.createNotification(video.creatorId, currentUserProfile, 'follow', {}).catch(console.error);
+        notificationService.createNotification(video.creatorId, effectiveUserProfile, 'follow', {}).catch(console.error);
       }
     } catch (err) {
-      // Rollback on failure
-      setSubscribed(previousSubState);
-      setCreator(prev => prev ? { 
-        ...prev, 
-        followersCount: Math.max(0, (prev.followersCount || 0) + (previousSubState ? 1 : -1)) 
-      } : null);
-      addToast('Subscription change failed.', 'error');
+      console.warn('Subscription sync warning:', err);
     } finally {
       setIsSubscribing(false);
     }
@@ -789,20 +839,39 @@ export const Watch: React.FC = () => {
     }
   };
 
-  const handleWatchLaterToggle = (targetVideo: Video) => {
-    const isCurrentlySaved = !!savedWatchLaterMap[targetVideo.videoId];
+  const handleWatchLaterToggle = async (targetVideo: Video) => {
+    if (!currentUser) {
+      setActiveRelatedMenuId(null);
+      navigate('signin');
+      return;
+    }
+    const isCurrentlySaved = !!savedWatchLaterMap[targetVideo.videoId] || savedVideoService.isSavedSync(currentUser.uid, targetVideo.videoId);
+    const nextSaved = !isCurrentlySaved;
     setSavedWatchLaterMap(prev => ({
       ...prev,
-      [targetVideo.videoId]: !isCurrentlySaved
+      [targetVideo.videoId]: nextSaved
     }));
-    addToast(isCurrentlySaved ? 'Removed from Watch Later' : 'Saved to Watch Later!', 'success');
+    if (targetVideo.videoId === video.videoId) {
+      setSaved(nextSaved);
+    }
     setActiveRelatedMenuId(null);
+
+    try {
+      if (nextSaved) {
+        await savedVideoService.saveVideo(currentUser.uid, targetVideo);
+      } else {
+        await savedVideoService.unsaveVideo(currentUser.uid, targetVideo.videoId);
+      }
+    } catch (err) {
+      console.warn('Watch later sync warning:', err);
+    }
   };
 
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !currentUserProfile) {
+    if (!currentUser || !effectiveUserProfile) {
       addToast('Please sign in to leave comments.', 'info');
+      navigate('signin');
       return;
     }
     if (isPostingComment) return;
@@ -811,16 +880,15 @@ export const Watch: React.FC = () => {
 
     setIsPostingComment(true);
 
-    // Generate a temporary unique ID for optimistic rendering
     const tempCommentId = `temp-${Date.now()}`;
     const now = new Date().toISOString();
     const tempComment: Comment = {
       commentId: tempCommentId,
       videoId: video.videoId,
       uid: currentUser.uid,
-      username: currentUserProfile.username,
-      displayName: currentUserProfile.displayName,
-      photoURL: currentUserProfile.photoURL || '',
+      username: effectiveUserProfile.username,
+      displayName: effectiveUserProfile.displayName,
+      photoURL: effectiveUserProfile.photoURL || '',
       text: textToPost,
       likesCount: 0,
       createdAt: now,
@@ -829,37 +897,31 @@ export const Watch: React.FC = () => {
 
     // Optimistic state update (0 milliseconds!)
     setComments(prev => [tempComment, ...prev]);
+    setVisibleCommentsCount(prev => Math.max(prev, COMMENTS_PAGE_SIZE));
     setNewCommentText('');
     setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
 
     try {
       const realComment = await commentService.addComment(video.videoId, {
         uid: currentUser.uid,
-        username: currentUserProfile.username,
-        displayName: currentUserProfile.displayName,
-        photoURL: currentUserProfile.photoURL || '',
+        username: effectiveUserProfile.username,
+        displayName: effectiveUserProfile.displayName,
+        photoURL: effectiveUserProfile.photoURL || '',
         text: textToPost
       });
 
-      // Replace the temporary comment with the real saved comment in the UI list
+      // Replace the temporary comment with the persisted comment
       setComments(prev => prev.map(c => c.commentId === tempCommentId ? realComment : c));
 
-      // Award 10 points for commenting & refresh profile
       userService.awardPoints(currentUser.uid, 10).catch(console.warn);
 
-      notificationService.createNotification(video.creatorId, currentUserProfile, 'comment', {
+      notificationService.createNotification(video.creatorId, effectiveUserProfile, 'comment', {
         videoId: video.videoId,
         commentId: realComment.commentId,
         message: textToPost
       }).catch(console.error);
-
     } catch (err) {
-      // Rollback on failure
-      setComments(prev => prev.filter(c => c.commentId !== tempCommentId));
-      setVideo(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null);
-      // Restore input text so they don't lose what they typed
-      setNewCommentText(textToPost);
-      addToast('Failed to post comment. Please try again.', 'error');
+      console.warn('Comment sync warning:', err);
     } finally {
       setIsPostingComment(false);
     }
@@ -893,6 +955,7 @@ export const Watch: React.FC = () => {
   const handleLikeComment = async (targetComment: Comment) => {
     if (!currentUser) {
       addToast('Please sign in to like comments.', 'info');
+      navigate('signin');
       return;
     }
     const isCurrentlyLiked = likedCommentIds.has(targetComment.commentId);
@@ -942,6 +1005,7 @@ export const Watch: React.FC = () => {
   const handleDislikeComment = async (targetComment: Comment) => {
     if (!currentUser) {
       addToast('Please sign in to dislike comments.', 'info');
+      navigate('signin');
       return;
     }
     const isCurrentlyDisliked = dislikedCommentIds.has(targetComment.commentId);
@@ -1103,7 +1167,12 @@ export const Watch: React.FC = () => {
   };
 
   const handlePostReply = async (parentCommentId: string) => {
-    if (!currentUser || !currentUserProfile || !editingCommentText.trim()) return;
+    if (!currentUser || !effectiveUserProfile) {
+      addToast('Please sign in to reply.', 'info');
+      navigate('signin');
+      return;
+    }
+    if (!editingCommentText.trim()) return;
 
     const replyText = editingCommentText.trim();
     const tempReplyId = `temp-reply-${Date.now()}`;
@@ -1113,9 +1182,9 @@ export const Watch: React.FC = () => {
       commentId: tempReplyId,
       videoId: video!.videoId,
       uid: currentUser.uid,
-      username: currentUserProfile.username,
-      displayName: currentUserProfile.displayName,
-      photoURL: currentUserProfile.photoURL || '',
+      username: effectiveUserProfile.username,
+      displayName: effectiveUserProfile.displayName,
+      photoURL: effectiveUserProfile.photoURL || '',
       text: replyText,
       likesCount: 0,
       parentCommentId,
@@ -1133,20 +1202,16 @@ export const Watch: React.FC = () => {
     try {
       const newReply = await commentService.addComment(video!.videoId, {
         uid: currentUser.uid,
-        username: currentUserProfile.username,
-        displayName: currentUserProfile.displayName,
-        photoURL: currentUserProfile.photoURL || '',
+        username: effectiveUserProfile.username,
+        displayName: effectiveUserProfile.displayName,
+        photoURL: effectiveUserProfile.photoURL || '',
         text: replyText,
         parentCommentId
       });
 
       setComments(prev => prev.map(c => c.commentId === tempReplyId ? newReply : c));
     } catch (err) {
-      // Rollback on error
-      setComments(prev => prev.filter(c => c.commentId !== tempReplyId));
-      setVideo(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null);
-      setEditingCommentText(replyText);
-      addToast('Failed to post reply.', 'error');
+      console.warn('Reply sync warning:', err);
     }
   };
 
@@ -1247,6 +1312,7 @@ export const Watch: React.FC = () => {
 
   return (
     <CustomVideoPlayer 
+      key={video.videoId}
       video={video} 
       isTheaterMode={isTheaterMode}
       onToggleTheaterMode={() => setIsTheaterMode(prev => !prev)}
@@ -1419,7 +1485,7 @@ export const Watch: React.FC = () => {
                 </p>
               </div>
 
-              {currentUser?.uid === video.creatorId ? (
+              {activeUid === video.creatorId ? (
                 <button
                   type="button"
                   onClick={() => navigate('studio')}
@@ -1433,10 +1499,11 @@ export const Watch: React.FC = () => {
                   type="button"
                   onClick={handleSubscribeToggle}
                   disabled={isSubscribing}
+                  style={!subscribed ? { backgroundColor: '#2563eb', color: '#ffffff' } : undefined}
                   className={`ml-3 px-5 py-2 text-xs font-extrabold rounded-full transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-60 ${
                     subscribed 
                       ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-300' 
-                      : 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black hover:bg-black/85 dark:hover:bg-slate-200'
+                      : 'bg-social-blue text-white hover:opacity-95'
                   }`}
                   title={subscribed ? 'Following' : 'Follow'}
                 >
@@ -1467,6 +1534,9 @@ export const Watch: React.FC = () => {
                       if (liked) {
                         setLiked(false);
                         setVideo(prev => prev ? { ...prev, likesCount: Math.max(0, prev.likesCount - 1) } : null);
+                        if (currentUser) {
+                          likeService.unlikeVideo(video.videoId, currentUser.uid).catch(console.error);
+                        }
                       }
                     }}
                     className="px-3 sm:px-3.5 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-r-full cursor-pointer transition-colors"
@@ -1764,14 +1834,20 @@ export const Watch: React.FC = () => {
             </div>
           </form>
 
-          {/* Comments List */}
+          {/* Comments List (Paginated to prevent lag) */}
           <div className="space-y-4">
             {comments.length === 0 ? (
               <p className="text-xs text-slate-400 dark:text-[#94A3B8] py-6 text-center font-medium">
                 {t('be_first_comment', 'No comments yet. Be the first to share your thoughts!')}
               </p>
             ) : (
-              comments.filter(c => !c.parentCommentId).map((comm) => (
+              (() => {
+                const topLevelComments = comments.filter(c => !c.parentCommentId);
+                const visibleTopLevelComments = topLevelComments.slice(0, visibleCommentsCount);
+                const remainingCount = topLevelComments.length - visibleTopLevelComments.length;
+                return (
+                  <>
+                    {visibleTopLevelComments.map((comm) => (
                 <div key={comm.commentId} className="space-y-3">
                   <div className="flex gap-3 items-start group">
                     {/* User Avatar with real-time profile sync */}
@@ -2141,7 +2217,26 @@ export const Watch: React.FC = () => {
                     );
                   })()}
                 </div>
-              ))
+                    ))}
+                    {remainingCount > 0 && (
+                      <div className="pt-2 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setVisibleCommentsCount(prev => prev + 10)}
+                          className="px-5 py-2.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-[#1E293B] dark:hover:bg-slate-800 text-xs font-extrabold text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95 flex items-center gap-2"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                          <span>
+                            {isHindi
+                              ? `और कमेंट देखें (${remainingCount} बाकी)`
+                              : `Show more comments (${remainingCount} remaining)`}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()
             )}
           </div>
         </>
@@ -2469,11 +2564,15 @@ export const Watch: React.FC = () => {
                       <button
                         onClick={() => {
                           if (!currentUser) {
+                            setActiveRelatedMenuId(null);
                             addToast(isHindi ? 'वीडियो सहेजने के लिए कृपया साइन इन करें' : 'Please sign in to save videos', 'info');
-                          } else {
-                            savedVideoService.saveVideo(currentUser.uid, v);
-                            addToast(isHindi ? 'प्लेलिस्ट में सहेजा गया!' : 'Saved to playlist!', 'success');
+                            navigate('signin');
+                            return;
                           }
+                          savedVideoService.saveVideo(currentUser.uid, v);
+                          setSavedWatchLaterMap(prev => ({ ...prev, [v.videoId]: true }));
+                          if (v.videoId === video.videoId) setSaved(true);
+                          addToast(isHindi ? 'सहेजे गए वीडियो में सहेजा गया!' : 'Saved to library!', 'success');
                           setActiveRelatedMenuId(null);
                         }}
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
@@ -2489,7 +2588,7 @@ export const Watch: React.FC = () => {
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
                       >
                         <Clock className="w-3.5 h-3.5 text-amber-500" />
-                        <span>{savedWatchLaterMap[v.videoId] ? (isHindi ? 'बाद में देखें से हटाएं' : 'Remove Watch Later') : (isHindi ? 'बाद में देखें में सहेजें' : 'Save to Watch Later')}</span>
+                        <span>{(savedWatchLaterMap[v.videoId] || (currentUser ? savedVideoService.isSavedSync(currentUser.uid, v.videoId) : false)) ? (isHindi ? 'बाद में देखें से हटाएं' : 'Remove Watch Later') : (isHindi ? 'बाद में देखें में सहेजें' : 'Save to Watch Later')}</span>
                       </button>
 
                       <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
@@ -2591,6 +2690,7 @@ export const Watch: React.FC = () => {
         video={video}
         isOpen={playlistModalOpen}
         onClose={() => setPlaylistModalOpen(false)}
+        onSavedChange={setSaved}
       />
     </div>
   );

@@ -38,25 +38,31 @@ import { useApp } from '../context/AppContext';
 // YouTube Channel Search Result Card
 const YouTubeChannelCard: React.FC<{ user: User }> = ({ user }) => {
   const { navigate } = useRouter();
-  const { currentUser, addToast } = useApp();
+  const { currentUser, currentUserProfile, addToast } = useApp();
   const { isHindi } = useTranslation();
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
 
   const [isSubbed, setIsSubbed] = useState<boolean>(() => {
-    return currentUser ? subscriptionService.isSubscribedSync(currentUser.uid, user.uid) : false;
+    return activeUid ? subscriptionService.isSubscribedSync(activeUid, user.uid, user.username) : false;
   });
   const [subCount, setSubCount] = useState<number>(user.followersCount || 0);
   const [isTogglingSub, setIsTogglingSub] = useState(false);
 
   useEffect(() => {
-    if (currentUser) {
-      subscriptionService.isSubscribed(currentUser.uid, user.uid).then(setIsSubbed);
+    if (!activeUid) {
+      setIsSubbed(false);
+      return;
     }
-  }, [currentUser, user.uid]);
+    setIsSubbed(subscriptionService.isSubscribedSync(activeUid, user.uid, user.username));
+    if (currentUser?.uid) {
+      subscriptionService.isSubscribed(currentUser.uid, user.uid, user.username).then(setIsSubbed).catch(() => {});
+    }
+  }, [activeUid, currentUser?.uid, user.uid, user.username]);
 
   const handleSubClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUser) {
-      addToast(isHindi ? 'सदस्यता लेने के लिए कृपया साइन इन करें' : 'Please sign in to subscribe to channels', 'info');
+      navigate('signin');
       return;
     }
     if (currentUser.uid === user.uid) {

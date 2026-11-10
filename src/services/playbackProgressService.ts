@@ -8,9 +8,26 @@ export interface VideoPlaybackProgress {
 }
 
 const STORAGE_KEY = 'socialindia_playback_progress';
+const MAX_RESUMABLE_VIDEOS = 3;
 const progressCache = new Map<string, VideoPlaybackProgress>();
 
-// Initialize in-memory cache synchronously from localStorage for instant 0ms access
+function pruneToRecentLimit(limit: number = MAX_RESUMABLE_VIDEOS): boolean {
+  if (progressCache.size <= limit) return false;
+  const sorted = Array.from(progressCache.values()).sort(
+    (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
+  );
+  const keepIds = new Set(sorted.slice(0, limit).map(item => item.videoId));
+  let removed = false;
+  for (const key of Array.from(progressCache.keys())) {
+    if (!keepIds.has(key)) {
+      progressCache.delete(key);
+      removed = true;
+    }
+  }
+  return removed;
+}
+
+// Initialize in-memory cache synchronously from localStorage for instant 0ms access (capped at last 3 watched)
 try {
   if (typeof window !== 'undefined') {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -21,6 +38,13 @@ try {
           progressCache.set(id, item);
         }
       });
+      if (pruneToRecentLimit(MAX_RESUMABLE_VIDEOS)) {
+        const obj: Record<string, VideoPlaybackProgress> = {};
+        progressCache.forEach((val, key) => {
+          obj[key] = val;
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+      }
     }
   }
 } catch (e) {
@@ -30,6 +54,7 @@ try {
 function persistToStorage() {
   try {
     if (typeof window === 'undefined') return;
+    pruneToRecentLimit(MAX_RESUMABLE_VIDEOS);
     const obj: Record<string, VideoPlaybackProgress> = {};
     progressCache.forEach((val, key) => {
       obj[key] = val;
@@ -44,8 +69,10 @@ let lastFirestoreSyncTime = 0;
 let lastFirestoreSyncVideoId = '';
 
 export const playbackProgressService = {
+  MAX_RESUMABLE_VIDEOS,
+
   /**
-   * Save playback progress for any video.
+   * Save playback progress for any video (only the last 3 watched videos are retained for resume).
    * Works for both Guests (localStorage) and Logged-In users (localStorage + Firestore).
    * Automatically clears progress if video was watched to near completion (>95% or last 5s),
    * or if video was barely started (<5s).
@@ -76,6 +103,7 @@ export const playbackProgressService = {
     };
 
     progressCache.set(videoId, item);
+    pruneToRecentLimit(MAX_RESUMABLE_VIDEOS);
     persistToStorage();
 
     // Notify components like VideoCard or sidebar to update red progress bar in real time
@@ -97,11 +125,17 @@ export const playbackProgressService = {
   },
 
   /**
-   * Returns the resume playback position in seconds (or 0 if none/expired).
+   * Returns the resume playback position in seconds (or 0 if not in last 3 watched / expired).
    * Works synchronously (0ms) from memory & localStorage across all cases.
    */
   getProgress(videoId: string, expectedDuration?: number): number {
     if (!videoId) return 0;
+    const recentTopIds = Array.from(progressCache.values())
+      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+      .slice(0, MAX_RESUMABLE_VIDEOS)
+      .map(entry => entry.videoId);
+    if (!recentTopIds.includes(videoId)) return 0;
+
     const item = progressCache.get(videoId);
     if (!item) return 0;
 
@@ -118,7 +152,7 @@ export const playbackProgressService = {
   },
 
   /**
-   * Returns the percentage (0 to 100) of video watched, for drawing the YouTube red bar.
+   * Returns the percentage (0 to 100) of video watched, for drawing the red progress bar (last 3 watched only).
    */
   getProgressPercent(videoId: string, videoDuration?: number): number {
     if (!videoId) return 0;
@@ -129,7 +163,7 @@ export const playbackProgressService = {
     if (effectiveDur <= 0) return 0;
 
     const percent = Math.min(100, Math.max(0, (item.progressSeconds / effectiveDur) * 100));
-    // If > 95%, YouTube usually resets or marks as fully watched
+    // If > 95%, resets or marks as fully watched
     if (percent >= 95) return 0;
 
     return percent;
@@ -155,27 +189,44 @@ export const playbackProgressService = {
   },
 
   /**
-   * Sync from Firestore watch history when loaded
+   * Sync from Firestore watch history when loaded (strictly keeps only the last 3 watched videos with valid progress)
    */
-  syncFromHistoryItems(items: Array<{ videoId: string; progressSeconds?: number; duration?: number }>): void {
+  syncFromHistoryItems(items: Array<{ videoId: string; progressSeconds?: number; duration?: number; watchedAt?: string }>): void {
     if (!items || items.length === 0) return;
     let modified = false;
 
-    for (const it of items) {
-      if (!it.videoId) continue;
+    const recentValid = [...items]
+      .filter(it => {
+        if (!it.videoId) return false;
+        const sec = it.progressSeconds || 0;
+        const dur = it.duration || 0;
+        return sec >= 5 && (!dur || sec < dur * 0.95);
+      })
+      .sort((a, b) => {
+        const ta = a.watchedAt ? new Date(a.watchedAt).getTime() || 0 : 0;
+        const tb = b.watchedAt ? new Date(b.watchedAt).getTime() || 0 : 0;
+        return tb - ta;
+      })
+      .slice(0, MAX_RESUMABLE_VIDEOS);
+
+    for (const it of recentValid) {
       const sec = it.progressSeconds || 0;
       const dur = it.duration || 0;
-      if (sec >= 5 && (!dur || sec < dur * 0.95)) {
-        if (!progressCache.has(it.videoId)) {
-          progressCache.set(it.videoId, {
-            videoId: it.videoId,
-            progressSeconds: sec,
-            duration: dur,
-            updatedAt: Date.now()
-          });
-          modified = true;
-        }
+      const ts = it.watchedAt ? new Date(it.watchedAt).getTime() || Date.now() : Date.now();
+      const existing = progressCache.get(it.videoId);
+      if (!existing || ts > (existing.updatedAt || 0)) {
+        progressCache.set(it.videoId, {
+          videoId: it.videoId,
+          progressSeconds: sec,
+          duration: dur,
+          updatedAt: ts
+        });
+        modified = true;
       }
+    }
+
+    if (pruneToRecentLimit(MAX_RESUMABLE_VIDEOS)) {
+      modified = true;
     }
 
     if (modified) {

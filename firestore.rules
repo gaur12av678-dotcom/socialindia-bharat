@@ -128,26 +128,27 @@ match /adminSettings/{docId} {
         allow delete: if isSignedIn() && (
           resource.data.uid == request.auth.uid || 
           resource.data.userId == request.auth.uid || 
+          get(/databases/$(database)/documents/videos/$(videoId)).data.creatorId == request.auth.uid ||
           isAdmin()
         );
 
         // Comment likes subcollection
         match /likes/{userId} {
           allow read: if true;
-          allow create, delete: if isSignedIn();
+          allow write: if isSignedIn();
         }
 
         // Comment dislikes subcollection
         match /dislikes/{userId} {
           allow read: if true;
-          allow create, delete: if isSignedIn();
+          allow write: if isSignedIn();
         }
       }
 
       // Video likes subcollection
       match /likes/{userId} {
         allow read: if true;
-        allow create, delete: if isSignedIn();
+        allow write: if isSignedIn();
       }
     }
 

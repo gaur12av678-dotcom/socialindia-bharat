@@ -41,9 +41,10 @@ export const Subscriptions: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
 
   // Instant synchronous cache initialization (0ms initial render)
-  const cachedSubs = currentUser ? subscriptionService.getCachedSubscriptions(currentUser.uid) : [];
+  const cachedSubs = activeUid ? subscriptionService.getCachedSubscriptions(activeUid) : [];
   const cachedCreatorIds = useMemo(() => new Set(cachedSubs.map(s => s.creatorId)), [cachedSubs]);
   const cachedSubsVideos = useMemo(() => {
     if (cachedCreatorIds.size === 0) return [];

@@ -11,15 +11,26 @@ export const LikedVideos: React.FC = () => {
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
-  const [likedVideos, setLikedVideos] = useState<LikedVideoItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [likedVideos, setLikedVideos] = useState<LikedVideoItem[]>(() =>
+    currentUser ? likeService.getCachedLikedVideos(currentUser.uid) : []
+  );
+  const [loading, setLoading] = useState(() =>
+    currentUser ? likeService.getCachedLikedVideos(currentUser.uid).length === 0 : false
+  );
 
   const fetchLikedVideos = async () => {
     if (!currentUser) {
+      setLikedVideos([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    const cached = likeService.getCachedLikedVideos(currentUser.uid);
+    if (cached.length > 0) {
+      setLikedVideos(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       const items = await likeService.getLikedVideos(currentUser.uid);
       setLikedVideos(items);
@@ -32,7 +43,14 @@ export const LikedVideos: React.FC = () => {
 
   useEffect(() => {
     fetchLikedVideos();
-  }, [currentUser]);
+    const handleLikesChanged = () => {
+      if (currentUser) {
+        setLikedVideos(likeService.getCachedLikedVideos(currentUser.uid));
+      }
+    };
+    window.addEventListener('socialindia:likes_changed', handleLikesChanged);
+    return () => window.removeEventListener('socialindia:likes_changed', handleLikesChanged);
+  }, [currentUser?.uid]);
 
   const handleUnlike = async (e: React.MouseEvent, videoId: string) => {
     e.stopPropagation();

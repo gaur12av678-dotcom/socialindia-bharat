@@ -11,12 +11,26 @@ export const SavedVideos: React.FC = () => {
   const { navigate } = useRouter();
   const { t, isHindi, formatTime } = useTranslation();
 
-  const [savedVideos, setSavedVideos] = useState<SavedVideo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [savedVideos, setSavedVideos] = useState<SavedVideo[]>(() =>
+    currentUser ? savedVideoService.getCachedSavedVideos(currentUser.uid) : []
+  );
+  const [loading, setLoading] = useState(() =>
+    currentUser ? savedVideoService.getCachedSavedVideos(currentUser.uid).length === 0 : false
+  );
 
   const fetchSaved = async () => {
-    if (!currentUser) return;
-    setLoading(true);
+    if (!currentUser) {
+      setSavedVideos([]);
+      setLoading(false);
+      return;
+    }
+    const cached = savedVideoService.getCachedSavedVideos(currentUser.uid);
+    if (cached.length > 0) {
+      setSavedVideos(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       const items = await savedVideoService.getSavedVideos(currentUser.uid);
       setSavedVideos(items);
@@ -29,7 +43,14 @@ export const SavedVideos: React.FC = () => {
 
   useEffect(() => {
     fetchSaved();
-  }, [currentUser]);
+    const handleSavedChanged = () => {
+      if (currentUser) {
+        setSavedVideos(savedVideoService.getCachedSavedVideos(currentUser.uid));
+      }
+    };
+    window.addEventListener('socialindia:saved_changed', handleSavedChanged);
+    return () => window.removeEventListener('socialindia:saved_changed', handleSavedChanged);
+  }, [currentUser?.uid]);
 
   const handleUnsave = async (e: React.MouseEvent, videoId: string) => {
     e.stopPropagation();
@@ -53,6 +74,12 @@ export const SavedVideos: React.FC = () => {
         <p className="text-xs text-slate-500 mt-1">
           {isHindi ? 'बाद में देखने के लिए सहेजे गए वीडियो की सूची रखें।' : "Keep track of videos you've saved for later watch."}
         </p>
+        <button
+          onClick={() => navigate('signin')}
+          className="mt-5 px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-xs rounded-full shadow-md cursor-pointer"
+        >
+          {t('sign_in', 'Sign In')}
+        </button>
       </div>
     );
   }

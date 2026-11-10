@@ -7,6 +7,7 @@ import { likeService } from '../services/likeService';
 import { commentService } from '../services/commentService';
 import { downloadService } from '../services/downloadService';
 import { subscriptionService } from '../services/subscriptionService';
+import { savedVideoService } from '../services/savedVideoService';
 import { DEFAULT_SOUNDS } from '../services/soundService';
 import { Video, Comment, User } from '../types';
 import { parseVideoUrl, getInitials, formatTimeAgo, formatViews } from '../utils/videoUtils';
@@ -521,11 +522,14 @@ export const Shorts: React.FC = () => {
 
   // Like & Comment drawer state
   const [isLiked, setIsLiked] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
   const [commentsCount, setCommentsCount] = useState(0);
 
+  const COMMENTS_PAGE_SIZE = 10;
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [visibleCommentsCount, setVisibleCommentsCount] = useState<number>(COMMENTS_PAGE_SIZE);
   const [newCommentText, setNewCommentText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
@@ -558,9 +562,29 @@ export const Shorts: React.FC = () => {
   const [isPurchasingShort, setIsPurchasingShort] = useState(false);
   const [shortUnlockError, setShortUnlockError] = useState('');
 
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
+
   // Subscription State
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
+
+  const effectiveUserProfile: User | null = currentUser
+    ? (currentUserProfile || {
+        uid: currentUser.uid,
+        username: currentUser.email?.split('@')[0] || 'user',
+        displayName: currentUser.displayName || currentUser.email?.split('@')[0] || 'User',
+        photoURL: currentUser.photoURL || '',
+        role: 'user',
+        isVerified: false,
+        isPro: false,
+        status: 'active',
+        followersCount: 0,
+        followingCount: 0,
+        videosCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+    : null;
 
   const fetchShorts = async () => {
     if (shorts.length === 0) {
@@ -652,7 +676,23 @@ export const Shorts: React.FC = () => {
     setLikesCount(activeShort.likesCount || 0);
     setCommentsCount(activeShort.commentsCount || 0);
     setShowComments(false);
+    setVisibleCommentsCount(COMMENTS_PAGE_SIZE);
     setCreator(null);
+
+    // Pre-hydrate and prefetch comments immediately so opening comment drawer is instant (0ms)
+    const cachedComms = commentService.getCachedComments(activeShort.videoId);
+    setComments(cachedComms);
+    if (cachedComms.length > 0) {
+      setCommentsCount(prev => Math.max(prev, cachedComms.length));
+    }
+    commentService.getComments(activeShort.videoId).then(comms => {
+      setComments(prev => {
+        const seen = new Set(comms.map(c => c.commentId));
+        const pending = prev.filter(c => c.commentId.startsWith('temp-') && !seen.has(c.commentId));
+        return [...pending, ...comms];
+      });
+      setCommentsCount(prev => Math.max(prev, comms.length));
+    }).catch(() => {});
     
     // Fetch latest creator profile for up-to-date avatar & subscriber count
     userService.getUserProfile(activeShort.creatorId, true).then(crProfile => {
@@ -672,21 +712,30 @@ export const Shorts: React.FC = () => {
       }
     }).catch(console.error);
 
-    if (currentUser) {
-      likeService.hasLiked(activeShort.videoId, currentUser.uid).then(setIsLiked).catch(console.error);
+    if (activeUid) {
+      setIsLiked(likeService.hasLikedSync(activeShort.videoId, activeUid));
+      setIsSaved(savedVideoService.isSavedSync(activeUid, activeShort.videoId));
+      if (currentUser?.uid) {
+        likeService.hasLiked(activeShort.videoId, currentUser.uid).then(setIsLiked).catch(console.error);
+        savedVideoService.isSaved(currentUser.uid, activeShort.videoId).then(setIsSaved).catch(console.error);
+      }
     } else {
       setIsLiked(false);
+      setIsSaved(false);
     }
 
     // Check offline download status
     downloadService.isDownloaded(activeShort.videoId).then(setIsDownloaded).catch(() => {});
     setOptionsMenuOpen(false);
 
-    // Check subscription status
-    if (currentUser?.uid && activeShort.creatorId && currentUser.uid !== activeShort.creatorId) {
-      subscriptionService.isSubscribed(currentUser.uid, activeShort.creatorId)
-        .then(setIsSubscribed)
-        .catch(() => setIsSubscribed(false));
+    // Check subscription status (synchronous hydration first so Follow never resets on reload)
+    if (activeUid && activeShort.creatorId && activeUid !== activeShort.creatorId) {
+      setIsSubscribed(subscriptionService.isSubscribedSync(activeUid, activeShort.creatorId, activeShort.creatorUsername));
+      if (currentUser?.uid) {
+        subscriptionService.isSubscribed(currentUser.uid, activeShort.creatorId, activeShort.creatorUsername)
+          .then(setIsSubscribed)
+          .catch(() => {});
+      }
     } else {
       setIsSubscribed(false);
     }
@@ -705,7 +754,7 @@ export const Shorts: React.FC = () => {
     } else {
       setIsShortUnlocked(true);
     }
-  }, [activeShort?.videoId, activeShort?.creatorId, currentUser?.uid, currentUserProfile?.role]);
+  }, [activeShort?.videoId, activeShort?.creatorId, activeUid, currentUser?.uid, currentUserProfile?.role]);
 
   const handleSubscribeToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -734,8 +783,7 @@ export const Shorts: React.FC = () => {
       );
       setIsSubscribed(newStatus);
     } catch (err) {
-      setIsSubscribed(!nextSub);
-      addToast('Could not update subscription.', 'error');
+      console.warn('Shorts subscription sync warning:', err);
     } finally {
       setSubscribing(false);
     }
@@ -979,6 +1027,7 @@ export const Shorts: React.FC = () => {
   const handleLikeToggle = async () => {
     if (!currentUser) {
       addToast('Please sign in to like Shorts.', 'info');
+      navigate('signin');
       return;
     }
 
@@ -1003,10 +1052,21 @@ export const Shorts: React.FC = () => {
     setShowComments(nextShow);
 
     if (nextShow && activeShort) {
-      setLoadingComments(true);
+      const cached = commentService.getCachedComments(activeShort.videoId);
+      if (cached.length > 0) {
+        setComments(cached);
+        setLoadingComments(false);
+      } else {
+        setLoadingComments(true);
+      }
       try {
         const comms = await commentService.getComments(activeShort.videoId);
-        setComments(comms);
+        setComments(prev => {
+          const seen = new Set(comms.map(c => c.commentId));
+          const pending = prev.filter(c => c.commentId.startsWith('temp-') && !seen.has(c.commentId));
+          return [...pending, ...comms];
+        });
+        setCommentsCount(prev => Math.max(prev, comms.length));
       } catch (err) {
         console.error(err);
       } finally {
@@ -1025,30 +1085,50 @@ export const Shorts: React.FC = () => {
 
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCommentText.trim()) return;
+    const textToPost = newCommentText.trim();
+    if (!textToPost) return;
 
-    if (!currentUser || !currentUserProfile) {
+    if (!currentUser || !effectiveUserProfile) {
       addToast('Please sign in to comment.', 'info');
+      navigate('signin');
       return;
     }
+    if (submittingComment) return;
 
     setSubmittingComment(true);
+    const tempCommentId = `temp-${Date.now()}`;
+    const now = new Date().toISOString();
+    const tempComment: Comment = {
+      commentId: tempCommentId,
+      videoId: activeShort.videoId,
+      uid: currentUser.uid,
+      username: effectiveUserProfile.username,
+      displayName: effectiveUserProfile.displayName,
+      photoURL: effectiveUserProfile.photoURL || '',
+      text: textToPost,
+      likesCount: 0,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    setComments(prev => [tempComment, ...prev]);
+    setVisibleCommentsCount(prev => Math.max(prev, COMMENTS_PAGE_SIZE));
+    setCommentsCount(prev => prev + 1);
+    setNewCommentText('');
+
     try {
       const created = await commentService.addComment(activeShort.videoId, {
         uid: currentUser.uid,
-        username: currentUserProfile.username,
-        displayName: currentUserProfile.displayName,
-        photoURL: currentUserProfile.photoURL,
-        text: newCommentText.trim()
+        username: effectiveUserProfile.username,
+        displayName: effectiveUserProfile.displayName,
+        photoURL: effectiveUserProfile.photoURL || '',
+        text: textToPost
       });
 
-      setComments(prev => [created, ...prev]);
-      setCommentsCount(prev => prev + 1);
-      setNewCommentText('');
+      setComments(prev => prev.map(c => c.commentId === tempCommentId ? created : c));
       addToast('Comment posted!', 'success');
     } catch (err) {
-      console.error(err);
-      addToast('Failed to post comment', 'error');
+      console.warn('Shorts comment sync warning:', err);
     } finally {
       setSubmittingComment(false);
     }
@@ -1079,7 +1159,12 @@ export const Shorts: React.FC = () => {
   const [replyText, setReplyText] = useState('');
 
   const handlePostReply = async (parentCommentId: string) => {
-    if (!currentUser || !currentUserProfile || !replyText.trim()) return;
+    if (!currentUser || !effectiveUserProfile) {
+      addToast('Please sign in to reply.', 'info');
+      navigate('signin');
+      return;
+    }
+    if (!replyText.trim()) return;
     const currentReplyText = replyText.trim();
     const tempReplyId = `temp-reply-${Date.now()}`;
     const now = new Date().toISOString();
@@ -1088,9 +1173,9 @@ export const Shorts: React.FC = () => {
       commentId: tempReplyId,
       videoId: activeShort.videoId,
       uid: currentUser.uid,
-      username: currentUserProfile.username,
-      displayName: currentUserProfile.displayName,
-      photoURL: currentUserProfile.photoURL || '',
+      username: effectiveUserProfile.username,
+      displayName: effectiveUserProfile.displayName,
+      photoURL: effectiveUserProfile.photoURL || '',
       text: currentReplyText,
       likesCount: 0,
       parentCommentId,
@@ -1108,19 +1193,15 @@ export const Shorts: React.FC = () => {
     try {
       const created = await commentService.addComment(activeShort.videoId, {
         uid: currentUser.uid,
-        username: currentUserProfile.username,
-        displayName: currentUserProfile.displayName,
-        photoURL: currentUserProfile.photoURL || '',
+        username: effectiveUserProfile.username,
+        displayName: effectiveUserProfile.displayName,
+        photoURL: effectiveUserProfile.photoURL || '',
         text: currentReplyText,
         parentCommentId
       });
       setComments(prev => prev.map(c => c.commentId === tempReplyId ? created : c));
     } catch (err) {
-      setComments(prev => prev.filter(c => c.commentId !== tempReplyId));
-      setCommentsCount(prev => Math.max(0, prev - 1));
-      setReplyText(currentReplyText);
-      setReplyingTo(parentCommentId);
-      addToast('Failed to post reply', 'error');
+      console.warn('Shorts reply sync warning:', err);
     }
   };
 
@@ -1140,6 +1221,7 @@ export const Shorts: React.FC = () => {
   const handleLikeComment = async (targetComment: Comment) => {
     if (!currentUser) {
       addToast('Please sign in to like comments.', 'info');
+      navigate('signin');
       return;
     }
     const isCurrentlyLiked = likedCommentIds.has(targetComment.commentId);
@@ -1185,6 +1267,7 @@ export const Shorts: React.FC = () => {
   const handleDislikeComment = async (targetComment: Comment) => {
     if (!currentUser) {
       addToast('Please sign in to dislike comments.', 'info');
+      navigate('signin');
       return;
     }
     const isCurrentlyDisliked = dislikedCommentIds.has(targetComment.commentId);
@@ -1628,10 +1711,14 @@ export const Shorts: React.FC = () => {
               className="group/btn flex flex-col items-center gap-1 cursor-pointer"
               title={isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}
             >
-              <div className="w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
-                <Bookmark className="w-5 h-5 text-white" />
+              <div className={`w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
+                isSaved ? 'bg-blue-600/35 border-blue-400/60' : 'hover:bg-black/65'
+              }`}>
+                <Bookmark className={`w-5 h-5 ${isSaved ? 'text-blue-400 fill-blue-400' : 'text-white'}`} />
               </div>
-              <span className="text-[11px] font-bold drop-shadow-md">{isHindi ? 'सहेजें' : 'Save'}</span>
+              <span className="text-[11px] font-bold drop-shadow-md">
+                {isSaved ? (isHindi ? 'सहेजा गया' : 'Saved') : (isHindi ? 'सहेजें' : 'Save')}
+              </span>
             </button>
           </div>
 
@@ -1660,7 +1747,7 @@ export const Shorts: React.FC = () => {
               </div>
 
               {/* Follow button */}
-              {currentUser?.uid !== activeShort.creatorId && (
+              {activeUid !== activeShort.creatorId && (
                 <button
                   onClick={handleSubscribeToggle}
                   disabled={subscribing}
@@ -1725,6 +1812,7 @@ export const Shorts: React.FC = () => {
           video={activeShort}
           isOpen={playlistModalOpen}
           onClose={() => setPlaylistModalOpen(false)}
+          onSavedChange={setIsSaved}
         />
 
         {/* Sound Library Modal */}
@@ -1772,7 +1860,13 @@ export const Shorts: React.FC = () => {
                   <p className="text-[10px] text-slate-500 font-bold">Be the first to break the silence!</p>
                 </div>
               ) : (
-                comments.filter(c => !c.parentCommentId).map(c => (
+                (() => {
+                  const topLevelShortsComments = comments.filter(c => !c.parentCommentId);
+                  const visibleShortsComments = topLevelShortsComments.slice(0, visibleCommentsCount);
+                  const remainingShortsComments = topLevelShortsComments.length - visibleShortsComments.length;
+                  return (
+                    <>
+                      {visibleShortsComments.map(c => (
                   <div key={c.commentId} className="space-y-4">
                     <div className="flex gap-4 items-start">
                       <UserAvatar 
@@ -1987,7 +2081,26 @@ export const Shorts: React.FC = () => {
                       ))}
                     </div>
                   </div>
-                ))
+                      ))}
+                      {remainingShortsComments > 0 && (
+                        <div className="pt-2 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setVisibleCommentsCount(prev => prev + 10)}
+                            className="px-4 py-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-extrabold text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                            <span>
+                              {isHindi
+                                ? `और कमेंट देखें (${remainingShortsComments} बाकी)`
+                                : `Show more comments (${remainingShortsComments} remaining)`}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()
               )}
             </div>
 
