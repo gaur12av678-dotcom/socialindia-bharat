@@ -142,13 +142,11 @@ const YouTubeChannelCard: React.FC<{ user: User }> = ({ user }) => {
           type="button"
           onClick={handleSubClick}
           disabled={isTogglingSub}
-          className={`w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-black transition-all cursor-pointer active:scale-95 shadow-sm ${
-            isSubbed 
-              ? 'bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200' 
-              : 'bg-black hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-black'
+          className={`w-full sm:w-auto px-6 py-2.5 rounded-full border text-xs font-black transition-all cursor-pointer active:scale-95 shadow-sm ${
+            isSubbed ? 'si-btn-following' : 'si-btn-follow'
           }`}
         >
-          {isSubbed ? (isHindi ? 'सदस्यता ली गई' : 'Subscribed') : (isHindi ? 'सदस्यता लें' : 'Subscribe')}
+          {isSubbed ? (isHindi ? 'फ़ॉलो कर रहे हैं' : 'Following') : (isHindi ? 'फ़ॉलो करें' : 'Follow')}
         </button>
       </div>
     </div>

@@ -340,3 +340,108 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).tex
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }
+
+/* ============================================================
+   FOLLOW / FOLLOWING BUTTONS: Guaranteed Contrast Everywhere
+   ============================================================ */
+html button.si-btn-follow,
+html:not(.dark) button.si-btn-follow,
+html.dark button.si-btn-follow {
+  background-color: #2563eb !important;
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html button.si-btn-follow:hover,
+html button.si-btn-follow:focus-visible,
+html:not(.dark) button.si-btn-follow:hover,
+html:not(.dark) button.si-btn-follow:focus-visible,
+html.dark button.si-btn-follow:hover,
+html.dark button.si-btn-follow:focus-visible {
+  background-color: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html button.si-btn-follow :is(span, svg, i) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html:not(.dark) button.si-btn-following,
+html.light button.si-btn-following {
+  background-color: #e2e8f0 !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+html:not(.dark) button.si-btn-following:hover,
+html:not(.dark) button.si-btn-following:focus-visible,
+html.light button.si-btn-following:hover,
+html.light button.si-btn-following:focus-visible {
+  background-color: #cbd5e1 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+html:not(.dark) button.si-btn-following span,
+html.light button.si-btn-following span {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a !important;
+}
+
+html:not(.dark) button.si-btn-following .si-btn-following-check,
+html.light button.si-btn-following .si-btn-following-check {
+  color: #059669 !important;
+  stroke: #059669 !important;
+}
+
+html.dark button.si-btn-following {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+html.dark button.si-btn-following:hover,
+html.dark button.si-btn-following:focus-visible {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html.dark button.si-btn-following span {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+}
+
+html.dark button.si-btn-following .si-btn-following-check {
+  color: #34d399 !important;
+  stroke: #34d399 !important;
+}
+
+html button.si-btn-following-overlay {
+  background-color: rgba(15, 23, 42, 0.72) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html button.si-btn-following-overlay:hover,
+html button.si-btn-following-overlay:focus-visible {
+  background-color: rgba(15, 23, 42, 0.88) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+html button.si-btn-following-overlay :is(span, svg, i) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+

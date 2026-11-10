@@ -1749,15 +1749,14 @@ export const Shorts: React.FC = () => {
               {/* Follow button */}
               {activeUid !== activeShort.creatorId && (
                 <button
+                  type="button"
                   onClick={handleSubscribeToggle}
                   disabled={subscribing}
-                  className={`px-4 py-1.5 rounded-full text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer shrink-0 ${
-                    isSubscribed
-                      ? 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-md border border-white/20'
-                      : 'bg-white text-[#0F172A] hover:bg-slate-100 hover:scale-105'
+                  className={`px-4 py-1.5 rounded-full border text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer shrink-0 backdrop-blur-md ${
+                    isSubscribed ? 'si-btn-following-overlay' : 'si-btn-follow'
                   }`}
                 >
-                  {isSubscribed ? t('action_subscribed', 'Subscribed') : t('action_subscribe', 'Subscribe')}
+                  {isSubscribed ? t('action_subscribed', 'Following') : t('action_subscribe', 'Follow')}
                 </button>
               )}
             </div>

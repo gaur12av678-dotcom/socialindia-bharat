@@ -1499,15 +1499,12 @@ export const Watch: React.FC = () => {
                   type="button"
                   onClick={handleSubscribeToggle}
                   disabled={isSubscribing}
-                  style={!subscribed ? { backgroundColor: '#2563eb', color: '#ffffff' } : undefined}
-                  className={`ml-3 px-5 py-2 text-xs font-extrabold rounded-full transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-60 ${
-                    subscribed 
-                      ? 'bg-slate-200 dark:bg-[#1E293B] text-slate-800 dark:text-[#F8FAFC] hover:bg-slate-300' 
-                      : 'bg-social-blue text-white hover:opacity-95'
+                  className={`ml-3 px-5 py-2 text-xs font-extrabold rounded-full border transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-60 ${
+                    subscribed ? 'si-btn-following' : 'si-btn-follow'
                   }`}
                   title={subscribed ? 'Following' : 'Follow'}
                 >
-                  {subscribed ? t('action_subscribed', 'Subscribed') : t('action_subscribe', 'Subscribe')}
+                  {subscribed ? t('action_subscribed', 'Following') : t('action_subscribe', 'Follow')}
                 </button>
               )}
             </div>
