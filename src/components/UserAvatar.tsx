@@ -96,8 +96,9 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   const fallbackNameLower = (fallbackDisplayName || '').trim().toLowerCase();
   const uidLower = (uid || '').trim().toLowerCase();
 
+  const activeLoggedUid = currentUser?.uid || currentUserProfile?.uid;
   const isCurrentLoggedInUser = Boolean(
-    (uid && currentUser?.uid && currentUser.uid === uid) || 
+    (uid && activeLoggedUid && activeLoggedUid === uid) || 
     (fallbackNameLower && currentUsernameLower && currentUsernameLower === fallbackNameLower) ||
     (fallbackNameLower && currentDisplayNameLower && currentDisplayNameLower === fallbackNameLower) ||
     (uidLower && currentUsernameLower && currentUsernameLower === uidLower)

@@ -136,13 +136,26 @@
 .yt-chip-active {
   background-color: #2563eb !important;
   color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   border-color: #2563eb !important;
   font-weight: 700 !important;
+}
+.yt-chip-active:hover,
+.yt-chip-active:focus-visible {
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  border-color: #1d4ed8 !important;
+}
+.yt-chip-active :is(span, svg, i) {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
 }
 .dark .yt-chip-active,
 html.dark .yt-chip-active {
   background-color: #ffffff !important;
   color: #0f0f0f !important;
+  -webkit-text-fill-color: #0f0f0f !important;
   border-color: #ffffff !important;
   font-weight: 700 !important;
 }
@@ -213,7 +226,7 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).tex
   color: #1f2937 !important;
 }
 
-/* Preserve white labels on intentionally saturated primary/status buttons. */
+/* Preserve white labels on intentionally saturated or dark primary/status buttons. */
 html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-blue-"],
 html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-blue-"],
 html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-indigo-"],
@@ -237,7 +250,15 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).tex
 html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-sky-"],
 html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-sky-"],
 html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-social-blue"],
-html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-social-blue"] {
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-social-blue"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-slate-900"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-slate-900"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-slate-800"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-slate-800"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-black"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-black"],
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-[#0f0f0f]"],
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white[class*="bg-[#0f0f0f]"] {
   color: #ffffff !important;
 }
 
@@ -324,19 +345,35 @@ html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]):is(
   -webkit-text-fill-color: #1f2937 !important;
 }
 
-/* Keep saturated primary/status buttons white, including their animated labels. */
+/* Keep saturated & dark primary/status buttons white, including their animated labels. */
 html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white:is(
   [class*="bg-blue-"],[class*="bg-indigo-"],[class*="bg-emerald-"],
   [class*="bg-green-"],[class*="bg-rose-"],[class*="bg-red-"],
   [class*="bg-amber-"],[class*="bg-purple-"],[class*="bg-violet-"],
-  [class*="bg-cyan-"],[class*="bg-sky-"],[class*="bg-social-blue"]
+  [class*="bg-cyan-"],[class*="bg-sky-"],[class*="bg-social-blue"],
+  [class*="bg-slate-900"],[class*="bg-slate-800"],[class*="bg-black"],[class*="bg-[#0f0f0f]"]
 ),
 html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white:is(
   [class*="bg-blue-"],[class*="bg-indigo-"],[class*="bg-emerald-"],
   [class*="bg-green-"],[class*="bg-rose-"],[class*="bg-red-"],
   [class*="bg-amber-"],[class*="bg-purple-"],[class*="bg-violet-"],
-  [class*="bg-cyan-"],[class*="bg-sky-"],[class*="bg-social-blue"]
-) {
+  [class*="bg-cyan-"],[class*="bg-sky-"],[class*="bg-social-blue"],
+  [class*="bg-slate-900"],[class*="bg-slate-800"],[class*="bg-black"],[class*="bg-[#0f0f0f]"]
+),
+html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]):is(
+  [class*="bg-blue-"],[class*="bg-indigo-"],[class*="bg-emerald-"],
+  [class*="bg-green-"],[class*="bg-rose-"],[class*="bg-red-"],
+  [class*="bg-amber-"],[class*="bg-purple-"],[class*="bg-violet-"],
+  [class*="bg-cyan-"],[class*="bg-sky-"],[class*="bg-social-blue"],
+  [class*="bg-slate-900"],[class*="bg-slate-800"],[class*="bg-black"],[class*="bg-[#0f0f0f]"]
+) :is(.text-white,[class*="text-white/"]),
+html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]):is(
+  [class*="bg-blue-"],[class*="bg-indigo-"],[class*="bg-emerald-"],
+  [class*="bg-green-"],[class*="bg-rose-"],[class*="bg-red-"],
+  [class*="bg-amber-"],[class*="bg-purple-"],[class*="bg-violet-"],
+  [class*="bg-cyan-"],[class*="bg-sky-"],[class*="bg-social-blue"],
+  [class*="bg-slate-900"],[class*="bg-slate-800"],[class*="bg-black"],[class*="bg-[#0f0f0f]"]
+) :is(.text-white,[class*="text-white/"]) {
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
 }

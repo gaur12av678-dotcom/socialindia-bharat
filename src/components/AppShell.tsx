@@ -23,6 +23,7 @@ import {
   Moon, 
   Sun, 
   User as UserIcon,
+  UserCircle2,
   ShieldAlert,
   ShieldCheck,
   FileText,
@@ -77,6 +78,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const { 
     currentUser, 
     currentUserProfile, 
+    loading: authLoading,
     theme, 
     setTheme, 
     language,
@@ -90,6 +92,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     openSwitchAccount,
     logout
   } = useApp();
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
   const isHindi = language === 'hi';
   const [profileDropdownView, setProfileDropdownView] = useState<'main' | 'accounts'>('main');
   const [switchingUid, setSwitchingUid] = useState<string | null>(null);
@@ -254,14 +257,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   // Load followed creators for sidebar
   useEffect(() => {
-    if (currentUser) {
+    if (activeUid) {
       import('../services/subscriptionService').then(({ subscriptionService }) => {
-        subscriptionService.getSubscriptions(currentUser.uid).then(setFollowedCreators).catch(console.error);
+        subscriptionService.getSubscriptions(activeUid).then(setFollowedCreators).catch(console.error);
       });
     } else {
       setFollowedCreators([]);
     }
-  }, [currentUser]);
+  }, [activeUid]);
 
   // Online / Offline connectivity listener
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -339,7 +342,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   };
 
   const triggerProtectedAction = (action: () => void) => {
-    if (currentUser) {
+    if (activeUid) {
       action();
     } else {
       navigate('login');
@@ -833,7 +836,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   </button>
 
               {/* Upload Video Button matching Capture_09ce5585.PNG (only when signed in) */}
-              {currentUser && (
+              {activeUid && (
                 <button
                   onClick={() => navigate('upload')}
                   className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-blue-50/80 dark:hover:bg-blue-950/40 text-[#2563eb] dark:text-[#3b82f6] transition-all cursor-pointer active:scale-95 group"
@@ -852,7 +855,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               )}
 
               {/* Notifications Dropdown (only when signed in) */}
-              {currentUser && (
+              {activeUid && (
                 <div ref={notifRef} className="relative">
                   <button
                     onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
@@ -920,7 +923,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               )}
 
           {/* User Account / Profile Area (Hidden on mobile top bar, accessible via YouTube-style 'You' bottom tab) */}
-          {currentUser ? (
+          {activeUid ? (
             <div ref={profileRef} className="hidden md:block relative">
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
@@ -929,7 +932,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 aria-expanded={profileDropdownOpen}
               >
                 <UserAvatar 
-                  uid={currentUser.uid}
+                  uid={activeUid}
                   fallbackPhotoURL={currentUserProfile?.photoURL}
                   fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
                   size="sm"
@@ -965,7 +968,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <div className="relative shrink-0">
                               <UserAvatar 
-                                uid={currentUser.uid}
+                                uid={activeUid}
                                 fallbackPhotoURL={currentUserProfile?.photoURL}
                                 fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
                                 size="sm"
@@ -992,7 +995,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
                       {/* Other Saved Accounts List */}
                       {(() => {
-                        const saved = accountService.getSavedAccounts().filter(a => a.uid !== currentUser.uid);
+                        const saved = accountService.getSavedAccounts().filter(a => a.uid !== activeUid);
                         return (
                           <div className="p-1.5 max-h-[200px] overflow-y-auto">
                             {saved.length > 0 && (
@@ -1091,14 +1094,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       <div 
                         onClick={() => {
                           setProfileDropdownOpen(false);
-                          navigate('creator', currentUserProfile?.username || currentUser?.uid);
+                          navigate('creator', currentUserProfile?.username || activeUid);
                         }}
                         className="p-3.5 bg-slate-50/90 dark:bg-zinc-900/60 border-b border-slate-100 dark:border-zinc-800/80 hover:bg-slate-100/90 dark:hover:bg-zinc-900/90 transition-colors cursor-pointer group flex items-center gap-3"
                         title="View your channel"
                       >
                         <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-200/80 dark:border-zinc-700 shadow-xs">
                           <UserAvatar 
-                            uid={currentUser.uid}
+                            uid={activeUid}
                             fallbackPhotoURL={currentUserProfile?.photoURL}
                             fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
                             size="md"
@@ -1121,7 +1124,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                         <button
                           onClick={() => {
                             setProfileDropdownOpen(false);
-                            navigate('creator', currentUserProfile?.username || currentUser?.uid);
+                            navigate('creator', currentUserProfile?.username || activeUid);
                           }}
                           className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
                         >
@@ -1265,13 +1268,26 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 </div>
               )}
             </div>
+          ) : authLoading ? (
+            <div className="hidden md:flex items-center gap-2 shrink-0">
+              <div
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-200 dark:bg-slate-800 animate-pulse"
+                aria-label="Loading account"
+              />
+            </div>
           ) : (
-            <div ref={guestRef} className="hidden md:flex items-center gap-2 relative">
+            <div ref={guestRef} className="flex items-center gap-2 relative">
               <button
+                type="button"
                 onClick={() => navigate('login')}
-                className="px-4 sm:px-6 py-1.5 sm:py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-xs sm:text-base rounded-full shadow-md transition-all cursor-pointer active:scale-95 shrink-0"
+                className={`px-3 sm:px-3.5 py-1.5 rounded-full border font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0 ${
+                  isShortsPage
+                    ? 'border-white/30 text-white hover:bg-white/10'
+                    : 'border-slate-300/90 dark:border-slate-700 bg-transparent text-[#065fd4] dark:text-[#3ea6ff] hover:bg-blue-50/90 dark:hover:bg-blue-950/40 hover:border-blue-200 dark:hover:border-blue-800'
+                }`}
               >
-                {t('sign_in', 'Sign In')}
+                <UserCircle2 className="w-5 h-5 shrink-0" />
+                <span>{t('sign_in', 'Sign in')}</span>
               </button>
             </div>
           )}
@@ -1634,7 +1650,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           {/* You Tab */}
           <button
             onClick={() => {
-              if (currentUser) {
+              if (activeUid) {
                 navigate('profile-menu');
               } else {
                 navigate('login');
@@ -1649,14 +1665,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
             }`}
           >
-            {currentUser ? (
+            {activeUid ? (
               <div className={`flex h-7 w-7 items-center justify-center overflow-hidden rounded-full transition-all ${
                 route.path === 'profile-menu' || (route.path === 'creator' && (!route.param || route.param === currentUserProfile?.username))
                   ? 'ring-2 ring-blue-600 dark:ring-blue-400'
                   : 'ring-1 ring-slate-300 dark:ring-slate-700'
               }`}>
                 <UserAvatar
-                  uid={currentUser.uid}
+                  uid={activeUid}
                   fallbackPhotoURL={currentUserProfile?.photoURL}
                   fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
                   size="xs"

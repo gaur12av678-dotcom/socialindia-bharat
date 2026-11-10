@@ -199,10 +199,10 @@ export const FeedbackPage: React.FC = () => {
                   key={pill.id}
                   type="button"
                   onClick={() => setFeedbackType(pill.id as any)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+                  className={`px-3.5 py-1.5 rounded-full border text-xs transition-colors cursor-pointer ${
                     feedbackType === pill.id
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#272727] dark:hover:bg-[#333333] text-slate-700 dark:text-slate-300'
+                      ? 'yt-chip-active shadow-xs'
+                      : 'yt-chip-inactive'
                   }`}
                 >
                   {pill.label}

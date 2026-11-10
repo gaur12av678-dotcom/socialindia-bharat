@@ -2388,12 +2388,13 @@ export const Watch: React.FC = () => {
             const isActive = selectedCategoryFilter === pill.id;
             return (
               <button
+                type="button"
                 key={pill.id}
                 onClick={() => handleCategoryFilterChange(pill.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-colors cursor-pointer shadow-xs ${
+                className={`px-3.5 py-1.5 rounded-xl border text-xs shrink-0 transition-colors cursor-pointer ${
                   isActive
-                    ? 'bg-[#0f0f0f] dark:bg-white text-white dark:text-black font-black'
-                    : 'bg-slate-100 dark:bg-[#1E293B] text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
+                    ? 'yt-chip-active shadow-xs'
+                    : 'yt-chip-inactive'
                 }`}
               >
                 {pill.label}

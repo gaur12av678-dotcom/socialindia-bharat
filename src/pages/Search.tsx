@@ -505,22 +505,24 @@ export const Search: React.FC = () => {
             {/* YouTube Filter Chips */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               <button
+                type="button"
                 onClick={() => setSearchFilter('all')}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-4 py-1.5 rounded-full border text-xs transition-all cursor-pointer whitespace-nowrap ${
                   searchFilter === 'all' 
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm' 
-                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    ? 'yt-chip-active shadow-sm' 
+                    : 'yt-chip-inactive'
                 }`}
               >
                 {isHindi ? 'सभी (All)' : 'All'}
               </button>
 
               <button
+                type="button"
                 onClick={() => setSearchFilter('channels')}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-4 py-1.5 rounded-full border text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   searchFilter === 'channels' 
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm' 
-                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    ? 'yt-chip-active shadow-sm' 
+                    : 'yt-chip-inactive'
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
@@ -528,11 +530,12 @@ export const Search: React.FC = () => {
               </button>
 
               <button
+                type="button"
                 onClick={() => setSearchFilter('videos')}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-4 py-1.5 rounded-full border text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   searchFilter === 'videos' 
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm' 
-                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    ? 'yt-chip-active shadow-sm' 
+                    : 'yt-chip-inactive'
                 }`}
               >
                 <Film className="w-3.5 h-3.5" />

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
+import { auth } from '../firebase';
 import { authService } from '../services/authService';
 import { userService } from '../services/userService';
 import { notificationService } from '../services/notificationService';
@@ -42,7 +43,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(() => auth.currentUser || null);
   const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(() => {
     try {
       const cached = localStorage.getItem('socialindia_cached_profile');

@@ -1133,10 +1133,10 @@ export const CreatorProfile: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setVideoSort('latest')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                  className={`px-3 py-1.5 text-xs rounded-lg border cursor-pointer transition-all ${
                     videoSort === 'latest'
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      ? 'yt-chip-active shadow-xs'
+                      : 'yt-chip-inactive'
                   }`}
                 >
                   {isHindi ? 'नवीनतम' : 'Latest'}
@@ -1144,22 +1144,22 @@ export const CreatorProfile: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setVideoSort('popular')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center gap-1 ${
+                  className={`px-3 py-1.5 text-xs rounded-lg border cursor-pointer transition-all flex items-center gap-1 ${
                     videoSort === 'popular'
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      ? 'yt-chip-active shadow-xs'
+                      : 'yt-chip-inactive'
                   }`}
                 >
-                  <Flame className="w-3.5 h-3.5 text-amber-500" />
+                  <Flame className={`w-3.5 h-3.5 ${videoSort === 'popular' ? 'text-amber-300 dark:text-amber-500' : 'text-amber-500'}`} />
                   <span>{isHindi ? 'लोकप्रिय' : 'Popular'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setVideoSort('oldest')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all ${
+                  className={`px-3 py-1.5 text-xs rounded-lg border cursor-pointer transition-all ${
                     videoSort === 'oldest'
-                      ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      ? 'yt-chip-active shadow-xs'
+                      : 'yt-chip-inactive'
                   }`}
                 >
                   {isHindi ? 'पुराने' : 'Oldest'}

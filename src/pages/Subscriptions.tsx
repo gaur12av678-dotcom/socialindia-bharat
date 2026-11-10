@@ -500,12 +500,13 @@ export const Subscriptions: React.FC = () => {
             { id: 'unwatched', label: isHindi ? 'अनदेखे' : 'Unwatched' },
           ].map((chip) => (
             <button
+              type="button"
               key={chip.id}
               onClick={() => setActiveFilter(chip.id as SubscriptionsFilter)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-colors cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full border text-xs shrink-0 transition-colors cursor-pointer ${
                 activeFilter === chip.id
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-[#272727] dark:hover:bg-[#383838] text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800'
+                  ? 'yt-chip-active shadow-xs'
+                  : 'yt-chip-inactive'
               }`}
             >
               {chip.label}
