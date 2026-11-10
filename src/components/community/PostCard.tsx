@@ -53,11 +53,30 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
   const [commentInput, setCommentInput] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
 
-  // 3-dot dropdown menu
+  // 3-dot dropdown menu & delete confirmation state
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const menuContainerRef = React.useRef<HTMLDivElement>(null);
 
-  const isAuthor = Boolean(currentUser?.uid && currentUser.uid === post.authorId);
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
+  const isAuthor = Boolean(activeUid && activeUid === post.authorId);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleOutside = (e: MouseEvent | TouchEvent) => {
+      if (menuContainerRef.current && !menuContainerRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [menuOpen]);
 
   // Synchronize user reactions & poll votes
   useEffect(() => {
@@ -175,17 +194,24 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
     setMenuOpen(false);
   };
 
-  const handleDeletePost = async () => {
-    if (!currentUser || !isAuthor) return;
-    const confirmDelete = window.confirm(isHindi ? 'क्या आप इस पोस्ट को हटाना चाहते हैं?' : 'Are you sure you want to delete this community post?');
-    if (!confirmDelete) return;
+  const handleRequestDeletePost = () => {
+    if (!activeUid || !isAuthor) return;
+    setMenuOpen(false);
+    setConfirmDeleteOpen(true);
+  };
 
+  const handleConfirmDeletePost = async () => {
+    if (!activeUid || !isAuthor || deletingPost) return;
+    setDeletingPost(true);
     try {
-      await postService.deletePost(post.postId, currentUser.uid);
+      await postService.deletePost(post.postId, activeUid);
+      setConfirmDeleteOpen(false);
       addToast(isHindi ? 'पोस्ट हटा दिया गया।' : 'Post deleted successfully.', 'success');
       onPostDeleted?.(post.postId);
     } catch {
       addToast(isHindi ? 'पोस्ट हटाने में विफल।' : 'Failed to delete post.', 'error');
+    } finally {
+      setDeletingPost(false);
     }
   };
 
@@ -274,8 +300,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
         </div>
 
         {/* 3-dots Menu */}
-        <div className="relative shrink-0">
+        <div ref={menuContainerRef} className="relative shrink-0">
           <button
+            type="button"
             onClick={() => setMenuOpen(!menuOpen)}
             className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors cursor-pointer"
             title="Options"
@@ -286,6 +313,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
               <button
+                type="button"
                 onClick={handleShare}
                 className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 text-left cursor-pointer"
               >
@@ -295,7 +323,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
 
               {isAuthor && (
                 <button
-                  onClick={handleDeletePost}
+                  type="button"
+                  onClick={handleRequestDeletePost}
                   className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 text-left cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-rose-500" />
@@ -306,6 +335,42 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
           )}
         </div>
       </div>
+
+      {/* Inline Delete Confirmation Banner (iframe-safe, never blocked like window.confirm) */}
+      {confirmDeleteOpen && (
+        <div className="mb-3 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex flex-wrap items-center justify-between gap-2.5 animate-in fade-in duration-150">
+          <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">
+            {isHindi ? 'क्या आप वाकई इस पोस्ट को हटाना चाहते हैं?' : 'Delete this post permanently?'}
+          </p>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              disabled={deletingPost}
+              onClick={() => setConfirmDeleteOpen(false)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer disabled:opacity-50"
+            >
+              {isHindi ? 'रद्द करें' : 'Cancel'}
+            </button>
+            <button
+              type="button"
+              disabled={deletingPost}
+              onClick={handleConfirmDeletePost}
+              style={{
+                backgroundColor: '#e11d48',
+                borderColor: '#be123c',
+                color: '#ffffff',
+                WebkitTextFillColor: '#ffffff'
+              }}
+              className="px-3 py-1.5 rounded-lg border text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-xs"
+            >
+              {deletingPost && <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />}
+              <span style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}>
+                {isHindi ? 'हटाएं' : 'Delete'}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. Post Content Text */}
       <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-normal whitespace-pre-wrap break-words mb-3">

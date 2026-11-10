@@ -97,9 +97,18 @@ export const CommunityPage: React.FC = () => {
       }
     };
 
+    const handlePostDeleted = (e: any) => {
+      const deletedId = e.detail?.postId as string | undefined;
+      if (deletedId) {
+        setPosts(prev => prev.filter(p => p.postId !== deletedId));
+      }
+    };
+
     window.addEventListener('socialindia:post_created', handlePostCreated);
+    window.addEventListener('socialindia:post_deleted', handlePostDeleted);
     return () => {
       window.removeEventListener('socialindia:post_created', handlePostCreated);
+      window.removeEventListener('socialindia:post_deleted', handlePostDeleted);
     };
   }, [filterType, loadInitialPosts]);
 

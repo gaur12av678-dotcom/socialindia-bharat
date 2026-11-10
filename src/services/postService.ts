@@ -139,16 +139,38 @@ function saveLocalVotedPolls(uid: string, map: Record<string, string>) {
   } catch {}
 }
 
+function getDeletedPostIds(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem('si_deleted_post_ids');
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function addDeletedPostId(postId: string) {
+  if (typeof window === 'undefined' || !postId) return;
+  try {
+    const set = getDeletedPostIds();
+    set.add(postId);
+    localStorage.setItem('si_deleted_post_ids', JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
 function getLocalPosts(): CommunityPost[] {
-  if (typeof window === 'undefined') return DEFAULT_COMMUNITY_POSTS;
+  const deletedIds = getDeletedPostIds();
+  if (typeof window === 'undefined') return DEFAULT_COMMUNITY_POSTS.filter(p => !deletedIds.has(p.postId));
   try {
     const raw = localStorage.getItem('si_community_posts');
     if (raw) {
       const parsed = JSON.parse(raw) as CommunityPost[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.filter(p => !deletedIds.has(p.postId));
+      }
     }
   } catch {}
-  return DEFAULT_COMMUNITY_POSTS;
+  return DEFAULT_COMMUNITY_POSTS.filter(p => !deletedIds.has(p.postId));
 }
 
 function saveLocalPosts(posts: CommunityPost[]) {
@@ -284,16 +306,22 @@ export const postService = {
   async getPosts(filter?: { authorId?: string; authorUsername?: string }): Promise<CommunityPost[]> {
     let allPosts: CommunityPost[] = [];
 
+    const deletedIds = getDeletedPostIds();
     try {
       let q = collection(db, 'posts');
       const snap = await getDocs(q);
       if (!snap.empty) {
-        const firestorePosts = snap.docs.map(d => d.data() as CommunityPost);
+        const firestorePosts = snap.docs
+          .map(d => {
+            const data = d.data() as CommunityPost;
+            return { ...data, postId: data.postId || d.id };
+          })
+          .filter(p => !deletedIds.has(p.postId));
         // Merge with defaults to guarantee rich experience
         const existingIds = new Set(firestorePosts.map(p => p.postId));
         const combined = [...firestorePosts];
         for (const def of DEFAULT_COMMUNITY_POSTS) {
-          if (!existingIds.has(def.postId)) {
+          if (!existingIds.has(def.postId) && !deletedIds.has(def.postId)) {
             combined.push(def);
           }
         }
@@ -371,9 +399,15 @@ export const postService = {
           break;
         }
 
+        const deletedIds = getDeletedPostIds();
         anySnapshotFound = true;
         currentCursor = snap.docs[snap.docs.length - 1];
-        const batch = snap.docs.map(d => d.data() as CommunityPost);
+        const batch = snap.docs
+          .map(d => {
+            const data = d.data() as CommunityPost;
+            return { ...data, postId: data.postId || d.id };
+          })
+          .filter(p => !deletedIds.has(p.postId));
         const matching = postType === 'all'
           ? batch
           : batch.filter(p => p.postType === postType);
@@ -393,9 +427,10 @@ export const postService = {
       if (anySnapshotFound) {
         // When we reach the end of Firestore posts, append any missing curated defaults on the final page
         if (firestoreExhausted) {
+          const deletedIds = getDeletedPostIds();
           const seen = new Set(collected.map(p => p.postId));
           const matchingDefaults = DEFAULT_COMMUNITY_POSTS.filter(
-            def => !seen.has(def.postId) && (postType === 'all' || def.postType === postType)
+            def => !deletedIds.has(def.postId) && !seen.has(def.postId) && (postType === 'all' || def.postType === postType)
           );
           if (!options?.cursor) {
             collected.push(...matchingDefaults);
@@ -436,10 +471,15 @@ export const postService = {
 
   // Delete a post
   async deletePost(postId: string, uid: string): Promise<void> {
+    addDeletedPostId(postId);
     const local = getLocalPosts();
     const updated = local.filter(p => p.postId !== postId);
     saveLocalPosts(updated);
     memoryPostsCache = updated;
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('socialindia:post_deleted', { detail: { postId } }));
+    }
 
     try {
       await deleteDoc(doc(db, 'posts', postId));

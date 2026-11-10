@@ -2825,12 +2825,19 @@ export const CreatorStudio: React.FC = () => {
                 Cancel
               </button>
               <button
+                type="button"
                 disabled={isDeleting}
                 onClick={confirmDeleteVideo}
-                className="py-3.5 bg-rose-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                style={{
+                  backgroundColor: '#e11d48',
+                  borderColor: '#be123c',
+                  color: '#ffffff',
+                  WebkitTextFillColor: '#ffffff',
+                }}
+                className="py-3.5 bg-rose-600 border text-white font-black rounded-2xl text-[10px] uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-600/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                <span>Delete</span>
+                {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin text-white" style={{ color: '#ffffff' }} /> : null}
+                <span style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff' }}>Delete</span>
               </button>
             </div>
           </div>
