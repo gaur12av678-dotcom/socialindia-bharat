@@ -181,8 +181,8 @@ jobs:
           ")
           echo "Deploying to Firebase project: $PROJECT_ID (target site: socialindia)..."
 
-          firebase target:apply hosting socialindia socialindia --project "$PROJECT_ID" || true
-          firebase deploy --only hosting:socialindia,firestore:rules,storage:rules --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting,firestore:rules,storage:rules --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
+          firebase target:apply hosting socialindia socialindia --project "$PROJECT_ID"
+          firebase deploy --only hosting:socialindia,firestore:rules,storage:rules --project "$PROJECT_ID" --non-interactive
 
           rm -f sa_key.json
         env:
