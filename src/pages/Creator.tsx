@@ -830,26 +830,11 @@ export const CreatorProfile: React.FC = () => {
               {isOwner ? (
                 <>
                   <button
-                    onClick={() => navigate('studio')}
-                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-900 dark:bg-white text-white dark:text-black hover:bg-black/90 dark:hover:bg-slate-100 font-extrabold text-xs sm:text-sm rounded-full flex items-center gap-2 cursor-pointer shadow-sm transition-all active:scale-95"
-                  >
-                    <SettingsIcon className="w-4 h-4 text-blue-400 dark:text-blue-600" />
-                    <span>{t('nav_studio', 'Creator Studio')}</span>
-                  </button>
-                  <button
                     onClick={() => navigate('upload')}
                     className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
                   >
                     <Upload className="w-4 h-4 text-blue-500" />
                     <span>{isHindi ? 'वीडियो अपलोड' : 'Upload Video'}</span>
-                  </button>
-                  <button
-                    onClick={handleOpenBannerPicker}
-                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm rounded-full flex items-center gap-2 border border-slate-300 dark:border-slate-700 cursor-pointer shadow-xs transition-all active:scale-95"
-                    title={isHindi ? 'सीधे गैलरी या डिवाइस से बैनर चुनें' : 'Choose banner from gallery/device'}
-                  >
-                    <Camera className="w-4 h-4 text-blue-500" />
-                    <span>{isHindi ? 'बैनर बदलें' : 'Change Banner'}</span>
                   </button>
                   <button
                     onClick={handleShareChannel}

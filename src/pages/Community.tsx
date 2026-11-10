@@ -240,6 +240,7 @@ export const CommunityPage: React.FC = () => {
             <PostCard
               key={post.postId}
               post={post}
+              showFollowButton
               onPostDeleted={() => {
                 setPosts(prev => prev.filter(p => p.postId !== post.postId));
               }}

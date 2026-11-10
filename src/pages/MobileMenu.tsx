@@ -5,32 +5,22 @@ import { authService } from '../services/authService';
 import { 
   User as UserIcon, 
   Settings, 
-  PlusSquare, 
   Bookmark, 
   History, 
-  Megaphone, 
-  Zap, 
-  ShieldCheck, 
-  HelpCircle, 
   LogOut, 
-  Users, 
   ArrowRight,
   Globe,
   Lock,
-  Sparkles,
   RefreshCw,
   ListVideo,
   ArrowDownToLine,
-  Sun,
-  Moon,
   ThumbsUp
 } from 'lucide-react';
-import { getInitials } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
 import { UserAvatar } from '../components/UserAvatar';
 
 export const MobileMenu: React.FC = () => {
-  const { currentUser, currentUserProfile, theme, setTheme, addToast, openSwitchAccount, logout } = useApp();
+  const { currentUser, currentUserProfile, addToast, openSwitchAccount, logout } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
@@ -104,8 +94,6 @@ export const MobileMenu: React.FC = () => {
     openSwitchAccount();
   };
 
-  const isAdmin = currentUserProfile.role === 'admin';
-
   return (
     <div className="bg-white dark:bg-[#0f0f0f] min-h-screen text-slate-900 dark:text-slate-100 pb-28 select-none">
       <div className="max-w-md mx-auto p-4 space-y-6">
@@ -125,15 +113,6 @@ export const MobileMenu: React.FC = () => {
                 {currentUserProfile.displayName}
               </h2>
               <p className="text-xs text-slate-500 truncate font-semibold">@{currentUserProfile.username}</p>
-              
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-100/30 dark:border-blue-900/40 rounded-full">
-                  ★ {isHindi ? 'पॉइंट्स' : 'Points'}: {currentUserProfile.points || 0}
-                </span>
-                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100/30 dark:border-emerald-900/40 rounded-full">
-                  ₹ {isHindi ? 'वॉलेट' : 'Wallet'}: ₹{Number(currentUserProfile.walletBalance || 0).toFixed(2)}
-                </span>
-              </div>
             </div>
           </div>
 
@@ -308,108 +287,6 @@ export const MobileMenu: React.FC = () => {
               </div>
               <ArrowRight className="w-4 h-4 text-slate-400" />
             </button>
-
-            <button
-              onClick={() => {
-                const isDarkActive = document.documentElement.classList.contains('dark');
-                setTheme(isDarkActive ? 'light' : 'dark');
-              }}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl">
-                  {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark')) ? (
-                    <Sun className="w-4 h-4 text-amber-500" />
-                  ) : (
-                    <Moon className="w-4 h-4 text-indigo-600" />
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                    {isHindi ? 'थीम मोड (लाइट / डार्क)' : 'Appearance Theme'}
-                  </p>
-                  <p className="text-[10px] text-slate-500">
-                    {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark'))
-                      ? (isHindi ? 'डार्क नाइट मोड सक्रिय' : 'Dark Night Mode Active')
-                      : (isHindi ? 'लाइट मोड सक्रिय' : 'Light Day Mode Active')}
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                {theme === 'dark' || (typeof window !== 'undefined' && document.documentElement.classList.contains('dark')) ? 'Dark' : 'Light'}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* 4. CREATOR TOOLS & PROMOTIONS */}
-        <div className="space-y-2">
-          <p className="px-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
-            {isHindi ? 'क्रिएटर टूल्स एवं बूस्ट' : 'Creator Tools & Boosts'}
-          </p>
-          <div className="bg-slate-50/60 dark:bg-[#161616]/40 border border-slate-100 dark:border-slate-800 p-2 rounded-3xl space-y-1">
-            <button
-              onClick={() => navigate('advertising')}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-50 dark:bg-amber-950/30 text-amber-600 rounded-xl">
-                  <Megaphone className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                    {isHindi ? 'प्रचार करें (विज्ञापन अभियान)' : 'Promote (Ad Campaigns)'}
-                  </p>
-                  <p className="text-[10px] text-slate-500">
-                    {isHindi ? 'वीडियो व्यूज़ और सब्सक्राइबर्स बढ़ाएं' : 'Boost video views & subscribers'}
-                  </p>
-                </div>
-              </div>
-              <ArrowRight className="w-4 h-4 text-slate-400" />
-            </button>
-
-            <button
-              onClick={() => navigate('gopro')}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 dark:purple-950/30 text-purple-600 rounded-xl animate-pulse">
-                  <Zap className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                    <span>{t('nav_gopro', 'GoPro Premium')}</span>
-                    <Sparkles className="w-3 h-3 text-purple-500 shrink-0" />
-                  </p>
-                  <p className="text-[10px] text-slate-500">
-                    {isHindi ? 'अधिकतम रिवॉर्ड्स और सुविधाएं पाएं' : 'Unlock maximum rewards speed'}
-                  </p>
-                </div>
-              </div>
-              <ArrowRight className="w-4 h-4 text-slate-400" />
-            </button>
-
-            {isAdmin && (
-              <button
-                onClick={() => navigate('admin')}
-                className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-xl">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                      {t('nav_admin', 'Platform Admin Hub')}
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      {isHindi ? 'सुरक्षा ऑडिट एवं वॉलेट क्रेडिट' : 'Security audits & users wallet credit'}
-                    </p>
-                  </div>
-                </div>
-                <ArrowRight className="w-4 h-4 text-slate-400" />
-              </button>
-            )}
           </div>
         </div>
 

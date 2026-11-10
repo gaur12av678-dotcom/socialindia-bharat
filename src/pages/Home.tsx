@@ -11,6 +11,7 @@ import { Flame, Zap, ArrowRight, Play, RotateCw, ArrowDown, ChevronLeft, Chevron
 import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { ShortsLogo } from '../components/ShortsLogo';
+import { Subscriptions } from './Subscriptions';
 
 export const categoriesList = [
   'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy'
@@ -61,6 +62,10 @@ export const Home: React.FC = () => {
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || persistentHomeCategory || 'All');
+  const [mobileFeedTab, setMobileFeedTab] = useState<'all' | 'following'>('all');
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
   
   // Incremental batch rendering to prevent UI lag and avoid rendering 50+ videos upfront
   const [visibleCount, setVisibleCount] = useState<number>(INITIAL_BATCH_COUNT);
@@ -169,11 +174,14 @@ export const Home: React.FC = () => {
   useEffect(() => {
     checkFilterScroll();
     checkShortsScroll();
-    window.addEventListener('resize', checkFilterScroll);
-    window.addEventListener('resize', checkShortsScroll);
+    const handleResize = () => {
+      setIsMobileViewport(window.innerWidth < 768);
+      checkFilterScroll();
+      checkShortsScroll();
+    };
+    window.addEventListener('resize', handleResize);
     return () => {
-      window.removeEventListener('resize', checkFilterScroll);
-      window.removeEventListener('resize', checkShortsScroll);
+      window.removeEventListener('resize', handleResize);
     };
   }, [shorts.length]);
 
@@ -440,6 +448,8 @@ export const Home: React.FC = () => {
     setIsPulling(false);
   };
 
+  const isFollowingFeed = isMobileViewport && mobileFeedTab === 'following';
+
   // YouTube-style Incremental Batch Rendering:
   // For 'All': Top 3 in Row 1 above Shorts, then YouTube-style algorithm recommendations for "More Videos For You"
   // For specific category: slices up to visibleCount (starts with 12)
@@ -447,22 +457,24 @@ export const Home: React.FC = () => {
 
   // YouTube-style recommendation algorithm for "More Videos For You"
   const moreVideos = React.useMemo(() => {
-    if (selectedCategory !== 'All' || masterVideosRef.current.length === 0) return [];
+    if (isFollowingFeed || selectedCategory !== 'All' || masterVideosRef.current.length === 0) return [];
     const firstRowIds = firstRowVideos.map(v => v.videoId);
     return recommendationService.getHomeMoreVideosRecommendations({
       allVideos: masterVideosRef.current,
       firstRowIds,
       userUid: currentUser?.uid
     });
-  }, [selectedCategory, firstRowVideos, currentUser?.uid]);
+  }, [isFollowingFeed, selectedCategory, firstRowVideos, currentUser?.uid]);
 
-  const displayedMoreVideos = selectedCategory === 'All' 
-    ? moreVideos.slice(0, Math.max(0, visibleCount - 3)) 
+  const displayedMoreVideos = !isFollowingFeed && selectedCategory === 'All'
+    ? moreVideos.slice(0, Math.max(0, visibleCount - 3))
     : [];
 
-  const hasMoreVideos = selectedCategory === 'All'
-    ? (visibleCount - 3 < moreVideos.length)
-    : (visibleCount < videos.length);
+  const hasMoreVideos = !isFollowingFeed && (
+    selectedCategory === 'All'
+      ? visibleCount - 3 < moreVideos.length
+      : visibleCount < videos.length
+  );
 
   return (
     <div 
@@ -490,12 +502,61 @@ export const Home: React.FC = () => {
         </div>
       )}
 
-      {/* YouTube-style Category Filter Chips Bar (Directly below header with ZERO GAP) */}
+      {/* Top Filter Bar: Mobile Instagram-style All/Following tabs | Desktop YouTube-style Category Chips */}
       <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f0f0f]/95 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/80 transition-colors shadow-2xs">
         <div className="relative max-w-7xl mx-auto px-3 sm:px-6">
-          {/* Left Scroll Button with Gradient Fade */}
+          {/* Mobile Only: Instagram-style All & Following Tabs (replaces category filter chips on mobile) */}
+          <div
+            aria-label="Home feed filter"
+            className="grid grid-cols-2 md:hidden w-full"
+          >
+            <button
+              type="button"
+              aria-current={mobileFeedTab === 'all' ? 'true' : undefined}
+              onClick={() => {
+                setMobileFeedTab('all');
+                setVisibleCount(INITIAL_BATCH_COUNT);
+                if (selectedCategory !== 'All') {
+                  handleCategorySelect('All');
+                }
+                window.scrollTo({ top: 0, behavior: 'instant' });
+              }}
+              className={`relative py-2.5 text-[13px] tracking-wide transition-colors cursor-pointer flex items-center justify-center ${
+                mobileFeedTab === 'all'
+                  ? 'font-extrabold text-slate-900 dark:text-white'
+                  : 'font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <span>{isHindi ? 'सभी' : 'All'}</span>
+              {mobileFeedTab === 'all' && (
+                <span className="absolute bottom-0 left-1/4 right-1/4 h-[2.5px] rounded-full bg-slate-900 dark:bg-white" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              aria-current={mobileFeedTab === 'following' ? 'true' : undefined}
+              onClick={() => {
+                setMobileFeedTab('following');
+                setVisibleCount(INITIAL_BATCH_COUNT);
+                window.scrollTo({ top: 0, behavior: 'instant' });
+              }}
+              className={`relative py-2.5 text-[13px] tracking-wide transition-colors cursor-pointer flex items-center justify-center ${
+                mobileFeedTab === 'following'
+                  ? 'font-extrabold text-slate-900 dark:text-white'
+                  : 'font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <span>{isHindi ? 'फ़ॉलोइंग' : 'Following'}</span>
+              {mobileFeedTab === 'following' && (
+                <span className="absolute bottom-0 left-1/4 right-1/4 h-[2.5px] rounded-full bg-slate-900 dark:bg-white" />
+              )}
+            </button>
+          </div>
+
+          {/* Desktop Only: Left Scroll Button with Gradient Fade */}
           {canScrollLeft && (
-            <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center pr-3 pl-2 bg-gradient-to-r from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]/95">
+            <div className="hidden md:flex absolute left-0 top-0 bottom-0 z-10 items-center pr-3 pl-2 bg-gradient-to-r from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]/95">
               <button
                 type="button"
                 onClick={() => scrollFilter('left')}
@@ -507,13 +568,13 @@ export const Home: React.FC = () => {
             </div>
           )}
 
-          {/* Category Chips Container */}
+          {/* Desktop Only: Category Chips Container */}
           <div 
             ref={filterScrollRef}
             onScroll={checkFilterScroll}
             data-no-scrollbar="true"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            className="flex items-center gap-2 overflow-x-auto scrollbar-none no-scrollbar py-2.5 px-0.5 scroll-smooth select-none"
+            className="hidden md:flex items-center gap-2 overflow-x-auto scrollbar-none no-scrollbar py-2.5 px-0.5 scroll-smooth select-none"
           >
             {categoriesList.map((cat) => {
               const isSelected = selectedCategory === cat;
@@ -536,9 +597,9 @@ export const Home: React.FC = () => {
             })}
           </div>
 
-          {/* Right Scroll Button with Gradient Fade */}
+          {/* Desktop Only: Right Scroll Button with Gradient Fade */}
           {canScrollRight && (
-            <div className="absolute right-0 top-0 bottom-0 z-10 flex items-center pl-3 pr-2 bg-gradient-to-l from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]/95">
+            <div className="hidden md:flex absolute right-0 top-0 bottom-0 z-10 items-center pl-3 pr-2 bg-gradient-to-l from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]/95">
               <button
                 type="button"
                 onClick={() => scrollFilter('right')}
@@ -553,6 +614,15 @@ export const Home: React.FC = () => {
       </div>
 
       {/* Main Home Feed Content */}
+      {isFollowingFeed ? (
+        <Subscriptions
+          embedded
+          onSwitchToAll={() => {
+            setMobileFeedTab('all');
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          }}
+        />
+      ) : (
       <div className="p-4 md:p-6 space-y-7 max-w-7xl mx-auto">
         {/* 1. Recommended Videos Section (Row 1) */}
         <div className="space-y-4">
@@ -560,8 +630,8 @@ export const Home: React.FC = () => {
           <div className="flex items-center gap-2">
             <Flame className="w-5 h-5 text-red-500 fill-red-500 shrink-0" />
             <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
-              {isHindi 
-                ? (selectedCategory === 'All' ? 'अनुशंसित वीडियो' : `${categoryHindiMap[selectedCategory] || selectedCategory} वीडियो`) 
+              {isHindi
+                ? (selectedCategory === 'All' ? 'अनुशंसित वीडियो' : `${categoryHindiMap[selectedCategory] || selectedCategory} वीडियो`)
                 : (selectedCategory === 'All' ? 'Recommended Videos' : `${selectedCategory} Videos`)}
             </h2>
           </div>
@@ -761,8 +831,8 @@ export const Home: React.FC = () => {
           </span>
         </div>
       )}
-
       </div>
+      )}
     </div>
   );
 };

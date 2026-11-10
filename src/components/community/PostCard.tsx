@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CommunityPost, PostComment } from '../../types';
 import { postService } from '../../services/postService';
+import { subscriptionService } from '../../services/subscriptionService';
 import { useApp } from '../../context/AppContext';
 import { useRouter } from '../../hooks/useRouter';
 import { UserAvatar } from '../UserAvatar';
@@ -26,13 +27,14 @@ import {
 interface PostCardProps {
   post: CommunityPost;
   onPostDeleted?: (postId: string) => void;
+  showFollowButton?: boolean;
   className?: string;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, className = '' }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFollowButton = false, className = '' }) => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { navigate } = useRouter();
-  const { isHindi } = useTranslation();
+  const { t, isHindi } = useTranslation();
 
   // Reaction states
   const [likesCount, setLikesCount] = useState(post.likesCount || 0);
@@ -61,7 +63,54 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
   const menuContainerRef = React.useRef<HTMLDivElement>(null);
 
   const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
-  const isAuthor = Boolean(activeUid && activeUid === post.authorId);
+  const currentUsername = (currentUserProfile?.username || '').trim().toLowerCase();
+  const postUsername = (post.authorUsername || '').trim().toLowerCase();
+  const isAuthor = Boolean(
+    (activeUid && activeUid === post.authorId) ||
+    (currentUsername && postUsername && currentUsername === postUsername)
+  );
+  const canShowFollow = Boolean(showFollowButton && post.authorId && !isAuthor);
+
+  const [following, setFollowing] = useState<boolean>(() => {
+    if (!activeUid || !post.authorId || isAuthor) return false;
+    return subscriptionService.isSubscribedSync(activeUid, post.authorId, post.authorUsername);
+  });
+  const [togglingFollow, setTogglingFollow] = useState(false);
+
+  useEffect(() => {
+    if (!activeUid || !post.authorId || isAuthor) {
+      setFollowing(false);
+      return;
+    }
+    setFollowing(subscriptionService.isSubscribedSync(activeUid, post.authorId, post.authorUsername));
+    let cancelled = false;
+    if (currentUser?.uid) {
+      subscriptionService
+        .isSubscribed(currentUser.uid, post.authorId, post.authorUsername)
+        .then((res) => {
+          if (!cancelled) setFollowing(res);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [activeUid, currentUser?.uid, post.authorId, post.authorUsername, isAuthor]);
+
+  useEffect(() => {
+    const handleSubChanged = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail;
+      if (!detail) return;
+      const cleanAuthorUsername = (post.authorUsername || '').trim().toLowerCase();
+      const matchesId = detail.creatorId === post.authorId || detail.rawCreatorId === post.authorId;
+      const matchesUsername = cleanAuthorUsername && detail.creatorUsername && detail.creatorUsername === cleanAuthorUsername;
+      if (matchesId || matchesUsername) {
+        setFollowing(Boolean(detail.subscribed));
+      }
+    };
+    window.addEventListener('socialindia:subscription_changed', handleSubChanged);
+    return () => window.removeEventListener('socialindia:subscription_changed', handleSubChanged);
+  }, [post.authorId, post.authorUsername]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -215,6 +264,55 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
     }
   };
 
+  const handleFollowToggle = async () => {
+    if (!currentUser) {
+      addToast(isHindi ? 'फ़ॉलो करने के लिए कृपया साइन इन करें।' : 'Please sign in to follow this creator.', 'info');
+      navigate('signin');
+      return;
+    }
+    if (isAuthor || togglingFollow || !post.authorId) return;
+
+    setTogglingFollow(true);
+    const previous = following;
+    const next = !previous;
+    setFollowing(next);
+
+    try {
+      const res = await subscriptionService.toggleSubscription(
+        currentUser.uid,
+        post.authorId,
+        {
+          username: post.authorUsername,
+          displayName: post.authorDisplayName,
+          photoURL: post.authorPhotoURL
+        },
+        next
+      );
+      setFollowing(res);
+      if (res) {
+        addToast(
+          isHindi
+            ? `${post.authorDisplayName || post.authorUsername} को फ़ॉलो किया गया!`
+            : `Following ${post.authorDisplayName || post.authorUsername}!`,
+          'success'
+        );
+      } else {
+        addToast(
+          isHindi
+            ? `${post.authorDisplayName || post.authorUsername} को अनफ़ॉलो किया गया`
+            : `Unfollowed ${post.authorDisplayName || post.authorUsername}`,
+          'info'
+        );
+      }
+    } catch (err) {
+      console.warn('Explore post follow toggle failed:', err);
+      setFollowing(previous);
+      addToast(isHindi ? 'फ़ॉलो अपडेट करने में समस्या हुई।' : 'Failed to update follow status.', 'error');
+    } finally {
+      setTogglingFollow(false);
+    }
+  };
+
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
@@ -299,40 +397,63 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, classNa
           </div>
         </div>
 
-        {/* 3-dots Menu */}
-        <div ref={menuContainerRef} className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors cursor-pointer"
-            title="Options"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
+        {/* Follow Button (for other users on Explore) & 3-dots Menu */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {canShowFollow && (
+            <button
+              type="button"
+              onClick={handleFollowToggle}
+              disabled={togglingFollow}
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full font-extrabold text-xs tracking-wide transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-60 flex items-center gap-1.5 shrink-0 border ${
+                following ? 'si-btn-following' : 'si-btn-follow'
+              }`}
+            >
+              {following ? (
+                <>
+                  <Check className="w-3.5 h-3.5 si-btn-following-check stroke-[3]" />
+                  <span>{t('action_subscribed', 'Following')}</span>
+                </>
+              ) : (
+                <span>{t('action_subscribe', 'Follow')}</span>
+              )}
+            </button>
+          )}
 
-          {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-              <button
-                type="button"
-                onClick={handleShare}
-                className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 text-left cursor-pointer"
-              >
-                <Share2 className="w-3.5 h-3.5 text-slate-500" />
-                <span>{isHindi ? 'शेयर करें' : 'Share'}</span>
-              </button>
+          {/* 3-dots Menu */}
+          <div ref={menuContainerRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 transition-colors cursor-pointer"
+              title="Options"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
 
-              {isAuthor && (
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-30 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                 <button
                   type="button"
-                  onClick={handleRequestDeletePost}
-                  className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 text-left cursor-pointer"
+                  onClick={handleShare}
+                  className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 text-left cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                  <span>{isHindi ? 'पोस्ट हटाएं' : 'Delete Post'}</span>
+                  <Share2 className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{isHindi ? 'शेयर करें' : 'Share'}</span>
                 </button>
-              )}
-            </div>
-          )}
+
+                {isAuthor && (
+                  <button
+                    type="button"
+                    onClick={handleRequestDeletePost}
+                    className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 text-left cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                    <span>{isHindi ? 'पोस्ट हटाएं' : 'Delete Post'}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

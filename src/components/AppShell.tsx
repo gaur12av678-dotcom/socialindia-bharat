@@ -100,6 +100,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const { route, navigate } = useRouter();
   const isShortsPage = route.path === 'shorts';
   const isWatchPage = route.path === 'watch';
+  const isSettingsPage = route.path === 'settings';
 
   // Mobile bottom bar & tools hidden on:
   // 1. Settings ('settings')
@@ -435,7 +436,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
       {/* HEADER / NAVIGATION BAR */}
       <header className={`px-2.5 sm:px-4 h-14 items-center justify-between gap-2 max-w-full relative overflow-visible transition-all duration-300 z-40 safe-bottom ${
-            isWatchPage
+            isWatchPage || isSettingsPage
               ? 'hidden md:flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
               : isShortsPage 
                 ? 'hidden md:flex md:sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800 shadow-none' 
@@ -1617,34 +1618,23 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </button>
 
           <button
-            onClick={() => triggerProtectedAction(() => navigate('subscriptions'))}
-            aria-current={route.path === 'subscriptions' ? 'page' : undefined}
+            type="button"
+            onClick={() => navigate('explore')}
+            aria-current={route.path === 'explore' || route.path === 'community' ? 'page' : undefined}
             className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 pt-2 pb-1 text-[11px] font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 active:scale-[0.97] ${
               isShortsPage
                 ? 'text-white/65 hover:bg-white/10 hover:text-white'
-                : route.path === 'subscriptions'
+                : route.path === 'explore' || route.path === 'community'
                   ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/45 dark:text-blue-300'
                   : 'text-slate-500 hover:bg-slate-100/80 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-800/70 dark:hover:text-slate-100'
             }`}
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className={`h-[21px] w-[21px] transition-transform duration-200 ${
-                route.path === 'subscriptions' && !isShortsPage
-                  ? 'text-blue-600 dark:text-blue-400'
-                  : isShortsPage
-                    ? 'text-white/65'
-                    : 'text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              {route.path === 'subscriptions' ? (
-                <path d="M20 8H4V6h16v2zm-2-6H6v2h12V2zm4 10v8c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2v-8c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2zm-12 7l6-3.5L10 12v7z" />
-              ) : (
-                <path d="M18.7 8.7H5.3V7h13.4v1.7zm-1.7-5H7v1.7h10V3.7zm3.3 8.3v8c0 .9-.8 1.7-1.7 1.7H5.7c-.9 0-1.7-.8-1.7-1.7v-8c0-.9.8-1.7 1.7-1.7h12.9c1 0 1.7.8 1.7 1.7zm-1.7 0H5.7v8h12.9v-8zm-7.6 1.7l4.5 2.3-4.5 2.3v-4.6z" />
-              )}
-            </svg>
-            <span className="text-[11px] font-semibold leading-none">{t('nav_subscriptions', 'Subscriptions')}</span>
+            <Globe className={`h-[21px] w-[21px] transition-transform duration-200 ${
+              (route.path === 'explore' || route.path === 'community') && !isShortsPage
+                ? 'stroke-[2.4]'
+                : ''
+            }`} />
+            <span className="text-[11px] font-semibold leading-none">{isHindi ? 'एक्सप्लोर' : 'Explore'}</span>
           </button>
 
           {/* You Tab */}

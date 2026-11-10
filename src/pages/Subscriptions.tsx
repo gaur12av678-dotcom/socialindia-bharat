@@ -37,7 +37,12 @@ type SubscriptionsFilter = 'all' | 'today' | 'videos' | 'shorts' | 'live' | 'con
 type ViewMode = 'grid' | 'list';
 type BellState = 'all' | 'personalized' | 'none';
 
-export const Subscriptions: React.FC = () => {
+interface SubscriptionsProps {
+  embedded?: boolean;
+  onSwitchToAll?: () => void;
+}
+
+export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, onSwitchToAll }) => {
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
@@ -110,7 +115,7 @@ export const Subscriptions: React.FC = () => {
 
   // Fetch subscriptions and feed in background
   useEffect(() => {
-    if (!currentUser) return;
+    if (!activeUid) return;
 
     let isMounted = true;
 
@@ -119,7 +124,9 @@ export const Subscriptions: React.FC = () => {
         setLoading(true);
       }
       try {
-        const subs = await subscriptionService.getSubscriptions(currentUser.uid);
+        const subs = currentUser?.uid
+          ? await subscriptionService.getSubscriptions(currentUser.uid)
+          : subscriptionService.getCachedSubscriptions(activeUid);
         if (!isMounted) return;
         setFollowedCreators(subs);
 
@@ -149,10 +156,16 @@ export const Subscriptions: React.FC = () => {
 
     loadSubscriptionsFeed();
 
+    const handleSubChanged = () => {
+      loadSubscriptionsFeed();
+    };
+    window.addEventListener('socialindia:subscription_changed', handleSubChanged);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('socialindia:subscription_changed', handleSubChanged);
     };
-  }, [currentUser]);
+  }, [activeUid, currentUser?.uid]);
 
   // Unsubscribe handler inside Manage Modal
   const handleUnsubscribe = async (creatorId: string, creatorName: string) => {
@@ -271,7 +284,7 @@ export const Subscriptions: React.FC = () => {
   // =========================================================================
   // VIEW: NOT SIGNED IN (YouTube Authentic Empty State)
   // =========================================================================
-  if (!currentUser) {
+  if (!activeUid) {
     return (
       <div className="min-h-[75vh] flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white dark:bg-[#181818] border border-slate-200 dark:border-slate-800 rounded-[28px] p-8 sm:p-10 text-center space-y-5 shadow-xs">
@@ -337,7 +350,7 @@ export const Subscriptions: React.FC = () => {
             </button>
 
             <button
-              onClick={() => navigate('home')}
+              onClick={() => (onSwitchToAll ? onSwitchToAll() : navigate('home'))}
               className="h-11 px-5 rounded-full border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
             >
               {isHindi ? 'होमपेज पर जाएं' : 'Go to Home'}
@@ -354,7 +367,7 @@ export const Subscriptions: React.FC = () => {
       {/* ========================================================================= */}
       {/* 1. YOUTUBE TOP SUB CHANNELS CAROUSEL (Mobile & Web)                       */}
       {/* ========================================================================= */}
-      <section className="bg-white dark:bg-[#121212] border-b border-slate-200 dark:border-slate-800/80 sticky top-14 sm:top-16 z-30 shadow-xs">
+      <section className={`bg-white dark:bg-[#121212] border-b border-slate-200 dark:border-slate-800/80 shadow-xs ${embedded ? 'relative z-10' : 'sticky top-14 sm:top-16 z-30'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 overflow-x-auto no-scrollbar">
           
           {/* "All" Avatar Button */}
@@ -519,7 +532,7 @@ export const Subscriptions: React.FC = () => {
       {/* ========================================================================= */}
       {/* 3. SUBSCRIPTIONS VIDEO FEED                                               */}
       {/* ========================================================================= */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-3">
         
         {loading && videos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 space-y-3">
@@ -766,7 +779,7 @@ export const Subscriptions: React.FC = () => {
           )
         )}
 
-      </main>
+      </div>
 
       {/* ========================================================================= */}
       {/* 4. YOUTUBE "MANAGE CHANNELS" MODAL (Notifications & Unsubscribe)          */}
