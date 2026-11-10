@@ -101,21 +101,20 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const isShortsPage = route.path === 'shorts';
   const isWatchPage = route.path === 'watch';
   const isSettingsPage = route.path === 'settings';
+  const isProfilePage = route.path === 'creator' || route.path === 'channel' || route.path === 'profile-menu';
 
   // Mobile bottom bar & tools hidden on:
   // 1. Settings ('settings')
   // 2. Downloads ('downloads')
-  // 3. User Profile / Channel ('creator')
-  // 4. Search ('search' and when mobile search bar is active)
-  // 5. Advertising ('advertising', 'ad-info', 'ad')
-  // 6. GoPro ('gopro', 'pro')
-  // 7. Admin Hub ('admin')
-  // 8. Watch ('watch')
+  // 3. Search ('search' and when mobile search bar is active)
+  // 4. Advertising ('advertising', 'ad-info', 'ad')
+  // 5. GoPro ('gopro', 'pro')
+  // 6. Admin Hub ('admin')
+  // 7. Watch ('watch')
   const shouldHideBottomNav = 
     isWatchPage ||
     route.path === 'settings' ||
     route.path === 'downloads' ||
-    route.path === 'creator' ||
     route.path === 'search' ||
     route.path === 'advertising' ||
     route.path === 'ad-info' ||
@@ -436,7 +435,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
       {/* HEADER / NAVIGATION BAR */}
       <header className={`px-2.5 sm:px-4 h-14 items-center justify-between gap-2 max-w-full relative overflow-visible transition-all duration-300 z-40 safe-bottom ${
-            isWatchPage || isSettingsPage
+            isProfilePage || isWatchPage || isSettingsPage
               ? 'hidden md:flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
               : isShortsPage 
                 ? 'hidden md:flex md:sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800 shadow-none' 

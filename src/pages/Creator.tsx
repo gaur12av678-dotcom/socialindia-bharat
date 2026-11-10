@@ -891,7 +891,19 @@ export const CreatorProfile: React.FC = () => {
         </div>
       ) : (
         /* 2. CHANNEL WITHOUT BANNER — EXACT YOUTUBE STYLE */
-        <div className="pt-2 pb-4">
+        <div className="pt-1 pb-4">
+          {/* Mobile Back Button */}
+          <div className="md:hidden pb-3">
+            <button
+              onClick={() => navigate('home')}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700 cursor-pointer shadow-xs active:scale-95"
+              title="Back to Home"
+            >
+              <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+              <span>{isHindi ? 'होम' : 'Home'}</span>
+            </button>
+          </div>
+
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8 text-center sm:text-left">
             {/* Circular Avatar on Left */}
             <div className="w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full overflow-hidden shrink-0 border-2 border-slate-200 dark:border-slate-700 shadow-md relative group bg-slate-100 dark:bg-slate-800">

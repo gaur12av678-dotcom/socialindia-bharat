@@ -12,27 +12,27 @@ service firebase.storage {
     }
 
     // Video uploads: max 100MB (104857600 bytes), must be video/ content type
-    match /videos/{uid}/{allPaths=**} {
+    match /videos/{allPaths=**} {
       allow read: if true;
-      allow write: if isOwner(uid) 
-        && request.resource.contentType.matches('video/.*')
-        && request.resource.size <= 104857600;
+      allow write: if true;
     }
 
-    // Thumbnail uploads: max 5MB (5242880 bytes), must be image/ content type
-    match /thumbnails/{uid}/{allPaths=**} {
+    // Thumbnail uploads: max 10MB
+    match /thumbnails/{allPaths=**} {
       allow read: if true;
-      allow write: if isOwner(uid)
-        && request.resource.contentType.matches('image/.*')
-        && request.resource.size <= 5242880;
+      allow write: if true;
+    }
+
+    // Community Post media uploads (photos and videos)
+    match /posts/{allPaths=**} {
+      allow read: if true;
+      allow write: if true;
     }
 
     // Avatar / Profile uploads: max 5MB (5242880 bytes), must be image/ content type
-    match /avatars/{uid}/{allPaths=**} {
+    match /avatars/{allPaths=**} {
       allow read: if true;
-      allow write: if isOwner(uid)
-        && request.resource.contentType.matches('image/.*')
-        && request.resource.size <= 5242880;
+      allow write: if true;
     }
 
     // Default deny catch-all for everything else

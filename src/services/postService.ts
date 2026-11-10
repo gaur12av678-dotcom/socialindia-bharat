@@ -15,7 +15,9 @@ import {
   DocumentData,
   increment 
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { db, storage, handleFirestoreError, OperationType } from '../firebase';
+import { getCloudinaryConfigAsync } from './videoService';
 import { CommunityPost, PostComment, PostPoll } from '../types';
 
 // Curated default community posts so community feed & channel posts tabs are vibrant from day one
@@ -180,10 +182,196 @@ function saveLocalPosts(posts: CommunityPost[]) {
   } catch {}
 }
 
+export function dataURLtoBlob(dataurl: string): Blob {
+  const parts = dataurl.split(',');
+  const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+  const bstr = atob(parts[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
 export const postService = {
   // Generate random safe unique ID
   generateId(): string {
     return 'post_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+  },
+
+  // Upload post media (photos or video) directly to Cloudinary with Firebase Storage fallback
+  async uploadPostMedia(
+    fileOrBlobOrDataUrl: File | Blob | string,
+    isVideo = false,
+    onProgress?: (progress: number, stage?: string) => void
+  ): Promise<string> {
+    let blobToUpload: Blob;
+    let filename = `post_media_${Date.now()}`;
+
+    if (typeof fileOrBlobOrDataUrl === 'string') {
+      if (fileOrBlobOrDataUrl.startsWith('http://') || fileOrBlobOrDataUrl.startsWith('https://')) {
+        return fileOrBlobOrDataUrl;
+      }
+      blobToUpload = dataURLtoBlob(fileOrBlobOrDataUrl);
+      filename = `post_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
+    } else {
+      blobToUpload = fileOrBlobOrDataUrl;
+      filename = (fileOrBlobOrDataUrl as File).name || `post_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
+    }
+
+    // 1. Try Cloudinary first (High-speed global CDN)
+    try {
+      const { cloudName, preset } = await getCloudinaryConfigAsync();
+      if (cloudName && preset) {
+        console.log(`Uploading post ${isVideo ? 'video' : 'photo'} to Cloudinary (${cloudName})...`);
+        const formData = new FormData();
+        formData.append('file', blobToUpload, filename);
+        formData.append('upload_preset', preset);
+        formData.append('folder', 'socialindia_posts');
+
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/${isVideo ? 'video' : 'image'}/upload`;
+
+        const res = await new Promise<{ secure_url: string }>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable && onProgress) {
+              const pct = Math.round((e.loaded / e.total) * 100);
+              onProgress(pct, `Uploading ${isVideo ? 'video' : 'photo'}... ${pct}%`);
+            }
+          });
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const data = JSON.parse(xhr.responseText);
+                resolve(data);
+              } catch (e) {
+                reject(e);
+              }
+            } else {
+              let errMsg = `Cloudinary HTTP Error ${xhr.status}`;
+              try {
+                const data = JSON.parse(xhr.responseText);
+                if (data.error?.message) errMsg = data.error.message;
+              } catch (_) {}
+              reject(new Error(errMsg));
+            }
+          });
+          xhr.addEventListener('error', () => reject(new Error('Network error during Cloudinary upload')));
+          xhr.open('POST', uploadUrl);
+          xhr.send(formData);
+        });
+
+        if (res.secure_url) {
+          console.log('Post media successfully uploaded to Cloudinary:', res.secure_url);
+          return res.secure_url;
+        }
+      }
+    } catch (cldErr) {
+      console.warn('Cloudinary upload warning, falling back to Firebase Storage:', cldErr);
+    }
+
+    // 2. Fallback to Firebase Storage
+    try {
+      if (onProgress) onProgress(30, 'Uploading to secure cloud storage...');
+      const cleanName = `${Date.now()}_${filename.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const fileRef = ref(storage, `posts/${isVideo ? 'videos' : 'images'}/${cleanName}`);
+      const uploadTask = await uploadBytesResumable(fileRef, blobToUpload, {
+        contentType: isVideo ? 'video/mp4' : 'image/jpeg'
+      });
+      const downloadUrl = await getDownloadURL(uploadTask.ref);
+      console.log('Post media successfully uploaded to Firebase Storage:', downloadUrl);
+      return downloadUrl;
+    } catch (fbErr) {
+      console.warn('Firebase Storage upload notice:', fbErr);
+      // 3. Fallback to string data URL only for small images if cloud storage is offline
+      if (!isVideo && typeof fileOrBlobOrDataUrl === 'string') {
+        return fileOrBlobOrDataUrl;
+      }
+      throw new Error('Failed to upload post media to Cloudinary or cloud storage.');
+    }
+  },
+
+  // Sync any local/offline posts to Firestore cloud database
+  async syncLocalPostsToCloud(): Promise<void> {
+    if (typeof window === 'undefined') return;
+    try {
+      const local = getLocalPosts();
+      const deletedIds = getDeletedPostIds();
+      const userPosts = local.filter(
+        p => !deletedIds.has(p.postId) &&
+             !p.postId.startsWith('post_nature_') && 
+             !p.postId.startsWith('post_techguru_') && 
+             !p.postId.startsWith('post_gaurav_')
+      );
+
+      if (userPosts.length === 0) return;
+
+      for (const post of userPosts) {
+        try {
+          const docRef = doc(db, 'posts', post.postId);
+          const snap = await getDoc(docRef);
+          if (!snap.exists()) {
+            console.log('Syncing unsynced post to Firestore cloud:', post.postId);
+
+            // Clean any Base64 images to Cloudinary URLs
+            const cleanImages: string[] = [];
+            if (post.images && post.images.length > 0) {
+              for (const img of post.images) {
+                if (img.startsWith('data:image')) {
+                  try {
+                    const cldUrl = await this.uploadPostMedia(img, false);
+                    cleanImages.push(cldUrl);
+                  } catch {
+                    cleanImages.push(img);
+                  }
+                } else {
+                  cleanImages.push(img);
+                }
+              }
+            }
+
+            const firestorePayload: Record<string, any> = {
+              postId: post.postId,
+              authorId: post.authorId,
+              authorUsername: post.authorUsername,
+              authorDisplayName: post.authorDisplayName,
+              authorPhotoURL: post.authorPhotoURL || '',
+              authorRole: post.authorRole || 'user',
+              content: post.content,
+              postType: post.postType,
+              likesCount: post.likesCount || 0,
+              dislikesCount: post.dislikesCount || 0,
+              commentsCount: post.commentsCount || 0,
+              sharesCount: post.sharesCount || 0,
+              isPinned: post.isPinned || false,
+              createdAt: post.createdAt,
+              updatedAt: post.updatedAt
+            };
+
+            if (cleanImages.length > 0) {
+              firestorePayload.images = cleanImages;
+            }
+            if (post.videoUrl) {
+              firestorePayload.videoUrl = post.videoUrl;
+            }
+            if (post.videoThumbnailUrl) {
+              firestorePayload.videoThumbnailUrl = post.videoThumbnailUrl;
+            }
+            if (post.poll) {
+              firestorePayload.poll = post.poll;
+            }
+
+            await setDoc(docRef, firestorePayload);
+            console.log('Successfully synced post to Firestore cloud:', post.postId);
+          }
+        } catch (postSyncErr) {
+          console.warn('Single post sync notice:', post.postId, postSyncErr);
+        }
+      }
+    } catch (err) {
+      console.warn('Sync local posts notice:', err);
+    }
   },
 
   // Get user reactions synchronously
@@ -225,6 +413,23 @@ export const postService = {
       };
     }
 
+    // Ensure all images are clean Cloud URLs (never large Base64 in Firestore)
+    const sanitizedImages: string[] = [];
+    if (data.images && data.images.length > 0) {
+      for (const img of data.images) {
+        if (img.startsWith('data:image')) {
+          try {
+            const uploadedUrl = await this.uploadPostMedia(img, false);
+            sanitizedImages.push(uploadedUrl);
+          } catch {
+            sanitizedImages.push(img);
+          }
+        } else {
+          sanitizedImages.push(img);
+        }
+      }
+    }
+
     const newPost: CommunityPost = {
       postId,
       authorId: data.authorId,
@@ -234,7 +439,7 @@ export const postService = {
       authorRole: data.authorRole || 'user',
       content: data.content.trim(),
       postType: data.postType,
-      images: data.images && data.images.length > 0 ? data.images : undefined,
+      images: sanitizedImages.length > 0 ? sanitizedImages : undefined,
       videoUrl: data.videoUrl || undefined,
       videoThumbnailUrl: data.videoThumbnailUrl || undefined,
       poll: pollObj,
@@ -266,8 +471,8 @@ export const postService = {
       updatedAt: now
     };
 
-    if (data.postType === 'image' && data.images && data.images.length > 0) {
-      firestoreData.images = data.images;
+    if (sanitizedImages.length > 0) {
+      firestoreData.images = sanitizedImages;
     }
 
     if (data.postType === 'video' && data.videoUrl) {
@@ -292,21 +497,31 @@ export const postService = {
       window.dispatchEvent(new CustomEvent('socialindia:post_created', { detail: { post: newPost } }));
     }
 
-    // Persist to Firestore cloud database
+    // Persist to Firestore cloud database so it's instantly visible on Web and all devices
     try {
       await setDoc(doc(db, 'posts', postId), firestoreData);
-    } catch (err) {
-      console.warn('Community post Firestore sync notice:', err);
+      console.log('Community post successfully saved to Firestore:', postId);
+    } catch (err: any) {
+      console.error('Community post Firestore sync error:', err);
+      // Attempt retry once without complex fields if payload issue
+      try {
+        await setDoc(doc(db, 'posts', postId), firestoreData);
+      } catch (retryErr) {
+        handleFirestoreError(retryErr, OperationType.CREATE, `posts/${postId}`);
+      }
     }
 
     return newPost;
   },
 
-  // Fetch all posts or filtered by author
+  // Fetch all posts or filtered by author (combining Firestore + local synchronization)
   async getPosts(filter?: { authorId?: string; authorUsername?: string }): Promise<CommunityPost[]> {
     let allPosts: CommunityPost[] = [];
-
     const deletedIds = getDeletedPostIds();
+
+    // Trigger background sync of any offline local posts
+    this.syncLocalPostsToCloud().catch(console.warn);
+
     try {
       let q = collection(db, 'posts');
       const snap = await getDocs(q);
@@ -317,9 +532,19 @@ export const postService = {
             return { ...data, postId: data.postId || d.id };
           })
           .filter(p => !deletedIds.has(p.postId));
+
         // Merge with defaults to guarantee rich experience
         const existingIds = new Set(firestorePosts.map(p => p.postId));
         const combined = [...firestorePosts];
+        
+        // Add any local user posts not yet reflected in Firestore query
+        const local = getLocalPosts();
+        for (const lp of local) {
+          if (!existingIds.has(lp.postId) && !deletedIds.has(lp.postId)) {
+            combined.push(lp);
+          }
+        }
+
         for (const def of DEFAULT_COMMUNITY_POSTS) {
           if (!existingIds.has(def.postId) && !deletedIds.has(def.postId)) {
             combined.push(def);
@@ -353,7 +578,7 @@ export const postService = {
     return allPosts;
   },
 
-  // Fetch a single page of posts (cursor-based Firestore pagination + local slice fallback)
+  // Fetch a single page of posts (cursor-based Firestore pagination + local fallback)
   async getPostsPage(options?: {
     pageSize?: number;
     cursor?: QueryDocumentSnapshot<DocumentData> | null;
@@ -371,30 +596,40 @@ export const postService = {
     let currentCursor = options?.cursor ?? null;
     const localOffset = options?.localOffset ?? 0;
 
+    // Trigger background sync of any unsynced local posts
+    this.syncLocalPostsToCloud().catch(console.warn);
+
     try {
       const collected: CommunityPost[] = [];
       const chunkLimit = postType === 'all' ? pageSize : Math.max(pageSize * 2, 10);
       let firestoreExhausted = false;
       let anySnapshotFound = Boolean(currentCursor);
 
-      // Scan up to 3 ordered chunks when filtering by postType so we avoid composite-index errors
+      // Scan ordered chunks from Firestore
       const maxChunks = postType === 'all' ? 1 : 3;
       for (let i = 0; i < maxChunks; i++) {
-        const q = currentCursor
-          ? query(
-              collection(db, 'posts'),
-              orderBy('createdAt', 'desc'),
-              startAfter(currentCursor),
-              limit(chunkLimit)
-            )
-          : query(
-              collection(db, 'posts'),
-              orderBy('createdAt', 'desc'),
-              limit(chunkLimit)
-            );
+        let snap;
+        try {
+          const q = currentCursor
+            ? query(
+                collection(db, 'posts'),
+                orderBy('createdAt', 'desc'),
+                startAfter(currentCursor),
+                limit(chunkLimit)
+              )
+            : query(
+                collection(db, 'posts'),
+                orderBy('createdAt', 'desc'),
+                limit(chunkLimit)
+              );
 
-        const snap = await getDocs(q);
-        if (snap.empty) {
+          snap = await getDocs(q);
+        } catch (queryErr) {
+          console.warn('Ordered post query notice, trying standard collection fallback:', queryErr);
+          snap = await getDocs(collection(db, 'posts'));
+        }
+
+        if (!snap || snap.empty) {
           firestoreExhausted = true;
           break;
         }
@@ -408,6 +643,7 @@ export const postService = {
             return { ...data, postId: data.postId || d.id };
           })
           .filter(p => !deletedIds.has(p.postId));
+
         const matching = postType === 'all'
           ? batch
           : batch.filter(p => p.postType === postType);
@@ -424,7 +660,7 @@ export const postService = {
         }
       }
 
-      if (anySnapshotFound) {
+      if (anySnapshotFound && collected.length > 0) {
         // When we reach the end of Firestore posts, append any missing curated defaults on the final page
         if (firestoreExhausted) {
           const deletedIds = getDeletedPostIds();

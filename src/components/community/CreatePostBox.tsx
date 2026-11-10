@@ -192,9 +192,10 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
       let uploadedVideoUrl: string | undefined = undefined;
       let effectiveType: 'text' | 'image' | 'video' = images.length > 0 ? 'image' : 'text';
 
+      // 1. Upload Video to Cloudinary with Firebase fallback
       if (selectedVideoFile) {
         effectiveType = 'video';
-        setUploadStageText(isHindi ? 'वीडियो अपलोड हो रहा है... 0%' : 'Uploading video... 0%');
+        setUploadStageText(isHindi ? 'वीडियो क्लाउड पर अपलोड हो रहा है... 0%' : 'Uploading video to Cloudinary... 0%');
         const uploadRes = await videoService.uploadVideo(selectedVideoFile, (progress, stage) => {
           setUploadProgress(progress);
           setUploadStageText(stage || (isHindi ? `वीडियो अपलोड हो रहा है... ${progress}%` : `Uploading video... ${progress}%`));
@@ -202,7 +203,29 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
         uploadedVideoUrl = uploadRes.videoUrl;
       }
 
-      await postService.createPost({
+      // 2. Upload Photos to Cloudinary with Firebase fallback (Strictly prevents large Base64 in Firestore)
+      const uploadedImageUrls: string[] = [];
+      if (effectiveType === 'image' && images.length > 0) {
+        setUploadStageText(isHindi ? 'फोटो क्लाउड पर अपलोड हो रही है...' : 'Uploading photos to Cloudinary CDN...');
+        for (let i = 0; i < images.length; i++) {
+          const imgItem = images[i];
+          if (imgItem.startsWith('http://') || imgItem.startsWith('https://')) {
+            uploadedImageUrls.push(imgItem);
+          } else {
+            const cloudUrl = await postService.uploadPostMedia(imgItem, false, (pct) => {
+              setUploadProgress(pct);
+              setUploadStageText(
+                isHindi 
+                  ? `फोटो ${i + 1}/${images.length} अपलोड हो रही है... ${pct}%` 
+                  : `Uploading photo ${i + 1}/${images.length}... ${pct}%`
+              );
+            });
+            uploadedImageUrls.push(cloudUrl);
+          }
+        }
+      }
+
+      const createdPost = await postService.createPost({
         authorId: activeUser.uid,
         authorUsername: currentUserProfile?.username || (activeUser.displayName ? activeUser.displayName.trim().replace(/\s+/g, '').toLowerCase() : '') || activeUser.email?.split('@')[0] || activeUser.uid,
         authorDisplayName: currentUserProfile?.displayName || activeUser.displayName || currentUserProfile?.username || activeUser.email?.split('@')[0] || 'SocialIndia User',
@@ -210,12 +233,12 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
         authorRole: currentUserProfile?.role || 'user',
         content: finalContent,
         postType: effectiveType,
-        images: effectiveType === 'image' && images.length > 0 ? images : undefined,
+        images: effectiveType === 'image' && uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
         videoUrl: effectiveType === 'video' ? uploadedVideoUrl : undefined,
       });
 
       setStatusMsg({
-        text: isHindi ? '🎉 पोस्ट सफलतापूर्वक प्रकाशित हो गई!' : '🎉 Post published successfully!',
+        text: isHindi ? '🎉 पोस्ट सफलतापूर्वक प्रकाशित और सिंक हो गई!' : '🎉 Post published & synced to cloud successfully!',
         type: 'success'
       });
       setTimeout(() => setStatusMsg(null), 4000);
