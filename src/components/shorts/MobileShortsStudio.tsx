@@ -791,8 +791,8 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-black">
           
           {/* Live Camera Viewfinder */}
-          <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-black">
-            {/* The video element is ALWAYS mounted so liveVideoRef is ready and never unmounted */}
+          <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-black p-4">
+            {/* The video element is ALWAYS mounted and positioned absolute so it covers the background without pushing siblings */}
             <video
               ref={liveVideoRef}
               autoPlay
@@ -805,38 +805,38 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 liveVideoRef.current?.play().catch(console.warn);
               }}
               style={{ filter: activeFilter }}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${
+              className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-300 ${
                 facingMode === 'user' ? 'scale-x-[-1]' : ''
               } ${permissionState === 'granted' ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
             />
 
             {permissionState === 'denied' && (
-              <div className="max-w-xs p-6 text-center space-y-4 z-10 bg-slate-900/90 backdrop-blur-md rounded-3xl border border-white/10 mx-4">
-                <div className="w-14 h-14 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
-                  <AlertCircle className="w-8 h-8" />
+              <div className="relative z-10 w-full max-w-[320px] max-h-[75vh] overflow-y-auto scrollbar-none p-4 sm:p-5 text-center space-y-3 bg-slate-900/95 backdrop-blur-md rounded-2xl border border-white/10 mx-auto box-border shadow-2xl">
+                <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center mx-auto shrink-0">
+                  <AlertCircle className="w-6 h-6" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-base font-black text-white">
+                  <h4 className="text-sm sm:text-base font-black text-white leading-tight">
                     {isHindi ? 'कैमरा अनुमति आवश्यक है' : 'Camera Permission Required'}
                   </h4>
-                  <p className="text-xs text-slate-300 leading-relaxed">
+                  <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed break-words px-1">
                     {permissionError || (isHindi 
                       ? 'शॉर्ट्स रिकॉर्ड करने के लिए कैमरा और माइक अनुमति दें, या सीधे गैलरी से वीडियो चुनें।' 
                       : 'Please allow camera and mic permissions to record live, or select a video from your gallery.')}
                   </p>
                 </div>
-                <div className="space-y-2 pt-2">
+                <div className="space-y-2 pt-1 w-full">
                   <button
                     onClick={() => startCamera(facingMode)}
-                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all shadow-md"
+                    className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all shadow-md"
                   >
                     {isHindi ? 'पुनः प्रयास करें' : 'Try Again'}
                   </button>
                   <button
                     onClick={() => galleryInputRef.current?.click()}
-                    className="w-full py-2.5 bg-[#262626] hover:bg-[#363636] text-white border border-white/20 text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                    className="w-full py-2.5 px-3 bg-[#262626] hover:bg-[#363636] text-white border border-white/20 text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1.5"
                   >
-                    <ImageIcon className="w-4 h-4" />
+                    <ImageIcon className="w-4 h-4 shrink-0" />
                     <span>{isHindi ? 'गैलरी से वीडियो चुनें' : 'Choose from Gallery'}</span>
                   </button>
                 </div>
@@ -844,14 +844,14 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
             )}
 
             {permissionState !== 'granted' && permissionState !== 'denied' && (
-              <div className="flex flex-col items-center justify-center space-y-3 z-10 p-6 text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+              <div className="relative z-10 w-full max-w-[280px] flex flex-col items-center justify-center space-y-2.5 p-4 sm:p-5 text-center bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 mx-auto box-border">
+                <Loader2 className="w-7 h-7 animate-spin text-blue-500" />
                 <p className="text-xs font-bold text-slate-300">
                   {isHindi ? 'कैमरा शुरू हो रहा है...' : 'Starting camera...'}
                 </p>
                 <button
                   onClick={() => startCamera(facingMode)}
-                  className="mt-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[11px] font-bold text-white transition-all cursor-pointer"
+                  className="mt-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[11px] font-bold text-white transition-all cursor-pointer"
                 >
                   {isHindi ? 'पुनः कनेक्ट करें' : 'Reconnect Camera'}
                 </button>

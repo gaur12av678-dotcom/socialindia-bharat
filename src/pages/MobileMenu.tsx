@@ -409,34 +409,32 @@ export const MobileMenu: React.FC = () => {
             {isHindi ? 'क्रिएटर स्टूडियो व टूल्स' : 'Creator Studio & Tools'}
           </p>
 
-          {/* Dedicated High-Impact Creator Studio Banner Card */}
-          <div 
+          {/* YouTube-style Creator Studio Button */}
+          <button 
+            type="button"
             onClick={() => navigate('studio')}
-            className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-red-600 via-rose-600 to-indigo-600 text-white p-5 shadow-lg shadow-rose-500/15 cursor-pointer active:scale-98 transition-all group"
+            className="w-full flex items-center justify-between p-3.5 bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all cursor-pointer text-left shadow-xs active:scale-98 group"
           >
-            <div className="relative z-10 flex items-center justify-between">
-              <div className="space-y-1 max-w-[240px]">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-black uppercase tracking-wider">
-                  <Clapperboard className="w-3 h-3" />
-                  <span>Studio</span>
-                </div>
-                <h4 className="text-base font-black tracking-tight">
-                  {isHindi ? 'सोशल इंडिया क्रिएटर स्टूडियो' : 'SocialIndia Studio'}
-                </h4>
-                <p className="text-[11px] text-white/80 leading-relaxed font-medium">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Clapperboard className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                  {isHindi ? 'सोशल इंडिया स्टूडियो' : 'SocialIndia Studio'}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
                   {isHindi 
-                    ? 'एनालिटिक्स, वीडियो प्रबंधन, टिप्पणियां और कमाई देखें।' 
-                    : 'Manage videos, analytics, community comments & monetization.'}
+                    ? 'एनालिटिक्स, वीडियो प्रबंधन और कमाई' 
+                    : 'Analytics, video management & earnings'}
                 </p>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <ArrowRight className="w-6 h-6 stroke-[2.5]" />
-              </div>
             </div>
-            
-            {/* Decorative background shapes */}
-            <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-white/10 blur-xl pointer-events-none" />
-          </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="hidden sm:inline text-xs font-bold text-red-600 dark:text-red-400">Studio</span>
+              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+            </div>
+          </button>
 
           {/* Quick Creator Navigation Menu Items */}
           <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-2 space-y-1 shadow-xs">
