@@ -94,10 +94,22 @@ jobs:
             console.log('socialindia-96fa1');
           ")
           echo "Selected Project ID: $PROJECT_ID"
-          echo "{\"projects\":{\"default\":\"$PROJECT_ID\"}}" > .firebaserc
+          cat > .firebaserc <<EOF
+          {
+            "projects": { "default": "$PROJECT_ID" },
+            "targets": {
+              "$PROJECT_ID": {
+                "hosting": {
+                  "socialindia": ["socialindia"]
+                }
+              }
+            }
+          }
+          EOF
           cat > firebase.json <<'JSON'
           {
             "hosting": {
+              "target": "socialindia",
               "public": "dist",
               "ignore": [
                 "firebase.json",
@@ -220,9 +232,9 @@ jobs:
           ")
           echo "Deploying to Firebase project: $PROJECT_ID..."
 
-          firebase deploy --only hosting,firestore:rules,storage:rules --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
-          firebase deploy --only hosting,firestore:rules --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
-          firebase deploy --only hosting --project "$PROJECT_ID" $AUTH_ARGS --non-interactive
+          firebase deploy --only hosting:socialindia,firestore:rules,storage:rules --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
+          firebase deploy --only hosting:socialindia,firestore:rules --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
+          firebase deploy --only hosting:socialindia --project "$PROJECT_ID" $AUTH_ARGS --non-interactive
 
           rm -f sa_key.json
         env:
