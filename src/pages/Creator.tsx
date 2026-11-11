@@ -246,7 +246,7 @@ export const CreatorProfile: React.FC = () => {
       document.title = `${creator.displayName || creator.username}${handlePart} - SocialIndia`;
     }
     return () => {
-      document.title = 'SocialIndia';
+      document.title = 'SocialIndia – Connect, Share, Discover & Explore';
     };
   }, [creator?.displayName, creator?.username]);
 

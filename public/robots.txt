@@ -1,8 +1,26 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /settings
+Disallow: /history
+Disallow: /liked
+Disallow: /saved
+Disallow: /chat
+Disallow: /login
+Disallow: /signin
+Disallow: /signup
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
 
 User-agent: Googlebot
 Allow: /
+Disallow: /admin
+Disallow: /settings
+Disallow: /history
+Disallow: /liked
+Disallow: /saved
+Disallow: /chat
 
 User-agent: Googlebot-Image
 Allow: /
@@ -11,3 +29,5 @@ User-agent: Googlebot-Video
 Allow: /
 
 Sitemap: https://socialindia.web.app/sitemap_index.xml
+Sitemap: https://socialindia.web.app/sitemap.xml
+Sitemap: https://socialindia.web.app/video-sitemap.xml

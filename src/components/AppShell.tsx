@@ -413,7 +413,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   if (announcement.linkUrl?.startsWith('#/')) {
                     window.location.hash = announcement.linkUrl;
                   } else if (announcement.linkUrl) {
-                    window.open(announcement.linkUrl, '_blank');
+                    try {
+                      const a = document.createElement('a');
+                      a.href = announcement.linkUrl;
+                      a.target = '_blank';
+                      a.rel = 'noopener noreferrer';
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                    } catch {
+                      window.location.href = announcement.linkUrl;
+                    }
                   } else {
                     navigate('home');
                   }

@@ -54,7 +54,7 @@ function MainAppContent() {
     }
   }, [route.path, route.param]);
 
-  // Dynamically sync Canonical link and OpenGraph URL for Googlebot and SEO crawlers
+  // Dynamically sync Canonical link, robots tag, and Title for Googlebot and SEO crawlers
   useEffect(() => {
     try {
       const canonicalHref = route.path === 'home'
@@ -76,6 +76,44 @@ function MainAppContent() {
         document.head.appendChild(ogUrl);
       }
       ogUrl.setAttribute('content', canonicalHref);
+
+      // Protect private/authenticated pages from indexing
+      const privateRoutes = ['admin', 'settings', 'history', 'saved', 'liked', 'liked-videos', 'chat', 'login', 'signin', 'signup', 'register', 'forgot-password', 'reset-password'];
+      let robotsMeta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+      if (!robotsMeta) {
+        robotsMeta = document.createElement('meta');
+        robotsMeta.setAttribute('name', 'robots');
+        document.head.appendChild(robotsMeta);
+      }
+      if (privateRoutes.includes(route.path)) {
+        robotsMeta.setAttribute('content', 'noindex, nofollow');
+      } else {
+        robotsMeta.setAttribute('content', 'index, follow');
+      }
+
+      // Dynamic page titles for standard routes
+      const routeTitles: Record<string, string> = {
+        home: 'SocialIndia – Connect, Share, Discover & Explore',
+        trending: 'Trending Videos & Posts – SocialIndia',
+        explore: 'Community & Discussions – SocialIndia',
+        community: 'Community & Discussions – SocialIndia',
+        about: 'About Us – SocialIndia',
+        terms: 'Terms of Service – SocialIndia',
+        privacy: 'Privacy Policy – SocialIndia',
+        faq: 'Frequently Asked Questions – SocialIndia',
+        contact: 'Contact Us – SocialIndia',
+        advertising: 'SocialIndia Advertising – Promote Your Brand',
+        adinfo: 'Ad Transparency Center – SocialIndia',
+        gopro: 'SocialIndia Pro – Premium Creator Tools',
+        downloads: 'Download Mobile App – SocialIndia',
+        developers: 'Developer Portal – SocialIndia API',
+        guidelines: 'Community Guidelines – SocialIndia',
+        admin: 'Super Admin Workspace – SocialIndia',
+      };
+
+      if (routeTitles[route.path]) {
+        document.title = routeTitles[route.path];
+      }
     } catch {}
   }, [route.path, route.param]);
 

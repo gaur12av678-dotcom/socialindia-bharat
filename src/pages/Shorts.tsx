@@ -653,7 +653,7 @@ export const Shorts: React.FC = () => {
       document.title = `${activeShort.title}${creatorPart} | Clips - SocialIndia`;
     }
     return () => {
-      document.title = 'SocialIndia';
+      document.title = 'SocialIndia – Connect, Share, Discover & Explore';
     };
   }, [activeShort?.title, activeShort?.creatorDisplayName]);
 

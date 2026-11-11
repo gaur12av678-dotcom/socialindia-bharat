@@ -93,6 +93,20 @@ export const AdInfoPage: React.FC = () => {
     );
   }
 
+  const openExternalSafely = (url: string) => {
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch {
+      window.location.href = url;
+    }
+  };
+
   const handleOpenTargetVideo = () => {
     if (video) {
       navigate(`watch/${video.videoId}`);
@@ -100,7 +114,7 @@ export const AdInfoPage: React.FC = () => {
       const vidId = ad.ctaUrl.replace(/.*\/watch\//, '');
       navigate(`watch/${vidId}`);
     } else if (ad.ctaUrl) {
-      window.open(ad.ctaUrl, '_blank', 'noopener,noreferrer');
+      openExternalSafely(ad.ctaUrl);
     }
   };
 
@@ -109,7 +123,7 @@ export const AdInfoPage: React.FC = () => {
       adService.recordAdClick(ad.adId);
     }
     if (ad.ctaUrl && !ad.ctaUrl.includes('/watch/')) {
-      window.open(ad.ctaUrl, '_blank', 'noopener,noreferrer');
+      openExternalSafely(ad.ctaUrl);
     } else if (video) {
       navigate(`watch/${video.videoId}`);
     }

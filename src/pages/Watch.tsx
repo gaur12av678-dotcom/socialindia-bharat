@@ -253,7 +253,7 @@ export const Watch: React.FC = () => {
       document.title = `${video.title}${creatorPart} - SocialIndia`;
     }
     return () => {
-      document.title = 'SocialIndia';
+      document.title = 'SocialIndia – Connect, Share, Discover & Explore';
     };
   }, [video?.title, video?.creatorDisplayName]);
 
