@@ -435,7 +435,7 @@ export const Settings: React.FC = () => {
 
     const subs = currentUserProfile?.followersCount || 0;
     if (subs < 500 || highestVideoViews < 1000) {
-      setMonetizationMsg('Criteria not met: 500 Subscribers and 1,000 Views on at least one video required.');
+      setMonetizationMsg('Criteria not met: 500 Followers and 1,000 Views on at least one video required.');
       setIsRequestingMonetization(false);
       return;
     }
@@ -1067,8 +1067,8 @@ export const Settings: React.FC = () => {
               <div className="space-y-4 divide-y divide-slate-100 dark:divide-slate-800">
                 <div className="flex items-center justify-between pt-4 first:pt-0">
                   <div>
-                    <h4 className="text-sm font-bold">Show My Subscriptions</h4>
-                    <p className="text-xs text-slate-500">Allow other users to see channels you subscribe to</p>
+                    <h4 className="text-sm font-bold">Show My Following</h4>
+                    <p className="text-xs text-slate-500">Allow other users to see channels you follow</p>
                   </div>
                   <input type="checkbox" defaultChecked className="w-5 h-5 accent-[#2563EB]" />
                 </div>
@@ -1646,7 +1646,7 @@ export const Settings: React.FC = () => {
                         <div className="space-y-2 mt-3">
                           <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
                             <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
-                            <span>500 {isHindi ? 'सब्सक्राइबर्स' : 'Subscribers'}</span>
+                            <span>500 {isHindi ? 'फ़ॉलोअर्स' : 'Followers'}</span>
                           </div>
                           <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
                             <span className="w-2 h-2 rounded-full bg-[#2563EB] shrink-0" />
@@ -1678,7 +1678,7 @@ export const Settings: React.FC = () => {
                             <User className="w-5 h-5 stroke-[2.2]" />
                           </div>
                           <div>
-                            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{isHindi ? 'सब्सक्राइबर्स' : 'Subscribers'}</div>
+                            <div className="text-xs font-bold text-slate-500 dark:text-slate-400">{isHindi ? 'फ़ॉलोअर्स' : 'Followers'}</div>
                             <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5">
                               {currentSubscribers} <span className="text-base font-bold text-slate-400">/ 500</span>
                             </div>
@@ -1695,10 +1695,10 @@ export const Settings: React.FC = () => {
                         <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
                           {subscriberRequirementMet ? (
                             <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
-                              <CheckCircle2 className="w-4 h-4" /> 500+ subscribers reached
+                              <CheckCircle2 className="w-4 h-4" /> {isHindi ? '500+ फ़ॉलोअर्स पूरे हुए' : '500+ followers reached'}
                             </span>
                           ) : (
-                            <span>{500 - currentSubscribers} {isHindi ? 'सब्सक्राइबर्स शेष' : 'more subscribers needed'}</span>
+                            <span>{500 - currentSubscribers} {isHindi ? 'फ़ॉलोअर्स शेष' : 'more followers needed'}</span>
                           )}
                         </div>
                       </div>
@@ -1769,8 +1769,8 @@ export const Settings: React.FC = () => {
                           <Clock className="w-4 h-4 text-[#2563EB] dark:text-blue-400 shrink-0" />
                           <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                             {subscriberRequirementMet
-                              ? (isHindi ? "सब्सक्राइबर आवश्यकता पूरी हो चुकी है। एक वीडियो पर 1,000 व्यूज प्राप्त करें।" : "You have reached the subscriber requirement. Get 1,000 views on one video to become eligible.")
-                              : (isHindi ? "वीडियो व्यूज आवश्यकता पूरी हो चुकी है। 500 सब्सक्राइबर्स तक पहुंचें।" : "Your video has reached 1,000 views. Reach 500 subscribers to become eligible.")}
+                              ? (isHindi ? "फ़ॉलोअर्स आवश्यकता पूरी हो चुकी है। एक वीडियो पर 1,000 व्यूज प्राप्त करें।" : "You have reached the follower requirement. Get 1,000 views on one video to become eligible.")
+                              : (isHindi ? "वीडियो व्यूज आवश्यकता पूरी हो चुकी है। 500 फ़ॉलोअर्स तक पहुंचें।" : "Your video has reached 1,000 views. Reach 500 followers to become eligible.")}
                           </p>
                         </div>
                       )
@@ -1795,7 +1795,7 @@ export const Settings: React.FC = () => {
                     <div className="space-y-1.5 pl-3">
                       <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
-                        <span>500 {isHindi ? 'सब्सक्राइबर्स' : 'subscribers'}</span>
+                        <span>500 {isHindi ? 'फ़ॉलोअर्स' : 'followers'}</span>
                       </div>
                       <div className="flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />

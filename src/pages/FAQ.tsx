@@ -69,7 +69,7 @@ export const FAQPage: React.FC = () => {
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
               {isHindi 
                 ? 'उ: आप हमारे एडवरटाइजिंग पेज पर जाकर अपने वीडियो या चैनल के लिए कस्टमाइज्ड विज्ञापन अभियान चला सकते हैं और सही दर्शकों तक पहुंच सकते हैं।' 
-                : 'A: Go to our custom Advertising page to launch localized campaigns. Target specific video categories or user profiles to drive verified views and subscriber growths.'}
+                : 'A: Go to our custom Advertising page to launch localized campaigns. Target specific video categories or user profiles to drive verified views and follower growth.'}
             </p>
           </div>
 
@@ -79,8 +79,8 @@ export const FAQPage: React.FC = () => {
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
               {isHindi 
-                ? 'उ: चैनल मोनेटाइजेशन के लिए: (1) कम से कम 500 सब्सक्राइबर्स, और (2) किसी भी एक वीडियो पर कम से कम 1,000 व्यूज होने आवश्यक हैं। दोनों शर्तें पूरी होने के बाद आप सेटिंग्स > मोनेटाइजेशन से सीधे आवेदन कर सकते हैं।' 
-                : 'A: To qualify for the SocialIndia Partner Program, you need: (1) At least 500 channel subscribers, and (2) At least 1,000 views on ANY single video. Note that your view requirement is evaluated on your single highest-viewed video, not total channel views. Once both milestones are met, you can apply directly from Settings > Monetization.'}
+                ? 'उ: चैनल मोनेटाइजेशन के लिए: (1) कम से कम 500 फ़ॉलोअर्स, और (2) किसी भी एक वीडियो पर कम से कम 1,000 व्यूज होने आवश्यक हैं। दोनों शर्तें पूरी होने के बाद आप सेटिंग्स > मोनेटाइजेशन से सीधे आवेदन कर सकते हैं।' 
+                : 'A: To qualify for the SocialIndia Partner Program, you need: (1) At least 500 channel followers, and (2) At least 1,000 views on ANY single video. Note that your view requirement is evaluated on your single highest-viewed video, not total channel views. Once both milestones are met, you can apply directly from Settings > Monetization.'}
             </p>
           </div>
 

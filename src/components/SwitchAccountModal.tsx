@@ -320,7 +320,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
                               @{account.username}
                               {typeof account.subscribersCount === 'number' && (
                                 <span className="text-slate-400 dark:text-slate-500 ml-1.5">
-                                  · {account.subscribersCount} {isHindi ? 'सदस्य' : 'subscribers'}
+                                  · {account.subscribersCount} {isHindi ? 'फ़ॉलोअर्स' : 'followers'}
                                 </span>
                               )}
                             </p>

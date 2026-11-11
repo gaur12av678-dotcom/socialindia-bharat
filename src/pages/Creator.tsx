@@ -561,7 +561,7 @@ export const CreatorProfile: React.FC = () => {
           <p className="text-xs sm:text-sm text-slate-500 max-w-sm mt-1.5 leading-relaxed">
             {isHindi 
               ? 'अपने वीडियो, प्लेलिस्ट, एनालिटिक्स और चैनल अनुकूलन तक पहुँचने के लिए कृपया साइन इन करें।' 
-              : 'Please sign in to access your channel uploads, subscribers, custom banner, and creator studio.'}
+              : 'Please sign in to access your channel uploads, followers, custom banner, and creator studio.'}
           </p>
           <button 
             onClick={() => navigate('login')}
@@ -615,7 +615,7 @@ export const CreatorProfile: React.FC = () => {
 
   const handleSubscribeToggle = async () => {
     if (!currentUser) {
-      addToast('Please sign in to subscribe to this channel.', 'info');
+      addToast(isHindi ? 'इस चैनल को फ़ॉलो करने के लिए कृपया साइन इन करें।' : 'Please sign in to follow this channel.', 'info');
       navigate('signin');
       return;
     }
@@ -860,7 +860,7 @@ export const CreatorProfile: React.FC = () => {
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs font-semibold text-slate-500 dark:text-[#94A3B8]">
                 <span className="font-bold text-slate-800 dark:text-slate-200">@{creator.username}</span>
                 <span>•</span>
-                <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/subscribers/i, '').trim()} सब्सक्राइबर्स` : formatSubscribers(creator.followersCount)}</span>
+                <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/followers?|subscribers?/i, '').trim()} फ़ॉलोअर्स` : formatSubscribers(creator.followersCount)}</span>
                 <span>•</span>
                 <span>{creator.videosCount} {isHindi ? 'वीडियो' : (creator.videosCount === 1 ? 'video' : 'videos')}</span>
               </div>
@@ -994,7 +994,7 @@ export const CreatorProfile: React.FC = () => {
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400">
                 <span className="font-bold text-slate-800 dark:text-slate-200">@{creator.username}</span>
                 <span>•</span>
-                <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/subscribers/i, '').trim()} सब्सक्राइबर्स` : formatSubscribers(creator.followersCount)}</span>
+                <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/followers?|subscribers?/i, '').trim()} फ़ॉलोअर्स` : formatSubscribers(creator.followersCount)}</span>
                 <span>•</span>
                 <span>{creator.videosCount} {isHindi ? 'वीडियो' : (creator.videosCount === 1 ? 'video' : 'videos')}</span>
               </div>
@@ -1642,7 +1642,7 @@ export const CreatorProfile: React.FC = () => {
                   </div>
 
                   <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800">
-                    <span className="text-slate-500 dark:text-slate-400">{isHindi ? "सदस्य" : "Subscribers"}</span>
+                    <span className="text-slate-500 dark:text-slate-400">{isHindi ? "फ़ॉलोअर्स" : "Followers"}</span>
                     <span className="font-mono font-bold text-slate-900 dark:text-white">
                       {(creator.followersCount || 0).toLocaleString()}
                     </span>

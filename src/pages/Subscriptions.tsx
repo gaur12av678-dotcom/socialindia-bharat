@@ -588,7 +588,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
         <div className="flex items-center justify-between gap-4 mb-4">
           <div className="flex items-center gap-3">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {selectedCreator ? (selectedCreator.creatorDisplayName || selectedCreator.creatorUsername) : t('nav_subscriptions', 'Subscriptions')}
+              {selectedCreator ? (selectedCreator.creatorDisplayName || selectedCreator.creatorUsername) : t('nav_subscriptions', 'Following')}
             </h1>
             {selectedCreator && (
               <button
@@ -682,7 +682,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
               <span>
                 {isHindi 
                   ? `इस फ़िल्टर के लिए कोई वीडियो नहीं मिला। आपके द्वारा फ़ॉलो किए गए चैनलों के हालिया वीडियो दिखाए जा रहे हैं:`
-                  : `No uploads matched '${fallbackFilterName}'. Showing latest videos from your subscriptions:`}
+                  : `No uploads matched '${fallbackFilterName}'. Showing latest videos from creators you follow:`}
               </span>
             </div>
             <button
@@ -963,7 +963,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
               <div className="space-y-0.5">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Users className="w-5 h-5 text-[#065fd4] dark:text-[#3ea6ff]" />
-                  <span>{isHindi ? 'Following प्रबंधित करें' : 'Manage Subscriptions'}</span>
+                  <span>{isHindi ? 'फ़ॉलो किए गए चैनल प्रबंधित करें' : 'Manage Following'}</span>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   {followedCreators.length} {isHindi ? 'क्रिएटर्स फ़ॉलो किए गए हैं' : 'creators followed'}
@@ -1089,8 +1089,8 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <>
-                            <span className="group-hover/btn:hidden">{isHindi ? 'फ़ॉलो कर रहे हैं' : 'Subscribed'}</span>
-                            <span className="hidden group-hover/btn:inline">{isHindi ? 'अनफ़ॉलो करें' : 'Unsubscribe'}</span>
+                            <span className="group-hover/btn:hidden">{isHindi ? 'फ़ॉलो कर रहे हैं' : 'Following'}</span>
+                            <span className="hidden group-hover/btn:inline">{isHindi ? 'अनफ़ॉलो करें' : 'Unfollow'}</span>
                           </>
                         )}
                       </button>

@@ -1481,7 +1481,7 @@ export const Watch: React.FC = () => {
                   )}
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium leading-none mt-1">
-                  {creator ? (isHindi ? `${formatSubscribers(creator.followersCount).replace(/subscribers/i, '').trim()} सब्सक्राइबर्स` : formatSubscribers(creator.followersCount)) : (isHindi ? '0 सब्सक्राइबर्स' : '0 subscribers')}
+                  {creator ? (isHindi ? `${formatSubscribers(creator.followersCount).replace(/followers?|subscribers?/i, '').trim()} फ़ॉलोअर्स` : formatSubscribers(creator.followersCount)) : (isHindi ? '0 फ़ॉलोअर्स' : '0 followers')}
                 </p>
               </div>
 

@@ -75,7 +75,7 @@ export const DEFAULT_COMMUNITY_POSTS: CommunityPost[] = [
     authorUsername: 'gaurav_saini',
     authorPhotoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
     authorRole: 'creator',
-    content: 'Big announcement family! ❤️ सोशलइंडिया पर 10,000 सब्सक्राइबर्स पूरे होने की ख़ुशी में इस रविवार को एक खास लाइव Q&A स्ट्रीम करेंगे। अपने सवाल #AskGaurav के साथ नीचे लिखें!',
+    content: 'Big announcement family! ❤️ सोशलइंडिया पर 10,000 फ़ॉलोअर्स पूरे होने की ख़ुशी में इस रविवार को एक खास लाइव Q&A स्ट्रीम करेंगे। अपने सवाल #AskGaurav के साथ नीचे लिखें!',
     postType: 'text',
     likesCount: 654,
     dislikesCount: 2,

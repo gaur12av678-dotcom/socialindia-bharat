@@ -80,7 +80,7 @@ export const PrivacyPolicyPage: React.FC = () => {
               <p className="mb-2">We collect only necessary operational information to provide the service:</p>
               <ul className="list-disc pl-5 space-y-1 text-slate-700 dark:text-slate-300">
                 <li><strong>Identity & Account Data:</strong> Username, Display Name, Email address, profile photo URL, bio.</li>
-                <li><strong>Usage & Engagement Data:</strong> Videos watched, likes, comments, playlists created, and channel subscriptions.</li>
+                <li><strong>Usage & Engagement Data:</strong> Videos watched, likes, comments, playlists created, and followed channels.</li>
                 <li><strong>Creator Financial Data:</strong> Wallet balance, bonus balance, purchase transactions, and UPI ID (used strictly for creator payout disbursement).</li>
                 <li><strong>Device & Session Data:</strong> Browser session information, IP address for security rate-limiting, and theme preference.</li>
               </ul>

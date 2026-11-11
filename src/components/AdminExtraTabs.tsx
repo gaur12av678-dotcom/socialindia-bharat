@@ -826,7 +826,7 @@ export const AdminExtraTabs: React.FC<ExtraTabsProps> = ({
             </div>
             <div>
               <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Answer / Guidance Details</label>
-              <textarea required value={newFaqA} onChange={(e) => setNewFaqA(e.target.value)} placeholder="e.g. Creator must meet 1,000 subscribers and submit request from Settings." rows={3} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold" />
+              <textarea required value={newFaqA} onChange={(e) => setNewFaqA(e.target.value)} placeholder="e.g. Creator must meet 500 followers and 1,000 views on one video, then apply from Settings." rows={3} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold" />
             </div>
             <button type="submit" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-1 cursor-pointer">
               <Plus className="w-4 h-4" />

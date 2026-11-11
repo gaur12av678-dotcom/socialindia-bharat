@@ -869,7 +869,7 @@ export const CreatorStudio: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Card 4: Subscribers (Light Emerald Icon) */}
+                  {/* Card 4: Followers (Light Emerald Icon) */}
                   <div className="bg-white dark:bg-[#16171a] border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 rounded-2xl shadow-xs space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="w-10 h-10 rounded-full bg-emerald-100/90 dark:bg-emerald-950/70 text-emerald-600 flex items-center justify-center">
@@ -878,11 +878,11 @@ export const CreatorStudio: React.FC = () => {
                       <span className="text-xs font-bold text-emerald-500 flex items-center">↑ 0%</span>
                     </div>
                     <div>
-                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Subscribers</span>
+                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Followers</span>
                       <p className="text-2xl font-black text-slate-900 dark:text-white leading-tight mt-0.5">
                         {stats.followers || 0}
                       </p>
-                      <span className="text-[11px] text-slate-400 block mt-0.5 font-medium">Total subscribers</span>
+                      <span className="text-[11px] text-slate-400 block mt-0.5 font-medium">Total followers</span>
                     </div>
                   </div>
                 </div>
@@ -1048,7 +1048,7 @@ export const CreatorStudio: React.FC = () => {
                           {currentUserProfile?.displayName || currentUser?.displayName || 'My Channel'}
                         </h4>
                         <p className="text-[10px] text-slate-400 font-bold truncate">
-                          @{currentUserProfile?.username || 'creator'} &nbsp;•&nbsp; {currentUserProfile?.followersCount || 0} subscribers
+                          @{currentUserProfile?.username || 'creator'} &nbsp;•&nbsp; {currentUserProfile?.followersCount || 0} followers
                         </p>
                       </div>
                     </div>
@@ -1081,7 +1081,7 @@ export const CreatorStudio: React.FC = () => {
                         <Users className="w-4 h-4" />
                       </div>
                       <div>
-                        <span className="text-[9px] text-slate-400 font-bold block">Subscribers</span>
+                        <span className="text-[9px] text-slate-400 font-bold block">Followers</span>
                         <span className="text-sm font-black text-slate-900 dark:text-white">
                           {stats.followers || 3}
                         </span>
@@ -1287,7 +1287,7 @@ export const CreatorStudio: React.FC = () => {
                 {[
                   { label: 'Total Views', value: formatViews(stats.totalViews), change: stats.totalViews > 0 ? '+100%' : '0%', icon: Eye, color: 'blue' },
                   { label: 'Watch time (hours)', value: (stats.totalViews * 0.04).toFixed(1), change: stats.totalViews > 0 ? 'Active' : '0.0', icon: BarChart3, color: 'indigo' },
-                  { label: 'Subscribers / Fans', value: stats.followers.toString(), change: '+0', icon: Users, color: 'teal' },
+                  { label: 'Followers / Fans', value: stats.followers.toString(), change: '+0', icon: Users, color: 'teal' },
                   { label: 'Total Interactions', value: (stats.totalLikes + stats.totalComments).toString(), change: `${stats.totalLikes} likes`, icon: Heart, color: 'rose' }
                 ].map((m, i) => (
                   <div key={i} className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl shadow-xs hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer group">

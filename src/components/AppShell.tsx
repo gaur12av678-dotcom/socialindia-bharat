@@ -982,7 +982,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                               <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                                 @{currentUserProfile?.username}
                                 {typeof currentUserProfile?.followersCount === 'number' && (
-                                  <span> · {currentUserProfile.followersCount} {isHindi ? 'सदस्य' : 'subscribers'}</span>
+                                  <span> · {currentUserProfile.followersCount} {isHindi ? 'फ़ॉलोअर्स' : 'followers'}</span>
                                 )}
                               </p>
                             </div>
@@ -1039,7 +1039,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                                     <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
                                       @{acc.username}
                                       {typeof acc.subscribersCount === 'number' && (
-                                        <span> · {acc.subscribersCount} {isHindi ? 'सदस्य' : 'subscribers'}</span>
+                                        <span> · {acc.subscribersCount} {isHindi ? 'फ़ॉलोअर्स' : 'followers'}</span>
                                       )}
                                     </p>
                                   </div>

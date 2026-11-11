@@ -66,7 +66,7 @@ const YouTubeChannelCard: React.FC<{ user: User }> = ({ user }) => {
       return;
     }
     if (currentUser.uid === user.uid) {
-      addToast(isHindi ? 'आप अपने स्वयं के चैनल की सदस्यता नहीं ले सकते' : 'You cannot subscribe to your own channel', 'info');
+      addToast(isHindi ? 'आप अपने स्वयं के चैनल को फ़ॉलो नहीं कर सकते' : 'You cannot follow your own channel', 'info');
       return;
     }
 
@@ -79,14 +79,14 @@ const YouTubeChannelCard: React.FC<{ user: User }> = ({ user }) => {
       const res = await subscriptionService.toggleSubscription(currentUser.uid, user.uid, user, willSub);
       setIsSubbed(res);
       if (res) {
-        addToast(isHindi ? `${user.displayName} की सदस्यता ली गई!` : `Subscribed to ${user.displayName}!`, 'success');
+        addToast(isHindi ? `${user.displayName} को फ़ॉलो किया गया!` : `Followed ${user.displayName}!`, 'success');
       } else {
-        addToast(isHindi ? `${user.displayName} की सदस्यता समाप्त की गई` : `Unsubscribed from ${user.displayName}`, 'info');
+        addToast(isHindi ? `${user.displayName} को अनफ़ॉलो किया गया` : `Unfollowed ${user.displayName}`, 'info');
       }
     } catch (err: any) {
       setIsSubbed(!willSub);
       setSubCount(prev => willSub ? Math.max(0, prev - 1) : prev + 1);
-      addToast('Failed to update subscription', 'error');
+      addToast(isHindi ? 'फ़ॉलो स्थिति अपडेट करने में विफल' : 'Failed to update follow status', 'error');
     } finally {
       setIsTogglingSub(false);
     }
@@ -121,7 +121,7 @@ const YouTubeChannelCard: React.FC<{ user: User }> = ({ user }) => {
           </div>
 
           <p className="text-xs text-slate-500 font-bold">
-            @{user.username} • {formatSubscribers(subCount)} • {user.videosCount || 0} {isHindi ? 'वीडियो' : 'videos'}
+            @{user.username} • {isHindi ? `${formatSubscribers(subCount).replace(/followers?|subscribers?/i, '').trim()} फ़ॉलोअर्स` : formatSubscribers(subCount)} • {user.videosCount || 0} {isHindi ? 'वीडियो' : 'videos'}
           </p>
 
           {user.bio ? (

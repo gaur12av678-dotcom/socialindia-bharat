@@ -34,7 +34,7 @@ export const notificationService = {
         message = `${actor.displayName} commented on your video: "${details.message || ''}"`;
         break;
       case 'follow':
-        message = `${actor.displayName} subscribed to your channel`;
+        message = `${actor.displayName} started following your channel`;
         break;
       case 'upload':
         message = `${actor.displayName} published a new video: "${details.videoTitle || 'Untitled'}"`;

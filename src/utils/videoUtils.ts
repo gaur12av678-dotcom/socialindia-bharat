@@ -189,14 +189,14 @@ export function formatViews(count: number): string {
 }
 
 export function formatSubscribers(count: number): string {
-  if (count === undefined || count === null || count < 0) return '0 subscribers';
+  if (count === undefined || count === null || count < 0) return '0 followers';
   if (count >= 1000000) {
-    return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M subscribers';
+    return (count / 1000000).toFixed(1).replace(/\.0$/, '') + 'M followers';
   }
   if (count >= 1000) {
-    return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'K subscribers';
+    return (count / 1000).toFixed(1).replace(/\.0$/, '') + 'K followers';
   }
-  return `${count} ${count === 1 ? 'subscriber' : 'subscribers'}`;
+  return `${count} ${count === 1 ? 'follower' : 'followers'}`;
 }
 
 // Convert duration seconds into "mm:ss" or "hh:mm:ss"
