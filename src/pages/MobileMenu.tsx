@@ -31,7 +31,9 @@ import {
   ChevronRight,
   TrendingUp,
   Tv,
-  Crown
+  Crown,
+  Smartphone,
+  Download
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { UserAvatar } from '../components/UserAvatar';
@@ -595,6 +597,30 @@ export const MobileMenu: React.FC = () => {
             {isHindi ? 'सेटिंग्स एवं प्राथमिकताएं' : 'Settings & Preferences'}
           </p>
           <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-2 space-y-1 shadow-xs">
+            {/* Download Android App (APK) */}
+            <button
+              onClick={() => navigate('settings', 'app_download')}
+              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-colors cursor-pointer text-left group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                    <span>{isHindi ? 'सोशलइंडिया ऐप डाउनलोड करें (APK)' : 'Download SocialIndia App'}</span>
+                    <span className="px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-[9px] font-extrabold uppercase">
+                      APK
+                    </span>
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {isHindi ? 'आधिकारिक एंड्रॉयड ऐप • तेज़ डाउनलोड व ऑफ़लाइन मोड' : 'Official Android APK • Real offline mode'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            </button>
+
             <button
               onClick={() => navigate('settings')}
               className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer text-left group"

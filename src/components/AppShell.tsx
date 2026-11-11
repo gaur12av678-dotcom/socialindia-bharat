@@ -59,7 +59,8 @@ import {
   X,
   ArrowUpLeft,
   Trash2,
-  Loader2
+  Loader2,
+  Smartphone
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
@@ -1184,6 +1185,24 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                           </span>
                         </button>
 
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('settings', 'app_download');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-emerald-50/80 dark:hover:bg-emerald-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400">
+                            <Smartphone className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left flex items-center justify-between">
+                            <span>{isHindi ? 'ऐप डाउनलोड करें (APK)' : 'Download App (APK)'}</span>
+                            <span className="px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-[9px] font-black uppercase">
+                              APK
+                            </span>
+                          </span>
+                        </button>
+
                         {currentUserProfile?.role === 'admin' && (
                           <button
                             onClick={() => {
@@ -1510,6 +1529,24 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <ArrowDownToLine className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'downloads' ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_downloads', 'Downloads')}</span>
                 </div>
+              </button>
+
+              {/* Download App (APK) */}
+              <button
+                onClick={() => navigate('settings', 'app_download')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
+                  route.path === 'settings' && (route.param === 'app_download' || route.param === 'download')
+                    ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
+                }`}
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <Smartphone className="w-[18px] h-[18px] shrink-0 text-emerald-500 transition-transform group-hover:scale-110" />
+                  <span className="truncate">{isHindi ? 'ऐप डाउनलोड करें' : 'Get Mobile App'}</span>
+                </div>
+                <span className="px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase">
+                  APK
+                </span>
               </button>
             </div>
 

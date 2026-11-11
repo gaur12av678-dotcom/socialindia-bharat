@@ -209,6 +209,11 @@ function MainAppContent() {
         return <CreatorStudio />;
       case 'settings':
         return <Settings />;
+      case 'download-app':
+      case 'app':
+      case 'apk':
+      case 'get-app':
+        return <Settings initialTab="app_download" />;
       case 'profile-menu':
         return <MobileMenu />;
       case 'chat':

@@ -36,7 +36,18 @@ import {
   ThumbsDown,
   Eye,
   Film,
-  HelpCircle
+  HelpCircle,
+  Smartphone,
+  Download,
+  Share2,
+  Copy,
+  ExternalLink,
+  QrCode,
+  FileDown,
+  CheckCircle,
+  HardDrive,
+  Terminal,
+  AlertCircle
 } from 'lucide-react';
 import { payoutService } from '../services/payoutService';
 import { WithdrawalRequest, Video } from '../types';
@@ -44,11 +55,40 @@ import { compressAvatar, compressBanner } from '../utils/imageUtils';
 import { updateUserAvatarCache } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
+import { adminConfigService } from '../services/adminConfigService';
 
-export const Settings: React.FC = () => {
+interface SettingsProps {
+  initialTab?: 
+    | 'general'
+    | 'profile'
+    | 'avatar_cover'
+    | 'privacy'
+    | 'password'
+    | 'monetization'
+    | 'balance'
+    | 'wallet'
+    | 'points'
+    | 'verification'
+    | 'my_info'
+    | 'delete_account'
+    | 'app_download';
+}
+
+export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
   const { currentUser, currentUserProfile, refreshProfile, updateUserProfileState, addToast, openSwitchAccount } = useApp();
-  const { navigate } = useRouter();
+  const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
+
+  const getDesiredTab = () => {
+    if (initialTab) return initialTab;
+    if (route.param === 'download' || route.param === 'app' || route.param === 'apk' || route.param === 'app_download') {
+      return 'app_download';
+    }
+    if (route.path === 'download-app' || route.path === 'app' || route.path === 'apk') {
+      return 'app_download';
+    }
+    return 'general';
+  };
 
   // Active Tab State
   const [activeTab, setActiveTab] = useState<
@@ -64,7 +104,8 @@ export const Settings: React.FC = () => {
     | 'verification'
     | 'my_info'
     | 'delete_account'
-  >('general');
+    | 'app_download'
+  >(getDesiredTab);
 
   // Mobile View State: 'menu' shows settings list, 'content' shows active setting page with Back button
   const [mobileView, setMobileView] = useState<'menu' | 'content'>('menu');
@@ -139,8 +180,120 @@ export const Settings: React.FC = () => {
   const [verificationPitch, setVerificationPitch] = useState('');
   const [verificationMsg, setVerificationMsg] = useState('');
 
+  // APK & App Download states
+  const DEFAULT_RELEASE_APK_URL = 'https://github.com/gaur12av678-dotcom/socialindia-bharat/releases/download/latest-apk/app-release.apk';
+  const DEFAULT_DEBUG_APK_URL = 'https://github.com/gaur12av678-dotcom/socialindia-bharat/releases/download/latest-apk/app-debug.apk';
+  const GITHUB_RELEASES_URL = 'https://github.com/gaur12av678-dotcom/socialindia-bharat/releases/tag/latest-apk';
+  
+  const [customApkUrl, setCustomApkUrl] = useState('');
+  const [isSavingCustomApk, setIsSavingCustomApk] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
+  const [isPwaInstalled, setIsPwaInstalled] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync route param with activeTab (e.g. /settings/app_download or /settings/download)
+  useEffect(() => {
+    if (
+      route.param === 'download' || 
+      route.param === 'app' || 
+      route.param === 'apk' || 
+      route.param === 'app_download' ||
+      route.path === 'download-app' ||
+      route.path === 'app' ||
+      route.path === 'apk'
+    ) {
+      setActiveTab('app_download');
+      setMobileView('content');
+    }
+  }, [route.path, route.param]);
+
+  // Load custom APK URL and setup PWA install event listener
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsPwaInstalled(true);
+    }
+
+    // Load custom APK URL from adminConfigService or localStorage
+    adminConfigService.load().then((cfg) => {
+      if (cfg && cfg.customApkUrl) {
+        setCustomApkUrl(cfg.customApkUrl);
+      } else {
+        const local = localStorage.getItem('socialindia_custom_apk_url');
+        if (local) setCustomApkUrl(local);
+      }
+    }).catch(console.warn);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    };
+  }, []);
+
+  const handleSaveCustomApkUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingCustomApk(true);
+    try {
+      localStorage.setItem('socialindia_custom_apk_url', customApkUrl.trim());
+      await adminConfigService.save({ customApkUrl: customApkUrl.trim() });
+      addToast(isHindi ? 'कस्टम एपीके डाउनलोड लिंक सेव हो गया!' : 'Custom APK download URL saved!', 'success');
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to save APK URL', 'error');
+    } finally {
+      setIsSavingCustomApk(false);
+    }
+  };
+
+  const handleCopyApkLink = () => {
+    const url = customApkUrl.trim() || DEFAULT_RELEASE_APK_URL;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    addToast(isHindi ? 'डाउनलोड लिंक क्लिपबोर्ड में कॉपी हो गया!' : 'APK Download link copied to clipboard!', 'success');
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleShareApk = async () => {
+    const url = customApkUrl.trim() || DEFAULT_RELEASE_APK_URL;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'SocialIndia Android App',
+          text: isHindi ? 'सोशलइंडिया का आधिकारिक एंड्रॉयड ऐप डाउनलोड करें:' : 'Download the official SocialIndia Android app:',
+          url: url
+        });
+      } catch {
+        // User cancelled share
+      }
+    } else {
+      handleCopyApkLink();
+    }
+  };
+
+  const handleTriggerPwaInstall = async () => {
+    if (!deferredInstallPrompt) {
+      addToast(
+        isHindi 
+          ? 'ब्राउज़र मेनू (⋮) में जाकर "Add to Home screen" या "Install App" चुनें।' 
+          : 'Open your browser menu (⋮) and tap "Add to Home screen" or "Install app".', 
+        'info'
+      );
+      return;
+    }
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsPwaInstalled(true);
+      addToast(isHindi ? 'ऐप सफलतापूर्वक इंस्टॉल हो गया!' : 'App installed successfully!', 'success');
+    }
+    setDeferredInstallPrompt(null);
+  };
 
   // Load User Data & Stats accurately
   useEffect(() => {
@@ -594,8 +747,9 @@ export const Settings: React.FC = () => {
       ]
     },
     {
-      category: isHindi ? 'टूल्स व क्रिएटर (Tools & Creator)' : 'TOOLS & CREATOR',
+      category: isHindi ? 'ऐप व टूल्स (App & Tools)' : 'APP & TOOLS',
       items: [
+        { id: 'app_download', label: isHindi ? 'ऐप डाउनलोड करें (APK)' : 'Download App (APK)', icon: Smartphone, badge: 'APK', badgeType: 'blue' },
         { id: 'creator_studio_nav', label: isHindi ? 'क्रिएटर स्टूडियो' : 'Creator Studio', icon: Film, isExternalRoute: true, route: 'studio', badge: 'Studio', badgeType: 'blue' },
         ...(currentUserProfile?.role === 'admin' ? [{ id: 'admin_hub_nav', label: isHindi ? 'एडमिन हब' : 'Admin Hub', icon: ShieldCheck, isExternalRoute: true, route: 'admin', badge: 'Admin', badgeType: 'amber' as const }] : []),
         { id: 'help_support_nav', label: isHindi ? 'सहायता केंद्र (Help & FAQ)' : 'Help & FAQ', icon: HelpCircle, isExternalRoute: true, route: 'help' },
@@ -1870,6 +2024,60 @@ export const Settings: React.FC = () => {
               <p className="text-xs text-rose-600 font-semibold">
                 Warning: Deleting your account will permanently delete all your channel data, videos, and points.
               </p>
+            </div>
+          )}
+
+          {/* ====================================================== */}
+          {/* TAB: APP DOWNLOAD (OFFICIAL ANDROID RELEASE APK ONLY)   */}
+          {/* ====================================================== */}
+          {activeTab === 'app_download' && (
+            <div className="max-w-xl mx-auto py-8 sm:py-12 flex flex-col items-center text-center space-y-6">
+              
+              {/* Clean App Icon */}
+              <div className="relative">
+                <img 
+                  src="/icon-192.png" 
+                  alt="SocialIndia App" 
+                  className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl shadow-xl border-2 border-slate-200 dark:border-slate-700 bg-white object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/apple-touch-icon.png';
+                  }}
+                />
+                <span className="absolute -bottom-2 -right-2 px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider shadow-sm">
+                  v1.0.0
+                </span>
+              </div>
+
+              {/* Title & Description */}
+              <div className="space-y-2">
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {isHindi ? 'सोशलइंडिया ऐप डाउनलोड करें' : 'Download SocialIndia App'}
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 font-semibold max-w-md mx-auto leading-relaxed">
+                  {isHindi 
+                    ? 'यहाँ से आप सोशलइंडिया का आधिकारिक रिलीज़ एपीके (Release APK) डाउनलोड कर सकते हैं।' 
+                    : 'Download the official SocialIndia Release APK for your Android phone.'}
+                </p>
+              </div>
+
+              {/* Release APK Direct Download Button */}
+              <div className="w-full max-w-sm pt-2 space-y-3">
+                <a
+                  href={customApkUrl.trim() || DEFAULT_RELEASE_APK_URL}
+                  download="SocialIndia.apk"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-4 px-6 bg-[#2563EB] hover:bg-blue-700 text-white font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-blue-500/25 flex items-center justify-center gap-3 cursor-pointer active:scale-95 transition-all text-center"
+                >
+                  <Download className="w-5 h-5 stroke-[2.5]" />
+                  <span>{isHindi ? 'रिलीज़ एपीके डाउनलोड करें' : 'Download Release APK'}</span>
+                </a>
+
+                <p className="text-[11px] text-slate-400 font-medium">
+                  {isHindi ? 'आधिकारिक वर्शन • Android 7.0+ के लिए' : 'Official Release APK • Android 7.0+'}
+                </p>
+              </div>
+
             </div>
           )}
 

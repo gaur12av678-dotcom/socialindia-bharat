@@ -15,7 +15,8 @@ import {
   X,
   ArrowDownToLine,
   Download,
-  ArrowLeft
+  ArrowLeft,
+  Smartphone
 } from 'lucide-react';
 import { UserAvatar } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
@@ -160,6 +161,31 @@ export const Downloads: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ANDROID APP PROMPT BANNER */}
+      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-900/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-xs shrink-0">
+            <Smartphone className="w-4 h-4" />
+          </div>
+          <div>
+            <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
+              {isHindi ? 'सोशलइंडिया एंड्रॉयड ऐप से सुपर-फ़ास्ट ऑफ़लाइन देखें' : 'Get the SocialIndia Android App for Fast Offline Play'}
+            </h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              {isHindi ? 'बिना इंटरनेट कभी भी वीडियो देखने के लिए आधिकारिक एपीके डाउनलोड करें।' : 'Download the official APK with dedicated offline caching and zero lag.'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => navigate('settings', 'app_download')}
+          className="px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer transition-all active:scale-95 shrink-0 flex items-center gap-1.5"
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span>{isHindi ? 'एपीके डाउनलोड करें' : 'Download APK'}</span>
+        </button>
       </div>
 
       {/* FILTER TABS */}
