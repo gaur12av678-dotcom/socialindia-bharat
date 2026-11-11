@@ -52,7 +52,7 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
-    public static final String TARGET_URL = "https://socialindia.us.ci/";
+    public static final String TARGET_URL = "https://socialindia.web.app/";
     private static final String APP_USER_AGENT_SUFFIX = " SocialIndiaApp/1.0";
 
     private WebView webView;

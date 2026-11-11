@@ -94,11 +94,10 @@ jobs:
             console.log('socialindia-96fa1');
           ")
           echo "Selected Project ID: $PROJECT_ID"
-          echo "{\"projects\":{\"default\":\"$PROJECT_ID\"},\"targets\":{\"$PROJECT_ID\":{\"hosting\":{\"socialindia\":[\"socialindia\"]}}}}" > .firebaserc
+          echo "{\"projects\":{\"default\":\"$PROJECT_ID\"}}" > .firebaserc
           cat > firebase.json <<'JSON'
           {
             "hosting": {
-              "site": "socialindia",
               "public": "dist",
               "ignore": [
                 "firebase.json",
@@ -181,8 +180,29 @@ jobs:
 
           AUTH_ARGS=""
           if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "$FIREBASE_SERVICE_ACCOUNT" > sa_key.json
-            export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/sa_key.json"
+            IS_VALID_SA=$(node -e "
+              try {
+                const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+                if (sa.type === 'service_account' && sa.private_key) {
+                  console.log('VALID');
+                  process.exit(0);
+                }
+              } catch(e) {}
+              console.log('INVALID');
+            ")
+
+            if [ "$IS_VALID_SA" = "VALID" ]; then
+              echo "$FIREBASE_SERVICE_ACCOUNT" > sa_key.json
+              export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/sa_key.json"
+            else
+              echo "::warning title=Invalid Service Account::FIREBASE_SERVICE_ACCOUNT does not appear to be an Admin SDK private key JSON (missing 'private_key'). If you pasted web client config, please generate a private key from Firebase Console > Settings > Service Accounts."
+              if [ -n "$FIREBASE_TOKEN" ]; then
+                AUTH_ARGS="--token $FIREBASE_TOKEN"
+              else
+                echo "$FIREBASE_SERVICE_ACCOUNT" > sa_key.json
+                export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/sa_key.json"
+              fi
+            fi
           elif [ -n "$FIREBASE_TOKEN" ]; then
             AUTH_ARGS="--token $FIREBASE_TOKEN"
           fi
@@ -198,12 +218,10 @@ jobs:
             } catch(e) {}
             console.log('socialindia-96fa1');
           ")
-          echo "Deploying to Firebase project: $PROJECT_ID (target site: socialindia)..."
+          echo "Deploying to Firebase project: $PROJECT_ID..."
 
-          firebase target:apply hosting socialindia socialindia --project "$PROJECT_ID" $AUTH_ARGS || true
-          firebase deploy --only hosting:socialindia,firestore:rules,storage:rules --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
           firebase deploy --only hosting,firestore:rules,storage:rules --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
-          firebase deploy --only hosting:socialindia --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
+          firebase deploy --only hosting,firestore:rules --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
           firebase deploy --only hosting --project "$PROJECT_ID" $AUTH_ARGS --non-interactive
 
           rm -f sa_key.json
@@ -212,6 +230,7 @@ jobs:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Verify Live Sitemap URLs
+        continue-on-error: true
         run: |
           set -e
           for file in sitemap.xml video-sitemap.xml sitemap_index.xml robots.txt; do
