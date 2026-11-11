@@ -128,7 +128,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   const customThumbInputRef = useRef<HTMLInputElement>(null);
 
   // ==========================================
-  // EDITING STATES
+  // EDITING STATES (YouTube Shorts Style)
   // ==========================================
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [videoDuration, setVideoDuration] = useState<number>(15);
@@ -136,14 +136,17 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   const [trimEnd, setTrimEnd] = useState<number>(15);
   const [videoVolume, setVideoVolume] = useState<number>(100);
   const [soundVolume, setSoundVolume] = useState<number>(100);
-  const [editTab, setEditTab] = useState<'none' | 'trim' | 'sound' | 'text' | 'filter'>('none');
+  const [editTab, setEditTab] = useState<'none' | 'trim' | 'sound' | 'text' | 'filter' | 'stickers'>('none');
   const [overlays, setOverlays] = useState<OverlayText[]>([]);
+  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [inputTextModalOpen, setInputTextModalOpen] = useState(false);
   const [newTextValue, setNewTextValue] = useState('');
   const [newTextColor, setNewTextColor] = useState('#FFFFFF');
-  const [newTextBg, setNewTextBg] = useState('rgba(0,0,0,0.6)');
+  const [newTextBgMode, setNewTextBgMode] = useState<'transparent' | 'boxed' | 'solid'>('boxed');
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
+  const [videoCurrentTime, setVideoCurrentTime] = useState<number>(0);
   const editVideoRef = useRef<HTMLVideoElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
 
   // ==========================================
   // DETAILS & THUMBNAIL STATES
@@ -464,6 +467,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
     if (!v) return;
 
     const handleTimeUpdate = () => {
+      setVideoCurrentTime(v.currentTime || 0);
       if (v.currentTime >= trimEnd) {
         v.currentTime = trimStart;
         v.play().catch(console.warn);
@@ -525,19 +529,32 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   };
 
   // ------------------------------------------
-  // Add Text / Emoji Overlay
+  // Add Text / Emoji Overlay (YouTube Shorts Style)
   // ------------------------------------------
   const handleAddOverlayText = () => {
     if (!newTextValue.trim()) return;
+
+    let bgColor = 'transparent';
+    let textColor = newTextColor;
+
+    if (newTextBgMode === 'boxed') {
+      bgColor = 'rgba(0,0,0,0.72)';
+      textColor = newTextColor;
+    } else if (newTextBgMode === 'solid') {
+      bgColor = newTextColor;
+      textColor = ['#FFFFFF', '#FFDD00', '#34C759'].includes(newTextColor) ? '#000000' : '#FFFFFF';
+    }
+
     const newOverlay: OverlayText = {
       id: Math.random().toString(36).substring(2, 9),
       text: newTextValue.trim(),
-      color: newTextColor,
-      bgColor: newTextBg,
+      color: textColor,
+      bgColor: bgColor,
       x: 50, // center
-      y: 40 + (overlays.length * 10), // stagger
+      y: 40 + ((overlays.length % 5) * 8), // staggered placement
     };
-    setOverlays([...overlays, newOverlay]);
+    setOverlays(prev => [...prev, newOverlay]);
+    setSelectedOverlayId(newOverlay.id);
     setNewTextValue('');
     setInputTextModalOpen(false);
   };
@@ -549,13 +566,28 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       color: '#FFFFFF',
       bgColor: 'transparent',
       x: 50,
-      y: 50 + (overlays.length * 8),
+      y: 50 + ((overlays.length % 5) * 8),
     };
-    setOverlays([...overlays, newOverlay]);
+    setOverlays(prev => [...prev, newOverlay]);
+    setSelectedOverlayId(newOverlay.id);
+  };
+
+  const handleDeleteOverlay = (id: string) => {
+    setOverlays(prev => prev.filter(o => o.id !== id));
+    if (selectedOverlayId === id) setSelectedOverlayId(null);
   };
 
   const handleUndoOverlay = () => {
     setOverlays(prev => prev.slice(0, -1));
+    setSelectedOverlayId(null);
+  };
+
+  const handleOverlayMove = (id: string, clientX: number, clientY: number) => {
+    if (!previewContainerRef.current) return;
+    const rect = previewContainerRef.current.getBoundingClientRect();
+    const xPct = Math.max(10, Math.min(90, ((clientX - rect.left) / rect.width) * 100));
+    const yPct = Math.max(10, Math.min(90, ((clientY - rect.top) / rect.height) * 100));
+    setOverlays(prev => prev.map(o => o.id === id ? { ...o, x: xPct, y: yPct } : o));
   };
 
   // ------------------------------------------
@@ -656,7 +688,11 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   const activeFilter = FILTER_PRESETS.find(f => f.id === activeFilterId)?.filter || 'none';
 
   return (
-    <div className="fixed inset-0 z-50 bg-black text-white flex flex-col font-sans select-none overflow-hidden animate-in fade-in duration-200">
+    <div className={`fixed inset-0 z-50 flex flex-col font-sans select-none overflow-hidden animate-in fade-in duration-200 ${
+      phase === 'details'
+        ? 'bg-slate-50 dark:bg-[#0f0f0f] text-slate-900 dark:text-[#f1f1f1]'
+        : 'bg-black text-white'
+    }`}>
       
       {/* ======================================================== */}
       {/* PHASE 1: CAMERA & RECORDING VIEW                         */}
@@ -919,11 +955,32 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       {/* ======================================================== */}
       {/* PHASE 2: EDITING, TRIMMING & OVERLAYS VIEW               */}
       {/* ======================================================== */}
+      {/* ======================================================== */}
+      {/* PHASE 2: EDITING, TRIMMING & OVERLAYS VIEW (YouTube Shorts Signature) */}
+      {/* ======================================================== */}
       {phase === 'edit' && (
-        <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-black">
+        <div className="relative w-full h-full overflow-hidden bg-black flex flex-col justify-between select-none">
           
-          {/* Main Video Preview with Filter & Overlays */}
-          <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
+          {/* Main Video Viewport (9:16 Fullscreen preview) */}
+          <div 
+            ref={previewContainerRef}
+            onClick={() => {
+              if (selectedOverlayId) {
+                setSelectedOverlayId(null);
+                return;
+              }
+              if (editVideoRef.current) {
+                if (editVideoRef.current.paused) {
+                  editVideoRef.current.play();
+                  setIsVideoPlaying(true);
+                } else {
+                  editVideoRef.current.pause();
+                  setIsVideoPlaying(false);
+                }
+              }
+            }}
+            className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden cursor-pointer"
+          >
             <video
               ref={editVideoRef}
               src={previewUrl}
@@ -931,272 +988,543 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
               loop
               playsInline
               style={{ filter: activeFilter }}
-              onClick={() => {
-                if (editVideoRef.current) {
-                  if (editVideoRef.current.paused) {
-                    editVideoRef.current.play();
-                    setIsVideoPlaying(true);
-                  } else {
-                    editVideoRef.current.pause();
-                    setIsVideoPlaying(false);
-                  }
-                }
-              }}
-              className="w-full h-full object-cover cursor-pointer"
+              className="w-full h-full object-cover"
             />
 
             {/* Play/Pause indicator overlay on tap */}
             {!isVideoPlaying && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
-                <div className="w-16 h-16 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-md">
+              <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+                <div className="w-16 h-16 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-md animate-zoom-in">
                   <Play className="w-8 h-8 ml-1" />
                 </div>
               </div>
             )}
 
-            {/* Draggable / Positioned Text & Emoji Overlays */}
-            {overlays.map((ov) => (
-              <div
-                key={ov.id}
-                style={{
-                  top: `${ov.y}%`,
-                  left: `${ov.x}%`,
-                  transform: 'translate(-50%, -50%)',
-                  color: ov.color,
-                  backgroundColor: ov.bgColor,
-                }}
-                className="absolute px-3 py-1.5 rounded-xl font-black text-lg drop-shadow-md z-10 pointer-events-none text-center select-none max-w-[80%]"
-              >
-                {ov.text}
-              </div>
-            ))}
+            {/* Draggable & Movable Text & Emoji Overlays */}
+            {overlays.map((ov) => {
+              const isSelected = selectedOverlayId === ov.id;
+              return (
+                <div
+                  key={ov.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedOverlayId(isSelected ? null : ov.id);
+                  }}
+                  onTouchMove={(e) => {
+                    const touch = e.touches[0];
+                    if (touch) {
+                      handleOverlayMove(ov.id, touch.clientX, touch.clientY);
+                    }
+                  }}
+                  style={{
+                    top: `${ov.y}%`,
+                    left: `${ov.x}%`,
+                    transform: 'translate(-50%, -50%)',
+                    color: ov.color,
+                    backgroundColor: ov.bgColor,
+                  }}
+                  className={`absolute px-3.5 py-1.5 rounded-2xl font-black text-lg drop-shadow-lg z-20 cursor-move touch-none select-none max-w-[85%] text-center transition-all ${
+                    isSelected ? 'ring-2 ring-blue-500 shadow-2xl scale-105' : ''
+                  }`}
+                >
+                  <span>{ov.text}</span>
+                  {isSelected && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteOverlay(ov.id);
+                      }}
+                      className="absolute -top-2.5 -right-2.5 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-md active:scale-90"
+                      title="Delete overlay"
+                    >
+                      <X className="w-3.5 h-3.5 stroke-[3]" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          {/* TOP BAR: Back, Undo, Next */}
-          <div className="relative z-20 pt-safe px-4 pt-4 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/30 to-transparent">
+          {/* TOP BAR (YouTube Shorts: Back on left, Sound Pill in center, Next on right) */}
+          <div className="relative z-30 pt-safe px-4 pt-3 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-auto">
+            {/* Back Button */}
             <button
               onClick={() => {
-                // Return to camera
                 setPhase('record');
                 startCamera(facingMode);
               }}
-              className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md text-white flex items-center justify-center cursor-pointer active:scale-90 transition-transform border border-white/15"
+              className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md text-white flex items-center justify-center cursor-pointer active:scale-90 transition-transform border border-white/15 shadow-md"
+              title={isHindi ? 'कैमरा पर वापस जाएं' : 'Back to Camera'}
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
 
-            {/* Action title or Undo */}
-            <div className="flex items-center gap-2">
-              {overlays.length > 0 && (
-                <button
-                  onClick={handleUndoOverlay}
-                  className="px-3 py-1.5 rounded-full bg-black/60 text-white text-xs font-bold flex items-center gap-1.5 backdrop-blur-md border border-white/10 cursor-pointer active:scale-95"
+            {/* Central YouTube Shorts Sound Pill */}
+            <button
+              onClick={() => setSoundModalOpen(true)}
+              className="px-4 py-2 bg-black/55 hover:bg-black/75 backdrop-blur-md rounded-full text-xs font-bold text-white flex items-center gap-2 cursor-pointer active:scale-95 transition-all border border-white/15 max-w-[210px] shadow-md"
+            >
+              <Music className={`w-3.5 h-3.5 shrink-0 ${selectedSound ? 'text-rose-400 animate-pulse' : 'text-white'}`} />
+              <span className="truncate">
+                {selectedSound ? selectedSound.title : (isHindi ? 'साउंड जोड़ें' : 'Add sound')}
+              </span>
+              {selectedSound && (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedSound(null);
+                  }}
+                  className="ml-1 text-white/60 hover:text-white text-sm"
+                  title="Remove sound"
                 >
-                  <Undo2 className="w-3.5 h-3.5" />
-                  <span>{isHindi ? 'हटाएं' : 'Undo'}</span>
-                </button>
+                  ✕
+                </span>
               )}
-            </div>
+            </button>
 
-            {/* NEXT BUTTON */}
+            {/* YouTube Shorts Signature White Next Pill Button */}
             <button
               onClick={() => setPhase('details')}
-              className="px-5 py-2 rounded-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-extrabold text-xs flex items-center gap-1.5 shadow-lg shadow-blue-500/30 cursor-pointer active:scale-95 transition-all"
+              className="px-5 py-2 rounded-full bg-white text-black hover:bg-slate-100 font-extrabold text-xs sm:text-sm flex items-center gap-1.5 shadow-xl cursor-pointer active:scale-95 transition-transform"
             >
               <span>{isHindi ? 'आगे बढ़ें' : 'Next'}</span>
               <ChevronRight className="w-4 h-4 stroke-[3]" />
             </button>
           </div>
 
-          {/* EDIT TOOLS SUBPANEL (When a tool tab is active) */}
-          <div className="relative z-20 px-4">
+          {/* RIGHT FLOATING TOOLBAR (YouTube Shorts Signature Vertical Tool Stack) */}
+          <div className="absolute top-20 right-3 z-30 flex flex-col items-center gap-3 pointer-events-auto">
             
-            {/* 1. TRIM SUBPANEL */}
-            {editTab === 'trim' && (
-              <div className="p-4 bg-black/80 backdrop-blur-md rounded-2xl border border-white/15 space-y-3 animate-in slide-in-from-bottom duration-200">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span>{isHindi ? 'शॉर्ट ट्रिम करें' : 'Trim Video'}</span>
-                  <span className="text-blue-400">{trimStart.toFixed(1)}s - {trimEnd.toFixed(1)}s ({(trimEnd - trimStart).toFixed(1)}s)</span>
-                </div>
-                
-                {/* Visual Trim Sliders */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] text-slate-400 w-12">{isHindi ? 'शुरुआत' : 'Start'}</span>
-                    <input 
-                      type="range"
-                      min={0}
-                      max={Math.max(0, trimEnd - 1)}
-                      step={0.1}
-                      value={trimStart}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setTrimStart(val);
-                        if (editVideoRef.current) editVideoRef.current.currentTime = val;
-                      }}
-                      className="flex-1 accent-blue-500"
-                    />
-                    <span className="text-xs font-mono">{trimStart.toFixed(1)}s</span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] text-slate-400 w-12">{isHindi ? 'अंत' : 'End'}</span>
-                    <input 
-                      type="range"
-                      min={trimStart + 1}
-                      max={videoDuration}
-                      step={0.1}
-                      value={trimEnd}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setTrimEnd(val);
-                        if (editVideoRef.current) editVideoRef.current.currentTime = val;
-                      }}
-                      className="flex-1 accent-rose-500"
-                    />
-                    <span className="text-xs font-mono">{trimEnd.toFixed(1)}s</span>
-                  </div>
-                </div>
+            {/* Sounds Tool */}
+            <button
+              onClick={() => setEditTab(prev => prev === 'sound' ? 'none' : 'sound')}
+              className="flex flex-col items-center gap-1 cursor-pointer active:scale-90 transition-transform group"
+              title="Sound track"
+            >
+              <div className={`w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center border shadow-lg transition-all ${
+                editTab === 'sound' || selectedSound ? 'bg-rose-500/90 text-white border-rose-400' : 'bg-black/55 hover:bg-black/75 text-white border-white/15'
+              }`}>
+                <Music className="w-5 h-5" />
               </div>
+              <span className="text-[10px] font-bold text-white drop-shadow-md">
+                {isHindi ? 'साउंड' : 'Sound'}
+              </span>
+            </button>
+
+            {/* Text Overlay Tool (Aa) */}
+            <button
+              onClick={() => setInputTextModalOpen(true)}
+              className="flex flex-col items-center gap-1 cursor-pointer active:scale-90 transition-transform group"
+              title="Add text"
+            >
+              <div className="w-11 h-11 rounded-full bg-black/55 hover:bg-black/75 backdrop-blur-md flex items-center justify-center text-white border border-white/15 shadow-lg">
+                <Type className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <span className="text-[10px] font-bold text-white drop-shadow-md">
+                {isHindi ? 'टेक्स्ट' : 'Text'}
+              </span>
+            </button>
+
+            {/* Timeline / Trim Tool */}
+            <button
+              onClick={() => setEditTab(prev => prev === 'trim' ? 'none' : 'trim')}
+              className="flex flex-col items-center gap-1 cursor-pointer active:scale-90 transition-transform group"
+              title="Trim clip"
+            >
+              <div className={`w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center border shadow-lg transition-all ${
+                editTab === 'trim' ? 'bg-blue-600 text-white border-blue-400' : 'bg-black/55 hover:bg-black/75 text-white border-white/15'
+              }`}>
+                <Sliders className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-bold text-white drop-shadow-md">
+                {isHindi ? 'ट्रिम' : 'Trim'}
+              </span>
+            </button>
+
+            {/* Filters / Color Presets Tool */}
+            <button
+              onClick={() => setEditTab(prev => prev === 'filter' ? 'none' : 'filter')}
+              className="flex flex-col items-center gap-1 cursor-pointer active:scale-90 transition-transform group"
+              title="Filters"
+            >
+              <div className={`w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center border shadow-lg transition-all ${
+                editTab === 'filter' || activeFilterId !== 'normal' ? 'bg-amber-500 text-white border-amber-400' : 'bg-black/55 hover:bg-black/75 text-white border-white/15'
+              }`}>
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-bold text-white drop-shadow-md">
+                {isHindi ? 'फ़िल्टर' : 'Filters'}
+              </span>
+            </button>
+
+            {/* Audio Volume Mix Tool */}
+            <button
+              onClick={() => setEditTab(prev => prev === 'sound' ? 'none' : 'sound')}
+              className="flex flex-col items-center gap-1 cursor-pointer active:scale-90 transition-transform group"
+              title="Volume"
+            >
+              <div className="w-11 h-11 rounded-full bg-black/55 hover:bg-black/75 backdrop-blur-md flex items-center justify-center text-white border border-white/15 shadow-lg">
+                <Volume2 className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-bold text-white drop-shadow-md">
+                {isHindi ? 'वॉल्यूम' : 'Volume'}
+              </span>
+            </button>
+
+            {/* Stickers / Reaction Emojis Tool */}
+            <button
+              onClick={() => setEditTab(prev => prev === 'stickers' ? 'none' : 'stickers')}
+              className="flex flex-col items-center gap-1 cursor-pointer active:scale-90 transition-transform group"
+              title="Stickers & Emojis"
+            >
+              <div className={`w-11 h-11 rounded-full backdrop-blur-md flex items-center justify-center border shadow-lg transition-all ${
+                editTab === 'stickers' ? 'bg-purple-600 text-white border-purple-400' : 'bg-black/55 hover:bg-black/75 text-white border-white/15'
+              }`}>
+                <Smile className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] font-bold text-white drop-shadow-md">
+                {isHindi ? 'स्टिकर' : 'Stickers'}
+              </span>
+            </button>
+
+            {/* Undo Button (Visible if overlays exist) */}
+            {overlays.length > 0 && (
+              <button
+                onClick={handleUndoOverlay}
+                className="flex flex-col items-center gap-1 cursor-pointer active:scale-90 transition-transform group mt-1"
+                title="Undo last element"
+              >
+                <div className="w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md flex items-center justify-center text-white border border-white/15 shadow-lg">
+                  <Undo2 className="w-4 h-4" />
+                </div>
+                <span className="text-[9px] font-bold text-white/80 drop-shadow-md">
+                  {isHindi ? 'हटाएं' : 'Undo'}
+                </span>
+              </button>
             )}
 
-            {/* 2. SOUND MIX SUBPANEL */}
-            {editTab === 'sound' && (
-              <div className="p-4 bg-black/80 backdrop-blur-md rounded-2xl border border-white/15 space-y-3 animate-in slide-in-from-bottom duration-200">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span>{isHindi ? 'ऑडियो वॉल्यूम' : 'Audio Mix'}</span>
-                  <button 
-                    onClick={() => setSoundModalOpen(true)}
-                    className="text-xs text-rose-400 hover:underline cursor-pointer"
-                  >
-                    {selectedSound ? (isHindi ? 'गाना बदलें' : 'Change music') : (isHindi ? 'संगीत जोड़ें' : 'Add music')}
-                  </button>
-                </div>
+          </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] text-slate-400 w-24 truncate">{isHindi ? 'मूल आवाज़' : 'Original Audio'}</span>
-                    <input 
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={videoVolume}
-                      onChange={(e) => setVideoVolume(parseInt(e.target.value))}
-                      className="flex-1 accent-blue-500"
+          {/* BOTTOM TIMELINE & DRAWER AREA (Anchored firmly to Bottom, NEVER in the middle!) */}
+          <div className="relative z-30 pointer-events-auto flex flex-col justify-end">
+            
+            {/* If no tool drawer is open: subtle bottom playhead line & quick sticker strip */}
+            {editTab === 'none' && (
+              <div className="pb-safe px-4 pb-3 flex flex-col gap-2 bg-gradient-to-t from-black/85 via-black/40 to-transparent">
+                {/* Visual Playhead Scrubber Line */}
+                <div className="flex items-center gap-2 text-[10px] font-mono font-bold text-white/80">
+                  <span>{videoCurrentTime.toFixed(1)}s</span>
+                  <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-red-600 transition-all duration-100 ease-linear"
+                      style={{ 
+                        width: `${Math.min(100, Math.max(0, ((videoCurrentTime - trimStart) / Math.max(0.1, trimEnd - trimStart)) * 100))}%` 
+                      }}
                     />
-                    <span className="text-xs font-mono">{videoVolume}%</span>
                   </div>
-
-                  {selectedSound && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] text-slate-400 w-24 truncate">{selectedSound.title}</span>
-                      <input 
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={soundVolume}
-                        onChange={(e) => setSoundVolume(parseInt(e.target.value))}
-                        className="flex-1 accent-rose-500"
-                      />
-                      <span className="text-xs font-mono">{soundVolume}%</span>
-                    </div>
-                  )}
+                  <span>{(trimEnd - trimStart).toFixed(1)}s</span>
                 </div>
-              </div>
-            )}
 
-            {/* 3. FILTERS SUBPANEL */}
-            {editTab === 'filter' && (
-              <div className="p-3 bg-black/80 backdrop-blur-md rounded-2xl border border-white/15 overflow-x-auto scrollbar-none animate-in slide-in-from-bottom duration-200">
-                <div className="flex items-center gap-2.5 min-w-max">
-                  {FILTER_PRESETS.map((f) => (
+                {/* Quick 1-tap reaction emojis */}
+                <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
+                  <span className="text-[10px] text-slate-400 font-bold shrink-0">
+                    {isHindi ? 'जोड़ें:' : 'Quick:'}
+                  </span>
+                  {QUICK_EMOJIS.slice(0, 8).map((em) => (
                     <button
-                      key={f.id}
-                      onClick={() => setActiveFilterId(f.id)}
-                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                        activeFilterId === f.id
-                          ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30'
-                          : 'bg-white/10 hover:bg-white/20 text-white/80'
-                      }`}
+                      key={em}
+                      onClick={() => handleAddEmoji(em)}
+                      className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/15 text-sm flex items-center justify-center shrink-0 cursor-pointer active:scale-90 transition-transform"
                     >
-                      {f.name}
+                      {em}
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-          </div>
+            {/* ======================================================== */}
+            {/* AUTHENTIC YOUTUBE SHORTS BOTTOM DRAWERS                  */}
+            {/* ======================================================== */}
 
-          {/* BOTTOM EDIT TOOLBAR BUTTONS */}
-          <div className="relative z-20 pb-safe px-4 pb-4 pt-2 flex items-center justify-around bg-gradient-to-t from-black/90 via-black/50 to-transparent">
-            
-            {/* Trim Button */}
-            <button
-              onClick={() => setEditTab(prev => prev === 'trim' ? 'none' : 'trim')}
-              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                editTab === 'trim' ? 'text-blue-400 font-bold' : 'text-white/80 hover:text-white'
-              }`}
-            >
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                <Sliders className="w-5 h-5" />
+            {/* 1. TRIM DRAWER */}
+            {editTab === 'trim' && (
+              <div className="bg-[#121215]/95 backdrop-blur-2xl rounded-t-3xl border-t border-white/15 p-4 pb-safe space-y-3.5 shadow-2xl animate-in slide-in-from-bottom duration-200">
+                {/* Grab handle & Drawer Header */}
+                <div className="w-10 h-1 bg-white/25 rounded-full mx-auto mb-1" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm font-bold text-white">
+                      {isHindi ? 'शॉर्ट वीडियो ट्रिम करें' : 'Trim Video'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-mono font-bold text-blue-400 bg-blue-950/60 px-2.5 py-1 rounded-full border border-blue-900">
+                      {(trimEnd - trimStart).toFixed(1)}s selected
+                    </span>
+                    <button
+                      onClick={() => setEditTab('none')}
+                      className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer active:scale-90 shadow-md"
+                      title="Done"
+                    >
+                      <Check className="w-4 h-4 stroke-[3]" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filmstrip-style Visual Trim Track */}
+                <div className="relative pt-2 pb-1">
+                  <div className="relative h-12 bg-slate-900 rounded-xl overflow-hidden border border-white/20 flex items-center">
+                    {/* Background filmstrip simulation ticks */}
+                    <div className="absolute inset-0 flex justify-between px-2 opacity-30 pointer-events-none">
+                      {Array.from({ length: 12 }).map((_, i) => (
+                        <div key={i} className="w-px h-full bg-white/40" />
+                      ))}
+                    </div>
+
+                    {/* Active Trimmed Zone Highlight */}
+                    <div 
+                      className="absolute top-0 bottom-0 bg-blue-500/25 border-y-2 border-blue-400 transition-all pointer-events-none"
+                      style={{
+                        left: `${(trimStart / Math.max(1, videoDuration)) * 100}%`,
+                        right: `${100 - ((trimEnd / Math.max(1, videoDuration)) * 100)}%`
+                      }}
+                    />
+
+                    {/* Live Playhead Needle */}
+                    <div 
+                      className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_white] transition-all z-10 pointer-events-none"
+                      style={{
+                        left: `${(videoCurrentTime / Math.max(1, videoDuration)) * 100}%`
+                      }}
+                    />
+                  </div>
+
+                  {/* Dual Sliders: Start & End */}
+                  <div className="grid grid-cols-2 gap-3 pt-3">
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-slate-400 font-bold">
+                        <span>{isHindi ? 'शुरुआत' : 'Start'}</span>
+                        <span className="text-white font-mono">{trimStart.toFixed(1)}s</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min={0}
+                        max={Math.max(0, trimEnd - 1)}
+                        step={0.1}
+                        value={trimStart}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setTrimStart(val);
+                          if (editVideoRef.current) editVideoRef.current.currentTime = val;
+                        }}
+                        className="w-full accent-blue-500 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-slate-400 font-bold">
+                        <span>{isHindi ? 'समाप्ति' : 'End'}</span>
+                        <span className="text-white font-mono">{trimEnd.toFixed(1)}s</span>
+                      </div>
+                      <input 
+                        type="range"
+                        min={trimStart + 1}
+                        max={videoDuration}
+                        step={0.1}
+                        value={trimEnd}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setTrimEnd(val);
+                          if (editVideoRef.current) editVideoRef.current.currentTime = val;
+                        }}
+                        className="w-full accent-rose-500 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <span className="text-[10px]">{isHindi ? 'ट्रिम' : 'Trim'}</span>
-            </button>
+            )}
 
-            {/* Sound Button */}
-            <button
-              onClick={() => setEditTab(prev => prev === 'sound' ? 'none' : 'sound')}
-              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                editTab === 'sound' ? 'text-rose-400 font-bold' : 'text-white/80 hover:text-white'
-              }`}
-            >
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                <Music className="w-5 h-5" />
+            {/* 2. SOUND / VOLUME DRAWER */}
+            {editTab === 'sound' && (
+              <div className="bg-[#121215]/95 backdrop-blur-2xl rounded-t-3xl border-t border-white/15 p-4 pb-safe space-y-4 shadow-2xl animate-in slide-in-from-bottom duration-200">
+                <div className="w-10 h-1 bg-white/25 rounded-full mx-auto mb-1" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-rose-400" />
+                    <span className="text-sm font-bold text-white">
+                      {isHindi ? 'ऑडियो मिक्स और वॉल्यूम' : 'Audio Mix & Volume'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSoundModalOpen(true)}
+                      className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white rounded-full text-xs font-bold border border-white/15 cursor-pointer"
+                    >
+                      {selectedSound ? (isHindi ? 'गाना बदलें' : 'Change Song') : (isHindi ? 'संगीत जोड़ें' : 'Add Music')}
+                    </button>
+                    <button
+                      onClick={() => setEditTab('none')}
+                      className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer active:scale-90 shadow-md"
+                      title="Done"
+                    >
+                      <Check className="w-4 h-4 stroke-[3]" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-1">
+                  {/* Original Video Track Volume */}
+                  <div className="p-3 bg-white/5 rounded-2xl border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold">
+                      <span className="text-slate-300">{isHindi ? 'मूल वीडियो ऑडियो' : 'Original Video Audio'}</span>
+                      <span className="text-white font-mono">{videoVolume}%</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Volume2 className="w-4 h-4 text-slate-400 shrink-0" />
+                      <input 
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={videoVolume}
+                        onChange={(e) => setVideoVolume(parseInt(e.target.value))}
+                        className="flex-1 accent-blue-500 cursor-pointer"
+                      />
+                      <button
+                        onClick={() => setVideoVolume(v => v === 0 ? 100 : 0)}
+                        className="text-[11px] font-bold text-slate-400 hover:text-white px-2 py-0.5 rounded bg-white/10"
+                      >
+                        {videoVolume === 0 ? 'Unmute' : 'Mute'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Added Song Track Volume */}
+                  {selectedSound ? (
+                    <div className="p-3 bg-rose-950/20 rounded-2xl border border-rose-900/40 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="text-rose-300 truncate max-w-[200px]">{selectedSound.title}</span>
+                        <span className="text-rose-400 font-mono">{soundVolume}%</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Music className="w-4 h-4 text-rose-400 shrink-0" />
+                        <input 
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={soundVolume}
+                          onChange={(e) => setSoundVolume(parseInt(e.target.value))}
+                          className="flex-1 accent-rose-500 cursor-pointer"
+                        />
+                        <button
+                          onClick={() => setSelectedSound(null)}
+                          className="text-[11px] font-bold text-rose-400 hover:text-rose-300 px-2 py-0.5 rounded bg-rose-900/40"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setSoundModalOpen(true)}
+                      className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-dashed border-white/20 text-xs font-bold text-slate-300 flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Plus className="w-4 h-4 text-rose-400" />
+                      <span>{isHindi ? 'बैकग्राउंड म्यूज़िक लाइब्रेरी से जोड़ें' : 'Add Background Track from Music Library'}</span>
+                    </button>
+                  )}
+                </div>
               </div>
-              <span className="text-[10px]">{isHindi ? 'साउंड' : 'Sound'}</span>
-            </button>
+            )}
 
-            {/* Text Overlay Button */}
-            <button
-              onClick={() => setInputTextModalOpen(true)}
-              className="flex flex-col items-center gap-1 cursor-pointer text-white/80 hover:text-white transition-all"
-            >
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                <Type className="w-5 h-5" />
+            {/* 3. FILTERS DRAWER */}
+            {editTab === 'filter' && (
+              <div className="bg-[#121215]/95 backdrop-blur-2xl rounded-t-3xl border-t border-white/15 p-4 pb-safe space-y-3 shadow-2xl animate-in slide-in-from-bottom duration-200">
+                <div className="w-10 h-1 bg-white/25 rounded-full mx-auto mb-1" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span className="text-sm font-bold text-white">
+                      {isHindi ? 'फ़िल्टर और प्रभाव' : 'Visual Filters'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setEditTab('none')}
+                    className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer active:scale-90 shadow-md"
+                    title="Done"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                  </button>
+                </div>
+
+                {/* Horizontal Circular Filter Carousel */}
+                <div className="flex items-center gap-3 overflow-x-auto scrollbar-none py-2 px-1">
+                  {FILTER_PRESETS.map((f) => {
+                    const isSelected = activeFilterId === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => setActiveFilterId(f.id)}
+                        className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 transition-transform"
+                      >
+                        <div 
+                          style={{ filter: f.filter }}
+                          className={`w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-500 via-rose-500 to-amber-400 border-2 transition-all flex items-center justify-center shadow-md ${
+                            isSelected ? 'ring-2 ring-blue-500 border-white scale-105' : 'border-white/20 opacity-80 hover:opacity-100'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-5 h-5 text-white stroke-[3] drop-shadow" />}
+                        </div>
+                        <span className={`text-[11px] font-bold ${isSelected ? 'text-white font-extrabold' : 'text-slate-400'}`}>
+                          {f.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <span className="text-[10px]">{isHindi ? 'टेक्स्ट' : 'Text'}</span>
-            </button>
+            )}
 
-            {/* Emoji Button */}
-            <button
-              onClick={() => setEditTab(prev => prev === 'filter' ? 'none' : 'filter')}
-              className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                editTab === 'filter' ? 'text-amber-400 font-bold' : 'text-white/80 hover:text-white'
-              }`}
-            >
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                <Sparkles className="w-5 h-5" />
+            {/* 4. STICKERS / EMOJIS DRAWER */}
+            {editTab === 'stickers' && (
+              <div className="bg-[#121215]/95 backdrop-blur-2xl rounded-t-3xl border-t border-white/15 p-4 pb-safe space-y-3 shadow-2xl animate-in slide-in-from-bottom duration-200">
+                <div className="w-10 h-1 bg-white/25 rounded-full mx-auto mb-1" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Smile className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-bold text-white">
+                      {isHindi ? 'स्टिकर और इमोजी जोड़ें' : 'Stickers & Emojis'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setEditTab('none')}
+                    className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center cursor-pointer active:scale-90 shadow-md"
+                    title="Done"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-6 sm:grid-cols-8 gap-2.5 max-h-48 overflow-y-auto p-1 scrollbar-none">
+                  {['🔥', '🇮🇳', '❤️', '😂', '⚡', '👏', '🎉', '🚀', '💯', '🤩', '✨', '🙌', '🚩', '🕉️', '🎬', '🍿', '👑', '💥'].map((sticker) => (
+                    <button
+                      key={sticker}
+                      onClick={() => {
+                        handleAddEmoji(sticker);
+                        setEditTab('none');
+                        addToast(`Added sticker: ${sticker}`, 'info');
+                      }}
+                      className="w-11 h-11 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-2xl flex items-center justify-center cursor-pointer active:scale-90 transition-transform shadow-xs"
+                    >
+                      {sticker}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <span className="text-[10px]">{isHindi ? 'फ़िल्टर' : 'Filters'}</span>
-            </button>
+            )}
 
-          </div>
-
-          {/* Quick Emoji Bar in Edit Screen */}
-          <div className="relative z-20 px-4 pb-2">
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
-              <span className="text-[10px] text-slate-400 shrink-0 font-bold">Quick:</span>
-              {QUICK_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => handleAddEmoji(emoji)}
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-base flex items-center justify-center cursor-pointer active:scale-90 transition-transform shrink-0"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
           </div>
 
         </div>
@@ -1206,26 +1534,27 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       {/* PHASE 3: DETAILS & THUMBNAIL PUBLISH SCREEN              */}
       {/* ======================================================== */}
       {phase === 'details' && (
-        <div className="relative w-full h-full flex flex-col justify-between overflow-y-auto bg-slate-950 text-white">
+        <div className="relative w-full h-full flex flex-col justify-between overflow-y-auto bg-slate-50 dark:bg-[#0f0f0f] text-slate-900 dark:text-slate-100 transition-colors">
           
           {/* Header */}
-          <div className="sticky top-0 z-20 pt-safe px-4 py-3 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-between">
+          <div className="sticky top-0 z-20 pt-safe px-4 py-3 bg-white/95 dark:bg-[#121215]/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-slate-900 dark:text-white shadow-xs">
             <div className="flex items-center gap-3">
               <button
                 disabled={isPublishing}
                 onClick={() => setPhase('edit')}
-                className="w-9 h-9 rounded-full bg-slate-800 text-white flex items-center justify-center cursor-pointer active:scale-90 transition-transform"
+                className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-white flex items-center justify-center cursor-pointer active:scale-90 transition-transform"
+                title="Back to edit"
               >
                 <ArrowLeft className="w-4 h-4" />
               </button>
-              <h3 className="text-base font-black text-white">
+              <h3 className="text-base font-black text-slate-900 dark:text-white">
                 {isHindi ? 'विवरण जोड़ें' : 'Add details'}
               </h3>
             </div>
 
             {/* Sound attribution indicator */}
             {selectedSound && (
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-950/60 border border-purple-800 text-purple-300 text-[11px] font-bold max-w-[150px] truncate">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-[11px] font-bold max-w-[150px] truncate">
                 <Music className="w-3 h-3 shrink-0" />
                 <span className="truncate">{selectedSound.title}</span>
               </div>
@@ -1233,23 +1562,23 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
           </div>
 
           {/* Form Content */}
-          <div className="p-4 space-y-5 max-w-lg mx-auto w-full pb-32">
+          <div className="p-4 space-y-5 max-w-lg mx-auto w-full pb-36">
             
             {/* THUMBNAIL / COVER SELECTOR (YouTube Shorts Style with Frame Scrubber) */}
-            <div className="p-4 bg-slate-900 rounded-3xl border border-slate-800 space-y-3">
+            <div className="p-4 bg-white dark:bg-[#16171a] rounded-3xl border border-slate-200/90 dark:border-slate-800 space-y-3 shadow-xs">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <ImageIcon className="w-4 h-4 text-blue-400" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-blue-500" />
                   <span>{isHindi ? 'शॉर्ट थंबनेल / कवर' : 'Short Thumbnail / Cover'}</span>
                 </label>
-                <span className="text-[10px] text-blue-400 font-bold">
+                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
                   {isHindi ? 'फ़्रेम चुनें' : 'Frame selectable'}
                 </span>
               </div>
 
               <div className="flex items-center gap-4">
                 {/* Thumbnail Preview Card */}
-                <div className="relative w-24 h-36 rounded-2xl overflow-hidden bg-slate-800 border-2 border-blue-500/50 shadow-md shrink-0 group">
+                <div className="relative w-24 h-36 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-blue-500/50 shadow-md shrink-0 group">
                   {thumbnailPreviewUrl ? (
                     <img 
                       src={thumbnailPreviewUrl} 
@@ -1257,7 +1586,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                       className="w-full h-full object-cover" 
                     />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-500">
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
                       <ImageIcon className="w-6 h-6 mb-1" />
                       <span className="text-[9px]">No Frame</span>
                     </div>
@@ -1278,7 +1607,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
                 {/* Explanatory text & frame scrubber button */}
                 <div className="space-y-2 min-w-0 flex-1">
-                  <p className="text-xs text-slate-300 leading-snug">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-snug">
                     {isHindi 
                       ? 'वीडियो का कोई भी पसंदीदा फ़्रेम चुनें या अपनी गैलरी से कस्टम फ़ोटो लगाएं।' 
                       : 'Pick any frame from your video or upload a custom image from gallery.'}
@@ -1306,7 +1635,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                       type="button"
                       disabled={isPublishing}
                       onClick={() => customThumbInputRef.current?.click()}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 text-xs font-bold rounded-xl cursor-pointer active:scale-95 transition-all flex items-center gap-1.5"
                     >
                       <Upload className="w-3.5 h-3.5" />
                       <span>{isHindi ? 'अपलोड करें' : 'Upload'}</span>
@@ -1318,9 +1647,9 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
             {/* TITLE & CAPTION INPUT */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                 <span>{isHindi ? 'कैप्शन / शीर्षक *' : 'Caption / Title *'}</span>
-                <span className="text-[10px] text-slate-500">{title.length}/100</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold">{title.length}/100</span>
               </label>
 
               <textarea
@@ -1329,7 +1658,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 disabled={isPublishing}
                 placeholder={isHindi ? 'अपने शॉर्ट का शीर्षक लिखें... #Shorts' : 'Caption your short... #Shorts'}
                 rows={2}
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-2xl text-sm text-white placeholder-slate-500 focus:outline-none transition-colors resize-none"
+                className="w-full px-4 py-3 bg-white dark:bg-[#141518] border border-slate-200 dark:border-slate-800 focus:border-blue-500 rounded-2xl text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors resize-none shadow-xs"
               />
 
               {/* Quick Hashtags Chips */}
@@ -1344,7 +1673,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                         setTitle(prev => prev ? `${prev} ${tag}` : tag);
                       }
                     }}
-                    className="px-2.5 py-1 rounded-full bg-slate-900 hover:bg-blue-600/30 border border-slate-800 hover:border-blue-500 text-blue-400 text-xs font-bold whitespace-nowrap cursor-pointer active:scale-95 transition-all"
+                    className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-blue-50 dark:bg-slate-900 dark:hover:bg-blue-600/30 border border-slate-200 dark:border-slate-800 hover:border-blue-500 text-blue-600 dark:text-blue-400 text-xs font-bold whitespace-nowrap cursor-pointer active:scale-95 transition-all"
                   >
                     {tag}
                   </button>
@@ -1354,7 +1683,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
             {/* DESCRIPTION INPUT */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 {isHindi ? 'विवरण (वैकल्पिक)' : 'Description (Optional)'}
               </label>
               <textarea
@@ -1363,23 +1692,23 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 disabled={isPublishing}
                 placeholder={isHindi ? 'वीडियो के बारे में कुछ और बताएं...' : 'Tell viewers about your Short...'}
                 rows={2}
-                className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none transition-colors resize-none"
+                className="w-full px-4 py-2.5 bg-white dark:bg-[#141518] border border-slate-200 dark:border-slate-800 focus:border-blue-500 rounded-2xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors resize-none shadow-xs"
               />
             </div>
 
             {/* CATEGORY SELECTOR */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-300">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 {isHindi ? 'श्रेणी' : 'Category'}
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 disabled={isPublishing}
-                className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-2xl text-xs text-white focus:outline-none cursor-pointer"
+                className="w-full px-4 py-2.5 bg-white dark:bg-[#141518] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-900 dark:text-white focus:outline-none cursor-pointer shadow-xs"
               >
                 {categoriesList.filter(c => c !== 'All').map((cat) => (
-                  <option key={cat} value={cat} className="bg-slate-900 text-white">
+                  <option key={cat} value={cat} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                     {cat}
                   </option>
                 ))}
@@ -1388,7 +1717,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
             {/* VISIBILITY (Public, Unlisted, Private) */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-300">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 {isHindi ? 'दृश्यता (विजिबिलिटी)' : 'Visibility'}
               </label>
               
@@ -1405,8 +1734,8 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                     onClick={() => setVisibility(id as any)}
                     className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 ${
                       visibility === id
-                        ? 'bg-blue-600/20 border-blue-500 text-blue-400 font-black'
-                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                        ? 'bg-blue-50 dark:bg-blue-600/20 border-blue-500 text-blue-600 dark:text-blue-400 font-black shadow-xs'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white shadow-xs'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -1417,13 +1746,13 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
             </div>
 
             {/* COMMENTS & AUDIENCE SETTINGS */}
-            <div className="p-4 bg-slate-900 rounded-3xl border border-slate-800 space-y-3">
+            <div className="p-4 bg-white dark:bg-[#16171a] rounded-3xl border border-slate-200/90 dark:border-slate-800 space-y-3 shadow-xs">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-bold text-white">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">
                     {isHindi ? 'कमेंट्स की अनुमति दें' : 'Allow Comments'}
                   </p>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
                     {isHindi ? 'दर्शक आपके शॉर्ट पर टिप्पणी कर सकेंगे' : 'Viewers can leave comments on your Short'}
                   </p>
                 </div>
@@ -1436,12 +1765,12 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div>
-                  <p className="text-xs font-bold text-white">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">
                     {isHindi ? 'बच्चों के लिए उपयुक्त (Made for Kids)' : 'Made for Kids'}
                   </p>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
                     {isHindi ? 'आयु-प्रतिबंधित सामग्री नहीं है' : 'Content is suitable for all ages'}
                   </p>
                 </div>
@@ -1458,17 +1787,17 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
           </div>
 
           {/* PUBLISH BOTTOM ACTION BAR */}
-          <div className="fixed bottom-0 left-0 right-0 z-30 pb-safe px-4 py-4 bg-slate-900/95 backdrop-blur-md border-t border-slate-800">
+          <div className="fixed bottom-0 left-0 right-0 z-30 pb-safe px-4 py-3.5 bg-white/95 dark:bg-[#121215]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-xl">
             {isPublishing ? (
               <div className="space-y-2 max-w-lg mx-auto">
                 <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-blue-400 flex items-center gap-1.5">
+                  <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     {uploadStage || (isHindi ? 'अपलोड हो रहा है...' : 'Uploading...')}
                   </span>
-                  <span>{uploadProgress}%</span>
+                  <span className="text-slate-700 dark:text-slate-300">{uploadProgress}%</span>
                 </div>
-                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-blue-600 to-indigo-500 transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
@@ -1480,7 +1809,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 <button
                   type="button"
                   onClick={() => setPhase('edit')}
-                  className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-2xl cursor-pointer active:scale-95 transition-all"
+                  className="px-5 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-white border border-slate-200 dark:border-slate-700 font-bold text-xs rounded-2xl cursor-pointer active:scale-95 transition-all"
                 >
                   {isHindi ? 'पीछे' : 'Back'}
                 </button>
@@ -1504,14 +1833,14 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       {/* MODAL: INTERACTIVE THUMBNAIL FRAME SCRUBBER              */}
       {/* ======================================================== */}
       {framePickerOpen && (
-        <div className="fixed inset-0 z-60 bg-black/95 flex flex-col justify-between p-4 font-sans animate-in fade-in duration-200">
-          <div className="flex items-center justify-between pt-safe pb-2">
-            <h4 className="text-sm font-black text-white">
+        <div className="fixed inset-0 z-60 bg-white/98 dark:bg-black/95 flex flex-col justify-between p-4 font-sans animate-in fade-in duration-200 text-slate-900 dark:text-white">
+          <div className="flex items-center justify-between pt-safe pb-2 border-b border-slate-200 dark:border-slate-800">
+            <h4 className="text-sm font-black text-slate-900 dark:text-white">
               {isHindi ? 'थंबनेल फ़्रेम चुनें' : 'Choose Thumbnail Frame'}
             </h4>
             <button
               onClick={() => setFramePickerOpen(false)}
-              className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center cursor-pointer"
+              className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-white flex items-center justify-center cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1531,10 +1860,10 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
           </div>
 
           {/* Scrubber Range Slider */}
-          <div className="space-y-4 pb-safe bg-slate-900/90 p-4 rounded-3xl border border-slate-800">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+          <div className="space-y-4 pb-safe bg-slate-50 dark:bg-slate-900/90 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-lg mx-auto w-full">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
               <span>{isHindi ? 'समय स्लाइडर' : 'Time Scrubber'}</span>
-              <span className="text-blue-400 font-mono">{scrubberTime.toFixed(1)}s / {videoDuration.toFixed(1)}s</span>
+              <span className="text-blue-600 dark:text-blue-400 font-mono">{scrubberTime.toFixed(1)}s / {videoDuration.toFixed(1)}s</span>
             </div>
 
             <input 
@@ -1566,79 +1895,106 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       {/* ======================================================== */}
       {/* MODAL: ADD TEXT OVERLAY MODAL                            */}
       {/* ======================================================== */}
+      {/* ======================================================== */}
+      {/* MODAL: FULL-SCREEN YOUTUBE SHORTS TEXT OVERLAY STUDIO     */}
+      {/* ======================================================== */}
       {inputTextModalOpen && (
-        <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-slate-900 rounded-3xl border border-slate-800 p-5 space-y-4 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-black text-white">
-                {isHindi ? 'टेक्स्ट जोड़ें' : 'Add Text Overlay'}
-              </h4>
-              <button 
-                onClick={() => setInputTextModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md flex flex-col justify-between p-4 pt-safe pb-safe animate-in fade-in duration-200">
+          
+          {/* Top Control Bar */}
+          <div className="flex items-center justify-between pt-2 px-2">
+            <button 
+              onClick={() => {
+                setNewTextValue('');
+                setInputTextModalOpen(false);
+              }}
+              className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer active:scale-90 transition-transform"
+              title="Cancel"
+            >
+              <X className="w-5 h-5 stroke-[2.5]" />
+            </button>
+
+            {/* Background Style Mode Toggle Pill (Classic / Boxed / Solid) */}
+            <div className="flex items-center gap-1 bg-black/60 p-1 rounded-full border border-white/15 backdrop-blur-md">
+              {[
+                { id: 'transparent', label: 'Classic' },
+                { id: 'boxed', label: 'Boxed' },
+                { id: 'solid', label: 'Solid' },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setNewTextBgMode(m.id as any)}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    newTextBgMode === m.id
+                      ? 'bg-white text-black font-extrabold shadow-md'
+                      : 'text-white/70 hover:text-white'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
 
-            <input 
-              type="text"
-              autoFocus
-              value={newTextValue}
-              onChange={(e) => setNewTextValue(e.target.value)}
-              placeholder={isHindi ? 'यहाँ टेक्स्ट टाइप करें...' : 'Type text here...'}
-              className="w-full px-4 py-3 bg-slate-800 rounded-2xl text-white text-base font-bold focus:outline-none border border-slate-700 focus:border-blue-500"
-            />
-
-            {/* Color Palette */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">{isHindi ? 'रंग' : 'Color'}</span>
-              <div className="flex items-center gap-2">
-                {['#FFFFFF', '#FFDD00', '#FF3B30', '#007AFF', '#34C759', '#000000'].map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setNewTextColor(c)}
-                    style={{ backgroundColor: c }}
-                    className={`w-7 h-7 rounded-full border-2 transition-transform cursor-pointer ${
-                      newTextColor === c ? 'scale-115 border-white ring-2 ring-blue-500' : 'border-slate-700'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Background Style */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] text-slate-400 font-bold uppercase">{isHindi ? 'बैकग्राउंड' : 'Background'}</span>
-              <div className="flex items-center gap-2">
-                {[
-                  { label: 'None', val: 'transparent' },
-                  { label: 'Dark', val: 'rgba(0,0,0,0.7)' },
-                  { label: 'Bright', val: 'rgba(255,255,255,0.85)' },
-                ].map(({ label, val }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => setNewTextBg(val)}
-                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      newTextBg === val ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+            {/* Done Button */}
             <button
               onClick={handleAddOverlayText}
               disabled={!newTextValue.trim()}
-              className="w-full py-2.5 bg-blue-600 disabled:opacity-50 hover:bg-blue-700 text-white text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all shadow-md"
+              className="px-5 py-2 rounded-full bg-white text-black hover:bg-slate-100 disabled:opacity-40 font-extrabold text-xs sm:text-sm shadow-xl active:scale-95 transition-all cursor-pointer"
             >
-              {isHindi ? 'जोड़ें' : 'Add to Video'}
+              {isHindi ? 'पूर्ण' : 'Done'}
             </button>
           </div>
+
+          {/* Centered Large Interactive Typography Preview & Input */}
+          <div className="flex-1 flex flex-col items-center justify-center px-4 max-w-lg mx-auto w-full">
+            <div 
+              style={{
+                color: newTextBgMode === 'solid' && ['#FFFFFF', '#FFDD00', '#34C759'].includes(newTextColor) ? '#000000' : newTextColor,
+                backgroundColor: newTextBgMode === 'boxed' ? 'rgba(0,0,0,0.72)' : newTextBgMode === 'solid' ? newTextColor : 'transparent',
+              }}
+              className="w-full rounded-2xl p-4 transition-all"
+            >
+              <textarea
+                autoFocus
+                rows={3}
+                value={newTextValue}
+                onChange={(e) => setNewTextValue(e.target.value)}
+                placeholder={isHindi ? 'यहाँ टेक्स्ट टाइप करें... #Shorts' : 'Add text to your Short...'}
+                className="w-full bg-transparent text-center text-2xl sm:text-3xl font-black placeholder-white/40 focus:outline-none resize-none leading-tight drop-shadow-md"
+              />
+            </div>
+            <p className="text-[11px] text-white/50 font-medium mt-3 text-center">
+              {isHindi ? 'टेक्स्ट जोड़ने के बाद आप इसे खींचकर कहीं भी रख सकते हैं' : 'You can drag and position your text anywhere after adding'}
+            </p>
+          </div>
+
+          {/* Bottom Vibrant Palette Selector */}
+          <div className="space-y-3 px-2 pb-2">
+            <div className="flex items-center justify-center gap-3 overflow-x-auto py-2 scrollbar-none max-w-md mx-auto">
+              {[
+                { hex: '#FFFFFF', name: 'White' },
+                { hex: '#FFDD00', name: 'Yellow' },
+                { hex: '#FF3B30', name: 'Red' },
+                { hex: '#00E5FF', name: 'Cyan' },
+                { hex: '#34C759', name: 'Green' },
+                { hex: '#FF007A', name: 'Pink' },
+                { hex: '#AF52DE', name: 'Purple' },
+                { hex: '#000000', name: 'Black' },
+              ].map(({ hex }) => (
+                <button
+                  key={hex}
+                  type="button"
+                  onClick={() => setNewTextColor(hex)}
+                  style={{ backgroundColor: hex }}
+                  className={`w-8 h-8 rounded-full border-2 transition-transform cursor-pointer shrink-0 shadow-md ${
+                    newTextColor === hex ? 'scale-125 border-white ring-2 ring-blue-500' : 'border-white/30'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+
         </div>
       )}
 
