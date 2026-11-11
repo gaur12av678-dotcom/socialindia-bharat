@@ -495,3 +495,30 @@ html button.si-btn-following-overlay :is(span, svg, i) {
   -webkit-text-fill-color: #ffffff !important;
 }
 
+/* ============================================================
+   UPLOAD FLOW: Media Select Button (High-Contrast White on Blue)
+   ============================================================ */
+button.si-upload-select-btn,
+html.light button.si-upload-select-btn,
+html.dark button.si-upload-select-btn,
+html:not(.dark) button.si-upload-select-btn {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+button.si-upload-select-btn:hover,
+button.si-upload-select-btn:focus-visible {
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+button.si-upload-select-btn :is(span, svg, i) {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+

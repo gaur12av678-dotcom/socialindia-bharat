@@ -58,7 +58,8 @@ import {
   Play,
   ShieldCheck,
   Clock,
-  Subtitles
+  Subtitles,
+  ExternalLink
 } from 'lucide-react';
 import { commentService } from '../services/commentService';
 import { Comment } from '../types';
@@ -722,7 +723,62 @@ export const CreatorStudio: React.FC = () => {
   const topVideos = [...videos].sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0)).slice(0, 5);
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto pb-20">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto pb-28 md:pb-20 select-none">
+      
+      {/* 1. YOUTUBE STUDIO HEADER (Optimized for Mobile & Desktop) */}
+      <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-3.5 sm:p-5 shadow-xs flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            onClick={() => navigate('profile-menu')}
+            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center cursor-pointer shrink-0 transition-all active:scale-90"
+            title={isHindi ? 'पीछे जाएं' : 'Go back'}
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+
+          <div className="flex items-center gap-2.5 min-w-0">
+            <UserAvatar 
+              uid={currentUser?.uid}
+              fallbackPhotoURL={currentUserProfile?.photoURL || currentUser?.photoURL}
+              fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username || 'Channel'}
+              size="md"
+              className="w-10 h-10 min-w-[40px] min-h-[40px] rounded-full shrink-0 ring-2 ring-red-500/20 shadow-xs"
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-sm sm:text-base font-black text-slate-900 dark:text-white truncate">
+                  {currentUserProfile?.displayName || currentUser?.displayName || 'My Studio'}
+                </h1>
+                <span className="px-1.5 py-0.2 rounded-md bg-red-100 dark:bg-red-950/70 text-red-600 dark:text-red-400 text-[9px] font-black uppercase tracking-wider shrink-0 border border-red-200/50 dark:border-red-900/50">
+                  Studio
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate">
+                @{currentUserProfile?.username || 'creator'} • {currentUserProfile?.followersCount || stats.followers || 0} {isHindi ? 'फॉलोअर्स' : 'followers'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons: View Channel & Upload */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => navigate('creator', currentUserProfile?.username || currentUser?.uid)}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-all cursor-pointer"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>{isHindi ? 'चैनल देखें' : 'View channel'}</span>
+          </button>
+
+          <button
+            onClick={() => navigate('upload')}
+            className="px-3.5 sm:px-4 py-2 bg-gradient-to-r from-red-600 via-rose-600 to-indigo-600 hover:brightness-110 text-white text-xs font-black rounded-xl shadow-md shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span className="hidden xs:inline">{isHindi ? 'अपलोड करें' : 'Create'}</span>
+          </button>
+        </div>
+      </div>
       
 
 
@@ -1198,7 +1254,8 @@ export const CreatorStudio: React.FC = () => {
                 </div>
               </div>
               
-              <div className="overflow-x-auto">
+              {/* DESKTOP CONTENT TABLE */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left">
                   <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
                     <tr>
@@ -1218,7 +1275,7 @@ export const CreatorStudio: React.FC = () => {
                         <tr key={v.videoId} className="group hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
                           <td className="px-6 py-4 min-w-[300px]">
                             <div className="flex gap-4 items-center">
-                              <div className="w-24 aspect-video rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700">
+                              <div className="w-24 aspect-video rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700 relative">
                                 <img src={v.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                                 {v.isShort && <div className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Short</div>}
                               </div>
@@ -1264,6 +1321,109 @@ export const CreatorStudio: React.FC = () => {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* MOBILE VIDEO CARDS (YouTube Studio Mobile Style) */}
+              <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                {videos.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-400 font-bold uppercase tracking-widest">
+                    Your channel is empty. Upload your first video!
+                  </div>
+                ) : (
+                  videos.map((v) => (
+                    <div key={v.videoId} className="p-4 space-y-3">
+                      <div className="flex gap-3">
+                        <div 
+                          onClick={() => navigate('watch', v.videoId)}
+                          className="relative w-28 aspect-video rounded-xl overflow-hidden bg-slate-900 shrink-0 cursor-pointer shadow-xs border border-slate-200/80 dark:border-slate-800"
+                        >
+                          <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
+                          {v.isShort && (
+                            <div className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">
+                              Short
+                            </div>
+                          )}
+                          <div className="absolute bottom-1 right-1 px-1 py-0.2 bg-black/80 text-white text-[9px] font-bold rounded">
+                            {v.duration ? formatDuration(v.duration) : '01:24'}
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <h4 
+                            onClick={() => navigate('watch', v.videoId)}
+                            className="text-xs font-black text-slate-900 dark:text-white line-clamp-2 leading-snug cursor-pointer hover:text-blue-600"
+                          >
+                            {v.title}
+                          </h4>
+                          
+                          <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 font-semibold flex-wrap">
+                            <span className="flex items-center gap-1 font-bold">
+                              {v.visibility === 'public' ? (
+                                <Globe className="w-3 h-3 text-green-500" />
+                              ) : v.visibility === 'private' ? (
+                                <Lock className="w-3 h-3 text-rose-500" />
+                              ) : (
+                                <EyeOff className="w-3 h-3 text-amber-500" />
+                              )}
+                              <span className="capitalize">{v.visibility}</span>
+                            </span>
+                            <span>•</span>
+                            <span>{new Date(v.createdAt).toLocaleDateString()}</span>
+                          </div>
+
+                          <div className="flex items-center gap-3 pt-0.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            <span className="flex items-center gap-1">
+                              <Eye className="w-3 h-3 text-blue-500" /> {v.viewsCount || 0}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Heart className="w-3 h-3 text-rose-500" /> {v.likesCount || 0}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MessageSquare className="w-3 h-3 text-purple-500" /> {v.commentsCount || 0}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action buttons row for mobile */}
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-50 dark:border-slate-800/60">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => navigate('watch', v.videoId)}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer"
+                          >
+                            <Play className="w-3 h-3 fill-current" />
+                            <span>Play</span>
+                          </button>
+                          <button
+                            onClick={() => setCaptionEditorVideo(v)}
+                            className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer"
+                          >
+                            <Subtitles className="w-3 h-3" />
+                            <span>CC</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => handleEditClick(v)}
+                            className="p-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClick(v)}
+                            className="p-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-lg cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -2870,6 +3030,47 @@ export const CreatorStudio: React.FC = () => {
           }}
         />
       )}
+
+      {/* MOBILE BOTTOM NAVIGATION (YouTube Studio Mobile Style) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#121215]/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800/90 px-2 py-1.5 flex items-center justify-around shadow-lg">
+        {[
+          { id: 'dashboard', label: isHindi ? 'डैशबोर्ड' : 'Dashboard', icon: LayoutDashboard },
+          { id: 'content', label: isHindi ? 'कंटेंट' : 'Content', icon: Play, badge: videos.length },
+          { id: 'analytics', label: isHindi ? 'एनालिटिक्स' : 'Analytics', icon: BarChart3 },
+          { id: 'comments', label: isHindi ? 'कमेंट्स' : 'Comments', icon: MessageSquare, badge: studioComments.length },
+          ...(isUserMonetized ? [{ id: 'earn', label: isHindi ? 'कमाई' : 'Earn', icon: DollarSign }] : []),
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`flex-1 py-1 px-1 flex flex-col items-center justify-center gap-0.5 rounded-xl transition-all cursor-pointer relative ${
+                isActive
+                  ? 'text-[#2563EB] dark:text-blue-400 font-black'
+                  : 'text-slate-500 dark:text-slate-400 font-semibold hover:text-slate-800'
+              }`}
+            >
+              <div className="relative">
+                <Icon className={`w-5 h-5 ${isActive ? (tab.id === 'content' ? 'fill-current' : '') : ''}`} />
+                {typeof tab.badge === 'number' && tab.badge > 0 && (
+                  <span className="absolute -top-1 -right-2 px-1 py-0.2 bg-blue-600 text-white text-[8px] font-black rounded-full min-w-[14px] text-center">
+                    {tab.badge > 99 ? '99+' : tab.badge}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] leading-tight truncate">{tab.label}</span>
+              {isActive && (
+                <div className="w-4 h-0.5 bg-[#2563EB] dark:bg-blue-400 rounded-full mt-0.5" />
+              )}
+            </button>
+          );
+        })}
+      </div>
 
     </div>
   );

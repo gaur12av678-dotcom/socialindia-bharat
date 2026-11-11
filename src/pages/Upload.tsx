@@ -724,11 +724,16 @@ export const UploadPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => !isPublishing && fileInputRef.current?.click()}
-                    style={{ color: '#ffffff' }}
-                    className="mt-6 px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-full shadow-md shadow-blue-600/25 flex items-center gap-2.5 cursor-pointer active:scale-95 transition-all"
+                    style={{ backgroundColor: '#2563eb', color: '#ffffff', WebkitTextFillColor: '#ffffff' }}
+                    className="si-upload-select-btn mt-6 px-8 py-3.5 bg-blue-600 hover:bg-blue-700 !text-white font-bold text-sm sm:text-base rounded-full shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2.5 cursor-pointer active:scale-95 transition-all select-none"
                   >
-                    <FolderOpen className="w-4 h-4" />
-                    <span>{isHindi ? 'डिवाइस से मीडिया चुनें' : 'Select Media from Device'}</span>
+                    <FolderOpen className="w-5 h-5 text-white shrink-0" style={{ color: '#ffffff', stroke: '#ffffff' }} />
+                    <span 
+                      className="text-white font-bold text-sm sm:text-base tracking-wide whitespace-nowrap"
+                      style={{ color: '#ffffff', WebkitTextFillColor: '#ffffff', display: 'inline-block' }}
+                    >
+                      {isHindi ? 'डिवाइस से मीडिया चुनें' : 'Select Media from Device'}
+                    </span>
                   </button>
 
 

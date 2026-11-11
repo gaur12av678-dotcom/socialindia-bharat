@@ -559,6 +559,8 @@ export const Settings: React.FC = () => {
     badge?: string;
     badgeType?: 'blue' | 'amber';
     isDanger?: boolean;
+    isExternalRoute?: boolean;
+    route?: string;
   }
 
   interface SettingsGroup {
@@ -592,6 +594,15 @@ export const Settings: React.FC = () => {
       ]
     },
     {
+      category: isHindi ? 'टूल्स व क्रिएटर (Tools & Creator)' : 'TOOLS & CREATOR',
+      items: [
+        { id: 'creator_studio_nav', label: isHindi ? 'क्रिएटर स्टूडियो' : 'Creator Studio', icon: Film, isExternalRoute: true, route: 'studio', badge: 'Studio', badgeType: 'blue' },
+        ...(currentUserProfile?.role === 'admin' ? [{ id: 'admin_hub_nav', label: isHindi ? 'एडमिन हब' : 'Admin Hub', icon: ShieldCheck, isExternalRoute: true, route: 'admin', badge: 'Admin', badgeType: 'amber' as const }] : []),
+        { id: 'help_support_nav', label: isHindi ? 'सहायता केंद्र (Help & FAQ)' : 'Help & FAQ', icon: HelpCircle, isExternalRoute: true, route: 'help' },
+        { id: 'feedback_nav', label: isHindi ? 'फ़ीडबैक भेजें' : 'Send Feedback', icon: MessageSquare, isExternalRoute: true, route: 'feedback' },
+      ]
+    },
+    {
       category: isHindi ? 'डेटा (Data)' : 'DATA',
       items: [
         { id: 'my_info', label: isHindi ? 'मेरी जानकारी' : 'My Information', icon: Info },
@@ -600,8 +611,13 @@ export const Settings: React.FC = () => {
     }
   ];
 
-  const handleSelectTab = (id: any) => {
-    setActiveTab(id);
+  const handleSelectTab = (item: any) => {
+    if (typeof item === 'object' && item?.isExternalRoute && item?.route) {
+      navigate(item.route);
+      return;
+    }
+    const tabId = typeof item === 'object' ? item.id : item;
+    setActiveTab(tabId);
     setMobileView('content');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -654,7 +670,7 @@ export const Settings: React.FC = () => {
                     return (
                       <button
                         key={item.id}
-                        onClick={() => handleSelectTab(item.id)}
+                        onClick={() => handleSelectTab(item)}
                         className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm transition-all cursor-pointer group ${
                           isActive
                             ? 'bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 font-bold'
