@@ -74,7 +74,7 @@ export const recommendationService = {
    * 4. Ensures the exact same video doesn't appear at position #0 repeatedly.
    * 5. Keeps remaining videos (ranked 21+) after the top 20.
    */
-  rankAndFilterVideos(videos: Video[], options?: { isShortsOnly?: boolean; userUid?: string }): Video[] {
+  rankAndFilterVideos(videos: Video[], options?: { isShortsOnly?: boolean; userUid?: string; rotateTop?: boolean }): Video[] {
     if (!videos || videos.length === 0) return [];
 
     let pool = [...videos];
@@ -99,41 +99,22 @@ export const recommendationService = {
       return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
     });
 
-    // 2. Select strictly the TOP 20 highest-viewed videos
-    const TOP_LIMIT = 20;
-    const top20Pool = pool.slice(0, TOP_LIMIT);
-    const restPool = pool.slice(TOP_LIMIT);
-
-    // 3. Rotate & change positions among these top 20 so they are not static
-    const rotatedTop20 = this.shuffleArray(top20Pool);
-
-    // 4. Anti-repeat hero check: if first video was the exact hero video in the previous view, swap with another item
-    if (rotatedTop20.length > 1 && rotatedTop20[0].videoId === lastHeroVideoId) {
-      const swapIdx = Math.floor(Math.random() * (rotatedTop20.length - 1)) + 1;
-      [rotatedTop20[0], rotatedTop20[swapIdx]] = [rotatedTop20[swapIdx], rotatedTop20[0]];
+    // Only rotate top items on explicit refresh
+    if (options?.rotateTop) {
+      const TOP_LIMIT = 20;
+      const top20Pool = pool.slice(0, TOP_LIMIT);
+      const restPool = pool.slice(TOP_LIMIT);
+      const rotatedTop20 = this.shuffleArray(top20Pool);
+      return [...rotatedTop20, ...restPool];
     }
 
-    if (rotatedTop20[0]?.videoId) {
-      lastHeroVideoId = rotatedTop20[0].videoId;
-    }
-
-    // 5. Return rotated top 20 first, followed by the rest
-    return [...rotatedTop20, ...restPool];
+    return pool;
   },
 
   /**
    * YOUTUBE-STYLE "MORE VIDEOS FOR YOU" RECOMMENDATION ALGORITHM (Homepage feed)
-   * 1. Multi-factor scoring:
-   *    - Views & Likes engagement (log scaled).
-   *    - Freshness boost (new uploads within 24h / 3d / 7d get elevated).
-   * 2. Watched Videos intelligent decay:
-   *    - Watched videos are decayed (0.45x) so fresh unseen content naturally surfaces,
-   *      without completely omitting classic high-engagement videos ("or dekh hi vedio mat dikho bar bar or yeh bhi mat karo ki ak bar hi dikho algruhtim bano").
-   * 3. Dynamic Positional Jitter & Anti-Freeze:
-   *    - Dynamic score randomization ensures videos do not stay frozen in the same slot ("same positing per hi ak vedio mat dikho").
-   *    - First card position rotation prevents back-to-back #0 repetition.
-   * 4. Creator Diversity Interleaving:
-   *    - Prevents 3+ consecutive videos from the same creator in the feed.
+   * Deterministic scoring based on engagement, freshness, and creator diversity.
+   * Stable across renders and scrolling (no random jumping).
    */
   getHomeMoreVideosRecommendations(options: HomeMoreVideosOptions): Video[] {
     const { allVideos, firstRowIds = [], category = 'All' } = options;
@@ -182,17 +163,13 @@ export const recommendationService = {
         totalScore *= 0.45;
       }
 
-      // Dynamic position jitter ("same positing per hi ak vedio mat dikho")
-      const jitter = Math.random() * 22;
-      totalScore += jitter;
-
       return {
         video: v,
         score: totalScore
       };
     });
 
-    // Sort candidates by final recommendation score descending
+    // Sort candidates strictly by recommendation score descending (deterministic and stable)
     scored.sort((a, b) => b.score - a.score);
     let sortedVideos = scored.map(s => s.video);
 
@@ -209,16 +186,6 @@ export const recommendationService = {
           [sortedVideos[i + 2], sortedVideos[diffIdx]] = [sortedVideos[diffIdx], sortedVideos[i + 2]];
         }
       }
-    }
-
-    // Anti-freeze check: If first item is identical to last session's first item, swap within top 4
-    if (sortedVideos.length > 2 && sortedVideos[0].videoId === lastMoreVideosFirstId) {
-      const swapTarget = Math.min(sortedVideos.length - 1, Math.floor(Math.random() * 3) + 1);
-      [sortedVideos[0], sortedVideos[swapTarget]] = [sortedVideos[swapTarget], sortedVideos[0]];
-    }
-
-    if (sortedVideos[0]?.videoId) {
-      lastMoreVideosFirstId = sortedVideos[0].videoId;
     }
 
     return sortedVideos;

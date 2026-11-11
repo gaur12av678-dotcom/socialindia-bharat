@@ -49,13 +49,11 @@ export const getFilteredVideosForCategory = (category: string, sourceVideos: Vid
 
 // Persistent in-memory Home feed state (preserves master videos, shorts, category, and scroll position like YouTube)
 let persistentMasterVideos: Video[] = [];
+let persistentRankedVideos: Video[] = [];
 let persistentHomeShorts: Video[] | null = null;
 let persistentHomeCategory = 'All';
 let persistentHomeScrollY = 0;
 let hasLoadedHomeOnce = false;
-
-const INITIAL_BATCH_COUNT = 12;
-const BATCH_INCREMENT = 12;
 
 export const Home: React.FC = () => {
   const { currentUser, addToast } = useApp();
@@ -66,10 +64,6 @@ export const Home: React.FC = () => {
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
-  
-  // Incremental batch rendering to prevent UI lag and avoid rendering 50+ videos upfront
-  const [visibleCount, setVisibleCount] = useState<number>(INITIAL_BATCH_COUNT);
-  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Master in-memory video repository for instant 0ms filtering
   const initialAllCached = videoService.getCachedVideos({ isShort: false });
@@ -85,17 +79,17 @@ export const Home: React.FC = () => {
   }
 
   const [videos, setVideos] = useState<Video[]>(() => {
-    if (masterVideosRef.current.length > 0) {
-      return recommendationService.rankAndFilterVideos(
-        getFilteredVideosForCategory(selectedCategory, masterVideosRef.current),
-        { userUid: currentUser?.uid }
-      );
+    if (persistentRankedVideos.length > 0 && selectedCategory === persistentHomeCategory) {
+      return persistentRankedVideos;
     }
-    if (initialAllCached.length > 0) {
-      return recommendationService.rankAndFilterVideos(
-        getFilteredVideosForCategory(selectedCategory, initialAllCached), 
-        { userUid: currentUser?.uid }
-      );
+    const source = masterVideosRef.current.length > 0 ? masterVideosRef.current : initialAllCached;
+    if (source.length > 0) {
+      const filtered = getFilteredVideosForCategory(selectedCategory, source);
+      const ranked = recommendationService.rankAndFilterVideos(filtered, {
+        userUid: currentUser?.uid
+      });
+      persistentRankedVideos = ranked;
+      return ranked;
     }
     return [];
   });
@@ -114,7 +108,7 @@ export const Home: React.FC = () => {
     return [];
   });
 
-  const [loading, setLoading] = useState(() => !(masterVideosRef.current.length > 0 || initialAllCached.length > 0));
+  const [loading, setLoading] = useState(() => !(masterVideosRef.current.length > 0 || initialAllCached.length > 0 || persistentRankedVideos.length > 0));
   const [loadingShorts, setLoadingShorts] = useState(() => {
     if (persistentHomeShorts && persistentHomeShorts.length > 0) return false;
     if (initialCachedShorts.length > 0) return false;
@@ -222,7 +216,6 @@ export const Home: React.FC = () => {
     if (selectedCategory === cat) return;
     setSelectedCategory(cat);
     persistentHomeCategory = cat;
-    setVisibleCount(INITIAL_BATCH_COUNT);
 
     // Scroll to top of main container or window
     const mainEl = document.querySelector('main');
@@ -236,34 +229,37 @@ export const Home: React.FC = () => {
     const ranked = recommendationService.rankAndFilterVideos(instantFiltered, {
       userUid: currentUser?.uid
     });
+    persistentRankedVideos = ranked;
     setVideos(ranked);
     setLoading(false);
   };
 
   const fetchHomeVideos = async (forceFresh = false) => {
-    // Only show loading skeleton if no videos are loaded at all
+    // If videos are already loaded in memory and user is not pulling to refresh, do not re-fetch!
+    if (masterVideosRef.current.length > 0 && !forceFresh && hasLoadedHomeOnce) {
+      setLoading(false);
+      return;
+    }
+
     if (masterVideosRef.current.length === 0 || forceFresh) {
       setLoading(true);
     }
     try {
-      await videoService.getVideosProgressive(
-        { isShort: false, limit: 60 },
-        (batch, isFirstBatch) => {
-          if (!batch || batch.length === 0) return;
+      const fetchedVideos = await videoService.getVideos({ isShort: false, limit: 60 });
+      if (fetchedVideos && fetchedVideos.length > 0) {
+        masterVideosRef.current = fetchedVideos;
+        persistentMasterVideos = fetchedVideos;
 
-          masterVideosRef.current = batch;
-          persistentMasterVideos = batch;
+        const filtered = getFilteredVideosForCategory(selectedCategory, fetchedVideos);
+        const ranked = recommendationService.rankAndFilterVideos(filtered, {
+          userUid: currentUser?.uid,
+          rotateTop: forceFresh
+        });
 
-          const filtered = getFilteredVideosForCategory(selectedCategory, batch);
-          const ranked = recommendationService.rankAndFilterVideos(filtered, {
-            userUid: currentUser?.uid
-          });
-
-          setVideos(ranked);
-          setLoading(false); // Instantly dismiss skeleton as soon as initial batch arrives!
-          hasLoadedHomeOnce = true;
-        }
-      );
+        persistentRankedVideos = ranked;
+        setVideos(ranked);
+        hasLoadedHomeOnce = true;
+      }
     } catch (err) {
       console.error(err);
       if (videos.length === 0 && masterVideosRef.current.length === 0) {
@@ -275,25 +271,24 @@ export const Home: React.FC = () => {
   };
 
   const fetchHomeShorts = async (forceFresh = false) => {
+    if (persistentHomeShorts && persistentHomeShorts.length > 0 && !forceFresh) {
+      setLoadingShorts(false);
+      return;
+    }
     if (shorts.length === 0 || forceFresh) {
       setLoadingShorts(true);
     }
     try {
-      await videoService.getVideosProgressive(
-        { isShort: true, limit: 20 },
-        (shortsBatch, isFirstBatch) => {
-          if (!shortsBatch || shortsBatch.length === 0) return;
-          const rankedShorts = recommendationService.getShortsRecommendations({
-            allShorts: shortsBatch,
-            userUid: currentUser?.uid,
-            limit: 15
-          });
-          setShorts(rankedShorts);
-          persistentHomeShorts = rankedShorts;
-          setLoadingShorts(false);
-          setTimeout(checkShortsScroll, 100);
-        }
-      );
+      const fetchedShorts = await videoService.getVideos({ isShort: true, limit: 25 });
+      if (fetchedShorts && fetchedShorts.length > 0) {
+        const rankedShorts = recommendationService.getShortsRecommendations({
+          allShorts: fetchedShorts,
+          userUid: currentUser?.uid,
+          limit: 15
+        });
+        setShorts(rankedShorts);
+        persistentHomeShorts = rankedShorts;
+      }
     } catch (err) {
       console.error(err);
       if (shorts.length === 0) {
@@ -302,7 +297,7 @@ export const Home: React.FC = () => {
       }
     } finally {
       setLoadingShorts(false);
-      setTimeout(checkShortsScroll, 200);
+      setTimeout(checkShortsScroll, 150);
     }
   };
 
@@ -310,7 +305,6 @@ export const Home: React.FC = () => {
   const handleRefreshFeed = async (_showToast = false) => {
     if (isRefreshing) return;
     setIsRefreshing(true);
-    setVisibleCount(INITIAL_BATCH_COUNT);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     persistentHomeScrollY = 0;
     try {
@@ -337,7 +331,6 @@ export const Home: React.FC = () => {
   // Synchronize category change instantly (0ms) without refetching from network
   useEffect(() => {
     persistentHomeCategory = selectedCategory;
-    setVisibleCount(INITIAL_BATCH_COUNT);
 
     // 0ms instant filter from in-memory videos
     if (masterVideosRef.current.length > 0) {
@@ -345,6 +338,7 @@ export const Home: React.FC = () => {
       const ranked = recommendationService.rankAndFilterVideos(instant, {
         userUid: currentUser?.uid
       });
+      persistentRankedVideos = ranked;
       setVideos(ranked);
       setLoading(false);
     }
@@ -379,44 +373,6 @@ export const Home: React.FC = () => {
     }, 750);
     return () => clearTimeout(timer);
   }, [loadingShorts]);
-
-  // Infinite Scroll IntersectionObserver & Scroll Listener:
-  // Dynamically increments visibleCount as user scrolls near bottom
-  useEffect(() => {
-    if (visibleCount >= videos.length) return;
-
-    let observer: IntersectionObserver | null = null;
-    const currentSentinel = sentinelRef.current;
-
-    if (typeof IntersectionObserver !== 'undefined' && currentSentinel) {
-      observer = new IntersectionObserver(
-        (entries) => {
-          if (entries[0]?.isIntersecting) {
-            setVisibleCount((prev) => Math.min(prev + BATCH_INCREMENT, videos.length));
-          }
-        },
-        { rootMargin: '600px', threshold: 0.05 }
-      );
-      observer.observe(currentSentinel);
-    }
-
-    const onScroll = () => {
-      const scrollY = window.scrollY;
-      const windowHeight = window.innerHeight;
-      const docHeight = document.documentElement.scrollHeight;
-      if (scrollY + windowHeight >= docHeight - 750) {
-        setVisibleCount((prev) => Math.min(prev + BATCH_INCREMENT, videos.length));
-      }
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-
-    return () => {
-      if (observer && currentSentinel) {
-        observer.unobserve(currentSentinel);
-      }
-      window.removeEventListener('scroll', onScroll);
-    };
-  }, [visibleCount, videos.length]);
 
   // Touch handlers for Mobile Pull-to-Refresh
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -456,31 +412,26 @@ export const Home: React.FC = () => {
 
   const isFollowingFeed = isMobileViewport && mobileFeedTab === 'following';
 
-  // YouTube-style Incremental Batch Rendering:
-  // For 'All': Top 3 in Row 1 above Shorts, then YouTube-style algorithm recommendations for "More Videos For You"
-  // For specific category: slices up to visibleCount (starts with 12)
-  const firstRowVideos = selectedCategory === 'All' ? videos.slice(0, 3) : videos.slice(0, visibleCount);
+  // Stable YouTube-style feed layout:
+  // For 'All': Top 3 videos in Row 1 above Shorts shelf, then More Videos below Shorts.
+  // For specific category: all filtered category videos in Row 1.
+  const firstRowVideos = React.useMemo(() => {
+    return selectedCategory === 'All' ? videos.slice(0, 3) : videos;
+  }, [selectedCategory, videos]);
 
-  // YouTube-style recommendation algorithm for "More Videos For You"
+  const firstRowIdsKey = React.useMemo(() => {
+    return selectedCategory === 'All' ? firstRowVideos.map(v => v.videoId).join(',') : '';
+  }, [selectedCategory, firstRowVideos]);
+
+  // YouTube-style recommendation algorithm for "More Videos For You" (stable across renders and scroll)
   const moreVideos = React.useMemo(() => {
     if (isFollowingFeed || selectedCategory !== 'All' || masterVideosRef.current.length === 0) return [];
-    const firstRowIds = firstRowVideos.map(v => v.videoId);
     return recommendationService.getHomeMoreVideosRecommendations({
       allVideos: masterVideosRef.current,
-      firstRowIds,
+      firstRowIds: firstRowVideos.map(v => v.videoId),
       userUid: currentUser?.uid
     });
-  }, [isFollowingFeed, selectedCategory, firstRowVideos, currentUser?.uid]);
-
-  const displayedMoreVideos = !isFollowingFeed && selectedCategory === 'All'
-    ? moreVideos.slice(0, Math.max(0, visibleCount - 3))
-    : [];
-
-  const hasMoreVideos = !isFollowingFeed && (
-    selectedCategory === 'All'
-      ? visibleCount - 3 < moreVideos.length
-      : visibleCount < videos.length
-  );
+  }, [isFollowingFeed, selectedCategory, firstRowIdsKey, currentUser?.uid, masterVideosRef.current.length]);
 
   return (
     <div 
@@ -521,7 +472,6 @@ export const Home: React.FC = () => {
               aria-current={mobileFeedTab === 'all' ? 'true' : undefined}
               onClick={() => {
                 setMobileFeedTab('all');
-                setVisibleCount(INITIAL_BATCH_COUNT);
                 if (selectedCategory !== 'All') {
                   handleCategorySelect('All');
                 }
@@ -544,7 +494,6 @@ export const Home: React.FC = () => {
               aria-current={mobileFeedTab === 'following' ? 'true' : undefined}
               onClick={() => {
                 setMobileFeedTab('following');
-                setVisibleCount(INITIAL_BATCH_COUNT);
                 window.scrollTo({ top: 0, behavior: 'instant' });
               }}
               className={`relative py-2.5 text-[13px] tracking-wide transition-colors cursor-pointer flex items-center justify-center ${
@@ -808,7 +757,7 @@ export const Home: React.FC = () => {
       </div>
 
       {/* 3. More Videos Section (YouTube Algorithm Recommended Videos) */}
-      {selectedCategory === 'All' && displayedMoreVideos.length > 0 && (
+      {selectedCategory === 'All' && moreVideos.length > 0 && (
         <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
@@ -817,25 +766,13 @@ export const Home: React.FC = () => {
           </div>
 
           <VideoGrid 
-            videos={displayedMoreVideos} 
+            videos={moreVideos} 
             loading={false} 
             activeAds={[]}
             gridColsClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
             emptyHeading={isHindi ? 'कोई और वीडियो नहीं' : 'No more videos'}
             emptyMessage={isHindi ? 'अधिक वीडियो प्रकाशित होने पर यहां दिखाई देंगे।' : 'More videos will appear here.'}
           />
-        </div>
-      )}
-
-      {/* Infinite Scroll Sentinel element & Smooth Bottom Loading Indicator */}
-      <div ref={sentinelRef} className="h-6 w-full pointer-events-none" />
-
-      {hasMoreVideos && (
-        <div className="flex flex-col items-center justify-center py-6 gap-2 select-none">
-          <div className="w-6 h-6 border-2 border-slate-300 dark:border-slate-700 border-t-[#2563eb] dark:border-t-[#3b82f6] rounded-full animate-spin" />
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            {isHindi ? 'अधिक वीडियो लोड हो रहे हैं...' : 'Loading more videos...'}
-          </span>
         </div>
       )}
       </div>
