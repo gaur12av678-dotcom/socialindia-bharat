@@ -76,15 +76,29 @@ public class MainActivity extends AppCompatActivity {
 
     // Permission request launcher for Web Audio/Camera
     private PermissionRequest pendingWebPermissionRequest;
-    private final ActivityResultLauncher<String> audioPermissionLauncher =
-            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+    private final ActivityResultLauncher<String[]> webPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
                 if (pendingWebPermissionRequest != null) {
-                    if (isGranted) {
-                        pendingWebPermissionRequest.grant(pendingWebPermissionRequest.getResources());
-                    } else {
-                        pendingWebPermissionRequest.deny();
-                    }
-                    pendingWebPermissionRequest = null;
+                    runOnUiThread(() -> {
+                        ArrayList<String> grantedResources = new ArrayList<>();
+                        boolean cameraGranted = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+                        boolean audioGranted = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+
+                        for (String r : pendingWebPermissionRequest.getResources()) {
+                            if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r) && cameraGranted) {
+                                grantedResources.add(r);
+                            } else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r) && audioGranted) {
+                                grantedResources.add(r);
+                            }
+                        }
+
+                        if (!grantedResources.isEmpty()) {
+                            pendingWebPermissionRequest.grant(grantedResources.toArray(new String[0]));
+                        } else {
+                            pendingWebPermissionRequest.deny();
+                        }
+                        pendingWebPermissionRequest = null;
+                    });
                 }
             });
 
@@ -408,21 +422,29 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onPermissionRequest(PermissionRequest request) {
-            String[] resources = request.getResources();
-            boolean needsAudio = false;
-            for (String r : resources) {
-                if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)) {
-                    needsAudio = true;
-                    break;
-                }
-            }
+            runOnUiThread(() -> {
+                String[] resources = request.getResources();
+                ArrayList<String> permissionsToRequest = new ArrayList<>();
 
-            if (needsAudio && ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                pendingWebPermissionRequest = request;
-                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
-            } else {
-                request.grant(resources);
-            }
+                for (String r : resources) {
+                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)) {
+                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                            permissionsToRequest.add(Manifest.permission.CAMERA);
+                        }
+                    } else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)) {
+                        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO);
+                        }
+                    }
+                }
+
+                if (!permissionsToRequest.isEmpty()) {
+                    pendingWebPermissionRequest = request;
+                    webPermissionLauncher.launch(permissionsToRequest.toArray(new String[0]));
+                } else {
+                    request.grant(resources);
+                }
+            });
         }
 
         @Override

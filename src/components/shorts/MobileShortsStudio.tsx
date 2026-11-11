@@ -168,38 +168,101 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   const [uploadStage, setUploadStage] = useState('');
 
   // ------------------------------------------
-  // Initialize Camera Stream
+  // Initialize Camera Stream with Progressive Fallback
   // ------------------------------------------
   const startCamera = async (targetFacing: 'user' | 'environment' = facingMode) => {
     // Stop existing stream if any
     if (cameraStream) {
       cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setPermissionState('unsupported');
-      setPermissionError('Camera is not supported on this browser/device.');
+      setPermissionError(
+        isHindi
+          ? 'इस ब्राउज़र या डिवाइस पर लाइव कैमरा समर्थित नहीं है।'
+          : 'Camera is not supported on this browser/device.'
+      );
       return;
     }
 
     try {
       setPermissionState('prompt');
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: targetFacing,
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
-        },
-        audio: true,
-      };
+      setPermissionError('');
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream: MediaStream | null = null;
+      let lastError: any = null;
+
+      // Strategy 1: Ideal HD portrait resolution + facingMode + audio
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: targetFacing },
+            width: { ideal: 720 },
+            height: { ideal: 1280 },
+          },
+          audio: true,
+        });
+      } catch (err1) {
+        lastError = err1;
+        console.warn('Camera Strategy 1 (HD+Audio) failed, falling back:', err1);
+      }
+
+      // Strategy 2: Relaxed resolution with facingMode + audio
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: targetFacing },
+            audio: true,
+          });
+        } catch (err2) {
+          lastError = err2;
+          console.warn('Camera Strategy 2 (Relaxed+Audio) failed, falling back to video-only:', err2);
+        }
+      }
+
+      // Strategy 3: Video-only with facingMode (handles mic denial or busy mic)
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: targetFacing },
+            audio: false,
+          });
+        } catch (err3) {
+          lastError = err3;
+          console.warn('Camera Strategy 3 (Video-only facingMode) failed, falling back to basic video:', err3);
+        }
+      }
+
+      // Strategy 4: Basic video fallback (maximum compatibility across mobile WebViews/browsers)
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        } catch (err4) {
+          lastError = err4;
+          throw err4;
+        }
+      }
+
+      if (!stream) {
+        throw lastError || new Error('Unable to access camera');
+      }
+
       setCameraStream(stream);
       setPermissionState('granted');
       setPermissionError('');
 
+      // Immediately attach to video element if already present in DOM
       if (liveVideoRef.current) {
         liveVideoRef.current.srcObject = stream;
+        liveVideoRef.current.muted = true;
+        liveVideoRef.current.defaultMuted = true;
+        liveVideoRef.current.setAttribute('playsinline', 'true');
+        liveVideoRef.current.setAttribute('webkit-playsinline', 'true');
         liveVideoRef.current.play().catch(console.warn);
       }
 
@@ -218,8 +281,10 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       setPermissionState('denied');
       setPermissionError(
         err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
-          ? 'Camera/Microphone permission was denied. Please allow camera access in browser permissions or pick a video from your gallery.'
-          : err.message || 'Unable to access camera.'
+          ? (isHindi
+              ? 'कैमरा या माइक्रोफ़ोन की अनुमति अस्वीकृत है। कृपया ब्राउज़र/ऐप सेटिंग्स में अनुमति दें या नीचे गैलरी से वीडियो चुनें।'
+              : 'Camera/Microphone permission was denied. Please allow camera access in browser permissions or pick a video from your gallery.')
+          : err.message || (isHindi ? 'कैमरा शुरू करने में समस्या आई।' : 'Unable to access camera.')
       );
     }
   };
@@ -255,6 +320,31 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       }
     }
   };
+
+  // Attach cameraStream to liveVideoRef as soon as cameraStream or DOM video changes
+  useEffect(() => {
+    const video = liveVideoRef.current;
+    if (!video) return;
+
+    if (cameraStream && phase === 'record') {
+      if (video.srcObject !== cameraStream) {
+        video.srcObject = cameraStream;
+      }
+      video.muted = true;
+      video.defaultMuted = true;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('webkit-playsinline', 'true');
+
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('Live preview video play error:', err);
+        });
+      }
+    } else if (!cameraStream) {
+      video.srcObject = null;
+    }
+  }, [cameraStream, phase, permissionState]);
 
   // Trigger camera on mount if studio is open and in 'record' phase
   useEffect(() => {
@@ -701,17 +791,26 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-black">
           
           {/* Live Camera Viewfinder */}
-          <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden">
-            {permissionState === 'granted' ? (
-              <video
-                ref={liveVideoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{ filter: activeFilter }}
-                className={`w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
-              />
-            ) : permissionState === 'denied' ? (
+          <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-black">
+            {/* The video element is ALWAYS mounted so liveVideoRef is ready and never unmounted */}
+            <video
+              ref={liveVideoRef}
+              autoPlay
+              playsInline
+              muted
+              onLoadedMetadata={() => {
+                liveVideoRef.current?.play().catch(console.warn);
+              }}
+              onCanPlay={() => {
+                liveVideoRef.current?.play().catch(console.warn);
+              }}
+              style={{ filter: activeFilter }}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                facingMode === 'user' ? 'scale-x-[-1]' : ''
+              } ${permissionState === 'granted' ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
+            />
+
+            {permissionState === 'denied' && (
               <div className="max-w-xs p-6 text-center space-y-4 z-10 bg-slate-900/90 backdrop-blur-md rounded-3xl border border-white/10 mx-4">
                 <div className="w-14 h-14 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center mx-auto">
                   <AlertCircle className="w-8 h-8" />
@@ -742,12 +841,20 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center space-y-3 z-10">
+            )}
+
+            {permissionState !== 'granted' && permissionState !== 'denied' && (
+              <div className="flex flex-col items-center justify-center space-y-3 z-10 p-6 text-center">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                 <p className="text-xs font-bold text-slate-300">
                   {isHindi ? 'कैमरा शुरू हो रहा है...' : 'Starting camera...'}
                 </p>
+                <button
+                  onClick={() => startCamera(facingMode)}
+                  className="mt-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[11px] font-bold text-white transition-all cursor-pointer"
+                >
+                  {isHindi ? 'पुनः कनेक्ट करें' : 'Reconnect Camera'}
+                </button>
               </div>
             )}
           </div>
