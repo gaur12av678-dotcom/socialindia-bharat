@@ -78,8 +78,8 @@ jobs:
 
       - name: Generate Firebase Hosting Config
         run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "::warning::FIREBASE_SERVICE_ACCOUNT secret is empty or not set in GitHub Secrets!"
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ] && [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::warning title=Missing Secret::Neither FIREBASE_SERVICE_ACCOUNT nor FIREBASE_TOKEN secret was found in GitHub Secrets."
           fi
 
           PROJECT_ID=$(node -e "
@@ -91,7 +91,7 @@ jobs:
               const cfg = require('./firebase-applet-config.json');
               if (cfg.projectId) { console.log(cfg.projectId); process.exit(0); }
             } catch(e) {}
-            console.log('socialindia-cf742');
+            console.log('socialindia-96fa1');
           ")
           echo "Selected Project ID: $PROJECT_ID"
           echo "{\"projects\":{\"default\":\"$PROJECT_ID\"},\"targets\":{\"$PROJECT_ID\":{\"hosting\":{\"socialindia\":[\"socialindia\"]}}}}" > .firebaserc
@@ -155,18 +155,37 @@ jobs:
           }
           JSON
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_SOCIALINDIA || secrets.FIREBASE_SERVICE_ACCOUNT_SOCIALINDIA_96FA1 || secrets.FIREBASE_SERVICE_ACCOUNT_SOCIALINDIA_CF742 || secrets.GCP_SA_KEY }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Deploy to Firebase Hosting and Security Rules
         run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "::error::FIREBASE_SERVICE_ACCOUNT secret is missing or empty in GitHub Secrets!"
-            echo "Please ensure the FIREBASE_SERVICE_ACCOUNT secret is populated in repository Settings > Secrets and variables > Actions."
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ] && [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::error title=Missing Firebase Deployment Secret::Neither FIREBASE_SERVICE_ACCOUNT nor FIREBASE_TOKEN secret is configured in GitHub Secrets for this repository."
+            echo ""
+            echo "=========================================================================="
+            echo " HOW TO FIX THIS GITHUB ACTIONS ERROR:"
+            echo "=========================================================================="
+            echo "1. Open your Firebase project console:"
+            echo "   https://console.firebase.google.com/project/socialindia-96fa1/settings/serviceaccounts/adminsdk"
+            echo "2. Click 'Generate new private key' and download the JSON key file."
+            echo "3. In GitHub, go to your repository Settings:"
+            echo "   https://github.com/gaur12av678-dotcom/socialindia-bharat/settings/secrets/actions"
+            echo "4. Click 'New repository secret'"
+            echo "5. Name: FIREBASE_SERVICE_ACCOUNT"
+            echo "6. Secret: Paste the complete JSON key content downloaded in Step 2"
+            echo "7. Save and re-run this workflow run or push a new commit."
+            echo "=========================================================================="
             exit 1
           fi
 
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > sa_key.json
-          export GOOGLE_APPLICATION_CREDENTIALS=sa_key.json
+          AUTH_ARGS=""
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "$FIREBASE_SERVICE_ACCOUNT" > sa_key.json
+            export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/sa_key.json"
+          elif [ -n "$FIREBASE_TOKEN" ]; then
+            AUTH_ARGS="--token $FIREBASE_TOKEN"
+          fi
 
           PROJECT_ID=$(node -e "
             try {
@@ -177,16 +196,20 @@ jobs:
               const cfg = require('./firebase-applet-config.json');
               if (cfg.projectId) { console.log(cfg.projectId); process.exit(0); }
             } catch(e) {}
-            console.log('socialindia-cf742');
+            console.log('socialindia-96fa1');
           ")
           echo "Deploying to Firebase project: $PROJECT_ID (target site: socialindia)..."
 
-          firebase target:apply hosting socialindia socialindia --project "$PROJECT_ID" || true
-          firebase deploy --only hosting:socialindia,firestore:rules,storage:rules --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting,firestore:rules,storage:rules --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting:socialindia --project "$PROJECT_ID" --non-interactive || firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
+          firebase target:apply hosting socialindia socialindia --project "$PROJECT_ID" $AUTH_ARGS || true
+          firebase deploy --only hosting:socialindia,firestore:rules,storage:rules --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
+          firebase deploy --only hosting,firestore:rules,storage:rules --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
+          firebase deploy --only hosting:socialindia --project "$PROJECT_ID" $AUTH_ARGS --non-interactive || \
+          firebase deploy --only hosting --project "$PROJECT_ID" $AUTH_ARGS --non-interactive
 
           rm -f sa_key.json
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_SOCIALINDIA || secrets.FIREBASE_SERVICE_ACCOUNT_SOCIALINDIA_96FA1 || secrets.FIREBASE_SERVICE_ACCOUNT_SOCIALINDIA_CF742 || secrets.GCP_SA_KEY }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Verify Live Sitemap URLs
         run: |
