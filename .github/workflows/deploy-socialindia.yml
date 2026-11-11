@@ -1,8 +1,7 @@
 name: Deploy SocialIndia Web App
 
 on:
-  push:
-    branches: [ main, master ]
+  # Production deploy is deliberately manual; PR merges never publish automatically.
   workflow_dispatch:
 
 jobs:
