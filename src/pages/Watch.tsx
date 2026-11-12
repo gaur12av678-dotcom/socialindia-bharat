@@ -657,6 +657,13 @@ export const Watch: React.FC = () => {
   }
 
   if (!video) {
+    if (typeof document !== 'undefined') {
+      document.title = 'Video Removed or Not Available – SocialIndia';
+      let robotsMeta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+      if (robotsMeta) {
+        robotsMeta.setAttribute('content', 'noindex, nofollow');
+      }
+    }
     return (
       <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
         <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />

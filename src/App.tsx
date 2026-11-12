@@ -108,6 +108,11 @@ function MainAppContent() {
         downloads: 'Download Mobile App – SocialIndia',
         developers: 'Developer Portal – SocialIndia API',
         guidelines: 'Community Guidelines – SocialIndia',
+        shorts: 'Trending Shorts – Watch Short Videos on SocialIndia',
+        search: 'Search Videos & Creators – SocialIndia',
+        help: 'Help Center & Tutorials – SocialIndia',
+        refund: 'Refund & Cancellation Policy – SocialIndia',
+        studio: 'Creator Studio – SocialIndia',
         admin: 'Super Admin Workspace – SocialIndia',
       };
 

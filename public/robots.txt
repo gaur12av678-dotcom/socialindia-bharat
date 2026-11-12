@@ -21,6 +21,12 @@ Disallow: /history
 Disallow: /liked
 Disallow: /saved
 Disallow: /chat
+Disallow: /login
+Disallow: /signin
+Disallow: /signup
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
 
 User-agent: Googlebot-Image
 Allow: /
