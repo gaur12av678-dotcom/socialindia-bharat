@@ -281,6 +281,37 @@ export const playlistService = {
     } catch {}
   },
 
+  // Update playlist metadata (title, description, isPrivate)
+  async updatePlaylist(playlistId: string, updates: { title?: string; description?: string; isPrivate?: boolean }): Promise<void> {
+    const docRef = doc(db, 'playlists', playlistId);
+    const now = new Date().toISOString();
+    try {
+      await updateDoc(docRef, { ...updates, updatedAt: now });
+    } catch (err) {
+      console.warn(`Firestore updateDoc failed for playlist ${playlistId}:`, err);
+    }
+
+    try {
+      const cached = this.getCachedPlaylist(playlistId);
+      if (cached) {
+        Object.assign(cached, updates, { updatedAt: now });
+        this.cachePlaylist(cached);
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('socialindia_playlists_')) {
+          const list: Playlist[] = JSON.parse(localStorage.getItem(key) || '[]');
+          const idx = list.findIndex(p => p.playlistId === playlistId);
+          if (idx !== -1) {
+            Object.assign(list[idx], updates, { updatedAt: now });
+            localStorage.setItem(key, JSON.stringify(list));
+            break;
+          }
+        }
+      }
+    } catch {}
+  },
+
   // Delete a playlist
   async deletePlaylist(playlistId: string): Promise<void> {
     try {

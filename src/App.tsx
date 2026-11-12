@@ -113,6 +113,7 @@ function MainAppContent() {
         help: 'Help Center & Tutorials – SocialIndia',
         refund: 'Refund & Cancellation Policy – SocialIndia',
         studio: 'Creator Studio – SocialIndia',
+        playlists: 'My Playlists – SocialIndia',
         admin: 'Super Admin Workspace – SocialIndia',
       };
 
