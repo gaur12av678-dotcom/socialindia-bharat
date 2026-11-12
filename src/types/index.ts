@@ -30,6 +30,9 @@ export interface User {
   upiId?: string;
   isMonetized?: boolean;
   monetizationStatus?: 'not_eligible' | 'eligible' | 'requested' | 'approved';
+  verificationStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+  verificationRequestedAt?: string;
+  verificationRequestId?: string;
   lastPasswordChangedAt?: string;
 
   socialLinks?: {
@@ -41,6 +44,30 @@ export interface User {
   };
   createdAt: any; // Firestore Timestamp or Date string
   updatedAt: any;
+}
+
+export interface VerificationRequest {
+  id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  userPhotoURL?: string;
+  userEmail?: string;
+  fullName: string;
+  channelName: string;
+  category: string;
+  documentType: string;
+  documentNumberOrLink: string;
+  socialLinks?: string;
+  reason: string;
+  contactPhone?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  adminNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  submittedAt: string;
+  updatedAt: string;
 }
 
 export interface PrivateUserInfo {

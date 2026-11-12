@@ -50,12 +50,14 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { payoutService } from '../services/payoutService';
-import { WithdrawalRequest, Video } from '../types';
+import { WithdrawalRequest, Video, VerificationRequest } from '../types';
 import { compressAvatar, compressBanner } from '../utils/imageUtils';
 import { updateUserAvatarCache } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { adminConfigService } from '../services/adminConfigService';
+import { isUserVerified } from '../utils/userUtils';
+import { verificationService } from '../services/verificationService';
 
 interface SettingsProps {
   initialTab?: 
@@ -174,11 +176,23 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
   const [saveMsg, setSaveMsg] = useState('');
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
-  // Verification request state
-  const [verificationSubmitted, setVerificationSubmitted] = useState(false);
-  const [verificationCategory, setVerificationCategory] = useState('Technology');
-  const [verificationPitch, setVerificationPitch] = useState('');
-  const [verificationMsg, setVerificationMsg] = useState('');
+  // User verification status & application states
+  const isUserAlreadyVerified = isUserVerified(currentUserProfile);
+  const [userVerificationRequest, setUserVerificationRequest] = useState<VerificationRequest | null>(null);
+  const [loadingVerification, setLoadingVerification] = useState(false);
+  const [submittingVerification, setSubmittingVerification] = useState(false);
+  const [isEditingVerification, setIsEditingVerification] = useState(false);
+
+  // Verification request form fields
+  const [vFullName, setVFullName] = useState('');
+  const [vChannelName, setVChannelName] = useState('');
+  const [vCategory, setVCategory] = useState('Content Creator');
+  const [vDocumentType, setVDocumentType] = useState('Aadhaar Card (Govt of India)');
+  const [vDocumentNumberOrLink, setVDocumentNumberOrLink] = useState('');
+  const [vSocialLinks, setVSocialLinks] = useState('');
+  const [vContactPhone, setVContactPhone] = useState('');
+  const [vReason, setVReason] = useState('');
+  const [vFormError, setVFormError] = useState('');
 
   // APK & App Download states
   const DEFAULT_RELEASE_APK_URL = 'https://github.com/gaur12av678-dotcom/socialindia-bharat/releases/download/latest-apk/app-release.apk';
@@ -322,10 +336,6 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
       setYtLink(currentUserProfile.socialLinks?.youtube || '');
       setWebsite(currentUserProfile.socialLinks?.website || '');
       setTelegram(currentUserProfile.socialLinks?.telegram || '');
-
-      if (currentUserProfile.role === 'creator' || currentUserProfile.role === 'admin' || currentUserProfile.monetizationStatus === 'requested') {
-        setVerificationSubmitted(true);
-      }
     }
 
     if (currentUser) {
@@ -341,6 +351,33 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
       payoutService.getWithdrawalRequests(currentUser.uid).then(setMyWithdrawals).catch(console.warn);
     }
   }, [currentUser, currentUserProfile]);
+
+  // Load user verification application status
+  useEffect(() => {
+    if (currentUser?.uid && !isUserAlreadyVerified) {
+      setLoadingVerification(true);
+      verificationService.getUserVerificationRequest(currentUser.uid)
+        .then((req) => {
+          setUserVerificationRequest(req);
+          if (req) {
+            setVFullName(req.fullName || '');
+            setVChannelName(req.channelName || '');
+            setVCategory(req.category || 'Content Creator');
+            setVDocumentType(req.documentType || 'Aadhaar Card (Govt of India)');
+            setVDocumentNumberOrLink(req.documentNumberOrLink || '');
+            setVSocialLinks(req.socialLinks || '');
+            setVContactPhone(req.contactPhone || '');
+            setVReason(req.reason || '');
+          } else {
+            setVChannelName(currentUserProfile?.displayName || currentUserProfile?.username || '');
+          }
+        })
+        .catch(console.warn)
+        .finally(() => {
+          setLoadingVerification(false);
+        });
+    }
+  }, [currentUser?.uid, isUserAlreadyVerified, currentUserProfile?.displayName, currentUserProfile?.username]);
 
   // Save changes handler (General)
   const handleSaveGeneral = async (e?: React.FormEvent) => {
@@ -645,15 +682,70 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
   };
 
   // Submit Verification Handler
-  const handleVerificationSubmit = (e: React.FormEvent) => {
+  const handleVerificationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setVerificationMsg('');
-    if (!verificationPitch.trim()) {
-      setVerificationMsg('Please provide verification details.');
+    setVFormError('');
+
+    if (!currentUser) {
+      setVFormError(isHindi ? 'कृपया पहले साइन इन करें।' : 'Please sign in first.');
       return;
     }
-    setVerificationSubmitted(true);
-    setVerificationMsg('Verification request submitted.');
+
+    if (!vFullName.trim()) {
+      setVFormError(isHindi ? 'कृपया अपना पूरा कानूनी नाम दर्ज करें।' : 'Please enter your full legal name.');
+      return;
+    }
+
+    if (!vChannelName.trim()) {
+      setVFormError(isHindi ? 'कृपया चैनल या सार्वजनिक नाम दर्ज करें।' : 'Please enter your channel or public name.');
+      return;
+    }
+
+    if (!vDocumentNumberOrLink.trim()) {
+      setVFormError(isHindi ? 'कृपया पहचान पत्र संख्या या दस्तावेज़ लिंक दर्ज करें।' : 'Please enter document ID number or proof URL.');
+      return;
+    }
+
+    if (!vReason.trim() || vReason.trim().length < 15) {
+      setVFormError(isHindi ? 'कृपया सत्यापन का कारण कम से कम 15 अक्षरों में बताएं।' : 'Please explain why your channel should be verified (minimum 15 characters).');
+      return;
+    }
+
+    try {
+      setSubmittingVerification(true);
+      await verificationService.submitVerificationRequest({
+        userId: currentUser.uid,
+        username: currentUserProfile?.username || currentUser.email?.split('@')[0] || 'user',
+        displayName: currentUserProfile?.displayName || vChannelName.trim(),
+        userPhotoURL: currentUserProfile?.photoURL || '',
+        userEmail: currentUser.email || '',
+        fullName: vFullName.trim(),
+        channelName: vChannelName.trim(),
+        category: vCategory,
+        documentType: vDocumentType,
+        documentNumberOrLink: vDocumentNumberOrLink.trim(),
+        socialLinks: vSocialLinks.trim(),
+        contactPhone: vContactPhone.trim(),
+        reason: vReason.trim()
+      });
+
+      const updatedReq = await verificationService.getUserVerificationRequest(currentUser.uid);
+      setUserVerificationRequest(updatedReq);
+      setIsEditingVerification(false);
+      await refreshProfile();
+      addToast(
+        isHindi 
+          ? 'सत्यापन अनुरोध सफलतापूर्वक जमा हो गया! एडमिन समीक्षाधीन है।' 
+          : 'Verification request submitted successfully! Under admin review.',
+        'success'
+      );
+    } catch (err) {
+      console.error(err);
+      setVFormError(isHindi ? 'अनुरोध भेजने में विफल रहा। कृपया पुनः प्रयास करें।' : 'Failed to submit verification request. Please try again.');
+      addToast('Failed to submit verification request.', 'error');
+    } finally {
+      setSubmittingVerification(false);
+    }
   };
 
   // Avatar file upload with instant compression & permanent Firestore sync
@@ -710,7 +802,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     label: string;
     icon: any;
     badge?: string;
-    badgeType?: 'blue' | 'amber';
+    badgeType?: 'blue' | 'amber' | 'rose';
     isDanger?: boolean;
     isExternalRoute?: boolean;
     route?: string;
@@ -743,7 +835,18 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
         { id: 'monetization', label: isHindi ? 'मोनेटाइजेशन' : 'Monetization', icon: DollarSign, badge: isChannelMonetized ? 'Active' : undefined, badgeType: 'amber' },
         { id: 'wallet', label: isHindi ? 'वॉलेट' : 'Wallet', icon: Wallet, badge: `₹${displayWallet.toFixed(2)}`, badgeType: 'blue' },
         { id: 'points', label: isHindi ? 'रिवॉर्ड पॉइंट्स' : 'Points', icon: Award, badge: `${points} pts`, badgeType: 'blue' },
-        { id: 'verification', label: isHindi ? 'सत्यापन' : 'Verification', icon: ShieldCheck, badge: verificationSubmitted ? (isHindi ? 'जमा हुआ' : 'Submitted') : undefined, badgeType: 'amber' },
+        // Only show verification tool if the user is NOT yet verified
+        ...(!isUserAlreadyVerified ? [{
+          id: 'verification',
+          label: isHindi ? 'सत्यापन' : 'Verification',
+          icon: ShieldCheck,
+          badge: userVerificationRequest?.status === 'pending'
+            ? (isHindi ? 'समीक्षाधीन' : 'In Review')
+            : userVerificationRequest?.status === 'rejected'
+            ? (isHindi ? 'अस्वीकृत' : 'Rejected')
+            : (isHindi ? 'आवेदन' : 'Apply'),
+          badgeType: userVerificationRequest?.status === 'pending' ? ('amber' as const) : userVerificationRequest?.status === 'rejected' ? ('rose' as const) : ('blue' as const)
+        }] : []),
       ]
     },
     {
@@ -848,6 +951,8 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                           <span className={`px-2 py-0.5 rounded-lg text-[11px] font-bold font-mono shrink-0 ml-2 ${
                             item.badgeType === 'amber'
                               ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                              : item.badgeType === 'rose'
+                              ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
                               : 'bg-blue-50 text-[#2563EB] dark:bg-blue-950/70 dark:text-blue-300'
                           }`}>
                             {item.badge}
@@ -1989,10 +2094,403 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
           {/* ====================================================== */}
           {activeTab === 'verification' && (
             <div className="space-y-6">
-              <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Verification</h2>
-              </div>
-              <p className="text-xs text-slate-500">Verification request is currently submitted and under review.</p>
+              {/* If user already has Blue Tick / is verified */}
+              {isUserAlreadyVerified ? (
+                <div className="bg-white dark:bg-[#121215] border border-blue-200 dark:border-blue-900/50 rounded-3xl p-6 sm:p-10 text-center space-y-5 shadow-xs">
+                  <div className="w-16 h-16 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 mx-auto flex items-center justify-center shadow-inner">
+                    <CheckCircle2 className="w-10 h-10 fill-[#2563EB] text-white" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 text-xs font-black uppercase tracking-wider">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>{isHindi ? 'खाता सत्यापित है' : 'Account Verified'}</span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center justify-center gap-2">
+                      <span>{currentUserProfile?.displayName || currentUserProfile?.username}</span>
+                      <CheckCircle2 className="w-5 h-5 fill-[#2563EB] text-white shrink-0" />
+                    </h2>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto">
+                      {isHindi 
+                        ? 'आपका खाता सोशलइण्डिया एडमिन द्वारा आधिकारिक रूप से सत्यापित है। आपके चैनल को आधिकारिक ब्लू टिक बैज प्राप्त हो चुका है।' 
+                        : 'Your channel has been officially verified by the SocialIndia administrative team. The official Blue Tick badge is active on your profile, videos, and comments.'}
+                    </p>
+                  </div>
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('general')}
+                      className="px-6 py-2.5 bg-[#2563EB] hover:bg-[#1d4ed8] text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm transition-all active:scale-95"
+                    >
+                      {isHindi ? 'सामान्य सेटिंग्स पर जाएं' : 'Return to General Settings'}
+                    </button>
+                  </div>
+                </div>
+              ) : loadingVerification ? (
+                /* Loading State */
+                <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                  <Loader2 className="w-8 h-8 text-[#2563EB] animate-spin" />
+                  <p className="text-xs text-slate-400 font-semibold">{isHindi ? 'सत्यापन स्थिति जांची जा रही है...' : 'Checking verification status...'}</p>
+                </div>
+              ) : userVerificationRequest?.status === 'pending' && !isEditingVerification ? (
+                /* Status: Under Review */
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  <div className="pb-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                        <ShieldCheck className="w-6 h-6 text-amber-500" />
+                        <span>{isHindi ? 'सत्यापन अनुरोध समीक्षाधीन है' : 'Verification Under Review'}</span>
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {isHindi 
+                          ? 'आपका सत्यापन अनुरोध सोशलइण्डिया एडमिन टीम के पास समीक्षाधीन है।' 
+                          : 'Your verification request is currently submitted and under review by the SocialIndia admin team.'}
+                      </p>
+                    </div>
+                    <span className="px-3.5 py-1.5 rounded-full bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-black text-xs flex items-center gap-2 self-start sm:self-center shadow-xs">
+                      <Clock className="w-4 h-4 animate-spin" />
+                      <span>{isHindi ? 'लंबित समीक्षा' : 'Status: Under Review'}</span>
+                    </span>
+                  </div>
+
+                  {/* Informational alert banner */}
+                  <div className="p-4 sm:p-5 bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-2xl flex items-start gap-3.5">
+                    <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-900 dark:text-amber-300 space-y-1">
+                      <p className="font-black text-sm">
+                        {isHindi ? 'अनुरोध सफलतापूर्वक जमा हो गया है' : 'Request Submitted Successfully'}
+                      </p>
+                      <p className="text-amber-800/90 dark:text-amber-400/90 leading-relaxed">
+                        {isHindi 
+                          ? 'सोशलइण्डिया एडमिन टीम पहचान पत्रों व चैनल प्रामाणिकता की समीक्षा 24–48 घंटों में करती है। एडमिन द्वारा स्वीकृति मिलने पर ब्लू टिक बैज आपके चैनल पर स्वतः दिखने लगेगा।' 
+                          : 'SocialIndia administrators review government documents and public authenticity within 24 to 48 hours. Once approved by the admin team, the official Blue Tick badge will automatically be displayed on your profile.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Submitted Application Snapshot */}
+                  <div className="bg-white dark:bg-[#121215] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-7 space-y-5 shadow-xs">
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-[#2563EB]" />
+                        <span>{isHindi ? 'जमा किए गए आवेदन का विवरण' : 'Submitted Application Details'}</span>
+                      </h3>
+                      <span className="text-[11px] font-bold text-slate-400">
+                        {isHindi ? 'जमा तिथि:' : 'Submitted on:'} {new Date(userVerificationRequest.submittedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-400">{isHindi ? 'पूरा कानूनी नाम' : 'Full Legal Name'}</p>
+                        <p className="font-bold text-slate-900 dark:text-white mt-1 text-sm">{userVerificationRequest.fullName}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-400">{isHindi ? 'चैनल / सार्वजनिक नाम' : 'Channel / Public Name'}</p>
+                        <p className="font-bold text-slate-900 dark:text-white mt-1 text-sm">{userVerificationRequest.channelName}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-400">{isHindi ? 'श्रेणी' : 'Category'}</p>
+                        <span className="inline-block mt-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-[#2563EB] dark:text-blue-400 font-bold text-xs">
+                          {userVerificationRequest.category}
+                        </span>
+                      </div>
+
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-400">{isHindi ? 'पहचान पत्र प्रमाण' : 'ID Document Proof'}</p>
+                        <p className="font-bold text-slate-900 dark:text-white mt-1">
+                          {userVerificationRequest.documentType} – <span className="font-mono text-slate-600 dark:text-slate-300">{userVerificationRequest.documentNumberOrLink}</span>
+                        </p>
+                      </div>
+
+                      {userVerificationRequest.socialLinks && (
+                        <div className="sm:col-span-2">
+                          <p className="text-[11px] font-bold text-slate-400">{isHindi ? 'सोशल / संदर्भ लिंक' : 'Social / Reference Links'}</p>
+                          <p className="font-medium text-[#2563EB] dark:text-blue-400 mt-1 break-all bg-slate-50 dark:bg-slate-900 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                            {userVerificationRequest.socialLinks}
+                          </p>
+                        </div>
+                      )}
+
+                      {userVerificationRequest.contactPhone && (
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-400">{isHindi ? 'संपर्क फोन / व्हाट्सएप' : 'Contact Phone / WhatsApp'}</p>
+                          <p className="font-bold text-slate-900 dark:text-white mt-1">{userVerificationRequest.contactPhone}</p>
+                        </div>
+                      )}
+
+                      <div className="sm:col-span-2">
+                        <p className="text-[11px] font-bold text-slate-400">{isHindi ? 'सत्यापन का कारण' : 'Reason / Pitch for Verification'}</p>
+                        <div className="mt-1 bg-slate-50 dark:bg-[#18181c] p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+                          "{userVerificationRequest.reason}"
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Verification Application Form (for users who have not submitted, or were rejected and are re-applying) */
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-900 text-[#2563EB] dark:text-blue-400 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 fill-[#2563EB] text-white" />
+                        Blue Tick Badge
+                      </span>
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                      {isHindi ? 'आधिकारिक चैनल सत्यापन हेतु आवेदन करें' : 'Apply for Official Channel Verification'}
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {isHindi 
+                        ? 'अपनी पहचान व चैनल की प्रामाणिकता सिद्ध करने के लिए विवरण दर्ज करें। एडमिन समीक्षा के बाद ब्लू टिक प्रदान किया जाएगा।' 
+                        : 'Submit your legal identity, category, and social presence details. The SocialIndia admin team reviews all applications to issue official Blue Tick badges.'}
+                    </p>
+                  </div>
+
+                  {/* If previous request was rejected */}
+                  {userVerificationRequest?.status === 'rejected' && (
+                    <div className="p-4 sm:p-5 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 rounded-2xl flex items-start gap-3.5">
+                      <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                      <div className="text-xs text-rose-900 dark:text-rose-300 space-y-1">
+                        <p className="font-black text-sm">
+                          {isHindi ? 'पिछला सत्यापन अनुरोध अस्वीकृत हुआ था' : 'Previous Application Was Not Approved'}
+                        </p>
+                        <p className="text-rose-800/90 dark:text-rose-400/90">
+                          {isHindi ? 'एडमिन का कारण: ' : 'Admin Reason: '}
+                          <span className="font-bold">"{userVerificationRequest.rejectionReason || 'Details provided did not meet criteria.'}"</span>
+                        </p>
+                        <p className="text-[11px] text-rose-700/80 dark:text-rose-400/80 pt-1">
+                          {isHindi ? 'कृपया नीचे सही पहचान विवरण व दस्तावेज़ लिंक प्रदान कर पुनः आवेदन करें।' : 'Please correct your details or provide a valid government ID link below and re-submit.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Verification Benefits Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div className="p-4 bg-slate-50 dark:bg-[#121215] border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1">
+                      <CheckCircle2 className="w-5 h-5 text-[#2563EB]" />
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white">{isHindi ? 'आधिकारिक ब्लू टिक' : 'Official Blue Tick'}</h4>
+                      <p className="text-[11px] text-slate-500">{isHindi ? 'आपके नाम के साथ सोशलइण्डिया पर आधिकारिक बैज।' : 'Distinctive verified checkmark on your videos and profile.'}</p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 dark:bg-[#121215] border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1">
+                      <Shield className="w-5 h-5 text-emerald-500" />
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white">{isHindi ? 'नकली खातों से सुरक्षा' : 'Impersonation Shield'}</h4>
+                      <p className="text-[11px] text-slate-500">{isHindi ? 'दर्शकों को असली और प्रामाणिक क्रिएटर की पहचान।' : 'Protects your brand identity and audience authenticity.'}</p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 dark:bg-[#121215] border border-slate-200 dark:border-slate-800 rounded-2xl space-y-1">
+                      <Award className="w-5 h-5 text-amber-500" />
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white">{isHindi ? 'उच्च रैंकिंग व सर्च प्रायोरिटी' : 'Higher Discoverability'}</h4>
+                      <p className="text-[11px] text-slate-500">{isHindi ? 'सर्च और कम्युनिटी में सत्यापित चैनलों को प्राथमिकता।' : 'Verified creators receive priority search and trending visibility.'}</p>
+                    </div>
+                  </div>
+
+                  {/* Application Form */}
+                  <form onSubmit={handleVerificationSubmit} className="bg-white dark:bg-[#121215] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      
+                      {/* Full Legal Name */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                          <span>{isHindi ? 'पूरा कानूनी नाम (दस्तावेज़ के अनुसार) *' : 'Full Legal Name (as per Govt ID) *'}</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={vFullName}
+                          onChange={(e) => setVFullName(e.target.value)}
+                          placeholder={isHindi ? 'उदा. राजेश कुमार शर्मा' : 'e.g. Rajesh Kumar Sharma'}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                        />
+                      </div>
+
+                      {/* Channel / Public Name */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isHindi ? 'चैनल / सार्वजनिक नाम *' : 'Channel / Public Display Name *'}
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={vChannelName}
+                          onChange={(e) => setVChannelName(e.target.value)}
+                          placeholder={isHindi ? 'उदा. भारत टेक या चैनल नाम' : 'e.g. Bharat Tech or your brand'}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                        />
+                      </div>
+
+                      {/* Category */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isHindi ? 'चैनल / खाता श्रेणी *' : 'Account Category *'}
+                        </label>
+                        <select
+                          value={vCategory}
+                          onChange={(e) => setVCategory(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB] cursor-pointer"
+                        >
+                          <option value="Content Creator">Content Creator / Digital Influencer</option>
+                          <option value="Public Figure / Artist">Public Figure / Celebrity / Artist</option>
+                          <option value="Business / Brand">Business / Brand / Organization</option>
+                          <option value="News, Media & Journalist">News, Media & Journalist</option>
+                          <option value="Education / Non-Profit">Education / NGO / Non-Profit</option>
+                          <option value="Government & Official">Government & Official Entity</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+
+                      {/* Document Type */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isHindi ? 'पहचान दस्तावेज़ प्रकार *' : 'Identity Document Type *'}
+                        </label>
+                        <select
+                          value={vDocumentType}
+                          onChange={(e) => setVDocumentType(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB] cursor-pointer"
+                        >
+                          <option value="Aadhaar Card (Govt of India)">Aadhaar Card (Govt of India)</option>
+                          <option value="Passport">Passport</option>
+                          <option value="Voter ID Card">Voter ID Card</option>
+                          <option value="PAN Card">PAN Card</option>
+                          <option value="Driving License">Driving License</option>
+                          <option value="Business Registration / GST Certificate">Business Registration / GST Certificate</option>
+                          <option value="Press ID / Press Card">Press ID / Press Card</option>
+                          <option value="Other Official ID">Other Official ID</option>
+                        </select>
+                      </div>
+
+                      {/* Document ID Number or File / Drive link */}
+                      <div className="sm:col-span-2 space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                          <span>{isHindi ? 'दस्तावेज़ संख्या अथवा दस्तावेज़ फोटो / गूगल ड्राइव लिंक *' : 'Document ID Number OR Document Photo / Google Drive Link *'}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">Confidential (Admin only)</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={vDocumentNumberOrLink}
+                          onChange={(e) => setVDocumentNumberOrLink(e.target.value)}
+                          placeholder={isHindi ? 'उदा. XXXX-XXXX-1234 या दस्तावेज़ फोटो की गूगल ड्राइव / इमेज लिंक' : 'e.g. XXXX-XXXX-4567 or https://drive.google.com/file/...'}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                        />
+                        <p className="text-[11px] text-slate-400">
+                          {isHindi ? 'आप दस्तावेज़ संख्या दर्ज कर सकते हैं या किसी सार्वजनिक/ड्राइव इमेज लिंक को पेस्ट कर सकते हैं जिससे एडमिन त्वरित सत्यापन कर सके।' : 'Provide your document ID number or paste a link to an uploaded image/document for rapid admin review.'}
+                        </p>
+                      </div>
+
+                      {/* Social & Reference Links */}
+                      <div className="sm:col-span-2 space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isHindi ? 'सोशल मीडिया व संदर्भ लिंक (YouTube, Instagram, X/Twitter, Website)' : 'Social Media & Reference Links'}
+                        </label>
+                        <input
+                          type="text"
+                          value={vSocialLinks}
+                          onChange={(e) => setVSocialLinks(e.target.value)}
+                          placeholder={isHindi ? 'उदा. https://instagram.com/user, https://youtube.com/@channel' : 'e.g. https://instagram.com/yourhandle, https://youtube.com/@channel, website URL'}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                        />
+                      </div>
+
+                      {/* Contact Phone */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isHindi ? 'संपर्क फोन / व्हाट्सएप नंबर' : 'Contact Phone / WhatsApp'}
+                        </label>
+                        <input
+                          type="tel"
+                          value={vContactPhone}
+                          onChange={(e) => setVContactPhone(e.target.value)}
+                          placeholder={isHindi ? 'उदा. +91 98765 43210' : 'e.g. +91 98765 43210 (optional)'}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                        />
+                      </div>
+
+                      {/* Contact Email (Readonly) */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isHindi ? 'पंजीकृत ईमेल' : 'Registered Email Address'}
+                        </label>
+                        <input
+                          type="text"
+                          disabled
+                          value={currentUser?.email || ''}
+                          className="w-full px-4 py-3 bg-slate-100 dark:bg-[#141417] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-500 cursor-not-allowed"
+                        />
+                      </div>
+
+                      {/* Reason / Pitch */}
+                      <div className="sm:col-span-2 space-y-1.5">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {isHindi ? 'सत्यापन का कारण व चैनल का विवरण *' : 'Reason & Pitch for Verification *'}
+                        </label>
+                        <textarea
+                          rows={4}
+                          required
+                          value={vReason}
+                          onChange={(e) => setVReason(e.target.value)}
+                          placeholder={isHindi 
+                            ? 'बताएं कि आपके चैनल को सोशलइण्डिया पर आधिकारिक सत्यापन बैज क्यों दिया जाना चाहिए (आपकी ऑडियंस, उपलब्धियां, प्रामाणिकता)...' 
+                            : 'Explain why your channel or brand should receive official verification on SocialIndia (audience size, achievements, public standing, content quality)...'}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB] resize-y"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Form Validation Error */}
+                    {vFormError && (
+                      <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{vFormError}</span>
+                      </div>
+                    )}
+
+                    {/* Submit Actions */}
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 dark:border-slate-800">
+                      <p className="text-[11px] text-slate-400">
+                        {isHindi 
+                          ? 'आवेदन जमा करने पर सोशलइण्डिया एडमिन पैनल में विवरण दिखाई देगा।' 
+                          : 'Upon submission, your application will appear in the Admin Panel for review.'}
+                      </p>
+
+                      <div className="flex items-center gap-3 w-full sm:w-auto">
+                        {userVerificationRequest?.status === 'rejected' && isEditingVerification && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingVerification(false)}
+                            className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer"
+                          >
+                            {isHindi ? 'रद्द करें' : 'Cancel'}
+                          </button>
+                        )}
+
+                        <button
+                          type="submit"
+                          disabled={submittingVerification}
+                          className="w-full sm:w-auto px-7 py-3 bg-[#2563EB] hover:bg-[#1d4ed8] text-white font-extrabold text-xs rounded-xl shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {submittingVerification ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>{isHindi ? 'जमा हो रहा है...' : 'Submitting Request...'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
+                              <span>{isHindi ? 'सत्यापन अनुरोध भेजें' : 'Submit Verification Request'}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              )}
             </div>
           )}
 

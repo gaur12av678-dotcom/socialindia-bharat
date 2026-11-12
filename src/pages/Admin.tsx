@@ -81,6 +81,8 @@ import { AdminExtraTabs } from '../components/AdminExtraTabs';
 import { AdminQuickTools } from '../components/AdminQuickTools';
 import { CaptionEditorModal } from '../components/CaptionEditorModal';
 import { FirebaseVideoEditor } from '../components/admin/FirebaseVideoEditor';
+import { verificationService } from '../services/verificationService';
+import { VerificationRequest } from '../types';
 
 type AdminSection = 
   | 'dashboard' 
@@ -89,6 +91,7 @@ type AdminSection =
   | 'firebase_edit'
   | 'paid_videos'
   | 'withdrawals'
+  | 'verification_requests'
   | 'reports' 
   | 'feedback' 
   | 'storage' 
@@ -127,6 +130,15 @@ export const AdminPanel: React.FC = () => {
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
   const [isProcessingPayoutId, setIsProcessingPayoutId] = useState<string | null>(null);
   const [withdrawalFilter, setWithdrawalFilter] = useState<'all' | 'pending' | 'completed' | 'rejected'>('all');
+
+  // Verification Requests States
+  const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
+  const [verificationFilter, setVerificationFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [verificationSearch, setVerificationSearch] = useState('');
+  const [isProcessingVerificationId, setIsProcessingVerificationId] = useState<string | null>(null);
+  const [rejectModalRequest, setRejectModalRequest] = useState<VerificationRequest | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState('');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [videoToDelete, setVideoToDelete] = useState<Video | null>(null);
   const [captionEditorVideo, setCaptionEditorVideo] = useState<Video | null>(null);
@@ -209,7 +221,7 @@ export const AdminPanel: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [u, v, r, f, s, t, soundList, ads, payouts] = await Promise.all([
+      const [u, v, r, f, s, t, soundList, ads, payouts, vReqs] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getAllVideos(),
         adminService.getAllReports(),
@@ -218,7 +230,8 @@ export const AdminPanel: React.FC = () => {
         trashService.getAllTrash(),
         soundService.getSounds(),
         adminService.getAllAdCampaigns(),
-        payoutService.getWithdrawalRequests()
+        payoutService.getWithdrawalRequests(),
+        verificationService.getAllVerificationRequests()
       ]);
       setUsers(u);
       setVideos(v);
@@ -228,6 +241,7 @@ export const AdminPanel: React.FC = () => {
       setSounds(soundList);
       setAdCampaigns(ads);
       setWithdrawalRequests(payouts);
+      setVerificationRequests(vReqs || []);
       if (s) {
         setCloudName(s.cloudName || '');
         setUploadPreset(s.uploadPreset || '');
@@ -237,6 +251,75 @@ export const AdminPanel: React.FC = () => {
       addToast('Failed to load administrative data.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Approve Verification Request & Grant Blue Tick
+  const handleApproveVerification = async (req: VerificationRequest) => {
+    setIsProcessingVerificationId(req.id);
+    try {
+      await verificationService.approveVerificationRequest(req, currentUser?.uid);
+      addToast(`Approved verification for @${req.username} & granted Blue Tick badge!`, 'success');
+      const [updatedReqs, updatedUsers] = await Promise.all([
+        verificationService.getAllVerificationRequests(),
+        adminService.getAllUsers()
+      ]);
+      setVerificationRequests(updatedReqs);
+      setUsers(updatedUsers);
+    } catch (err) {
+      console.error(err);
+      addToast('Failed to approve verification request.', 'error');
+    } finally {
+      setIsProcessingVerificationId(null);
+    }
+  };
+
+  // Open Reject Modal for Verification Request
+  const handleOpenRejectVerificationModal = (req: VerificationRequest) => {
+    setRejectModalRequest(req);
+    setRejectReasonInput('Document proof is unclear or details do not match public identity.');
+  };
+
+  // Confirm Reject Verification Request
+  const handleConfirmRejectVerification = async () => {
+    if (!rejectModalRequest) return;
+    setIsProcessingVerificationId(rejectModalRequest.id);
+    try {
+      await verificationService.rejectVerificationRequest(
+        rejectModalRequest,
+        rejectReasonInput || 'Application does not meet current verification criteria.',
+        currentUser?.uid
+      );
+      addToast(`Verification request rejected for @${rejectModalRequest.username}.`, 'info');
+      setRejectModalRequest(null);
+      const [updatedReqs, updatedUsers] = await Promise.all([
+        verificationService.getAllVerificationRequests(),
+        adminService.getAllUsers()
+      ]);
+      setVerificationRequests(updatedReqs);
+      setUsers(updatedUsers);
+    } catch (err) {
+      console.error(err);
+      addToast('Failed to reject verification request.', 'error');
+    } finally {
+      setIsProcessingVerificationId(null);
+    }
+  };
+
+  // Revoke User Verification
+  const handleRevokeVerification = async (userId: string, requestId?: string) => {
+    try {
+      await verificationService.revokeVerification(userId, requestId);
+      addToast('Verification badge revoked.', 'info');
+      const [updatedReqs, updatedUsers] = await Promise.all([
+        verificationService.getAllVerificationRequests(),
+        adminService.getAllUsers()
+      ]);
+      setVerificationRequests(updatedReqs);
+      setUsers(updatedUsers);
+    } catch (err) {
+      console.error(err);
+      addToast('Failed to revoke verification.', 'error');
     }
   };
 
@@ -969,6 +1052,26 @@ export const AdminPanel: React.FC = () => {
             <Sparkles className="w-4 h-4 shrink-0" style={{ color: activeSection === 'pro_members' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'pro_members' ? '#ffffff' : undefined }}>Pro System (GoPro)</span>
           </button>
+
+          <button 
+            onClick={() => setActiveSection('verification_requests')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'verification_requests' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'verification_requests' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+          >
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: activeSection === 'verification_requests' ? '#ffffff' : '#38bdf8' }} />
+              <span style={{ color: activeSection === 'verification_requests' ? '#ffffff' : undefined }}>Verification Requests</span>
+            </div>
+            {verificationRequests.filter(r => r.status === 'pending').length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-500 text-white animate-pulse">
+                {verificationRequests.filter(r => r.status === 'pending').length}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* SECTION 3: CONTENT & MEDIA */}
@@ -1289,9 +1392,38 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 )}
 
+                {/* Pending Verification Requests Alert */}
+                {verificationRequests.filter(r => r.status === 'pending').length > 0 && (
+                  <div className="p-5 bg-linear-to-r from-blue-600 via-indigo-700 to-sky-800 rounded-3xl text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-2">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-black shrink-0">
+                        <ShieldCheck className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black flex items-center gap-2">
+                          <span>Pending Channel Verification Requests</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-black">
+                            {verificationRequests.filter(r => r.status === 'pending').length} Pending
+                          </span>
+                        </h4>
+                        <p className="text-xs text-white/80 mt-0.5">
+                          Creators have submitted legal identity documents requesting official Blue Tick badges.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveSection('verification_requests')}
+                      className="px-5 py-2.5 bg-white text-blue-900 hover:bg-blue-50 font-black text-xs rounded-xl shadow-md cursor-pointer transition-all active:scale-95 shrink-0"
+                    >
+                      Review Verifications Queue →
+                    </button>
+                  </div>
+                )}
+
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
                   <StatCard icon={Users} label="Total Users" value={users.length} color="blue" />
+                  <StatCard icon={ShieldCheck} label="Pending Verifications" value={verificationRequests.filter(r => r.status === 'pending').length} color="indigo" />
                   <StatCard icon={VideoIcon} label="Total Videos" value={videos.length} color="indigo" />
                   <StatCard icon={DollarSign} label="Pending Payouts" value={withdrawalRequests.filter(r => r.status === 'pending').length} color="emerald" />
                   <StatCard icon={AlertTriangle} label="Pending Reports" value={reports.filter(r => r.status === 'pending').length} color="amber" />
@@ -1404,9 +1536,31 @@ export const AdminPanel: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 space-y-1">
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30' : 'bg-red-50 text-red-600 dark:bg-red-950/30'}`}>
-                              {u.status}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30' : 'bg-red-50 text-red-600 dark:bg-red-950/30'}`}>
+                                {u.status}
+                              </span>
+                              {isUserVerified(u) ? (
+                                <span className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-[#00A3FF] font-black text-[9px] flex items-center gap-0.5" title="Verified Blue Tick">
+                                  <CheckCircle2 className="w-2.5 h-2.5 fill-[#00A3FF] text-white" />
+                                  Verified
+                                </span>
+                              ) : verificationRequests.some(r => r.userId === u.uid && r.status === 'pending') ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveSection('verification_requests');
+                                    setVerificationFilter('pending');
+                                    setVerificationSearch(u.username);
+                                  }}
+                                  className="px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-600 font-black text-[9px] cursor-pointer hover:underline flex items-center gap-0.5"
+                                  title="Verification request pending review"
+                                >
+                                  <Clock className="w-2.5 h-2.5" />
+                                  Review Req
+                                </button>
+                              ) : null}
+                            </div>
                             <p className="text-[10px] font-black text-slate-500 uppercase">{u.role}</p>
                           </td>
                           <td className="px-6 py-4">
@@ -3368,6 +3522,315 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* SECTION: VERIFICATION REQUESTS */}
+            {activeSection === 'verification_requests' && (() => {
+              const pendingCount = verificationRequests.filter(r => r.status === 'pending').length;
+              const approvedCount = verificationRequests.filter(r => r.status === 'approved').length;
+              const rejectedCount = verificationRequests.filter(r => r.status === 'rejected').length;
+
+              const filteredRequests = verificationRequests.filter((req) => {
+                if (verificationFilter !== 'all' && req.status !== verificationFilter) return false;
+                if (verificationSearch.trim()) {
+                  const q = verificationSearch.toLowerCase();
+                  const matchName = req.fullName?.toLowerCase().includes(q);
+                  const matchChannel = req.channelName?.toLowerCase().includes(q);
+                  const matchUsername = req.username?.toLowerCase().includes(q);
+                  const matchCategory = req.category?.toLowerCase().includes(q);
+                  const matchDoc = req.documentNumberOrLink?.toLowerCase().includes(q);
+                  return Boolean(matchName || matchChannel || matchUsername || matchCategory || matchDoc);
+                }
+                return true;
+              });
+
+              return (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  {/* Stats Counter Bar */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                      <p className="text-[10px] font-black uppercase text-slate-400">Total Applications</p>
+                      <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        {verificationRequests.length}
+                      </p>
+                      <p className="text-[11px] text-slate-500 font-bold mt-1">Received all time</p>
+                    </div>
+
+                    <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                      <p className="text-[10px] font-black uppercase text-amber-500">Pending Review</p>
+                      <p className="text-2xl font-black text-amber-500 mt-1">
+                        {pendingCount}
+                      </p>
+                      <p className="text-[11px] text-amber-600 font-bold mt-1">Awaiting Admin Action</p>
+                    </div>
+
+                    <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                      <p className="text-[10px] font-black uppercase text-emerald-500">Approved & Verified</p>
+                      <p className="text-2xl font-black text-emerald-500 mt-1">
+                        {approvedCount}
+                      </p>
+                      <p className="text-[11px] text-emerald-600 font-bold mt-1">Active Blue Ticks Granted ✓</p>
+                    </div>
+
+                    <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
+                      <p className="text-[10px] font-black uppercase text-rose-500">Rejected Applications</p>
+                      <p className="text-2xl font-black text-rose-500 mt-1">
+                        {rejectedCount}
+                      </p>
+                      <p className="text-[11px] text-rose-600 font-bold mt-1">Declined by Admin</p>
+                    </div>
+                  </div>
+
+                  {/* Filter & Search Bar */}
+                  <div className="p-4 bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-xs">
+                    <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto scrollbar-none">
+                      {(['all', 'pending', 'approved', 'rejected'] as const).map((filter) => {
+                        const count = filter === 'all' 
+                          ? verificationRequests.length 
+                          : filter === 'pending' 
+                          ? pendingCount 
+                          : filter === 'approved' 
+                          ? approvedCount 
+                          : rejectedCount;
+                        return (
+                          <button
+                            key={filter}
+                            type="button"
+                            onClick={() => setVerificationFilter(filter)}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-black capitalize transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                              verificationFilter === filter
+                                ? 'bg-[#2563EB] text-white shadow-sm'
+                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1a1a1e]'
+                            }`}
+                          >
+                            <span>{filter}</span>
+                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                              verificationFilter === filter ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                            }`}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="relative w-full md:w-72">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={verificationSearch}
+                        onChange={(e) => setVerificationSearch(e.target.value)}
+                        placeholder="Search applicant, channel, or ID..."
+                        className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Requests List */}
+                  {filteredRequests.length === 0 ? (
+                    <div className="bg-white dark:bg-[#121215] border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center space-y-3">
+                      <ShieldCheck className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto" />
+                      <h4 className="text-sm font-black text-slate-700 dark:text-slate-300">No Verification Requests Found</h4>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                        {verificationFilter === 'pending'
+                          ? 'All verification requests have been processed! No pending applications in queue.'
+                          : 'No applications match your current search or filter query.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {filteredRequests.map((req) => {
+                        const isProcessing = isProcessingVerificationId === req.id;
+                        const isDocUrl = req.documentNumberOrLink?.startsWith('http') || req.documentNumberOrLink?.startsWith('www') || req.documentNumberOrLink?.includes('drive.google.com');
+                        const targetUser = users.find(u => u.uid === req.userId);
+                        const userHasBadge = targetUser ? isUserVerified(targetUser) : req.status === 'approved';
+
+                        return (
+                          <div
+                            key={req.id}
+                            className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-6 shadow-xs hover:border-slate-300 dark:hover:border-[#333] transition-all space-y-4"
+                          >
+                            {/* Card Top: User Info & Status */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-sm shrink-0 overflow-hidden shadow-xs">
+                                  {req.userPhotoURL ? <img src={req.userPhotoURL} className="w-full h-full object-cover" /> : getInitials(req.displayName || req.fullName)}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white truncate">
+                                      {req.fullName}
+                                    </h4>
+                                    {userHasBadge && (
+                                      <span title="Active Verified Badge">
+                                        <CheckCircle2 className="w-4 h-4 text-[#00A3FF] fill-[#00A3FF] text-white shrink-0" />
+                                      </span>
+                                    )}
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-black uppercase text-slate-600 dark:text-slate-400">
+                                      {targetUser?.role || 'User'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                                    <span>@{req.username}</span>
+                                    <span>•</span>
+                                    <span>{req.userEmail || 'No email provided'}</span>
+                                    {req.contactPhone && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="font-mono text-slate-600 dark:text-slate-400">📞 {req.contactPhone}</span>
+                                      </>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                                {req.status === 'pending' ? (
+                                  <span className="px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-black text-[11px] flex items-center gap-1.5 shadow-xs">
+                                    <Clock className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Pending Review</span>
+                                  </span>
+                                ) : req.status === 'approved' ? (
+                                  <span className="px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-black text-[11px] flex items-center gap-1.5 shadow-xs">
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                    <span>Approved & Verified ✓</span>
+                                  </span>
+                                ) : (
+                                  <span className="px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-black text-[11px] flex items-center gap-1.5 shadow-xs">
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    <span>Rejected</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Card Body: Details Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs bg-slate-50 dark:bg-[#161619] p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Channel / Brand Name</p>
+                                <p className="font-black text-slate-900 dark:text-white mt-1 text-xs">{req.channelName}</p>
+                              </div>
+
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Category</p>
+                                <p className="font-bold text-[#2563EB] dark:text-blue-400 mt-1">{req.category}</p>
+                              </div>
+
+                              <div className="sm:col-span-2">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Identity Document Proof</p>
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{req.documentType}:</span>
+                                  <span className="font-mono font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-[#1f1f24] px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                                    {req.documentNumberOrLink}
+                                  </span>
+                                  {isDocUrl && (
+                                    <a
+                                      href={req.documentNumberOrLink.startsWith('http') ? req.documentNumberOrLink : `https://${req.documentNumberOrLink}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 font-bold hover:underline"
+                                    >
+                                      <span>View Document</span>
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+
+                              {req.socialLinks && (
+                                <div className="sm:col-span-2 lg:col-span-4">
+                                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Social Media & Public Reference Links</p>
+                                  <p className="font-medium text-blue-600 dark:text-blue-400 mt-1 break-all bg-white dark:bg-[#1a1a1e] p-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                                    {req.socialLinks}
+                                  </p>
+                                </div>
+                              )}
+
+                              <div className="sm:col-span-2 lg:col-span-4">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Reason / Bio Pitch for Verification</p>
+                                <div className="mt-1 bg-white dark:bg-[#1a1a1e] p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 font-medium leading-relaxed">
+                                  "{req.reason}"
+                                </div>
+                              </div>
+
+                              {req.status === 'rejected' && req.rejectionReason && (
+                                <div className="sm:col-span-2 lg:col-span-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300">
+                                  <span className="font-bold">Rejection Reason Provided: </span>
+                                  <span>"{req.rejectionReason}"</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Footer: Timestamps and Action Buttons */}
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
+                              <p className="text-[11px] text-slate-400 font-medium">
+                                Submitted: {new Date(req.submittedAt).toLocaleString()}
+                                {req.reviewedAt && (
+                                  <span className="ml-2 font-semibold">
+                                    • Reviewed: {new Date(req.reviewedAt).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </p>
+
+                              <div className="flex items-center gap-2.5 self-end sm:self-center">
+                                {req.status === 'pending' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={isProcessing}
+                                      onClick={() => handleOpenRejectVerificationModal(req)}
+                                      className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:hover:bg-rose-950/70 dark:text-rose-300 font-bold text-xs rounded-xl border border-rose-200 dark:border-rose-900/60 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                                    >
+                                      <XCircle className="w-4 h-4" />
+                                      <span>Reject</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      disabled={isProcessing}
+                                      onClick={() => handleApproveVerification(req)}
+                                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/25 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                                    >
+                                      {isProcessing ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <CheckCircle2 className="w-4 h-4" />
+                                      )}
+                                      <span>Approve & Grant Blue Tick</span>
+                                    </button>
+                                  </>
+                                )}
+
+                                {req.status === 'approved' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRevokeVerification(req.userId, req.id)}
+                                    className="px-4 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 dark:bg-slate-800 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 text-slate-600 dark:text-slate-400 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                                  >
+                                    Revoke Blue Tick
+                                  </button>
+                                )}
+
+                                {req.status === 'rejected' && (
+                                  <button
+                                    type="button"
+                                    disabled={isProcessing}
+                                    onClick={() => handleApproveVerification(req)}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                                  >
+                                    {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                    <span>Re-approve & Grant Badge</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </>
         )}
 
@@ -3913,6 +4376,102 @@ export const AdminPanel: React.FC = () => {
                       ? `Confirm & Mark ₹${payoutModalState.request.amount.toFixed(2)} Paid` 
                       : `Confirm Reject & Refund ₹${payoutModalState.request.amount.toFixed(2)}`}
                   </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* REJECT VERIFICATION MODAL */}
+        {rejectModalRequest && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#121215] border border-slate-200 dark:border-[#222] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#222] pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-black shadow-md shadow-rose-600/30">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                      Reject Verification Application
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Provide a clear reason so the creator can correct their details and re-apply.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRejectModalRequest(null)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#222] text-slate-400 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 bg-slate-50 dark:bg-[#18181c] rounded-2xl border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
+                <p className="font-black text-slate-900 dark:text-white">
+                  Applicant: {rejectModalRequest.fullName} (@{rejectModalRequest.username})
+                </p>
+                <p className="text-slate-500">
+                  Channel: <span className="font-bold text-slate-700 dark:text-slate-300">{rejectModalRequest.channelName}</span> • {rejectModalRequest.category}
+                </p>
+                <p className="text-slate-500 font-mono text-[11px]">
+                  Document: {rejectModalRequest.documentType} ({rejectModalRequest.documentNumberOrLink})
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Reason for Rejection *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={rejectReasonInput}
+                  onChange={(e) => setRejectReasonInput(e.target.value)}
+                  placeholder="e.g. Identity document unreadable, or social links do not verify channel ownership."
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-rose-500"
+                />
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    'Document proof is unclear or unreadable',
+                    'Name does not match identity document',
+                    'Insufficient public media presence',
+                    'Please provide official government ID link'
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setRejectReasonInput(preset)}
+                      className="text-[10px] font-bold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 cursor-pointer"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setRejectModalRequest(null)}
+                  className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isProcessingVerificationId === rejectModalRequest.id || !rejectReasonInput.trim()}
+                  onClick={handleConfirmRejectVerification}
+                  className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-rose-600/25 cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isProcessingVerificationId === rejectModalRequest.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <XCircle className="w-4 h-4" />
+                  )}
+                  <span>Confirm Rejection</span>
                 </button>
               </div>
             </div>

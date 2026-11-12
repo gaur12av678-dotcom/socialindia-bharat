@@ -89,6 +89,13 @@ match /adminSettings/{docId} {
       allow update, delete: if isSignedIn();
     }
 
+    // --- VERIFICATION REQUESTS COLLECTION ---
+    match /verification_requests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn();
+    }
+
     // --- VIDEOS COLLECTION ---
     match /videos/{videoId} {
       allow read: if true;
