@@ -93,7 +93,7 @@ function MainAppContent() {
 
       // Dynamic page titles for standard routes
       const routeTitles: Record<string, string> = {
-        home: 'SocialIndia – Connect, Share, Discover & Explore',
+        home: 'SocialIndia (Official) – India’s Video, Shorts & Community Platform',
         trending: 'Trending Videos & Posts – SocialIndia',
         explore: 'Community & Discussions – SocialIndia',
         community: 'Community & Discussions – SocialIndia',
