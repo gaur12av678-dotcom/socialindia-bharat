@@ -53,7 +53,7 @@ import { payoutService } from '../services/payoutService';
 import { WithdrawalRequest, Video, VerificationRequest } from '../types';
 import { compressAvatar, compressBanner } from '../utils/imageUtils';
 import { updateUserAvatarCache } from '../components/UserAvatar';
-import { useTranslation } from '../i18n';
+import { useTranslation, LanguageCode } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { adminConfigService } from '../services/adminConfigService';
 import { isUserVerified } from '../utils/userUtils';
@@ -73,13 +73,14 @@ interface SettingsProps {
     | 'verification'
     | 'my_info'
     | 'delete_account'
-    | 'app_download';
+    | 'app_download'
+    | 'language';
 }
 
 export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
   const { currentUser, currentUserProfile, refreshProfile, updateUserProfileState, addToast, openSwitchAccount } = useApp();
   const { route, navigate } = useRouter();
-  const { t, isHindi } = useTranslation();
+  const { t, language, setLanguage, isHindi } = useTranslation();
 
   const getDesiredTab = () => {
     if (initialTab) return initialTab;
@@ -88,6 +89,9 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     }
     if (route.path === 'download-app' || route.path === 'app' || route.path === 'apk') {
       return 'app_download';
+    }
+    if (route.param === 'language') {
+      return 'language';
     }
     return 'general';
   };
@@ -107,6 +111,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     | 'my_info'
     | 'delete_account'
     | 'app_download'
+    | 'language'
   >(getDesiredTab);
 
   // Mobile View State: 'menu' shows settings list, 'content' shows active setting page with Back button
@@ -220,6 +225,9 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
       route.path === 'apk'
     ) {
       setActiveTab('app_download');
+      setMobileView('content');
+    } else if (route.param === 'language') {
+      setActiveTab('language');
       setMobileView('content');
     }
   }, [route.path, route.param]);
@@ -821,6 +829,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
         { id: 'profile', label: isHindi ? 'प्रोफ़ाइल' : 'Profile', icon: User },
         { id: 'avatar_cover', label: isHindi ? 'अवतार व बैनर' : 'Avatar & Cover', icon: ImageIcon },
         { id: 'privacy', label: isHindi ? 'गोपनीयता' : 'Privacy', icon: Shield },
+        { id: 'language', label: isHindi ? 'भाषा (Language)' : 'Language', icon: Globe, badge: isHindi ? 'हिंदी' : 'English', badgeType: 'blue' },
       ]
     },
     {
@@ -2576,6 +2585,143 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                 </p>
               </div>
 
+            </div>
+          )}
+
+          {/* ====================================================== */}
+          {/* TAB: LANGUAGE SELECTION                                */}
+          {/* ====================================================== */}
+          {activeTab === 'language' && (
+            <div className="space-y-6">
+              <div className="flex items-start justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 rounded-full mb-2">
+                    <Globe className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                      {t('lang_badge_native', '100% Native Indian Translation')}
+                    </span>
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                    {isHindi ? 'भाषा चयन (Language)' : 'Language Selection'}
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    {t('lang_page_subtitle', 'Experience SocialIndia in your preferred native regional language.')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(
+                  [
+                    {
+                      code: 'hi' as LanguageCode,
+                      nativeName: 'हिन्दी',
+                      englishName: 'Hindi',
+                      description: 'संपूर्ण वेबसाइट का मूल भारतीय हिन्दी संस्करण (मेनू, वीडियो प्लेयर, खोज, शॉर्ट्स और नेविगेशन)',
+                      flag: '🇮🇳',
+                    },
+                    {
+                      code: 'en' as LanguageCode,
+                      nativeName: 'English',
+                      englishName: 'English (US/UK/IN)',
+                      description: 'Default international language for UI, navigation, player controls, and menus',
+                      flag: '🌐',
+                    },
+                  ]
+                ).map((lang) => {
+                  const isSelected = language === lang.code;
+                  return (
+                    <button
+                      type="button"
+                      key={lang.code}
+                      onClick={() => {
+                        setLanguage(lang.code);
+                        if (lang.code === 'hi') {
+                          addToast('वेबसाइट की भाषा बदलकर हिन्दी कर दी गई!', 'success');
+                        } else {
+                          addToast('Language switched to English!', 'success');
+                        }
+                      }}
+                      className={`text-left p-5 rounded-3xl border transition-all cursor-pointer select-none flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-blue-50/70 dark:bg-blue-950/30 border-blue-500 dark:border-blue-500 shadow-md ring-2 ring-blue-500/20'
+                          : 'bg-slate-50 dark:bg-[#0F172A] border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100/60'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-3">
+                            <span className="text-3xl">{lang.flag}</span>
+                            <div>
+                              <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                {lang.nativeName}
+                                {lang.code === 'hi' && (
+                                  <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full font-bold">
+                                    हिंदी संस्करण
+                                  </span>
+                                )}
+                              </h3>
+                              <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                                {lang.englishName}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div
+                            className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+                              isSelected
+                                ? 'bg-blue-600 text-white'
+                                : 'border-2 border-slate-300 dark:border-slate-700'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-4 h-4 stroke-[3]" />}
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                          {lang.description}
+                        </p>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                          {isSelected ? (isHindi ? 'वर्तमान में सक्रिय' : 'Currently Active') : (isHindi ? 'चुनने के लिए क्लिक करें' : 'Click to select')}
+                        </span>
+                        {isSelected && (
+                          <span className="text-[11px] font-black uppercase text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5" />
+                            {isHindi ? 'सक्रिय' : 'Active'}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="bg-slate-50 dark:bg-[#0F172A] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-3">
+                <p className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  {isHindi ? 'इंटरफ़ेस पूर्वावलोकन (Preview)' : 'Localization Preview'}
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-3 bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-xl">
+                    <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{isHindi ? 'नेविगेशन' : 'Navigation'}</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">{t('nav_home')} • {t('nav_shorts')}</span>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-xl">
+                    <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{isHindi ? 'वीडियो एक्शन' : 'Actions'}</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">{t('action_subscribe')}</span>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-xl">
+                    <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{isHindi ? 'प्लेयर' : 'Player'}</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">{t('player_quality')} • {t('player_speed')}</span>
+                  </div>
+                  <div className="p-3 bg-white dark:bg-[#1E293B] border border-slate-200/80 dark:border-slate-800 rounded-xl">
+                    <span className="text-[10px] text-slate-400 font-bold block mb-0.5">{isHindi ? 'खोज' : 'Search'}</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">{t('search_button')}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

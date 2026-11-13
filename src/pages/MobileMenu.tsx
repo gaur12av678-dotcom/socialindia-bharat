@@ -10,7 +10,6 @@ import {
   History as HistoryIcon, 
   LogOut, 
   ArrowRight,
-  Globe,
   Lock,
   RefreshCw,
   ListVideo,
@@ -20,8 +19,6 @@ import {
   ShieldCheck,
   HelpCircle,
   MessageSquare,
-  Sparkles,
-  Upload,
   Search,
   MessageCircle,
   ExternalLink,
@@ -29,11 +26,7 @@ import {
   Share2,
   FileText,
   ChevronRight,
-  TrendingUp,
-  Tv,
-  Crown,
-  Smartphone,
-  Download
+  Tv
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { UserAvatar } from '../components/UserAvatar';
@@ -440,48 +433,6 @@ export const MobileMenu: React.FC = () => {
 
           {/* Quick Creator Navigation Menu Items */}
           <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-2 space-y-1 shadow-xs">
-            {/* Upload Video / Short */}
-            <button
-              onClick={() => navigate('upload')}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl">
-                  <Upload className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-slate-800 dark:text-slate-100">
-                    {isHindi ? 'वीडियो या शॉर्ट्स अपलोड करें' : 'Upload Video or Short'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'नया कंटेंट प्रकाशित करें' : 'Publish new creative content'}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-
-            {/* Community Posts */}
-            <button
-              onClick={() => navigate('community')}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-xl">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-slate-800 dark:text-slate-100">
-                    {isHindi ? 'कम्युनिटी पोस्ट्स' : 'Community Posts'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'पोल, अपडेट्स और तस्वीरें साझा करें' : 'Share polls, updates & images with fans'}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-
             {/* Chat & Messages */}
             <button
               onClick={() => navigate('chat')}
@@ -540,87 +491,12 @@ export const MobileMenu: React.FC = () => {
           </div>
         )}
 
-        {/* 7. MORE FROM SOCIALINDIA (Pro Membership & Ads) */}
-        <div className="space-y-2">
-          <p className="px-1 text-[11px] font-black uppercase text-slate-400 tracking-wider">
-            {isHindi ? 'विशेष सेवाएं' : 'More from SocialIndia'}
-          </p>
-          <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-2 space-y-1 shadow-xs">
-            <button
-              onClick={() => navigate('gopro')}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-colors cursor-pointer text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-50 dark:bg-amber-950/40 text-amber-500 rounded-xl">
-                  <Crown className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                    <span>{isHindi ? 'सोशल इंडिया प्रो (Go Pro)' : 'SocialIndia Pro'}</span>
-                    <span className="px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 text-[9px] font-extrabold uppercase">
-                      Premium
-                    </span>
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'विज्ञापन-मुक्त वीडियो और बैकग्राउंड प्ले' : 'Ad-free playback & background streaming'}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-
-            <button
-              onClick={() => navigate('advertising')}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-slate-800 dark:text-slate-100">
-                    {isHindi ? 'विज्ञापन एवं चैनल प्रचार' : 'Advertising & Promotions'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'अपने वीडियो और चैनल को लाखों लोगों तक पहुँचाएं' : 'Boost your channel reach to millions'}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-          </div>
-        </div>
-
         {/* 8. SETTINGS & PREFERENCES */}
         <div className="space-y-2">
           <p className="px-1 text-[11px] font-black uppercase text-slate-400 tracking-wider">
             {isHindi ? 'सेटिंग्स एवं प्राथमिकताएं' : 'Settings & Preferences'}
           </p>
           <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-2 space-y-1 shadow-xs">
-            {/* Download Android App (APK) */}
-            <button
-              onClick={() => navigate('settings', 'app_download')}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-colors cursor-pointer text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                  <Smartphone className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                    <span>{isHindi ? 'सोशलइंडिया ऐप डाउनलोड करें (APK)' : 'Download SocialIndia App'}</span>
-                    <span className="px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-[9px] font-extrabold uppercase">
-                      APK
-                    </span>
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'आधिकारिक एंड्रॉयड ऐप • तेज़ डाउनलोड व ऑफ़लाइन मोड' : 'Official Android APK • Real offline mode'}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-
             <button
               onClick={() => navigate('settings')}
               className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer text-left group"
@@ -634,36 +510,11 @@ export const MobileMenu: React.FC = () => {
                     {isHindi ? 'चैनल सेटिंग्स' : 'Channel Settings'}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'प्रोफ़ाइल, पासवर्ड, मोनेटाइजेशन और भुगतान' : 'Profile, security, monetization & payouts'}
+                    {isHindi ? 'प्रोफ़ाइल, भाषा, सुरक्षा, मोनेटाइजेशन और भुगतान' : 'Profile, language, security, monetization & payouts'}
                   </p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-
-            <button
-              onClick={() => navigate('language')}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 rounded-xl">
-                  <Globe className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-slate-800 dark:text-slate-100">
-                    {isHindi ? 'भाषा चयन (हिंदी / English)' : 'Language Selection'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'अपनी पसंदीदा भारतीय भाषा चुनें' : 'Choose Indian regional language'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400">
-                  {isHindi ? 'हिंदी' : 'English'}
-                </span>
-                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-              </div>
             </button>
           </div>
         </div>
