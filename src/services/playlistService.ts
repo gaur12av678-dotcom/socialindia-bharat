@@ -97,6 +97,21 @@ export const playlistService = {
     return newPlaylist;
   },
 
+  // Synchronous 0ms retrieval of cached user playlists
+  getCachedUserPlaylists(creatorId: string): Playlist[] {
+    if (typeof window === 'undefined' || !creatorId) return [];
+    try {
+      const raw = localStorage.getItem(`socialindia_playlists_${creatorId}`);
+      if (raw) {
+        const list = JSON.parse(raw) as Playlist[];
+        if (Array.isArray(list)) {
+          return list.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+        }
+      }
+    } catch {}
+    return [];
+  },
+
   // Get user playlists (automatically creates default "Saved Videos" playlist if missing)
   async getUserPlaylists(creatorId: string, creatorUsername?: string, creatorDisplayName?: string): Promise<Playlist[]> {
     const cacheKey = `socialindia_playlists_${creatorId}`;

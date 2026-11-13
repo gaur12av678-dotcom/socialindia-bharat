@@ -115,24 +115,39 @@ type AdminSection =
   | 'changelogs'
   | 'faq_docs';
 
+let persistentAdminSnapshot: {
+  users: User[];
+  videos: Video[];
+  reports: Report[];
+  feedback: FeedbackEntry[];
+  trashItems: TrashItem[];
+  sounds: SoundTrack[];
+  adCampaigns: any[];
+  withdrawalRequests: WithdrawalRequest[];
+  verificationRequests: VerificationRequest[];
+  cloudName: string;
+  uploadPreset: string;
+  storageUpdatedAt?: string;
+} | null = null;
+
 export const AdminPanel: React.FC = () => {
   const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
   const { navigate } = useRouter();
 
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
-  const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState<User[]>([]);
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
-  const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
-  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
-  const [adCampaigns, setAdCampaigns] = useState<any[]>([]);
-  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
+  const [loading, setLoading] = useState(!persistentAdminSnapshot);
+  const [users, setUsers] = useState<User[]>(() => persistentAdminSnapshot?.users || []);
+  const [videos, setVideos] = useState<Video[]>(() => persistentAdminSnapshot?.videos || []);
+  const [reports, setReports] = useState<Report[]>(() => persistentAdminSnapshot?.reports || []);
+  const [feedback, setFeedback] = useState<FeedbackEntry[]>(() => persistentAdminSnapshot?.feedback || []);
+  const [trashItems, setTrashItems] = useState<TrashItem[]>(() => persistentAdminSnapshot?.trashItems || []);
+  const [adCampaigns, setAdCampaigns] = useState<any[]>(() => persistentAdminSnapshot?.adCampaigns || []);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>(() => persistentAdminSnapshot?.withdrawalRequests || []);
   const [isProcessingPayoutId, setIsProcessingPayoutId] = useState<string | null>(null);
   const [withdrawalFilter, setWithdrawalFilter] = useState<'all' | 'pending' | 'completed' | 'rejected'>('all');
 
   // Verification Requests States
-  const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
+  const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>(() => persistentAdminSnapshot?.verificationRequests || []);
   const [verificationFilter, setVerificationFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [verificationSearch, setVerificationSearch] = useState('');
   const [isProcessingVerificationId, setIsProcessingVerificationId] = useState<string | null>(null);
@@ -219,9 +234,11 @@ export const AdminPanel: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-    setLoading(true);
+    if (!persistentAdminSnapshot) {
+      setLoading(true);
+    }
     try {
-      const [u, v, r, f, s, t, soundList, ads, payouts, vReqs] = await Promise.all([
+      const results = await Promise.allSettled([
         adminService.getAllUsers(),
         adminService.getAllVideos(),
         adminService.getAllReports(),
@@ -233,22 +250,58 @@ export const AdminPanel: React.FC = () => {
         payoutService.getWithdrawalRequests(),
         verificationService.getAllVerificationRequests()
       ]);
-      setUsers(u);
-      setVideos(v);
-      setReports(r);
-      setFeedback(f);
-      setTrashItems(t);
-      setSounds(soundList);
-      setAdCampaigns(ads);
-      setWithdrawalRequests(payouts);
-      setVerificationRequests(vReqs || []);
-      if (s) {
-        setCloudName(s.cloudName || '');
-        setUploadPreset(s.uploadPreset || '');
-        setStorageUpdatedAt(s.updatedAt);
+
+      const nextUsers = results[0].status === 'fulfilled' ? results[0].value : users;
+      const nextVideos = results[1].status === 'fulfilled' ? results[1].value : videos;
+      const nextReports = results[2].status === 'fulfilled' ? results[2].value : reports;
+      const nextFeedback = results[3].status === 'fulfilled' ? results[3].value : feedback;
+      const nextStorage = results[4].status === 'fulfilled' ? results[4].value : null;
+      const nextTrash = results[5].status === 'fulfilled' ? results[5].value : trashItems;
+      const nextSounds = results[6].status === 'fulfilled' ? results[6].value : sounds;
+      const nextAds = results[7].status === 'fulfilled' ? results[7].value : adCampaigns;
+      const nextPayouts = results[8].status === 'fulfilled' ? results[8].value : withdrawalRequests;
+      const nextVReqs = results[9].status === 'fulfilled' ? (results[9].value || []) : verificationRequests;
+
+      setUsers(nextUsers);
+      setVideos(nextVideos);
+      setReports(nextReports);
+      setFeedback(nextFeedback);
+      setTrashItems(nextTrash);
+      setSounds(nextSounds);
+      setAdCampaigns(nextAds);
+      setWithdrawalRequests(nextPayouts);
+      setVerificationRequests(nextVReqs);
+
+      let nextCloud = cloudName;
+      let nextPreset = uploadPreset;
+      let nextUpdated = storageUpdatedAt;
+      if (nextStorage) {
+        nextCloud = nextStorage.cloudName || '';
+        nextPreset = nextStorage.uploadPreset || '';
+        nextUpdated = nextStorage.updatedAt;
+        setCloudName(nextCloud);
+        setUploadPreset(nextPreset);
+        setStorageUpdatedAt(nextUpdated);
       }
+
+      persistentAdminSnapshot = {
+        users: nextUsers,
+        videos: nextVideos,
+        reports: nextReports,
+        feedback: nextFeedback,
+        trashItems: nextTrash,
+        sounds: nextSounds,
+        adCampaigns: nextAds,
+        withdrawalRequests: nextPayouts,
+        verificationRequests: nextVReqs,
+        cloudName: nextCloud,
+        uploadPreset: nextPreset,
+        storageUpdatedAt: nextUpdated
+      };
     } catch (err) {
-      addToast('Failed to load administrative data.', 'error');
+      if (!persistentAdminSnapshot) {
+        addToast('Failed to load administrative data.', 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -1332,9 +1385,27 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 animate-pulse space-y-4">
-            <LoaderIcon className="w-10 h-10 text-blue-600 animate-spin" />
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Synchronizing Hub...</p>
+          <div className="space-y-6 animate-pulse">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-28 rounded-3xl bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-slate-800 p-5 space-y-3">
+                  <div className="h-3 w-24 rounded-full bg-slate-200 dark:bg-slate-800" />
+                  <div className="h-7 w-16 rounded-lg bg-slate-200 dark:bg-slate-800" />
+                </div>
+              ))}
+            </div>
+            <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 space-y-4">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 w-2/5 rounded-full bg-slate-200 dark:bg-slate-800" />
+                    <div className="h-2.5 w-1/4 rounded-full bg-slate-200 dark:bg-slate-800" />
+                  </div>
+                  <div className="h-7 w-20 rounded-xl bg-slate-200 dark:bg-slate-800" />
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <>

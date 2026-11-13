@@ -31,22 +31,41 @@ import {
 import { useTranslation } from '../i18n';
 import { UserAvatar } from '../components/UserAvatar';
 
+const persistentMobileHistoryByUid = new Map<string, HistoryItem[]>();
+
 export const MobileMenu: React.FC = () => {
-  const { currentUser, currentUserProfile, addToast, openSwitchAccount, logout } = useApp();
+  const { currentUser, currentUserProfile, addToast, openSwitchAccount, logout, loading: appLoading } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
-  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>(() => {
+    if (currentUser?.uid) {
+      return persistentMobileHistoryByUid.get(currentUser.uid) || [];
+    }
+    return [];
+  });
+  const [historyLoading, setHistoryLoading] = useState<boolean>(() => {
+    if (!currentUser?.uid) return false;
+    return !(persistentMobileHistoryByUid.get(currentUser.uid)?.length);
+  });
 
   useEffect(() => {
     if (!currentUser) return;
     let isMounted = true;
-    setHistoryLoading(true);
+    const cached = persistentMobileHistoryByUid.get(currentUser.uid);
+    if (cached && cached.length > 0) {
+      setHistoryItems(cached);
+      setHistoryLoading(false);
+    } else {
+      setHistoryLoading(true);
+    }
+
     historyService.getHistory(currentUser.uid)
       .then((items) => {
         if (isMounted) {
-          setHistoryItems(items.slice(0, 8));
+          const top8 = items.slice(0, 8);
+          persistentMobileHistoryByUid.set(currentUser.uid, top8);
+          setHistoryItems(top8);
         }
       })
       .catch((err) => {
@@ -70,6 +89,57 @@ export const MobileMenu: React.FC = () => {
       addToast(isHindi ? 'साइन आउट करने में विफल।' : 'Failed to sign out.', 'error');
     }
   };
+
+  // --------------------------------------------------------------------------
+  // AUTH HYDRATING SKELETON (Never flash Sign-In while Auth loads)
+  // --------------------------------------------------------------------------
+  if (appLoading && (!currentUser || !currentUserProfile)) {
+    return (
+      <div className="bg-slate-50 dark:bg-[#0f0f0f] min-h-screen pb-32 animate-pulse">
+        <div className="bg-white dark:bg-[#0f0f0f] px-4 py-3.5 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between">
+          <div className="h-6 w-16 rounded-lg bg-slate-200 dark:bg-slate-800" />
+          <div className="flex gap-2">
+            <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-800" />
+            <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-800" />
+          </div>
+        </div>
+        <div className="max-w-md mx-auto p-4 space-y-6">
+          <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-5 space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-[#dbe2ee] dark:bg-slate-800 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-36 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+                <div className="h-3 w-24 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+                <div className="h-3 w-32 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="h-9 rounded-2xl bg-[#dbe2ee] dark:bg-slate-800" />
+              <div className="h-9 rounded-2xl bg-[#dbe2ee] dark:bg-slate-800" />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="h-4 w-28 rounded-full bg-slate-200 dark:bg-slate-800" />
+            <div className="flex gap-3 overflow-hidden">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="w-36 shrink-0 space-y-1.5">
+                  <div className="aspect-video rounded-2xl bg-[#dbe2ee] dark:bg-slate-800" />
+                  <div className="h-3 w-4/5 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-16 rounded-2xl bg-white dark:bg-[#16171a] border border-slate-200/80 dark:border-slate-800" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // --------------------------------------------------------------------------
   // LOGGED OUT VIEW
@@ -258,7 +328,17 @@ export const MobileMenu: React.FC = () => {
             </button>
           </div>
 
-          {historyItems.length > 0 ? (
+          {historyLoading && historyItems.length === 0 ? (
+            <div className="flex items-center gap-3 overflow-x-hidden py-1 -mx-4 px-4 animate-pulse">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="w-36 shrink-0 space-y-1.5">
+                  <div className="aspect-video rounded-2xl bg-[#dbe2ee] dark:bg-slate-800" />
+                  <div className="h-3 w-4/5 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+                  <div className="h-2.5 w-1/2 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+                </div>
+              ))}
+            </div>
+          ) : historyItems.length > 0 ? (
             <div className="flex items-center gap-3 overflow-x-auto scrollbar-none py-1 -mx-4 px-4">
               {historyItems.map((item) => (
                 <div
@@ -569,7 +649,7 @@ export const MobileMenu: React.FC = () => {
 
             {/* Community Guidelines */}
             <button
-              onClick={() => navigate('community-guidelines')}
+              onClick={() => navigate('guidelines')}
               className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer text-left group"
             >
               <div className="flex items-center gap-3">

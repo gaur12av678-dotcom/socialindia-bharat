@@ -375,7 +375,7 @@ const ShortVideoMedia: React.FC<{
 
   return (
     <div className="absolute inset-0 overflow-hidden flex items-center justify-center bg-black">
-      {/* Instant poster thumbnail backdrop (smoothly fades away as soon as live video frames render) */}
+      {/* Instant poster thumbnail backdrop + buffering indicator until live frames render */}
       {short.thumbnailUrl && (
         <img
           src={short.thumbnailUrl}
@@ -384,6 +384,13 @@ const ShortVideoMedia: React.FC<{
             isFrameReady ? 'opacity-0' : 'opacity-100 filter blur-xs scale-105'
           }`}
         />
+      )}
+      {!isFrameReady && isPlaying && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-black/25">
+          <div className="w-11 h-11 rounded-full bg-black/55 backdrop-blur-md flex items-center justify-center border border-white/15 shadow-lg">
+            <Loader2 className="w-5 h-5 text-white animate-spin" />
+          </div>
+        </div>
       )}
 
       {/* Attached Sound Library Audio Element (only if custom track selected) */}
@@ -587,7 +594,8 @@ export const Shorts: React.FC = () => {
     : null;
 
   const fetchShorts = async () => {
-    if (shorts.length === 0) {
+    const hasInitialShorts = shorts.length > 0;
+    if (!hasInitialShorts) {
       setLoading(true);
     }
     try {
@@ -596,14 +604,24 @@ export const Shorts: React.FC = () => {
       allShortsPoolRef.current = data;
 
       if (data.length > 0) {
-        // AI Shorts Recommendation Algorithm with Creator Diversity, Engagement & Anti-Repeat Jitter
         const ranked = recommendationService.getShortsRecommendations({
           allShorts: data,
           currentShortId: targetShortId,
           userUid: currentUser?.uid
         });
 
-        // If route specifies a short ID, find index or fetch
+        // If a short is already playing from instant cache, keep it uninterrupted and only append unseen items after it
+        if (hasInitialShorts) {
+          setShorts(prev => {
+            if (prev.length === 0) return ranked.slice(0, 8);
+            const existingIds = new Set(prev.map(s => s.videoId));
+            const newTail = ranked.filter(s => !existingIds.has(s.videoId)).slice(0, 8);
+            return newTail.length > 0 ? [...prev, ...newTail] : prev;
+          });
+          return;
+        }
+
+        // If route specifies a short ID, put it first
         if (targetShortId) {
           const target = data.find(s => s.videoId === targetShortId);
           if (target) {
@@ -625,7 +643,7 @@ export const Shorts: React.FC = () => {
           setShorts(ranked.slice(0, 8));
           setCurrentIndex(0);
         }
-      } else if (shorts.length === 0) {
+      } else if (!hasInitialShorts) {
         setShorts([]);
         setCurrentIndex(0);
       }
@@ -641,6 +659,18 @@ export const Shorts: React.FC = () => {
   };
 
   useEffect(() => {
+    if (targetShortId && shorts.length > 0 && shorts[currentIndex]?.videoId !== targetShortId) {
+      const existingIdx = shorts.findIndex(s => s.videoId === targetShortId);
+      if (existingIdx !== -1) {
+        setCurrentIndex(existingIdx);
+      } else {
+        const cached = videoService.getCachedVideo(targetShortId);
+        if (cached) {
+          setShorts(prev => [cached, ...prev.filter(s => s.videoId !== targetShortId)]);
+          setCurrentIndex(0);
+        }
+      }
+    }
     fetchShorts();
   }, [targetShortId]);
 
@@ -1329,10 +1359,33 @@ export const Shorts: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
-        <div className="w-85 sm:w-96 h-[550px] bg-slate-200 dark:bg-[#111827] rounded-3xl animate-pulse flex flex-col justify-end p-6 space-y-4">
-          <div className="h-6 bg-slate-300 dark:bg-[#1E293B] rounded w-2/3" />
-          <div className="h-4 bg-slate-300 dark:bg-[#1E293B] rounded w-1/3" />
+      <div className="flex flex-col items-center justify-center p-0 md:p-4 h-[calc(100dvh-3.5rem)] md:h-[calc(100vh-4.5rem)] max-w-6xl mx-auto">
+        <div className="relative w-full max-w-full md:max-w-[390px] h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] md:aspect-[9/16] bg-[#dbe2ee] dark:bg-[#181a20] rounded-none md:rounded-[2rem] overflow-hidden animate-pulse flex flex-col justify-between p-5">
+          <div className="flex items-center justify-between">
+            <div className="h-7 w-20 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+            <div className="flex gap-2">
+              <div className="w-8 h-8 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+              <div className="w-8 h-8 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+            </div>
+          </div>
+
+          <div className="flex items-end justify-between gap-4 pb-2">
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-slate-300/80 dark:bg-slate-800 shrink-0" />
+                <div className="h-3.5 w-28 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+                <div className="h-7 w-16 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+              </div>
+              <div className="h-3.5 w-4/5 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+              <div className="h-3 w-3/5 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+            </div>
+
+            <div className="flex flex-col items-center gap-4 pb-1">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <div key={i} className="w-10 h-10 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );

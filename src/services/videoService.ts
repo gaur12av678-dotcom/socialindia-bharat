@@ -10,7 +10,10 @@ import {
   where, 
   orderBy, 
   limit, 
-  increment 
+  startAfter,
+  increment,
+  QueryDocumentSnapshot,
+  DocumentData
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, UploadTaskSnapshot } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
@@ -960,25 +963,82 @@ export const videoService = {
     return queryPromise;
   },
 
+  // Cursor-based paginated public video fetch for smooth YouTube infinite scroll
+  async getVideosPage(filters?: {
+    category?: string;
+    creatorId?: string;
+    isShort?: boolean;
+    limit?: number;
+    afterDoc?: QueryDocumentSnapshot<DocumentData> | null;
+  }): Promise<{ videos: Video[]; lastDoc: QueryDocumentSnapshot<DocumentData> | null; hasMore: boolean }> {
+    let q = query(collection(db, 'videos'), where('visibility', '==', 'public'));
+
+    if (filters?.category && filters.category !== 'All') {
+      q = query(q, where('category', '==', filters.category));
+    }
+    if (filters?.creatorId) {
+      q = query(q, where('creatorId', '==', filters.creatorId));
+    }
+    if (filters?.isShort !== undefined) {
+      q = query(q, where('isShort', '==', filters.isShort));
+    }
+    if (filters?.afterDoc) {
+      q = query(q, startAfter(filters.afterDoc));
+    }
+
+    const queryLimit = filters?.limit || (filters?.isShort ? 40 : 60);
+    q = query(q, limit(queryLimit));
+
+    const snap = await getDocs(q);
+    const videos = snap.docs
+      .map((d: any) => d.data() as Video)
+      .filter((v: Video) => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
+
+    const sorted = videos.sort((a: Video, b: Video) => {
+      if (a.isLive && !b.isLive) return -1;
+      if (!a.isLive && b.isLive) return 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    sorted.forEach(v => {
+      if (v.videoId) this.cacheVideo(v);
+    });
+
+    if (!filters?.afterDoc && !filters?.creatorId && (!filters?.category || filters.category === 'All')) {
+      if (filters?.isShort === true && sorted.length > 0) {
+        savePersistedShorts(sorted);
+      } else if (filters?.isShort === false && sorted.length > 0) {
+        savePersistedVideos(sorted);
+      }
+    }
+
+    const lastDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+    const hasMore = snap.docs.length >= queryLimit;
+    return { videos: sorted, lastDoc, hasMore };
+  },
+
   // Progressive public video loader for ultra-fast homepage boot:
   // 1. Immediately returns cached videos if available (0ms)
   // 2. Rapidly queries a fast initial batch (6-8 videos) in ~150-250ms and notifies onBatch
   // 3. Immediately follows up with the remaining batch in background and notifies onBatch
   async getVideosProgressive(
-    filters?: { category?: string; creatorId?: string; isShort?: boolean; limit?: number },
+    filters?: { category?: string; creatorId?: string; isShort?: boolean; limit?: number; forceFresh?: boolean },
     onBatch?: (batch: Video[], isFirstBatch: boolean) => void
   ): Promise<Video[]> {
-    // 1. Instant cache notification (0ms)
-    const cached = this.getCachedVideos(filters);
-    if (cached && cached.length > 0 && onBatch) {
-      onBatch(cached, true);
-    }
-
     const cacheKey = `${filters?.category || 'All'}_${filters?.creatorId || 'all'}_${filters?.isShort !== undefined ? filters.isShort : 'all'}`;
-    const mem = memoryVideoCache.get(cacheKey);
-    if (mem && Date.now() - mem.timestamp < CACHE_TTL_MS) {
-      if (onBatch) onBatch(mem.data, false);
-      return mem.data;
+
+    if (!filters?.forceFresh) {
+      // 1. Instant cache notification (0ms)
+      const cached = this.getCachedVideos(filters);
+      if (cached && cached.length > 0 && onBatch) {
+        onBatch(cached, true);
+      }
+
+      const mem = memoryVideoCache.get(cacheKey);
+      if (mem && Date.now() - mem.timestamp < CACHE_TTL_MS) {
+        if (onBatch) onBatch(mem.data, false);
+        return mem.data;
+      }
     }
 
     let baseQ = query(collection(db, 'videos'), where('visibility', '==', 'public'));
@@ -993,10 +1053,10 @@ export const videoService = {
     }
 
     const targetLimit = filters?.limit || (filters?.isShort ? 25 : 60);
-    const fastLimit = Math.min(8, targetLimit);
+    const fastLimit = Math.min(12, targetLimit);
 
     try {
-      // Step A: Ultra-fast initial batch (8 documents) for immediate rendering
+      // Step A: Ultra-fast initial batch (12 documents) for immediate rendering
       const fastQ = query(baseQ, limit(fastLimit));
       const fastSnap = await getDocs(fastQ);
       
@@ -1020,8 +1080,15 @@ export const videoService = {
       }
 
       // Step B: If fast batch already got all items or targetLimit was small, we're done
-      if (fastSorted.length >= targetLimit) {
+      if (fastSorted.length >= targetLimit || fastDocs.length < fastLimit) {
         memoryVideoCache.set(cacheKey, { data: fastSorted, timestamp: Date.now() });
+        if (!filters?.creatorId && (!filters?.category || filters.category === 'All')) {
+          if (filters?.isShort === true) {
+            savePersistedShorts(fastSorted);
+          } else if (filters?.isShort === false) {
+            savePersistedVideos(fastSorted);
+          }
+        }
         return fastSorted;
       }
 

@@ -92,6 +92,14 @@ const formatCountryDisplay = (raw?: string) => {
   return `${clean} ${flag}`;
 };
 
+const persistentChannelCache = new Map<string, {
+  creator: User;
+  videos: Video[];
+  shorts: Video[];
+  playlists: Playlist[];
+  posts: CommunityPost[];
+}>();
+
 export const CreatorProfile: React.FC = () => {
   const { route, navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast, loading: appLoading, refreshProfile, updateUserProfileState } = useApp();
@@ -110,7 +118,11 @@ export const CreatorProfile: React.FC = () => {
     .trim()
     .toLowerCase();
 
+  const channelCacheKey = targetUsername || rawParam || activeUid || '';
+  const initialChannelSnapshot = channelCacheKey ? persistentChannelCache.get(channelCacheKey) : undefined;
+
   const [creator, setCreator] = useState<User | null>(() => {
+    if (initialChannelSnapshot?.creator) return initialChannelSnapshot.creator;
     if (currentUserProfile) {
       const matchesUsername = Boolean(currentUsernameLower && targetUsername && currentUsernameLower === targetUsername);
       const matchesUid = Boolean(rawParam && currentUserProfile.uid === rawParam);
@@ -129,6 +141,7 @@ export const CreatorProfile: React.FC = () => {
     return null;
   });
   const [videos, setVideos] = useState<Video[]>(() => {
+    if (initialChannelSnapshot) return initialChannelSnapshot.videos;
     if (creator?.uid) {
       const cachedVids = videoService.getCachedVideos({ creatorId: creator.uid, creatorUsername: creator.username });
       return cachedVids.filter(v => v.visibility === 'public' && !v.isShort);
@@ -136,16 +149,18 @@ export const CreatorProfile: React.FC = () => {
     return [];
   });
   const [shorts, setShorts] = useState<Video[]>(() => {
+    if (initialChannelSnapshot) return initialChannelSnapshot.shorts;
     if (creator?.uid) {
       const cachedVids = videoService.getCachedVideos({ creatorId: creator.uid, creatorUsername: creator.username });
       return cachedVids.filter(v => v.visibility === 'public' && v.isShort);
     }
     return [];
   });
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>(() => initialChannelSnapshot?.playlists || []);
+  const [posts, setPosts] = useState<CommunityPost[]>(() => initialChannelSnapshot?.posts || []);
   const [loading, setLoading] = useState(!creator);
   const [loadingContent, setLoadingContent] = useState<boolean>(() => {
+    if (initialChannelSnapshot) return false;
     if (creator?.uid) {
       const cachedVids = videoService.getCachedVideos({ creatorId: creator.uid, creatorUsername: creator.username });
       return cachedVids.length === 0;
@@ -307,32 +322,46 @@ export const CreatorProfile: React.FC = () => {
   };
 
   useEffect(() => {
-    // If not logged in and no param, we show the sign in view directly
+    // Wait for Firebase Auth if viewing own profile without URL param (prevents Sign-In flash!)
     if (!targetUsername && !currentUser) {
-      setLoading(false);
-      setLoadingContent(false);
+      if (!appLoading) {
+        setLoading(false);
+        setLoadingContent(false);
+      }
       return;
     }
 
     let isMounted = true;
 
     const loadCreatorProfile = async () => {
-      const currentTargetKey = targetUsername || rawParam || '';
+      const currentTargetKey = targetUsername || rawParam || activeUid || '';
       const isDifferentTarget = lastTargetRef.current !== currentTargetKey;
-      
+      const snapshot = currentTargetKey ? persistentChannelCache.get(currentTargetKey) : undefined;
+
       if (isDifferentTarget) {
         lastTargetRef.current = currentTargetKey;
-        setVideos([]);
-        setShorts([]);
-        setPlaylists([]);
-        setPosts([]);
-        setLoadingContent(true);
+        if (snapshot) {
+          setCreator(snapshot.creator);
+          setBannerPreview(snapshot.creator.bannerURL || '');
+          setVideos(snapshot.videos);
+          setShorts(snapshot.shorts);
+          setPlaylists(snapshot.playlists);
+          setPosts(snapshot.posts);
+          setLoading(false);
+          setLoadingContent(false);
+        } else {
+          setVideos([]);
+          setShorts([]);
+          setPlaylists([]);
+          setPosts([]);
+          setLoadingContent(true);
+        }
         setActiveTab(resolveTab(route.subTab || route.searchParams?.tab));
       }
 
       // Check cache first so no loading flash occurs for already cached user
-      const cached = userService.getCachedUserByUsername(targetUsername) || (rawParam ? userService.getCachedUserProfile(rawParam) : null);
-      if (cached) {
+      const cached = snapshot?.creator || userService.getCachedUserByUsername(targetUsername) || (rawParam ? userService.getCachedUserProfile(rawParam) : null);
+      if (cached && !snapshot) {
         setCreator(cached);
         setBannerPreview(cached.bannerURL || '');
         setLoading(false);
@@ -349,7 +378,7 @@ export const CreatorProfile: React.FC = () => {
         } else {
           setLoadingContent(true);
         }
-      } else {
+      } else if (!cached) {
         // Critical: Clear previous creator data so old user's profile is not shown while loading
         setCreator(null);
         setLoading(true);
@@ -461,6 +490,11 @@ export const CreatorProfile: React.FC = () => {
         ]);
 
         if (isMounted) {
+          let nextVideos = videos;
+          let nextShorts = shorts;
+          let nextPlaylists = playlists;
+          let nextPosts = posts;
+
           if (subResult.status === 'fulfilled') {
             setSubscribed(subResult.value);
           }
@@ -474,15 +508,30 @@ export const CreatorProfile: React.FC = () => {
             const visibleVids = isOwnerUser 
               ? vidsResult.value 
               : vidsResult.value.filter(v => v.visibility === 'public');
-            setVideos(visibleVids.filter(v => !v.isShort));
-            setShorts(visibleVids.filter(v => v.isShort));
+            nextVideos = visibleVids.filter(v => !v.isShort);
+            nextShorts = visibleVids.filter(v => v.isShort);
+            setVideos(nextVideos);
+            setShorts(nextShorts);
           }
           if (plsResult.status === 'fulfilled') {
-            setPlaylists(plsResult.value);
+            nextPlaylists = plsResult.value;
+            setPlaylists(nextPlaylists);
           }
           if (postsResult.status === 'fulfilled') {
-            setPosts(postsResult.value);
+            nextPosts = postsResult.value;
+            setPosts(nextPosts);
           }
+
+          if (currentTargetKey) {
+            persistentChannelCache.set(currentTargetKey, {
+              creator: uProfile,
+              videos: nextVideos,
+              shorts: nextShorts,
+              playlists: nextPlaylists,
+              posts: nextPosts
+            });
+          }
+          setLoading(false);
           setLoadingContent(false);
         }
 
@@ -499,10 +548,10 @@ export const CreatorProfile: React.FC = () => {
     loadCreatorProfile();
 
     return () => { isMounted = false; };
-  }, [targetUsername, rawParam, activeUid, currentUser?.uid]);
+  }, [targetUsername, rawParam, activeUid, currentUser?.uid, appLoading]);
 
-  // Loading skeleton
-  if (loading && !creator) {
+  // Loading skeleton (also holds while Firebase Auth hydrates own profile route)
+  if ((loading || (appLoading && !targetUsername && !currentUser)) && !creator) {
     return (
       <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-8 animate-pulse">
         {/* Banner Skeleton */}

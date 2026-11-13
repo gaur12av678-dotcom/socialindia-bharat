@@ -1,48 +1,135 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { AppProvider } from './context/AppContext';
 import { AppShell } from './components/AppShell';
 import { useRouter } from './hooks/useRouter';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
-// Page Components
+// Eager Home for 0ms YouTube-style initial boot
 import { Home } from './pages/Home';
-import { Search } from './pages/Search';
-import { Watch } from './pages/Watch';
-import { Shorts } from './pages/Shorts';
-import { Trending } from './pages/Trending';
-import { Subscriptions } from './pages/Subscriptions';
-import { WatchHistory } from './pages/History';
-import { SavedVideos } from './pages/Saved';
-import { LikedVideos } from './pages/Liked';
-import { PlaylistsPage } from './pages/Playlists';
-import { CreatorProfile } from './pages/Creator';
-import { CreatorStudio } from './pages/Studio';
-import { Settings } from './pages/Settings';
-import { AdminPanel } from './pages/Admin';
-import { HelpPage } from './pages/Help';
-import { FeedbackPage } from './pages/Feedback';
-import { Downloads } from './pages/Downloads';
-import { AboutPage } from './pages/About';
-import { UploadPage } from './pages/Upload';
-import { AdvertisingPage } from './pages/Advertising';
-import { AdInfoPage } from './pages/AdInfo';
-import { GoProPage } from './pages/GoPro';
-import { SignInPage } from './pages/SignIn';
-import { ChatPage } from './pages/Chat';
-import { MobileMenu } from './pages/MobileMenu';
-import { CommunityPage } from './pages/Community';
 
-// Import standalone policy components
-import { PrivacyPolicyPage } from './pages/PrivacyPolicy';
-import { TermsPage } from './pages/Terms';
-import { RefundPolicyPage } from './pages/RefundPolicy';
-import { FAQPage } from './pages/FAQ';
-import { ContactUsPage } from './pages/ContactUs';
-import { DevelopersPage } from './pages/Developers';
-import { LanguageSettingsPage } from './pages/LanguageSettings';
-import { CommunityGuidelinesPage } from './pages/CommunityGuidelines';
+// Lazy-loaded pages to keep initial bundle lightweight and fast on live mobile/app
+const Search = lazy(() => import('./pages/Search').then(m => ({ default: m.Search })));
+const Watch = lazy(() => import('./pages/Watch').then(m => ({ default: m.Watch })));
+const Shorts = lazy(() => import('./pages/Shorts').then(m => ({ default: m.Shorts })));
+const Trending = lazy(() => import('./pages/Trending').then(m => ({ default: m.Trending })));
+const Subscriptions = lazy(() => import('./pages/Subscriptions').then(m => ({ default: m.Subscriptions })));
+const WatchHistory = lazy(() => import('./pages/History').then(m => ({ default: m.WatchHistory })));
+const SavedVideos = lazy(() => import('./pages/Saved').then(m => ({ default: m.SavedVideos })));
+const LikedVideos = lazy(() => import('./pages/Liked').then(m => ({ default: m.LikedVideos })));
+const PlaylistsPage = lazy(() => import('./pages/Playlists').then(m => ({ default: m.PlaylistsPage })));
+const CreatorProfile = lazy(() => import('./pages/Creator').then(m => ({ default: m.CreatorProfile })));
+const CreatorStudio = lazy(() => import('./pages/Studio').then(m => ({ default: m.CreatorStudio })));
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const AdminPanel = lazy(() => import('./pages/Admin').then(m => ({ default: m.AdminPanel })));
+const HelpPage = lazy(() => import('./pages/Help').then(m => ({ default: m.HelpPage })));
+const FeedbackPage = lazy(() => import('./pages/Feedback').then(m => ({ default: m.FeedbackPage })));
+const Downloads = lazy(() => import('./pages/Downloads').then(m => ({ default: m.Downloads })));
+const AboutPage = lazy(() => import('./pages/About').then(m => ({ default: m.AboutPage })));
+const UploadPage = lazy(() => import('./pages/Upload').then(m => ({ default: m.UploadPage })));
+const AdvertisingPage = lazy(() => import('./pages/Advertising').then(m => ({ default: m.AdvertisingPage })));
+const AdInfoPage = lazy(() => import('./pages/AdInfo').then(m => ({ default: m.AdInfoPage })));
+const GoProPage = lazy(() => import('./pages/GoPro').then(m => ({ default: m.GoProPage })));
+const SignInPage = lazy(() => import('./pages/SignIn').then(m => ({ default: m.SignInPage })));
+const ChatPage = lazy(() => import('./pages/Chat').then(m => ({ default: m.ChatPage })));
+const MobileMenu = lazy(() => import('./pages/MobileMenu').then(m => ({ default: m.MobileMenu })));
+const CommunityPage = lazy(() => import('./pages/Community').then(m => ({ default: m.CommunityPage })));
+
+// Standalone policy components
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicyPage })));
+const TermsPage = lazy(() => import('./pages/Terms').then(m => ({ default: m.TermsPage })));
+const RefundPolicyPage = lazy(() => import('./pages/RefundPolicy').then(m => ({ default: m.RefundPolicyPage })));
+const FAQPage = lazy(() => import('./pages/FAQ').then(m => ({ default: m.FAQPage })));
+const ContactUsPage = lazy(() => import('./pages/ContactUs').then(m => ({ default: m.ContactUsPage })));
+const DevelopersPage = lazy(() => import('./pages/Developers').then(m => ({ default: m.DevelopersPage })));
+const LanguageSettingsPage = lazy(() => import('./pages/LanguageSettings').then(m => ({ default: m.LanguageSettingsPage })));
+const CommunityGuidelinesPage = lazy(() => import('./pages/CommunityGuidelines').then(m => ({ default: m.CommunityGuidelinesPage })));
+
 import { ArrowLeft, Home as HomeIcon, ShieldCheck } from 'lucide-react';
 import { SocialIndiaLogo } from './components/SocialIndiaLogo';
+
+const RouteFallback: React.FC<{ path?: string }> = ({ path }) => {
+  if (path === 'shorts') {
+    return (
+      <div className="flex flex-col items-center justify-center p-0 md:p-4 h-[calc(100dvh-3.5rem)] md:h-[calc(100vh-4.5rem)] max-w-6xl mx-auto">
+        <div className="w-full max-w-full md:max-w-[390px] h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] md:aspect-[9/16] bg-[#dbe2ee] dark:bg-[#181a20] rounded-none md:rounded-[2rem] animate-pulse p-5 flex flex-col justify-end space-y-3">
+          <div className="h-4 w-36 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+          <div className="h-3 w-52 rounded-full bg-slate-300/80 dark:bg-slate-800" />
+        </div>
+      </div>
+    );
+  }
+  if (path === 'profile-menu') {
+    return (
+      <div className="max-w-md mx-auto p-4 space-y-5 animate-pulse">
+        <div className="h-28 rounded-3xl bg-slate-200 dark:bg-slate-800" />
+        <div className="flex gap-3 overflow-hidden">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="w-36 aspect-video rounded-2xl bg-slate-200 dark:bg-slate-800 shrink-0" />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2.5">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-16 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (path === 'creator' || path === 'channel' || path === 'user' || path === 'profile' || path === 'c') {
+    return (
+      <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6 animate-pulse">
+        <div className="h-44 md:h-64 rounded-3xl bg-slate-200 dark:bg-slate-800" />
+        <div className="flex items-center gap-4 px-2">
+          <div className="w-20 h-20 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0" />
+          <div className="space-y-2 flex-1">
+            <div className="h-5 w-44 rounded-full bg-slate-200 dark:bg-slate-800" />
+            <div className="h-3.5 w-28 rounded-full bg-slate-200 dark:bg-slate-800" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="aspect-video rounded-2xl bg-slate-200 dark:bg-slate-800" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (path === 'watch') {
+    return (
+      <div className="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="aspect-video rounded-2xl bg-slate-200 dark:bg-slate-800" />
+          <div className="h-6 w-3/4 rounded-full bg-slate-200 dark:bg-slate-800" />
+          <div className="h-12 w-full rounded-2xl bg-slate-200 dark:bg-slate-800" />
+        </div>
+        <div className="space-y-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-24 rounded-xl bg-slate-200 dark:bg-slate-800" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 animate-pulse">
+      <div className="h-6 w-48 rounded-full bg-slate-200 dark:bg-slate-800" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="space-y-3">
+            <div className="aspect-video rounded-2xl bg-slate-200 dark:bg-slate-800" />
+            <div className="flex gap-2.5 items-start">
+              <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 rounded-full bg-slate-200 dark:bg-slate-800 w-5/6" />
+                <div className="h-2.5 rounded-full bg-slate-200 dark:bg-slate-800 w-1/2" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 function MainAppContent() {
   const { route, navigate } = useRouter();
@@ -159,7 +246,9 @@ function MainAppContent() {
 
         {/* Full-width standalone Admin Workspace */}
         <main className="flex-1 min-w-0">
-          <AdminPanel />
+          <Suspense fallback={<RouteFallback path={route.path} />}>
+            <AdminPanel />
+          </Suspense>
         </main>
       </div>
     );
@@ -180,34 +269,38 @@ function MainAppContent() {
     } else if (route.path === 'forgot-password' || route.path === 'reset-password') {
       mode = 'forgot-password';
     }
-    return <SignInPage initialMode={mode} />;
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        <SignInPage initialMode={mode} />
+      </Suspense>
+    );
   }
   if (route.path === 'about') {
-    return <AboutPage />;
+    return <Suspense fallback={<RouteFallback />}><AboutPage /></Suspense>;
   }
   if (route.path === 'privacy') {
-    return <PrivacyPolicyPage />;
+    return <Suspense fallback={<RouteFallback />}><PrivacyPolicyPage /></Suspense>;
   }
   if (route.path === 'terms') {
-    return <TermsPage />;
+    return <Suspense fallback={<RouteFallback />}><TermsPage /></Suspense>;
   }
   if (route.path === 'refund') {
-    return <RefundPolicyPage />;
+    return <Suspense fallback={<RouteFallback />}><RefundPolicyPage /></Suspense>;
   }
   if (route.path === 'faq') {
-    return <FAQPage />;
+    return <Suspense fallback={<RouteFallback />}><FAQPage /></Suspense>;
   }
   if (route.path === 'contact') {
-    return <ContactUsPage />;
+    return <Suspense fallback={<RouteFallback />}><ContactUsPage /></Suspense>;
   }
   if (route.path === 'developers') {
-    return <DevelopersPage />;
+    return <Suspense fallback={<RouteFallback />}><DevelopersPage /></Suspense>;
   }
   if (route.path === 'language') {
-    return <LanguageSettingsPage />;
+    return <Suspense fallback={<RouteFallback />}><LanguageSettingsPage /></Suspense>;
   }
   if (route.path === 'guidelines') {
-    return <CommunityGuidelinesPage />;
+    return <Suspense fallback={<RouteFallback />}><CommunityGuidelinesPage /></Suspense>;
   }
 
   // Route selector mapping
@@ -285,7 +378,11 @@ function MainAppContent() {
 
   return (
     <ErrorBoundary>
-      <AppShell>{renderRoute()}</AppShell>
+      <AppShell>
+        <Suspense fallback={<RouteFallback path={route.path} />}>
+          {renderRoute()}
+        </Suspense>
+      </AppShell>
     </ErrorBoundary>
   );
 }

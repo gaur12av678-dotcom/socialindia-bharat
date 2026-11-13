@@ -1,10 +1,8 @@
 // SocialIndia Real Offline Service Worker
-const VERSION = '1.0.2';
+const VERSION = '1.0.3';
 const CACHE_NAME = `socialindia-shell-v${VERSION}`;
 
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/logo.svg',
   '/socialindia-logo.png',
   '/socialindia-icon.png',
@@ -52,9 +50,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Always bypass HTTP cache for HTML/navigation and sw.js so updates deploy immediately
+  const isHtmlNavigation =
+    event.request.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('.html');
+
+  const fetchRequest = isHtmlNavigation
+    ? new Request(event.request, { cache: 'no-cache' })
+    : event.request;
+
   // Network First, Fallback to Cache for same-origin app assets
   event.respondWith(
-    fetch(event.request)
+    fetch(fetchRequest)
       .then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();

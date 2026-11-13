@@ -1256,6 +1256,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                             {isHindi ? 'फ़ीडबैक भेजें' : 'Send Feedback'}
                           </span>
                         </button>
+
+                        <button
+                          onClick={() => {
+                            setProfileDropdownOpen(false);
+                            navigate('guidelines');
+                          }}
+                          className="w-full px-3 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center gap-3 transition-colors duration-150 cursor-pointer group"
+                        >
+                          <div className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 dark:text-slate-400 group-hover:text-[#2563eb] dark:group-hover:text-[#3b82f6] transition-colors">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white transition-colors flex-1 text-left">
+                            {isHindi ? 'कम्युनिटी दिशानिर्देश' : 'Community Guidelines'}
+                          </span>
+                        </button>
                       </div>
 
                       {/* 5. Account Switch & Sign Out */}
@@ -1576,13 +1591,15 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             {/* 5. Minimalist Platform Footer */}
             <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 px-2 space-y-1.5 select-none">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                <button onClick={() => navigate('about')} className="hover:text-blue-600 hover:underline cursor-pointer">{t('footer_about', 'About')}</button>
+                <button onClick={() => navigate('about')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'about' ? 'text-blue-600 font-bold' : ''}`}>{isHindi ? 'हमारे बारे में' : 'About Us'}</button>
                 <span>·</span>
-                <button onClick={() => navigate('help')} className="hover:text-blue-600 hover:underline cursor-pointer">{isHindi ? 'सहायता' : 'Help'}</button>
+                <button onClick={() => navigate('help')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'help' ? 'text-blue-600 font-bold' : ''}`}>{isHindi ? 'सहायता' : 'Help'}</button>
                 <span>·</span>
-                <button onClick={() => navigate('privacy')} className="hover:text-blue-600 hover:underline cursor-pointer">{t('footer_privacy', 'Privacy')}</button>
+                <button onClick={() => navigate('privacy')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'privacy' ? 'text-blue-600 font-bold' : ''}`}>{t('footer_privacy', 'Privacy')}</button>
                 <span>·</span>
-                <button onClick={() => navigate('terms')} className="hover:text-blue-600 hover:underline cursor-pointer">{t('footer_terms', 'Terms')}</button>
+                <button onClick={() => navigate('terms')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'terms' ? 'text-blue-600 font-bold' : ''}`}>{t('footer_terms', 'Terms')}</button>
+                <span>·</span>
+                <button onClick={() => navigate('guidelines')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'guidelines' || route.path === 'community-guidelines' ? 'text-blue-600 font-bold' : ''}`}>{isHindi ? 'कम्युनिटी दिशानिर्देश' : 'Community Guidelines'}</button>
               </div>
               <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
                 SocialIndia · {isHindi ? 'भारत का अपना वीडियो मंच 🇮🇳' : 'Made for Bharat 🇮🇳'}

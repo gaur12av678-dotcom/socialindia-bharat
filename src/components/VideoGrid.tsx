@@ -14,6 +14,7 @@ interface VideoGridProps {
   emptyHeading?: string;
   emptyMessage?: string;
   gridColsClass?: string;
+  skeletonCount?: number;
 }
 
 export const VideoGrid: React.FC<VideoGridProps> = ({ 
@@ -23,7 +24,8 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   onDismissAd,
   emptyHeading = 'No videos available yet',
   emptyMessage = 'Videos published on SocialIndia will appear here.',
-  gridColsClass = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6'
+  gridColsClass = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6',
+  skeletonCount = 6
 }) => {
   const { navigate } = useRouter();
   const { currentUser } = useApp();
@@ -31,7 +33,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   if (loading) {
     return (
       <div className={gridColsClass}>
-        {Array.from({ length: 6 }).map((_, idx) => (
+        {Array.from({ length: skeletonCount }).map((_, idx) => (
           <div 
             key={idx} 
             style={{ animationDelay: `${idx * 70}ms` }}

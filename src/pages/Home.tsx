@@ -50,10 +50,115 @@ export const getFilteredVideosForCategory = (category: string, sourceVideos: Vid
 // Persistent in-memory Home feed state (preserves master videos, shorts, category, and scroll position like YouTube)
 let persistentMasterVideos: Video[] = [];
 let persistentRankedVideos: Video[] = [];
+let persistentExtraMoreVideos: Video[] = [];
+let persistentMoreDisplayCount = 18;
 let persistentHomeShorts: Video[] | null = null;
 let persistentHomeCategory = 'All';
 let persistentHomeScrollY = 0;
+let persistentLastVideoDoc: any = null;
+let persistentHasMoreVideos = true;
 let hasLoadedHomeOnce = false;
+let hasFetchedShortsOnce = false;
+
+interface HomeClipCardProps {
+  short: Video;
+  idx: number;
+  isHindi: boolean;
+  onOpen: (videoId: string) => void;
+}
+
+const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen }) => {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    setImgLoaded(false);
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setImgLoaded(true);
+    }
+  }, [short.videoId, short.thumbnailUrl]);
+
+  return (
+    <a
+      href={`#/shorts/${short.videoId}`}
+      draggable={true}
+      title={short.title}
+      onClick={(e) => {
+        if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+        e.preventDefault();
+        onOpen(short.videoId);
+      }}
+      style={{
+        animationDelay: `${Math.min(idx, 8) * 45}ms`,
+        animationFillMode: 'both'
+      }}
+      className="yt-card-animate w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 group relative block cursor-pointer select-none transition-transform active:scale-[0.98]"
+    >
+      <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-[#dbe2ee] dark:bg-slate-800 shadow-md">
+        {short.thumbnailUrl && !imgLoaded && (
+          <div className="absolute inset-0 bg-[#dbe2ee] dark:bg-slate-800 animate-pulse z-0" />
+        )}
+        {short.thumbnailUrl ? (
+          <img
+            ref={imgRef}
+            src={short.thumbnailUrl}
+            alt={short.title}
+            loading={idx < 4 ? 'eager' : 'lazy'}
+            fetchPriority={idx < 4 ? 'high' : 'auto'}
+            decoding="async"
+            draggable={false}
+            onLoad={() => setImgLoaded(true)}
+            onError={(e) => {
+              if (!e.currentTarget.dataset.fallbackApplied) {
+                e.currentTarget.dataset.fallbackApplied = '1';
+                e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=60';
+              } else {
+                setImgLoaded(true);
+              }
+            }}
+            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 pointer-events-none select-none ${
+              imgLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900 flex flex-col items-center justify-center p-3 text-center pointer-events-none">
+            <ShortsLogo className="w-8 h-8 mb-1" />
+            <span className="text-[11px] text-white/70 font-semibold truncate max-w-[90%]">{short.title}</span>
+          </div>
+        )}
+
+        {/* Dark gradient scrim at bottom */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/10 group-hover:from-black/90 transition-colors pointer-events-none" />
+
+        {/* Play Button Overlay on Hover */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <div className="w-10 h-10 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center text-white border border-white/40 shadow-lg">
+            <Play className="w-5 h-5 fill-current ml-0.5" />
+          </div>
+        </div>
+
+        {/* Duration Badge */}
+        <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold rounded-md pointer-events-none">
+          {short.duration ? `${Math.floor(short.duration / 60)}:${(short.duration % 60).toString().padStart(2, '0')}` : '0:45'}
+        </div>
+      </div>
+
+      {/* Short Title & Creator & Views */}
+      <div className="mt-2 space-y-0.5 px-0.5">
+        <p className="text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-[#065fd4] dark:group-hover:text-[#3b82f6] transition-colors">
+          {short.title}
+        </p>
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+          <span className="truncate max-w-[120px]">{short.creatorDisplayName || short.creatorUsername}</span>
+          <span>•</span>
+          <span className="shrink-0">
+            {short.viewsCount ? (isHindi ? `${(short.viewsCount / 1000).toFixed(1)}k व्यूज़` : `${short.viewsCount.toLocaleString()} views`) : (isHindi ? '1.2k व्यूज़' : '1.2k views')}
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+};
 
 export const Home: React.FC = () => {
   const { currentUser, addToast } = useApp();
@@ -99,11 +204,13 @@ export const Home: React.FC = () => {
       return persistentHomeShorts;
     }
     if (initialCachedShorts.length > 0) {
-      return recommendationService.getShortsRecommendations({
+      const rankedInitialShorts = recommendationService.getShortsRecommendations({
         allShorts: initialCachedShorts,
         userUid: currentUser?.uid,
-        limit: 15
+        limit: 18
       });
+      persistentHomeShorts = rankedInitialShorts;
+      return rankedInitialShorts;
     }
     return [];
   });
@@ -114,6 +221,15 @@ export const Home: React.FC = () => {
     if (initialCachedShorts.length > 0) return false;
     return true;
   });
+  const [extraMoreVideos, setExtraMoreVideos] = useState<Video[]>(() => persistentExtraMoreVideos);
+  const [moreDisplayCount, setMoreDisplayCount] = useState<number>(() => persistentMoreDisplayCount);
+  const [hasMorePlatformVideos, setHasMorePlatformVideos] = useState<boolean>(() => persistentHasMoreVideos);
+  const [isLoadingMoreVideos, setIsLoadingMoreVideos] = useState<boolean>(false);
+  const moreSentinelRef = useRef<HTMLDivElement>(null);
+  const lastVideoDocRef = useRef<any>(persistentLastVideoDoc);
+  const isFetchingMoreRef = useRef<boolean>(false);
+  const didInitCategoryEffectRef = useRef<boolean>(false);
+
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
   const [adDismissed, setAdDismissed] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -234,35 +350,68 @@ export const Home: React.FC = () => {
     setLoading(false);
   };
 
+  const selectedCategoryRef = useRef(selectedCategory);
+  selectedCategoryRef.current = selectedCategory;
+
   const fetchHomeVideos = async (forceFresh = false) => {
-    // If videos are already loaded in memory and user is not pulling to refresh, do not re-fetch!
-    if (masterVideosRef.current.length > 0 && !forceFresh && hasLoadedHomeOnce) {
+    const hadCachedBeforeFetch = masterVideosRef.current.length > 0;
+
+    // If videos are already loaded in memory from network in this session and user is not pulling to refresh, do not re-fetch!
+    if (hadCachedBeforeFetch && !forceFresh && hasLoadedHomeOnce) {
       setLoading(false);
       return;
     }
 
-    if (masterVideosRef.current.length === 0 || forceFresh) {
+    if (!hadCachedBeforeFetch || forceFresh) {
       setLoading(true);
     }
+
     try {
-      const fetchedVideos = await videoService.getVideos({ isShort: false, limit: 60 });
+      const page = await videoService.getVideosPage({ isShort: false, limit: 60 });
+      const fetchedVideos = page.videos;
+      lastVideoDocRef.current = page.lastDoc;
+      persistentLastVideoDoc = page.lastDoc;
+      persistentHasMoreVideos = page.hasMore;
+      setHasMorePlatformVideos(page.hasMore);
+
       if (fetchedVideos && fetchedVideos.length > 0) {
-        masterVideosRef.current = fetchedVideos;
-        persistentMasterVideos = fetchedVideos;
+        if (hadCachedBeforeFetch && !forceFresh) {
+          // Silent merge: keep existing Row 1 & order intact so the page never flashes/reloads twice,
+          // while adding any newly published or uncached videos into masterVideosRef & extraMoreVideos
+          const existingIds = new Set(masterVideosRef.current.map(v => v.videoId));
+          const brandNew = fetchedVideos.filter(v => !existingIds.has(v.videoId));
+          const updatedMaster = [...masterVideosRef.current, ...brandNew];
+          masterVideosRef.current = updatedMaster;
+          persistentMasterVideos = updatedMaster;
+          if (brandNew.length > 0) {
+            setExtraMoreVideos(prev => {
+              const prevIds = new Set(prev.map(v => v.videoId));
+              const toAppend = brandNew.filter(v => !prevIds.has(v.videoId));
+              return toAppend.length > 0 ? [...prev, ...toAppend] : prev;
+            });
+          }
+        } else {
+          masterVideosRef.current = fetchedVideos;
+          persistentMasterVideos = fetchedVideos;
+          persistentExtraMoreVideos = [];
+          persistentMoreDisplayCount = 18;
+          setExtraMoreVideos([]);
+          setMoreDisplayCount(18);
 
-        const filtered = getFilteredVideosForCategory(selectedCategory, fetchedVideos);
-        const ranked = recommendationService.rankAndFilterVideos(filtered, {
-          userUid: currentUser?.uid,
-          rotateTop: forceFresh
-        });
+          const filtered = getFilteredVideosForCategory(selectedCategoryRef.current, fetchedVideos);
+          const ranked = recommendationService.rankAndFilterVideos(filtered, {
+            userUid: currentUser?.uid,
+            rotateTop: forceFresh
+          });
 
-        persistentRankedVideos = ranked;
-        setVideos(ranked);
+          persistentRankedVideos = ranked;
+          setVideos(ranked);
+        }
         hasLoadedHomeOnce = true;
       }
     } catch (err) {
       console.error(err);
-      if (videos.length === 0 && masterVideosRef.current.length === 0) {
+      if (masterVideosRef.current.length === 0) {
         addToast('Failed to load videos.', 'error');
       }
     } finally {
@@ -270,31 +419,123 @@ export const Home: React.FC = () => {
     }
   };
 
+  const fetchMorePlatformVideos = async () => {
+    if (isFetchingMoreRef.current || !hasMorePlatformVideos) return;
+    isFetchingMoreRef.current = true;
+    setIsLoadingMoreVideos(true);
+
+    try {
+      let cursor = lastVideoDocRef.current;
+      let hasMore: boolean = hasMorePlatformVideos;
+      const accumulatedNew: Video[] = [];
+      let attempts = 0;
+
+      // Advance cursor until we find unseen platform videos or reach end of collection
+      while (hasMore && attempts < 5) {
+        attempts += 1;
+        const page = await videoService.getVideosPage({
+          isShort: false,
+          limit: 60,
+          afterDoc: cursor
+        });
+
+        cursor = page.lastDoc;
+        hasMore = page.hasMore;
+        lastVideoDocRef.current = cursor;
+        persistentLastVideoDoc = cursor;
+        persistentHasMoreVideos = hasMore;
+        setHasMorePlatformVideos(hasMore);
+
+        if (page.videos.length > 0) {
+          const existingMasterIds = new Set([
+            ...masterVideosRef.current.map(v => v.videoId),
+            ...accumulatedNew.map(v => v.videoId)
+          ]);
+          const newUnique = page.videos.filter(v => !existingMasterIds.has(v.videoId));
+          if (newUnique.length > 0) {
+            accumulatedNew.push(...newUnique);
+            break;
+          }
+        }
+      }
+
+      if (accumulatedNew.length > 0) {
+        const updatedMaster = [...masterVideosRef.current, ...accumulatedNew];
+        masterVideosRef.current = updatedMaster;
+        persistentMasterVideos = updatedMaster;
+
+        const rankedBatch = recommendationService.getHomeMoreVideosRecommendations({
+          allVideos: accumulatedNew,
+          firstRowIds: [],
+          userUid: currentUser?.uid
+        });
+
+        setExtraMoreVideos(prev => {
+          const prevIds = new Set(prev.map(v => v.videoId));
+          const cleanAppend = rankedBatch.filter(v => !prevIds.has(v.videoId));
+          return cleanAppend.length > 0 ? [...prev, ...cleanAppend] : prev;
+        });
+        setMoreDisplayCount(prev => prev + 18);
+      }
+    } catch (err) {
+      console.warn('Could not load additional platform videos:', err);
+    } finally {
+      isFetchingMoreRef.current = false;
+      setIsLoadingMoreVideos(false);
+    }
+  };
+
   const fetchHomeShorts = async (forceFresh = false) => {
-    if (persistentHomeShorts && persistentHomeShorts.length > 0 && !forceFresh) {
+    const hadCachedShorts = Boolean(persistentHomeShorts && persistentHomeShorts.length > 0);
+    if (hadCachedShorts && !forceFresh && hasFetchedShortsOnce) {
       setLoadingShorts(false);
       return;
     }
-    if (shorts.length === 0 || forceFresh) {
+
+    if (!hadCachedShorts || forceFresh) {
       setLoadingShorts(true);
     }
+
     try {
-      const fetchedShorts = await videoService.getVideos({ isShort: true, limit: 25 });
+      // Lightweight query (20 shorts) so Clips load rapidly alongside Row 1 without disappearing
+      const fetchedShorts = await videoService.getVideos({ isShort: true, limit: 20 });
+      hasFetchedShortsOnce = true;
+
       if (fetchedShorts && fetchedShorts.length > 0) {
         const rankedShorts = recommendationService.getShortsRecommendations({
           allShorts: fetchedShorts,
           userUid: currentUser?.uid,
-          limit: 15
+          limit: 18
         });
-        setShorts(rankedShorts);
-        persistentHomeShorts = rankedShorts;
+
+        if (hadCachedShorts && !forceFresh) {
+          // Preserve currently visible Clips shelf cards to prevent double-load flicker,
+          // while silently appending any newly published/uncached clips at the end
+          setShorts(prev => {
+            if (prev.length === 0) {
+              persistentHomeShorts = rankedShorts;
+              return rankedShorts;
+            }
+            const existingIds = new Set(prev.map(s => s.videoId));
+            const newClips = rankedShorts.filter(s => !existingIds.has(s.videoId));
+            if (newClips.length === 0) return prev;
+            const merged = [...prev, ...newClips];
+            persistentHomeShorts = merged;
+            return merged;
+          });
+        } else {
+          setShorts(rankedShorts);
+          persistentHomeShorts = rankedShorts;
+        }
+        setTimeout(checkShortsScroll, 120);
       }
     } catch (err) {
       console.error(err);
-      if (shorts.length === 0) {
-        setShorts([]);
-        persistentHomeShorts = [];
-      }
+      setShorts(prev => {
+        if (prev.length > 0) return prev;
+        if (persistentHomeShorts && persistentHomeShorts.length > 0) return persistentHomeShorts;
+        return [];
+      });
     } finally {
       setLoadingShorts(false);
       setTimeout(checkShortsScroll, 150);
@@ -307,6 +548,10 @@ export const Home: React.FC = () => {
     setIsRefreshing(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     persistentHomeScrollY = 0;
+    lastVideoDocRef.current = null;
+    persistentLastVideoDoc = null;
+    persistentHasMoreVideos = true;
+    setHasMorePlatformVideos(true);
     try {
       await Promise.allSettled([
         fetchHomeVideos(true),
@@ -328,12 +573,21 @@ export const Home: React.FC = () => {
     return () => window.removeEventListener('socialindia:refresh-home', onHomeRefreshEvent);
   }, [selectedCategory]);
 
+  // Persist paginated More Videos state across Home remounts
+  useEffect(() => {
+    persistentExtraMoreVideos = extraMoreVideos;
+  }, [extraMoreVideos]);
+
+  useEffect(() => {
+    persistentMoreDisplayCount = moreDisplayCount;
+  }, [moreDisplayCount]);
+
   // Synchronize category change instantly (0ms) without refetching from network
   useEffect(() => {
     persistentHomeCategory = selectedCategory;
 
-    // 0ms instant filter from in-memory videos
-    if (masterVideosRef.current.length > 0) {
+    // On initial mount, videos state is already initialized from persistent/cached data
+    if (didInitCategoryEffectRef.current && masterVideosRef.current.length > 0) {
       const instant = getFilteredVideosForCategory(selectedCategory, masterVideosRef.current);
       const ranked = recommendationService.rankAndFilterVideos(instant, {
         userUid: currentUser?.uid
@@ -342,37 +596,38 @@ export const Home: React.FC = () => {
       setVideos(ranked);
       setLoading(false);
     }
+    didInitCategoryEffectRef.current = true;
 
-    // Only initiate network fetch if master videos haven't loaded yet
+    // Only initiate network fetch if not already loaded in this session
     if (!hasLoadedHomeOnce || masterVideosRef.current.length === 0) {
       fetchHomeVideos();
     }
 
-    // Only load shorts on initial load
-    if (!persistentHomeShorts || persistentHomeShorts.length === 0) {
+    // Load or silently sync shorts if not yet fetched from network in this session
+    if (!hasFetchedShortsOnce || !persistentHomeShorts || persistentHomeShorts.length === 0) {
       fetchHomeShorts();
     }
   }, [selectedCategory]);
 
-  // Failsafe: dismiss skeleton quickly if videos or cached data exist (<700ms)
+  // Failsafe: dismiss skeleton quickly if videos or cached data already exist
   useEffect(() => {
     if (!loading) return;
+    if (masterVideosRef.current.length > 0 || videos.length > 0) {
+      setLoading(false);
+      return;
+    }
     const timer = setTimeout(() => {
-      if (masterVideosRef.current.length > 0 || videos.length > 0) {
-        setLoading(false);
-      }
-    }, 700);
+      setLoading(false);
+    }, 8000);
     return () => clearTimeout(timer);
   }, [loading, videos.length]);
 
-  // Failsafe for shorts: never leave blank gray skeleton hanging
+  // Only dismiss shorts skeleton automatically if shorts have populated (never hide section mid-fetch!)
   useEffect(() => {
-    if (!loadingShorts) return;
-    const timer = setTimeout(() => {
+    if (loadingShorts && shorts.length > 0) {
       setLoadingShorts(false);
-    }, 750);
-    return () => clearTimeout(timer);
-  }, [loadingShorts]);
+    }
+  }, [loadingShorts, shorts.length]);
 
   // Touch handlers for Mobile Pull-to-Refresh
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -423,15 +678,68 @@ export const Home: React.FC = () => {
     return selectedCategory === 'All' ? firstRowVideos.map(v => v.videoId).join(',') : '';
   }, [selectedCategory, firstRowVideos]);
 
-  // YouTube-style recommendation algorithm for "More Videos For You" (stable across renders and scroll)
-  const moreVideos = React.useMemo(() => {
-    if (isFollowingFeed || selectedCategory !== 'All' || masterVideosRef.current.length === 0) return [];
+  // Base "More Videos For You" recommendation list from initial feed (stable while scrolling)
+  const baseMoreVideos = React.useMemo(() => {
+    if (isFollowingFeed || selectedCategory !== 'All' || videos.length === 0) return [];
     return recommendationService.getHomeMoreVideosRecommendations({
-      allVideos: masterVideosRef.current,
+      allVideos: videos,
       firstRowIds: firstRowVideos.map(v => v.videoId),
       userUid: currentUser?.uid
     });
-  }, [isFollowingFeed, selectedCategory, firstRowIdsKey, currentUser?.uid, masterVideosRef.current.length]);
+  }, [isFollowingFeed, selectedCategory, firstRowIdsKey, currentUser?.uid, videos]);
+
+  // Combine initial More Videos with cursor-paginated extra platform videos (without reordering already-seen items)
+  const allMoreVideos = React.useMemo(() => {
+    if (extraMoreVideos.length === 0) return baseMoreVideos;
+    const seen = new Set([
+      ...firstRowVideos.map(v => v.videoId),
+      ...baseMoreVideos.map(v => v.videoId)
+    ]);
+    const appended = extraMoreVideos.filter(v => !seen.has(v.videoId));
+    return [...baseMoreVideos, ...appended];
+  }, [baseMoreVideos, extraMoreVideos, firstRowVideos]);
+
+  const displayedMoreVideos = React.useMemo(() => {
+    return allMoreVideos.slice(0, moreDisplayCount);
+  }, [allMoreVideos, moreDisplayCount]);
+
+  const canRevealOrFetchMore =
+    moreDisplayCount < allMoreVideos.length || hasMorePlatformVideos;
+
+  // Infinite scroll observer for "More Videos For You" (reveals buffered items + fetches remaining platform videos)
+  useEffect(() => {
+    if (isFollowingFeed || selectedCategory !== 'All' || loading || !canRevealOrFetchMore) return;
+    const sentinel = moreSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0] && entries[0].isIntersecting) {
+          if (moreDisplayCount < allMoreVideos.length) {
+            setMoreDisplayCount(prev => prev + 18);
+          } else if (hasMorePlatformVideos && !isFetchingMoreRef.current) {
+            fetchMorePlatformVideos();
+          }
+        }
+      },
+      { rootMargin: '500px' }
+    );
+
+    observer.observe(sentinel);
+    return () => {
+      observer.unobserve(sentinel);
+      observer.disconnect();
+    };
+  }, [
+    isFollowingFeed,
+    selectedCategory,
+    loading,
+    canRevealOrFetchMore,
+    moreDisplayCount,
+    allMoreVideos.length,
+    hasMorePlatformVideos,
+    isLoadingMoreVideos
+  ]);
 
   return (
     <div 
@@ -603,6 +911,7 @@ export const Home: React.FC = () => {
         <VideoGrid 
           videos={firstRowVideos} 
           loading={loading} 
+          skeletonCount={selectedCategory === 'All' ? 3 : 6}
           activeAds={adDismissed ? [] : activeAds}
           onDismissAd={() => setAdDismissed(true)}
           gridColsClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
@@ -656,19 +965,19 @@ export const Home: React.FC = () => {
           </div>
 
           {loadingShorts && shorts.length === 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+            <div className="flex gap-3 md:gap-4 overflow-x-hidden py-1 px-0.5">
               {[...Array(5)].map((_, i) => (
                 <div 
                   key={i} 
-                  style={{ animationDelay: `${i * 90}ms` }}
-                  className="flex flex-col space-y-2 animate-pulse"
+                  style={{ animationDelay: `${i * 75}ms` }}
+                  className="w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 flex flex-col space-y-2 animate-pulse"
                 >
                   <div className="aspect-[9/16] w-full rounded-2xl bg-[#dbe2ee] dark:bg-slate-800 relative overflow-hidden shadow-xs">
                     <div className="absolute bottom-2.5 right-2.5 h-4 w-8 bg-[#bcc8dc] dark:bg-slate-700 rounded-md" />
                   </div>
                   <div className="space-y-1.5 px-0.5 pt-1">
                     <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[85%]" />
-                    <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[50%]" />
+                    <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[55%]" />
                   </div>
                 </div>
               ))}
@@ -682,69 +991,13 @@ export const Home: React.FC = () => {
               className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none no-scrollbar scroll-smooth py-1 px-0.5"
             >
               {shorts.map((short, idx) => (
-                <a
+                <HomeClipCard
                   key={short.videoId}
-                  href={`#/shorts/${short.videoId}`}
-                  draggable={true}
-                  title={short.title}
-                  onClick={(e) => {
-                    if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
-                    e.preventDefault();
-                    navigate('shorts', short.videoId);
-                  }}
-                  style={{
-                    animationDelay: `${Math.min(idx, 8) * 45}ms`,
-                    animationFillMode: 'both'
-                  }}
-                  className="yt-card-animate w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 group relative block cursor-pointer select-none transition-transform active:scale-[0.98]"
-                >
-                  <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-slate-900 shadow-md">
-                    {short.thumbnailUrl ? (
-                      <img 
-                        src={short.thumbnailUrl} 
-                        alt={short.title} 
-                        loading={idx < 4 ? 'eager' : 'lazy'}
-                        fetchPriority={idx < 4 ? 'high' : 'auto'}
-                        draggable={false}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 pointer-events-none select-none" 
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900 flex flex-col items-center justify-center p-3 text-center pointer-events-none">
-                        <ShortsLogo className="w-8 h-8 mb-1" />
-                        <span className="text-[11px] text-white/70 font-semibold truncate max-w-[90%]">{short.title}</span>
-                      </div>
-                    )}
-                    
-                    {/* Dark gradient scrim at bottom */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/10 group-hover:from-black/90 transition-colors pointer-events-none" />
-
-                    {/* Play Button Overlay on Hover */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      <div className="w-10 h-10 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center text-white border border-white/40 shadow-lg">
-                        <Play className="w-5 h-5 fill-current ml-0.5" />
-                      </div>
-                    </div>
-
-                    {/* Duration Badge */}
-                    <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold rounded-md pointer-events-none">
-                      {short.duration ? `${Math.floor(short.duration / 60)}:${(short.duration % 60).toString().padStart(2, '0')}` : '0:45'}
-                    </div>
-                  </div>
-
-                  {/* Short Title & Creator & Views */}
-                  <div className="mt-2 space-y-0.5 px-0.5">
-                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-[#065fd4] dark:group-hover:text-[#3b82f6] transition-colors">
-                      {short.title}
-                    </p>
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                      <span className="truncate max-w-[120px]">{short.creatorDisplayName || short.creatorUsername}</span>
-                      <span>•</span>
-                      <span className="shrink-0">
-                        {short.viewsCount ? (isHindi ? `${(short.viewsCount / 1000).toFixed(1)}k व्यूज़` : `${short.viewsCount.toLocaleString()} views`) : (isHindi ? '1.2k व्यूज़' : '1.2k views')}
-                      </span>
-                    </div>
-                  </div>
-                </a>
+                  short={short}
+                  idx={idx}
+                  isHindi={isHindi}
+                  onOpen={(id) => navigate('shorts', id)}
+                />
               ))}
             </div>
           )}
@@ -756,8 +1009,8 @@ export const Home: React.FC = () => {
         <ExternalAdBanner type="random" locationTag="home-feed-middle" />
       </div>
 
-      {/* 3. More Videos Section (YouTube Algorithm Recommended Videos) */}
-      {selectedCategory === 'All' && moreVideos.length > 0 && (
+      {/* 3. More Videos Section (YouTube Algorithm Recommended Videos + Infinite Platform Scroll) */}
+      {selectedCategory === 'All' && (allMoreVideos.length > 0 || loading) && (
         <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
@@ -766,13 +1019,50 @@ export const Home: React.FC = () => {
           </div>
 
           <VideoGrid 
-            videos={moreVideos} 
-            loading={false} 
+            videos={displayedMoreVideos} 
+            loading={loading && allMoreVideos.length === 0} 
+            skeletonCount={6}
             activeAds={[]}
             gridColsClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
             emptyHeading={isHindi ? 'कोई और वीडियो नहीं' : 'No more videos'}
             emptyMessage={isHindi ? 'अधिक वीडियो प्रकाशित होने पर यहां दिखाई देंगे।' : 'More videos will appear here.'}
           />
+
+          {/* Infinite Scroll Sentinel & Loading State */}
+          {!loading && canRevealOrFetchMore && (
+            <div ref={moreSentinelRef} className="pt-2 pb-6 flex flex-col items-center justify-center gap-3">
+              {isLoadingMoreVideos ? (
+                <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                  {[0, 1, 2].map((idx) => (
+                    <div key={idx} className="flex flex-col space-y-3 animate-pulse">
+                      <div className="aspect-video bg-[#dbe2ee] dark:bg-slate-800 rounded-2xl" />
+                      <div className="flex items-start gap-2.5 pt-1">
+                        <div className="w-9 h-9 rounded-full bg-[#dbe2ee] dark:bg-slate-800 shrink-0" />
+                        <div className="flex-1 space-y-2 pt-0.5">
+                          <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[85%]" />
+                          <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[55%]" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (moreDisplayCount < allMoreVideos.length) {
+                      setMoreDisplayCount(prev => prev + 18);
+                    } else if (hasMorePlatformVideos) {
+                      fetchMorePlatformVideos();
+                    }
+                  }}
+                  className="px-5 py-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                >
+                  {isHindi ? 'और वीडियो लोड करें' : 'Load more videos'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
       </div>

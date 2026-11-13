@@ -37,15 +37,35 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 
+const persistentPlaylistsByUid = new Map<string, Playlist[]>();
+const persistentPlaylistVideosById = new Map<string, Video[]>();
+
 export const PlaylistsPage: React.FC = () => {
-  const { currentUser, currentUserProfile, addToast } = useApp();
+  const { currentUser, currentUserProfile, addToast, loading: appLoading } = useApp();
   const { navigate, route } = useRouter();
   const { t, isHindi } = useTranslation();
 
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
-  const [playlistVideos, setPlaylistVideos] = useState<Video[]>([]);
+  const initialPlaylists = useMemo(() => {
+    if (!currentUser?.uid) return [];
+    return persistentPlaylistsByUid.get(currentUser.uid) || playlistService.getCachedUserPlaylists(currentUser.uid);
+  }, [currentUser?.uid]);
+
+  const [playlists, setPlaylists] = useState<Playlist[]>(() => initialPlaylists);
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (appLoading && !currentUser) return true;
+    return initialPlaylists.length === 0;
+  });
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(() => {
+    if (!route.param) return null;
+    const found = initialPlaylists.find(p => p.playlistId === route.param);
+    return found || playlistService.getCachedPlaylist(route.param);
+  });
+  const [playlistVideos, setPlaylistVideos] = useState<Video[]>(() => {
+    if (route.param) {
+      return persistentPlaylistVideosById.get(route.param) || [];
+    }
+    return [];
+  });
   const [loadingVideos, setLoadingVideos] = useState(false);
 
   // Search & Filter Toolbar
@@ -75,19 +95,30 @@ export const PlaylistsPage: React.FC = () => {
   // Options Dropdown Menu for Playlist
   const [playlistMenuOpen, setPlaylistMenuOpen] = useState(false);
 
-  // Load playlists for user
+  // Load playlists for user (instant cache first, silent background sync)
   const loadPlaylists = async () => {
     if (!currentUser) {
-      setLoading(false);
+      if (!appLoading) {
+        setLoading(false);
+      }
       return;
     }
-    setLoading(true);
+
+    const cached = persistentPlaylistsByUid.get(currentUser.uid) || playlistService.getCachedUserPlaylists(currentUser.uid);
+    if (cached.length > 0) {
+      setPlaylists(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const list = await playlistService.getUserPlaylists(
         currentUser.uid,
         currentUserProfile?.username,
         currentUserProfile?.displayName
       );
+      persistentPlaylistsByUid.set(currentUser.uid, list);
       setPlaylists(list);
 
       // If route has param for specific playlist ID, select it
@@ -101,6 +132,7 @@ export const PlaylistsPage: React.FC = () => {
             if (playlist) {
               setSelectedPlaylist(playlist);
               setPlaylistVideos(videos);
+              persistentPlaylistVideosById.set(playlist.playlistId, videos);
             }
           }).catch(console.error);
         }
@@ -114,16 +146,24 @@ export const PlaylistsPage: React.FC = () => {
 
   useEffect(() => {
     loadPlaylists();
-  }, [currentUser]);
+  }, [currentUser, appLoading]);
 
-  // Load videos for selected playlist
+  // Load videos for selected playlist (instant from cache if available)
   const selectPlaylist = async (playlist: Playlist) => {
     setSelectedPlaylist(playlist);
     setIsDescExpanded(false);
     setVideoSearch('');
-    setLoadingVideos(true);
+    const cachedVids = persistentPlaylistVideosById.get(playlist.playlistId);
+    if (cachedVids && cachedVids.length > 0) {
+      setPlaylistVideos(cachedVids);
+      setLoadingVideos(false);
+    } else {
+      setPlaylistVideos([]);
+      setLoadingVideos(true);
+    }
     try {
       const { videos } = await playlistService.getPlaylistWithVideos(playlist.playlistId);
+      persistentPlaylistVideosById.set(playlist.playlistId, videos);
       setPlaylistVideos(videos);
     } catch (err) {
       console.error('Failed to load playlist videos:', err);
@@ -314,6 +354,27 @@ export const PlaylistsPage: React.FC = () => {
       });
     }
   };
+
+  // Show Playlist Grid Skeleton while Firebase Auth hydrates (never flash Sign-In)
+  if (appLoading && !currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-[#0f0f0f] p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="h-8 w-44 rounded-xl bg-slate-200 dark:bg-slate-800" />
+          <div className="h-10 w-36 rounded-full bg-slate-200 dark:bg-slate-800" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="space-y-3">
+              <div className="aspect-video rounded-2xl bg-[#dbe2ee] dark:bg-slate-800" />
+              <div className="h-4 w-3/4 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+              <div className="h-3 w-1/2 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return (
@@ -630,10 +691,22 @@ export const PlaylistsPage: React.FC = () => {
               </div>
 
               {/* Video List Items */}
-              {loadingVideos ? (
-                <div className="py-24 text-center text-slate-400">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#2563eb] mb-2.5" />
-                  <p className="text-xs font-bold">{isHindi ? 'प्लेलिस्ट वीडियो लोड हो रहे हैं...' : 'Loading playlist videos...'}</p>
+              {loadingVideos && playlistVideos.length === 0 ? (
+                <div className="space-y-3 animate-pulse">
+                  {[...Array(5)].map((_, idx) => (
+                    <div
+                      key={idx}
+                      style={{ animationDelay: `${idx * 65}ms` }}
+                      className="bg-white dark:bg-[#141416] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 flex items-center gap-3.5"
+                    >
+                      <div className="w-5 h-3 rounded bg-slate-200 dark:bg-slate-800 shrink-0" />
+                      <div className="w-36 sm:w-44 aspect-video rounded-xl bg-[#dbe2ee] dark:bg-slate-800 shrink-0" />
+                      <div className="flex-1 space-y-2 min-w-0">
+                        <div className="h-4 w-4/5 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+                        <div className="h-3 w-1/2 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : displayedVideos.length === 0 ? (
                 <div className="bg-white dark:bg-[#141416] border border-slate-200/80 dark:border-slate-800 rounded-3xl p-10 text-center space-y-3.5 shadow-sm">
@@ -872,10 +945,22 @@ export const PlaylistsPage: React.FC = () => {
           )}
 
           {/* PLAYLISTS GRID */}
-          {loading ? (
-            <div className="py-24 text-center text-slate-400">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto text-[#2563eb] mb-2.5" />
-              <p className="text-xs font-bold">{isHindi ? 'प्लेलिस्ट लोड हो रही हैं...' : 'Loading playlists...'}</p>
+          {loading && playlists.length === 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-pulse">
+              {[...Array(8)].map((_, idx) => (
+                <div key={idx} style={{ animationDelay: `${idx * 60}ms` }} className="space-y-3">
+                  <div className="relative pt-2">
+                    <div className="mx-3 h-2 rounded-t-xl bg-slate-300/70 dark:bg-slate-700/70" />
+                    <div className="aspect-video rounded-2xl bg-[#dbe2ee] dark:bg-slate-800 relative overflow-hidden">
+                      <div className="absolute bottom-2 right-2 h-5 w-16 rounded-md bg-slate-300/80 dark:bg-slate-700" />
+                    </div>
+                  </div>
+                  <div className="space-y-2 px-1">
+                    <div className="h-4 w-4/5 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+                    <div className="h-3 w-1/2 rounded-full bg-[#dbe2ee] dark:bg-slate-800" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filteredPlaylists.length === 0 ? (
             <div className="bg-white dark:bg-[#141416] border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center space-y-4 max-w-md mx-auto shadow-sm">

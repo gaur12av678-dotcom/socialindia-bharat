@@ -133,29 +133,40 @@ const SubscriptionsCarouselSkeleton: React.FC = () => (
   </div>
 );
 
+const persistentSubsByUid = new Map<string, Subscription[]>();
+let persistentSubAllVideos: Video[] = [];
+
 export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, onSwitchToAll }) => {
-  const { currentUser, currentUserProfile, addToast } = useApp();
+  const { currentUser, currentUserProfile, addToast, loading: appLoading } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
   const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
 
   // Instant synchronous cache initialization (0ms initial render)
   const cachedSubs = useMemo(() => {
-    return activeUid ? subscriptionService.getCachedSubscriptions(activeUid) : [];
+    if (!activeUid) return [];
+    return persistentSubsByUid.get(activeUid) || subscriptionService.getCachedSubscriptions(activeUid);
   }, [activeUid]);
 
+  const initialAllVideos = useMemo(() => {
+    if (persistentSubAllVideos.length > 0) return persistentSubAllVideos;
+    return videoService.getCachedVideos();
+  }, []);
+
   const initialCachedVideos = useMemo(() => {
-    const list = videoService.getCachedVideos();
-    if (list.length > 0 && cachedSubs.length > 0) {
-      return list.filter(v => doesVideoBelongToSubscriptions(v, cachedSubs));
+    if (initialAllVideos.length > 0 && cachedSubs.length > 0) {
+      return initialAllVideos.filter(v => doesVideoBelongToSubscriptions(v, cachedSubs));
     }
     return [];
-  }, [cachedSubs]);
+  }, [initialAllVideos, cachedSubs]);
 
   // Main state
   const [followedCreators, setFollowedCreators] = useState<Subscription[]>(() => cachedSubs);
-  const [allVideos, setAllVideos] = useState<Video[]>(() => videoService.getCachedVideos());
-  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(() => initialCachedVideos.length === 0);
+  const [allVideos, setAllVideos] = useState<Video[]>(() => initialAllVideos);
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(() => {
+    if (appLoading && !activeUid) return true;
+    return cachedSubs.length === 0 && initialCachedVideos.length === 0;
+  });
   const [isFilterSwitching, setIsFilterSwitching] = useState<boolean>(false);
   
   // Following feed filters
@@ -210,44 +221,55 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
     addToast(label, 'info');
   };
 
-  // Smooth filter & creator selection with micro skeleton feedback
+  // Instant 0ms filter & creator selection without artificial flicker
   const handleSelectCreator = (creatorId: string | null) => {
     if (selectedCreatorId === creatorId) return;
-    setIsFilterSwitching(true);
     setSelectedCreatorId(creatorId);
-    setTimeout(() => setIsFilterSwitching(false), 150);
   };
 
   const handleSelectFilter = (filter: SubscriptionsFilter) => {
     if (activeFilter === filter) return;
-    setIsFilterSwitching(true);
     setActiveFilter(filter);
-    setTimeout(() => setIsFilterSwitching(false), 150);
   };
 
   // Fetch subscriptions and feed in background with PARALLEL execution (zero waterfall delay)
   useEffect(() => {
     if (!activeUid) {
-      setIsInitialLoading(false);
+      if (!appLoading) {
+        setIsInitialLoading(false);
+      }
       return;
     }
 
     let isMounted = true;
+    const hasExisting = followedCreators.length > 0 || cachedSubs.length > 0;
+    if (!hasExisting) {
+      setIsInitialLoading(true);
+    }
 
     const loadSubscriptionsFeed = async () => {
       try {
-        // Run both network queries in parallel to eliminate waterfall delay
-        const [subs, fetchedVideos] = await Promise.all([
+        // Fetch subscriptions + regular videos + clips in parallel so followed creators' content is never missing
+        const [subs, regularVideos, shortVideos] = await Promise.all([
           currentUser?.uid
             ? subscriptionService.getSubscriptions(currentUser.uid)
             : Promise.resolve(subscriptionService.getCachedSubscriptions(activeUid)),
-          videoService.getVideos()
+          videoService.getVideos({ isShort: false, limit: 120 }),
+          videoService.getVideos({ isShort: true, limit: 40 })
         ]);
 
         if (!isMounted) return;
 
+        const mergedVideosMap = new Map<string, Video>();
+        [...regularVideos, ...shortVideos].forEach(v => {
+          if (v && v.videoId) mergedVideosMap.set(v.videoId, v);
+        });
+        const combinedVideos = Array.from(mergedVideosMap.values());
+
+        persistentSubsByUid.set(activeUid, subs);
+        persistentSubAllVideos = combinedVideos;
         setFollowedCreators(subs);
-        setAllVideos(fetchedVideos);
+        setAllVideos(combinedVideos);
       } catch (err) {
         console.error('Failed to load subscriptions feed:', err);
       } finally {
@@ -268,7 +290,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
       isMounted = false;
       window.removeEventListener('socialindia:subscription_changed', handleSubChanged);
     };
-  }, [activeUid, currentUser?.uid]);
+  }, [activeUid, currentUser?.uid, appLoading]);
 
   // Unsubscribe handler inside Manage Modal
   const handleUnsubscribe = async (creatorId: string, creatorName: string) => {
@@ -414,6 +436,24 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
 
     return groups.length > 0 ? groups : null;
   }, [filteredVideos, selectedCreatorId, activeFilter, hasFilterFallback, isHindi]);
+
+  // =========================================================================
+  // VIEW: AUTH HYDRATING (Show Skeleton, NEVER flash Sign-In while Auth loads)
+  // =========================================================================
+  if (appLoading && !activeUid) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-[#0f0f0f] pb-24">
+        <section className="bg-white dark:bg-[#121212] border-b border-slate-200 dark:border-slate-800/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+            <SubscriptionsCarouselSkeleton />
+          </div>
+        </section>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
+          <SubscriptionsGridSkeleton />
+        </div>
+      </div>
+    );
+  }
 
   // =========================================================================
   // VIEW: NOT SIGNED IN (YouTube Authentic Empty State)

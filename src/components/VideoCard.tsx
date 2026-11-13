@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Video } from '../types';
 import { formatViews, formatTimeAgo, formatDuration, getInitials, extractYoutubeThumbnail } from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
@@ -41,6 +41,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
   const { currentUser, addToast } = useApp();
   const { t, isHindi, formatTime } = useTranslation();
   const [imageLoaded, setImageLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    setImageLoaded(false);
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setImageLoaded(true);
+    }
+  }, [video.videoId, video.thumbnailUrl]);
   const [isVerified, setIsVerified] = useState<boolean>(() => {
     if (!video.creatorId) return false;
     const cached = creatorVerificationCache[video.creatorId];
@@ -198,10 +206,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
         )}
 
         <img 
+          ref={imgRef}
           src={video.thumbnailUrl} 
           alt={video.title} 
           loading={priority ? 'eager' : 'lazy'}
           fetchPriority={priority ? 'high' : 'auto'}
+          decoding="async"
           draggable={false}
           onLoad={() => setImageLoaded(true)}
           className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 pointer-events-none select-none ${
@@ -209,6 +219,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
           }`}
           onError={(e) => {
             setImageLoaded(true);
+            if (e.currentTarget.dataset.fallbackApplied) return;
+            e.currentTarget.dataset.fallbackApplied = '1';
             const ytThumb = extractYoutubeThumbnail(video.videoUrl);
             e.currentTarget.src = ytThumb || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
           }}

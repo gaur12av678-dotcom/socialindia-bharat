@@ -157,6 +157,7 @@ public class MainActivity extends AppCompatActivity {
         swipeRefreshLayout.setColorSchemeColors(ContextCompat.getColor(this, R.color.primary));
         swipeRefreshLayout.setOnRefreshListener(() -> {
             if (isNetworkAvailable()) {
+                webView.clearCache(false);
                 webView.reload();
             } else {
                 swipeRefreshLayout.setRefreshing(false);
@@ -168,6 +169,7 @@ public class MainActivity extends AppCompatActivity {
         btnRetry.setOnClickListener(v -> {
             if (isNetworkAvailable()) {
                 hideErrorView();
+                webView.clearCache(false);
                 webView.reload();
             } else {
                 Toast.makeText(MainActivity.this, R.string.error_desc, Toast.LENGTH_SHORT).show();
@@ -185,6 +187,7 @@ public class MainActivity extends AppCompatActivity {
             webView.restoreState(savedInstanceState);
         } else {
             if (isNetworkAvailable()) {
+                webView.clearCache(false);
                 webView.loadUrl(TARGET_URL);
             } else {
                 showErrorView();
@@ -382,7 +385,7 @@ public class MainActivity extends AppCompatActivity {
 
             // Keep internal website URLs within WebView
             if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                if (host != null && (host.contains("socialindia.us.ci") || host.contains("socialindia.com"))) {
+                if (host != null && (host.contains("socialindia.web.app") || host.contains("socialindia-96fa1.web.app") || host.contains("socialindia.firebaseapp.com") || host.contains("socialindia.us.ci") || host.contains("socialindia.com"))) {
                     return false;
                 }
             }
