@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from '../hooks/useRouter';
 import { videoService } from '../services/videoService';
 import { Video, User } from '../types';
@@ -319,7 +319,9 @@ export const Search: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [videos, setVideos] = useState<Video[]>([]);
   const [matchingUsers, setMatchingUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const searchRequestId = useRef(0);
   const [searchFilter, setSearchFilter] = useState<'all' | 'channels' | 'videos' | 'shorts'>('all');
   const [recentSearches, setRecentSearches] = useState<SearchHistoryEntry[]>(() => searchHistoryService.getHistory());
 
@@ -335,21 +337,62 @@ export const Search: React.FC = () => {
   }, []);
 
   const executeSearch = async (term: string) => {
-    setLoading(true);
-    try {
-      const [vResults, uResults] = await Promise.all([
-        videoService.searchVideos(term),
-        userService.searchUsers(term)
-      ]);
-      setVideos(vResults);
-      setMatchingUsers(uResults);
-      if (term.trim()) {
-        searchHistoryService.addQuery(term.trim());
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+    const requestId = ++searchRequestId.current;
+    const cleanTerm = term.trim().toLowerCase();
+
+    if (!cleanTerm) {
+      setVideos([]);
+      setMatchingUsers([]);
+      setLoadingVideos(false);
+      setLoadingUsers(false);
+      return;
+    }
+
+    // Show matching videos from saved cache immediately.
+    const cachedMatches = videoService.getCachedVideos().filter(v => {
+      const title = (v.title || '').toLowerCase();
+      const description = (v.description || '').toLowerCase();
+      const username = (v.creatorUsername || '').toLowerCase();
+      const displayName = (v.creatorDisplayName || '').toLowerCase();
+      const category = (v.category || '').toLowerCase();
+      const tags = Array.isArray(v.tags) ? v.tags : [];
+
+      return title.includes(cleanTerm) ||
+        description.includes(cleanTerm) ||
+        username.includes(cleanTerm) ||
+        displayName.includes(cleanTerm) ||
+        category.includes(cleanTerm) ||
+        tags.some(tag => String(tag).toLowerCase().includes(cleanTerm.replace('#', '')));
+    });
+
+    setVideos(cachedMatches);
+    setMatchingUsers([]);
+    setLoadingVideos(true);
+    setLoadingUsers(true);
+
+    // Videos and channels update independently.
+    const videoTask = videoService.searchVideos(term)
+      .then(results => {
+        if (requestId === searchRequestId.current) setVideos(results);
+      })
+      .catch(err => console.error('Video search failed:', err))
+      .finally(() => {
+        if (requestId === searchRequestId.current) setLoadingVideos(false);
+      });
+
+    const userTask = userService.searchUsers(term)
+      .then(results => {
+        if (requestId === searchRequestId.current) setMatchingUsers(results);
+      })
+      .catch(err => console.error('Channel search failed:', err))
+      .finally(() => {
+        if (requestId === searchRequestId.current) setLoadingUsers(false);
+      });
+
+    await Promise.all([videoTask, userTask]);
+
+    if (requestId === searchRequestId.current) {
+      searchHistoryService.addQuery(term.trim());
     }
   };
 
@@ -556,12 +599,33 @@ export const Search: React.FC = () => {
             </div>
           </div>
 
-          {loading ? (
-            <div className="py-20 text-center space-y-3">
-              <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-xs font-bold text-slate-500">Searching across videos, creators & shorts...</p>
+          {(loadingVideos || loadingUsers) && videos.length === 0 && matchingUsers.length === 0 && (
+            <div className="space-y-3 animate-pulse">
+              <div className="h-3 w-36 rounded bg-slate-200 dark:bg-slate-700" />
+              <div className="flex gap-4 p-3 rounded-2xl">
+                <div className="w-40 aspect-video rounded-xl bg-slate-200 dark:bg-slate-700" />
+                <div className="flex-1 space-y-3 py-2">
+                  <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
+                  <div className="h-3 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+                  <div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-slate-700" />
+                </div>
+              </div>
+              <div className="flex gap-4 p-3 rounded-2xl">
+                <div className="w-40 aspect-video rounded-xl bg-slate-200 dark:bg-slate-700" />
+                <div className="flex-1 space-y-3 py-2">
+                  <div className="h-3 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
+                  <div className="h-3 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
+                </div>
+              </div>
             </div>
-          ) : (
+          )}
+
+          {(loadingVideos || loadingUsers) && (videos.length > 0 || matchingUsers.length > 0) && (
+            <p className="text-xs text-slate-400 font-medium">
+              {isHindi ? 'नए परिणाम लोड हो रहे हैं…' : 'Updating search results…'}
+            </p>
+          )}
+
             <div className="space-y-8">
 
               {/* 1. MATCHING CHANNELS / USERS (Shown if searchFilter is 'all' or 'channels') */}
@@ -650,7 +714,7 @@ export const Search: React.FC = () => {
               )}
 
               {/* Empty Results state */}
-              {matchingUsers.length === 0 && videos.length === 0 && (
+              {!loadingUsers && !loadingVideos && matchingUsers.length === 0 && videos.length === 0 && (
                 <div className="py-16 text-center space-y-3 bg-white dark:bg-[#16171a] rounded-3xl border border-slate-200/90 dark:border-slate-800 p-8">
                   <SearchIcon className="w-10 h-10 text-slate-400 mx-auto" />
                   <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
@@ -665,7 +729,6 @@ export const Search: React.FC = () => {
               )}
 
             </div>
-          )}
 
         </div>
       )}

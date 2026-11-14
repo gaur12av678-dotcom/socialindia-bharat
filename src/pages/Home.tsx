@@ -207,7 +207,7 @@ export const Home: React.FC = () => {
       const rankedInitialShorts = recommendationService.getShortsRecommendations({
         allShorts: initialCachedShorts,
         userUid: currentUser?.uid,
-        limit: 18
+        limit: 5
       });
       persistentHomeShorts = rankedInitialShorts;
       return rankedInitialShorts;
@@ -245,25 +245,6 @@ export const Home: React.FC = () => {
   const [canScrollRight, setCanScrollRight] = useState(false);
 
   // Shorts Horizontal Scroll Shelf State (YouTube Style)
-  const shortsScrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollShortsLeft, setCanScrollShortsLeft] = useState(false);
-  const [canScrollShortsRight, setCanScrollShortsRight] = useState(false);
-
-  const checkShortsScroll = () => {
-    if (shortsScrollRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } = shortsScrollRef.current;
-      setCanScrollShortsLeft(scrollLeft > 10);
-      setCanScrollShortsRight(scrollLeft + clientWidth < scrollWidth - 10);
-    }
-  };
-
-  const scrollShorts = (direction: 'left' | 'right') => {
-    if (shortsScrollRef.current) {
-      const scrollAmount = direction === 'left' ? -380 : 380;
-      shortsScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-      setTimeout(checkShortsScroll, 250);
-    }
-  };
 
   const checkFilterScroll = () => {
     if (filterScrollRef.current) {
@@ -283,17 +264,15 @@ export const Home: React.FC = () => {
 
   useEffect(() => {
     checkFilterScroll();
-    checkShortsScroll();
     const handleResize = () => {
       setIsMobileViewport(window.innerWidth < 768);
       checkFilterScroll();
-      checkShortsScroll();
-    };
+      };
     window.addEventListener('resize', handleResize);
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [shorts.length]);
+  }, []);
 
   // Sync category with URL query param if present
   useEffect(() => {
@@ -347,7 +326,7 @@ export const Home: React.FC = () => {
     });
     persistentRankedVideos = ranked;
     setVideos(ranked);
-    setLoading(false);
+    setLoading(cat !== 'All' && instantFiltered.length === 0);
   };
 
   const selectedCategoryRef = useRef(selectedCategory);
@@ -367,7 +346,14 @@ export const Home: React.FC = () => {
     }
 
     try {
-      const page = await videoService.getVideosPage({ isShort: false, limit: 60 });
+      let page = await videoService.getVideosPage({ isShort: false, limit: 6 });
+
+// Retry once if the first request returns an empty feed
+if (page.videos.length === 0) {
+  await new Promise(resolve => setTimeout(resolve, 800));
+  page = await videoService.getVideosPage({ isShort: false, limit: 6 });
+}
+
       const fetchedVideos = page.videos;
       lastVideoDocRef.current = page.lastDoc;
       persistentLastVideoDoc = page.lastDoc;
@@ -409,6 +395,63 @@ export const Home: React.FC = () => {
         }
         hasLoadedHomeOnce = true;
       }
+
+      // Load the next 12 videos in the background after the first 6 appear.
+      if (page.hasMore && page.lastDoc) {
+        setHasMorePlatformVideos(false);
+
+        void (async () => {
+          try {
+            const nextPage = await videoService.getVideosPage({
+              isShort: false,
+              limit: 12,
+              afterDoc: page.lastDoc
+            });
+
+            const existingIds = new Set(masterVideosRef.current.map(v => v.videoId));
+            const newBatch = nextPage.videos.filter(v => !existingIds.has(v.videoId));
+
+            if (newBatch.length > 0) {
+              const updatedMaster = [...masterVideosRef.current, ...newBatch];
+              masterVideosRef.current = updatedMaster;
+              persistentMasterVideos = updatedMaster;
+
+              if (hadCachedBeforeFetch && !forceFresh) {
+                setExtraMoreVideos(prev => {
+                  const ids = new Set(prev.map(v => v.videoId));
+                  const additions = newBatch.filter(v => !ids.has(v.videoId));
+                  return additions.length ? [...prev, ...additions] : prev;
+                });
+              } else {
+                const filtered = getFilteredVideosForCategory(
+                  selectedCategoryRef.current,
+                  newBatch
+                );
+
+                const rankedBatch = recommendationService.rankAndFilterVideos(filtered, {
+                  userUid: currentUser?.uid
+                });
+
+                setVideos(prev => {
+                  const ids = new Set(prev.map(v => v.videoId));
+                  const additions = rankedBatch.filter(v => !ids.has(v.videoId));
+                  const merged = [...prev, ...additions];
+                  persistentRankedVideos = merged;
+                  return merged;
+                });
+              }
+            }
+
+            lastVideoDocRef.current = nextPage.lastDoc;
+            persistentLastVideoDoc = nextPage.lastDoc;
+            persistentHasMoreVideos = nextPage.hasMore;
+            setHasMorePlatformVideos(nextPage.hasMore);
+          } catch (err) {
+            console.warn('Background video loading failed:', err);
+            setHasMorePlatformVideos(page.hasMore);
+          }
+        })();
+      }
     } catch (err) {
       console.error(err);
       if (masterVideosRef.current.length === 0) {
@@ -431,11 +474,11 @@ export const Home: React.FC = () => {
       let attempts = 0;
 
       // Advance cursor until we find unseen platform videos or reach end of collection
-      while (hasMore && attempts < 5) {
+      while (hasMore && attempts < 3) {
         attempts += 1;
         const page = await videoService.getVideosPage({
           isShort: false,
-          limit: 60,
+          limit: 12,
           afterDoc: cursor
         });
 
@@ -475,7 +518,7 @@ export const Home: React.FC = () => {
           const cleanAppend = rankedBatch.filter(v => !prevIds.has(v.videoId));
           return cleanAppend.length > 0 ? [...prev, ...cleanAppend] : prev;
         });
-        setMoreDisplayCount(prev => prev + 18);
+        setMoreDisplayCount(prev => prev + 12);
       }
     } catch (err) {
       console.warn('Could not load additional platform videos:', err);
@@ -498,14 +541,14 @@ export const Home: React.FC = () => {
 
     try {
       // Lightweight query (20 shorts) so Clips load rapidly alongside Row 1 without disappearing
-      const fetchedShorts = await videoService.getVideos({ isShort: true, limit: 20 });
+      const fetchedShorts = await videoService.getVideos({ isShort: true, limit: 5 });
       hasFetchedShortsOnce = true;
 
       if (fetchedShorts && fetchedShorts.length > 0) {
         const rankedShorts = recommendationService.getShortsRecommendations({
           allShorts: fetchedShorts,
           userUid: currentUser?.uid,
-          limit: 18
+          limit: 5
         });
 
         if (hadCachedShorts && !forceFresh) {
@@ -527,7 +570,6 @@ export const Home: React.FC = () => {
           setShorts(rankedShorts);
           persistentHomeShorts = rankedShorts;
         }
-        setTimeout(checkShortsScroll, 120);
       }
     } catch (err) {
       console.error(err);
@@ -538,7 +580,6 @@ export const Home: React.FC = () => {
       });
     } finally {
       setLoadingShorts(false);
-      setTimeout(checkShortsScroll, 150);
     }
   };
 
@@ -553,10 +594,8 @@ export const Home: React.FC = () => {
     persistentHasMoreVideos = true;
     setHasMorePlatformVideos(true);
     try {
-      await Promise.allSettled([
-        fetchHomeVideos(true),
-        fetchHomeShorts(true)
-      ]);
+      await fetchHomeVideos(true);
+      await fetchHomeShorts(true);
     } finally {
       setIsRefreshing(false);
       setPullDistance(0);
@@ -582,31 +621,105 @@ export const Home: React.FC = () => {
     persistentMoreDisplayCount = moreDisplayCount;
   }, [moreDisplayCount]);
 
-  // Synchronize category change instantly (0ms) without refetching from network
+  // Show cached category videos immediately and fetch that category directly.
   useEffect(() => {
     persistentHomeCategory = selectedCategory;
 
-    // On initial mount, videos state is already initialized from persistent/cached data
-    if (didInitCategoryEffectRef.current && masterVideosRef.current.length > 0) {
-      const instant = getFilteredVideosForCategory(selectedCategory, masterVideosRef.current);
-      const ranked = recommendationService.rankAndFilterVideos(instant, {
+    let cancelled = false;
+
+    const cachedCategoryVideos = getFilteredVideosForCategory(
+      selectedCategory,
+      masterVideosRef.current
+    );
+
+    if (selectedCategory !== 'All') {
+      if (cachedCategoryVideos.length > 0) {
+        const ranked = recommendationService.rankAndFilterVideos(cachedCategoryVideos, {
+          userUid: currentUser?.uid
+        });
+        persistentRankedVideos = ranked;
+        setVideos(ranked);
+        setLoading(false);
+      } else {
+        setVideos([]);
+        setLoading(true);
+      }
+
+      const loadSelectedCategory = async () => {
+        try {
+          const page = await videoService.getVideosPage({
+            category: selectedCategory,
+            isShort: false,
+            limit: 18
+          });
+
+          if (cancelled) return;
+
+          const existingIds = new Set(masterVideosRef.current.map(v => v.videoId));
+          const additions = page.videos.filter(v => !existingIds.has(v.videoId));
+          const updatedMaster = [...masterVideosRef.current, ...additions];
+
+          if (additions.length > 0) {
+            masterVideosRef.current = updatedMaster;
+            persistentMasterVideos = updatedMaster;
+          }
+
+          const categoryVideos = getFilteredVideosForCategory(
+            selectedCategory,
+            updatedMaster
+          );
+
+          const ranked = recommendationService.rankAndFilterVideos(categoryVideos, {
+            userUid: currentUser?.uid
+          });
+
+          persistentRankedVideos = ranked;
+          setVideos(ranked);
+        } catch (err) {
+          console.error('Category video loading failed:', err);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      };
+
+      void loadSelectedCategory();
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (didInitCategoryEffectRef.current) {
+      const ranked = recommendationService.rankAndFilterVideos(cachedCategoryVideos, {
         userUid: currentUser?.uid
       });
       persistentRankedVideos = ranked;
       setVideos(ranked);
       setLoading(false);
     }
+
     didInitCategoryEffectRef.current = true;
 
-    // Only initiate network fetch if not already loaded in this session
-    if (!hasLoadedHomeOnce || masterVideosRef.current.length === 0) {
-      fetchHomeVideos();
-    }
+    const loadHomeFeedInOrder = async () => {
+      const shouldFetchVideos = !hasLoadedHomeOnce || masterVideosRef.current.length === 0;
+      const shouldFetchShorts = !hasFetchedShortsOnce || !persistentHomeShorts || persistentHomeShorts.length === 0;
 
-    // Load or silently sync shorts if not yet fetched from network in this session
-    if (!hasFetchedShortsOnce || !persistentHomeShorts || persistentHomeShorts.length === 0) {
-      fetchHomeShorts();
-    }
+      const shortsPromise = shouldFetchShorts
+        ? fetchHomeShorts()
+        : Promise.resolve();
+
+      if (shouldFetchVideos) {
+        await fetchHomeVideos();
+      }
+
+      await shortsPromise;
+    };
+
+    void loadHomeFeedInOrder();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedCategory]);
 
   // Failsafe: dismiss skeleton quickly if videos or cached data already exist
@@ -921,7 +1034,7 @@ export const Home: React.FC = () => {
       </div>
 
       {/* 2. Clips Section (Progressive vertical-video shelf with algorithmic rotation) */}
-      {selectedCategory === 'All' && (loadingShorts || shorts.length > 0) && (
+      {selectedCategory === 'All' && !loading && (loadingShorts || shorts.length > 0) && (
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -932,28 +1045,6 @@ export const Home: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Desktop Scroll Buttons */}
-              {canScrollShortsLeft && (
-                <button
-                  type="button"
-                  onClick={() => scrollShorts('left')}
-                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 hidden sm:flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all active:scale-90"
-                  aria-label="Scroll left"
-                >
-                  <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
-                </button>
-              )}
-              {canScrollShortsRight && (
-                <button
-                  type="button"
-                  onClick={() => scrollShorts('right')}
-                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 hidden sm:flex items-center justify-center text-slate-700 dark:text-slate-200 transition-all active:scale-90"
-                  aria-label="Scroll right"
-                >
-                  <ChevronRight className="w-4 h-4 stroke-[2.5]" />
-                </button>
-              )}
-
               <button 
                 onClick={() => navigate('shorts')}
                 className="text-xs font-bold text-[#065fd4] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer ml-1"
@@ -984,8 +1075,6 @@ export const Home: React.FC = () => {
             </div>
           ) : (
             <div 
-              ref={shortsScrollRef}
-              onScroll={checkShortsScroll}
               data-no-scrollbar="true"
               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none no-scrollbar scroll-smooth py-1 px-0.5"
