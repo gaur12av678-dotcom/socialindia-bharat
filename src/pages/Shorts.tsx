@@ -1442,7 +1442,7 @@ export const Shorts: React.FC = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          className="relative w-full max-w-full md:max-w-[390px] h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] md:aspect-[9/16] bg-black rounded-none md:rounded-[2rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-none select-none"
+          className="relative w-full max-w-full md:-translate-x-10 md:max-w-[390px] h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] md:aspect-[9/16] bg-black rounded-none md:rounded-[2rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-none select-none"
         >
           {/* Top Mobile Overlay: Back to Home Button (YouTube Shorts Style) */}
           <div className="absolute top-3 left-3 md:hidden z-35 flex items-center gap-2">
@@ -1701,48 +1701,48 @@ export const Shorts: React.FC = () => {
           </div>
 
           {/* Interaction Side Overlay */}
-          <div className="absolute right-3 sm:right-3.5 bottom-20 md:bottom-22 flex flex-col gap-3.5 text-white z-30">
+          <div className="absolute right-2 sm:right-2.5 bottom-24 md:bottom-24 w-14 flex flex-col items-center gap-2 text-white z-30">
             {/* LIKE BUTTON */}
             <button 
               onClick={handleLikeToggle}
-              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
+              className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className={`w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${isLiked ? 'bg-rose-600/30 border-rose-500/50' : 'hover:bg-black/65'}`}>
+              <div className={`w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${isLiked ? 'bg-rose-600/30 border-rose-500/50' : 'hover:bg-black/65'}`}>
                 <Heart className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${isLiked ? 'text-rose-500 fill-rose-500' : 'text-white'}`} />
               </div>
-              <span className="text-[11px] font-bold drop-shadow-md">{likesCount}</span>
+              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">{likesCount}</span>
             </button>
 
             {/* COMMENTS BUTTON */}
             <button 
               onClick={handleToggleComments}
-              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
+              className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className={`w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${showComments ? 'bg-blue-600/30 border-blue-500/50' : 'hover:bg-black/65'}`}>
+              <div className={`w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${showComments ? 'bg-blue-600/30 border-blue-500/50' : 'hover:bg-black/65'}`}>
                 <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <span className="text-[11px] font-bold drop-shadow-md">{commentsCount}</span>
+              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">{commentsCount}</span>
             </button>
 
             {/* SHARE BUTTON */}
             <button 
               onClick={handleShare}
-              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
+              className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className="w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
                 <Share2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <span className="text-[11px] font-bold drop-shadow-md">{t('action_share', 'Share')}</span>
+              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">{t('action_share', 'Share')}</span>
             </button>
 
             {/* DOWNLOAD BUTTON */}
             <button 
               onClick={handleDownloadShort}
               disabled={downloadProgress !== null}
-              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
+              className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
               title={isDownloaded ? "Downloaded offline" : "Download short"}
             >
-              <div className={`w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
+              <div className={`w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
                 isDownloaded ? 'bg-emerald-600/30 border-emerald-500/50' : 'hover:bg-black/65'
               }`}>
                 {downloadProgress !== null ? (
@@ -1753,7 +1753,7 @@ export const Shorts: React.FC = () => {
                   <ArrowDownToLine className="w-5 h-5 text-white" />
                 )}
               </div>
-              <span className="text-[11px] font-bold drop-shadow-md">
+              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">
                 {downloadProgress !== null ? `${downloadProgress}%` : isDownloaded ? (isHindi ? 'सहेजा गया' : 'Saved') : (isHindi ? 'डाउनलोड' : 'Download')}
               </span>
             </button>
@@ -1761,15 +1761,15 @@ export const Shorts: React.FC = () => {
             {/* SAVE TO PLAYLIST BUTTON */}
             <button 
               onClick={() => setPlaylistModalOpen(true)}
-              className="group/btn flex flex-col items-center gap-1 cursor-pointer"
+              className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
               title={isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}
             >
-              <div className={`w-11 h-11 sm:w-12 sm:h-12 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
+              <div className={`w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
                 isSaved ? 'bg-blue-600/35 border-blue-400/60' : 'hover:bg-black/65'
               }`}>
                 <Bookmark className={`w-5 h-5 ${isSaved ? 'text-blue-400 fill-blue-400' : 'text-white'}`} />
               </div>
-              <span className="text-[11px] font-bold drop-shadow-md">
+              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">
                 {isSaved ? (isHindi ? 'सहेजा गया' : 'Saved') : (isHindi ? 'सहेजें' : 'Save')}
               </span>
             </button>
@@ -1778,7 +1778,7 @@ export const Shorts: React.FC = () => {
           {/* Details Overlay bottom */}
           <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/85 to-transparent p-4 sm:p-5 pb-4 sm:pb-5 md:pb-4 text-white flex flex-col gap-2 z-25 pointer-events-none">
             {/* Creator Row + Subscribe Button */}
-            <div className="flex items-center justify-between gap-3 pointer-events-auto">
+            <div className="flex items-center justify-between gap-3 pr-16 pointer-events-auto">
               <div className="flex items-center gap-2.5 min-w-0">
                 <UserAvatar 
                   uid={activeShort.creatorId}
@@ -1814,7 +1814,7 @@ export const Shorts: React.FC = () => {
               )}
             </div>
 
-            <div className="pr-14">
+            <div className="pr-16">
               <h3 className="text-xs sm:text-[13px] font-bold leading-relaxed line-clamp-2 drop-shadow-lg">
                 {activeShort.title}
               </h3>
