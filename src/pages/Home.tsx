@@ -69,10 +69,12 @@ interface HomeClipCardProps {
 
 const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen }) => {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     setImgLoaded(false);
+    setImgFailed(false);
     if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
       setImgLoaded(true);
     }
@@ -95,10 +97,10 @@ const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen
       className="yt-card-animate w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 group relative block cursor-pointer select-none transition-transform active:scale-[0.98]"
     >
       <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-[#dbe2ee] dark:bg-slate-800 shadow-md">
-        {short.thumbnailUrl && !imgLoaded && (
+        {short.thumbnailUrl && !imgLoaded && !imgFailed && (
           <div className="absolute inset-0 bg-[#dbe2ee] dark:bg-slate-800 animate-pulse z-0" />
         )}
-        {short.thumbnailUrl ? (
+        {short.thumbnailUrl && !imgFailed ? (
           <img
             ref={imgRef}
             src={short.thumbnailUrl}
@@ -108,13 +110,9 @@ const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen
             decoding="async"
             draggable={false}
             onLoad={() => setImgLoaded(true)}
-            onError={(e) => {
-              if (!e.currentTarget.dataset.fallbackApplied) {
-                e.currentTarget.dataset.fallbackApplied = '1';
-                e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=60';
-              } else {
-                setImgLoaded(true);
-              }
+            onError={() => {
+              setImgFailed(true);
+              setImgLoaded(true);
             }}
             className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 pointer-events-none select-none ${
               imgLoaded ? 'opacity-100' : 'opacity-0'
@@ -137,10 +135,14 @@ const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen
           </div>
         </div>
 
-        {/* Duration Badge */}
-        <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/75 backdrop-blur-xs text-white text-[10px] font-bold rounded-md pointer-events-none">
-          {short.duration ? `${Math.floor(short.duration / 60)}:${(short.duration % 60).toString().padStart(2, '0')}` : '0:45'}
-        </div>
+        {/* YouTube-style Duration Badge */}
+        {Number(short.duration) > 0 && (
+          <div
+            className="absolute bottom-2 right-2 z-10 rounded-[4px] bg-black/80 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white pointer-events-none"
+          >
+            {`${Math.floor(short.duration / 60)}:${(short.duration % 60).toString().padStart(2, '0')}`}
+          </div>
+        )}
       </div>
 
       {/* Short Title & Creator & Views */}
@@ -881,7 +883,7 @@ if (page.videos.length === 0) {
       )}
 
       {/* Top Filter Bar: Mobile Instagram-style All/Following tabs | Desktop YouTube-style Category Chips */}
-      <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f0f0f]/95 backdrop-blur-md border-b border-slate-200/70 dark:border-slate-800/80 transition-colors shadow-2xs">
+      <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f0f0f]/95 backdrop-blur-md border-b border-[#e5e5e5] dark:border-[#262626] transition-colors shadow-2xs">
         <div className="relative max-w-7xl mx-auto px-3 sm:px-6">
           {/* Mobile Only: Instagram-style All & Following Tabs (replaces category filter chips on mobile) */}
           <div

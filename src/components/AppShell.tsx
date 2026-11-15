@@ -236,6 +236,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         setProfileDropdownOpen(false);
         setGuestMenuOpen(false);
         setMobileSearchOpen(false);
+        setSidebarOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1340,7 +1341,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         {/* Watch Page Drawer Overlay Backdrop (YouTube Style: keeps video full width without pushing) */}
         {isWatchPage && sidebarOpen && (
           <div 
-            className="fixed inset-0 bg-black/50 z-45 transition-opacity backdrop-blur-[2px]"
+            className="fixed inset-0 bg-black/40 z-[999] transition-opacity backdrop-blur-[2px]"
             onClick={() => setSidebarOpen(false)}
           />
         )}
@@ -1349,15 +1350,29 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         <aside 
           className={
             isWatchPage
-              ? `fixed top-0 bottom-0 left-0 w-64 bg-white/98 dark:bg-[#0e0f12]/98 border-r border-slate-200 dark:border-slate-800 z-50 transition-transform duration-200 select-none shadow-2xl ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
+              ? `fixed inset-y-0 left-0 h-screen w-64 bg-white dark:bg-[#0f0f0f] border-r-0 z-[1000] transition-transform duration-200 select-none shadow-[2px_0_12px_rgba(0,0,0,0.15)] flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
               : `hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`
           }
         >
-          <div className="sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto px-3.5 py-4 space-y-5 scrollbar-none">
+          {isWatchPage && (
+            <div className="h-16 shrink-0 flex items-center justify-between px-3 border-b border-[#e5e5e5] dark:border-[#262626]">
+              <SocialIndiaLogo onClick={handleHomeClick} forceWhiteText={false} />
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="p-2 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10"
+                aria-label={isHindi ? 'मेनू बंद करें' : 'Close Menu'}
+                title={isHindi ? 'बंद करें' : 'Close'}
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+          <div className={`${isWatchPage ? 'flex-1 min-h-0 overflow-y-auto' : 'sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto'} px-3.5 py-4 space-y-5 scrollbar-none`}>
             
             {/* 1. Feeds & Discover Section */}
             <div className="space-y-1">
-              <span className="px-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 block mb-2">
+              <span className="px-3 text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#606060] dark:text-[#999999] block mb-2">
                 {isHindi ? 'खोजें' : 'DISCOVER'}
               </span>
 
@@ -1410,18 +1425,18 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <button
                 onClick={() => navigate('shorts')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
-                  route.path === 'shorts'
+                  route.path === 'shorts' && !route.param
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <ShortsLogo className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' ? 'scale-110' : 'opacity-95'}`} />
+                  <ShortsLogo className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' && !route.param ? 'scale-110' : 'opacity-95'}`} />
                   <span className="truncate">{t('nav_shorts', 'Clips')}</span>
                 </div>
               </button>
 
-              <div className="px-3 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">{isHindi ? 'आपका नेटवर्क' : 'YOUR NETWORK'}</div>
+              <div className="px-3 pt-2 pb-1 text-[11px] font-extrabold uppercase tracking-wider text-[#606060] dark:text-[#999999]">{isHindi ? 'आपका नेटवर्क' : 'YOUR NETWORK'}</div>
               {/* Following */}
               <button
                 onClick={() => triggerProtectedAction(() => navigate('subscriptions'))}
@@ -1471,7 +1486,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
             {/* 2. My Space / Personal Library Tools */}
             <div className="space-y-1">
-              <span className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-2">
+              <span className="px-3 text-[11px] font-extrabold uppercase tracking-wider text-[#606060] dark:text-[#999999] block mb-2">
                 {isHindi ? 'आपकी जगह' : 'YOUR SPACE'}
               </span>
 

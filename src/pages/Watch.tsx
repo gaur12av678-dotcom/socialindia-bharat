@@ -18,7 +18,6 @@ import { recommendationService } from '../services/recommendationService';
 import { playbackProgressService } from '../services/playbackProgressService';
 import { Video, Comment, User, AdCampaign, Playlist } from '../types';
 import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
-import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 import { UserAvatar } from '../components/UserAvatar';
@@ -1376,7 +1375,7 @@ export const Watch: React.FC = () => {
         {/* PRIMARY COLUMN: Player (in Default View - Sticky on mobile screen like YouTube app) + Details + Comments */}
         <div className="w-full flex-1 min-w-0 max-w-[1280px] space-y-4 md:space-y-6">
           {!isTheaterMode && (
-            <div className="sticky top-0 z-30 sm:relative sm:top-auto sm:z-auto bg-black shadow-md sm:shadow-none">
+            <div className="sticky top-0 z-30 sm:relative sm:top-auto sm:z-auto bg-transparent shadow-none">
               {renderPlayer()}
             </div>
           )}
@@ -1482,12 +1481,15 @@ export const Watch: React.FC = () => {
                   onClick={() => navigate('creator', video.creatorUsername)}
                   className="text-xs sm:text-sm font-black text-slate-900 dark:text-[#F8FAFC] hover:underline cursor-pointer truncate flex items-center gap-1.5"
                 >
-                  <span>{video.creatorDisplayName}</span>
+                  <span>{video.creatorDisplayName || video.creatorUsername || "Creator"}</span>
                   {isUserVerified(creator) && (
                     <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
                   )}
                 </h4>
-                <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium leading-none mt-1">
+                <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 leading-tight mt-1">
+                  @{video.creatorUsername || 'creator'}
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-medium leading-tight mt-0.5">
                   {creator ? (isHindi ? `${formatSubscribers(creator.followersCount).replace(/followers?|subscribers?/i, '').trim()} फ़ॉलोअर्स` : formatSubscribers(creator.followersCount)) : (isHindi ? '0 फ़ॉलोअर्स' : '0 followers')}
                 </p>
               </div>
@@ -1527,7 +1529,7 @@ export const Watch: React.FC = () => {
                     title={t('action_like', 'Like')}
                   >
                     <ThumbsUp className={`w-4 h-4 ${liked ? 'fill-[#2563eb] text-[#2563eb]' : ''}`} />
-                    <span>{formatViews(video.likesCount || 0)}</span>
+                    <span>{(video.likesCount || 0).toLocaleString()}</span>
                   </button>
 
                   <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
@@ -1715,7 +1717,7 @@ export const Watch: React.FC = () => {
                 {formatViews(video.viewsCount || 0)} {isHindi ? 'लाइव देख रहे हैं' : 'watching now'}
               </span>
             ) : (
-              <span>{formatViews(video.viewsCount || 0)} {isHindi ? 'दृश्य (व्यूज़)' : 'views'}</span>
+              <span>{formatViews(video.viewsCount || 0).replace(/\s+views?$/i, '')} {isHindi ? 'दृश्य (व्यूज़)' : 'views'}</span>
             )}
             <span>•</span>
             <span>
@@ -2411,7 +2413,9 @@ export const Watch: React.FC = () => {
         </div>
 
         {/* External Native / Iframe Ad Banner (YouTube Style, rotating sidebar position) */}
-        <ExternalAdBanner type="random" locationTag="watch-sidebar" />
+        <div className="px-1 pb-1 text-xs font-bold text-slate-600 dark:text-slate-300">
+          {isHindi ? 'सुझाए गए वीडियो' : 'Suggested videos'}
+        </div>
         
         {/* Related Videos List with YouTube-style Dynamic Algorithm & Infinite Scroll */}
         <div className="space-y-3">
@@ -2508,7 +2512,7 @@ export const Watch: React.FC = () => {
 
                       {/* Views Count and Upload Date */}
                       <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium">
-                        {formatViews(v.viewsCount)} {isHindi ? 'व्यूज' : 'views'} • {formatTimeAgo(v.createdAt)}
+                        {formatViews(v.viewsCount).replace(/\s+views?$/i, '')} {isHindi ? 'व्यूज' : 'views'} • {formatTimeAgo(v.createdAt)}
                       </p>
                     </div>
                   </div>
