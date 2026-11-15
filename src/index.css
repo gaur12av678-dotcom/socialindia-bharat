@@ -522,3 +522,16 @@ button.si-upload-select-btn :is(span, svg, i) {
   visibility: visible !important;
 }
 
+/* High-contrast video duration labels */
+.duration-badge {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 10;
+  background: rgba(0, 0, 0, .85);
+  color: #fff;
+  font: 600 12px/1 sans-serif;
+  padding: 3px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+}
