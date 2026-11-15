@@ -231,7 +231,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
             LIVE
           </div>
         ) : (
-          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white font-bold text-[11px] rounded-md backdrop-blur-sm pointer-events-none">
+          <div className="duration-badge">
             {formatDuration(videoDuration)}
           </div>
         )}
@@ -291,7 +291,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
             >
               <span>{video.creatorDisplayName || video.creatorUsername || 'Creator'}</span>
               {isVerified && (
-                <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
+                <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm" title="Verified Creator" aria-label="Verified Creator">
+                  <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
               )}
             </a>
             <div className="flex items-center gap-1 mt-0.5 text-slate-500 dark:text-slate-400">
