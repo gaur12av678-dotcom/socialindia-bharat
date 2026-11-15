@@ -1435,8 +1435,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             transition={{ duration: 0.25, ease: 'easeInOut' }}
             className={`absolute top-0 inset-x-0 z-30 p-2.5 sm:p-4 ${
               isAmbientMode 
-                ? 'bg-gradient-to-b from-black/60 via-black/30 to-transparent backdrop-blur-[2px]' 
-                : 'bg-gradient-to-b from-black/90 via-black/40 to-transparent'
+                ? 'bg-[linear-gradient(to_bottom,rgba(0,0,0,0.7),transparent)] backdrop-blur-[2px]'
+                : 'bg-[linear-gradient(to_bottom,rgba(0,0,0,0.7),transparent)]'
             } pointer-events-auto flex items-center justify-between transition-colors duration-300`}
           >
             {/* Left: Minimize / Back Arrow + Video Details */}
@@ -1477,7 +1477,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     e.stopPropagation();
                     navigate('creator', video.creatorUsername);
                   }}
-                  className="text-[10px] sm:text-[11px] text-blue-300 font-bold hover:underline cursor-pointer truncate"
+                  className="text-[10px] sm:text-[11px] text-white/75 font-bold hover:text-white hover:underline cursor-pointer truncate"
                 >
                   {video.creatorDisplayName} (@{video.creatorUsername})
                 </p>
@@ -1497,14 +1497,17 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     return next;
                   });
                 }}
-                className="p-1 hover:bg-white/10 rounded-full cursor-pointer transition-transform active:scale-95"
-                title={isAutoplay ? (isHindi ? "ऑटो-प्ले चालू है" : "Auto-play is ON") : (isHindi ? "ऑटो-प्ले बंद है" : "Auto-play is OFF")}
+                className="flex items-center gap-1.5 p-1 hover:bg-white/10 rounded-full cursor-pointer transition-transform active:scale-95"
+                title={isAutoplay ? (isHindi ? "ऑटो-प्ले चालू है" : "Autoplay: ON") : (isHindi ? "ऑटो-प्ले बंद है" : "Autoplay: OFF")}
+                aria-label={isAutoplay ? "Autoplay ON" : "Autoplay OFF"}
+                aria-pressed={isAutoplay}
               >
                 <div className={`w-7 h-4 rounded-full p-0.5 transition-colors flex items-center ${isAutoplay ? 'bg-blue-600' : 'bg-white/30'}`}>
                   <div className={`w-3 h-3 rounded-full bg-white transition-transform flex items-center justify-center shadow-xs ${isAutoplay ? 'translate-x-3' : 'translate-x-0'}`}>
                     <Play className="w-1.5 h-1.5 fill-current text-blue-600" />
                   </div>
                 </div>
+                <span className="text-[9px] font-extrabold text-white">{isAutoplay ? 'ON' : 'OFF'}</span>
               </button>
 
               {/* Subtitles / CC Badge */}
@@ -1514,7 +1517,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   e.stopPropagation();
                   setIsCaptionsOn(!isCaptionsOn);
                 }}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-black border transition-all cursor-pointer ${
+                className={`sm:hidden px-1.5 py-0.5 rounded text-[10px] font-black border transition-all cursor-pointer ${
                   isCaptionsOn 
                     ? 'bg-white text-black border-white shadow-xs' 
                     : 'border-white/50 text-white/80 hover:border-white hover:text-white'
@@ -1524,20 +1527,6 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 CC
               </button>
 
-              {/* Settings (Gear) */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPlayerMenuAnchor('top');
-                  setShowPlayerMenu(!showPlayerMenu);
-                  setPlayerSubMenu('main');
-                }}
-                className="p-1.5 sm:p-2 text-white hover:bg-white/20 rounded-full transition-colors cursor-pointer"
-                title="Playback Settings"
-              >
-                <Settings className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-              </button>
             </div>
           </motion.div>
         )}
@@ -1551,28 +1540,21 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute inset-0 z-25 flex items-center justify-center gap-7 sm:gap-14 pointer-events-none"
+            className="absolute inset-0 z-[40] flex items-center justify-center gap-3 sm:gap-10 pointer-events-none"
           >
             {/* Rewind 10s / Previous Video */}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (hasPreviousVideo && onPreviousVideo) {
-                  onPreviousVideo();
-                } else {
-                  skipSeconds(-10);
-                  triggerFeedback('left', 10);
-                }
+                skipSeconds(-10);
+                triggerFeedback('left', 10);
               }}
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center border border-white/20 backdrop-blur-md shadow-lg active:scale-90 transition-transform cursor-pointer pointer-events-auto"
-              title={hasPreviousVideo ? "Previous Video" : "Rewind 10s"}
+              className="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/35 hover:bg-black/65 text-white flex items-center justify-center border border-white/30 backdrop-blur-md shadow-lg active:scale-90 transition-transform cursor-pointer pointer-events-auto"
+              title="Rewind 10 seconds"
             >
-              {hasPreviousVideo ? (
-                <SkipBack className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
-              ) : (
-                <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
-              )}
+              <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span className="absolute bottom-1 text-[8px] font-black leading-none">10</span>
             </button>
 
             {/* Big Center Play / Pause Button */}
@@ -1597,35 +1579,18 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (hasNextVideo && onNextVideo) {
-                  onNextVideo();
-                } else {
-                  skipSeconds(10);
-                  triggerFeedback('right', 10);
-                }
+                skipSeconds(10);
+                triggerFeedback('right', 10);
               }}
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center border border-white/20 backdrop-blur-md shadow-lg active:scale-90 transition-transform cursor-pointer pointer-events-auto"
-              title={hasNextVideo ? "Next Video" : "Skip 10s"}
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-black/35 hover:bg-black/65 text-white flex items-center justify-center border border-white/30 backdrop-blur-md shadow-lg active:scale-90 transition-transform cursor-pointer pointer-events-auto"
+              title="Forward 10 seconds"
             >
-              {hasNextVideo ? (
-                <SkipForward className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
-              ) : (
-                <RotateCw className="w-5 h-5 sm:w-6 sm:h-6" />
-              )}
+              <RotateCw className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span className="absolute bottom-1 text-[8px] font-black leading-none">10</span>
             </button>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* THIN SCRUBBER LINE ON BOTTOM (YouTube Mobile signature when controls are hidden) */}
-      {!showControls && isPlaying && !isLiveStream && !isScreenLocked && (
-        <div className="absolute bottom-0 inset-x-0 h-[2.5px] bg-white/25 z-20 pointer-events-none">
-          <div 
-            className="h-full bg-[#2563eb] transition-all"
-            style={{ width: `${Math.min(100, Math.max(0, (currentTime / (duration || 1)) * 100))}%` }}
-          />
-        </div>
-      )}
 
       {/* BOTTOM CONTROLS & TIMELINE BAR WITH MOTION */}
       <AnimatePresence>
@@ -1664,27 +1629,16 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 </div>
               )}
 
-              {/* Background Track */}
-              <div className="w-full h-1 group-hover/timeline:h-1.5 rounded-full bg-white/20 relative transition-all overflow-hidden">
-                {/* Buffered Amount */}
-                <div 
-                  className="absolute left-0 top-0 bottom-0 bg-white/40 rounded-full transition-all"
-                  style={{ width: `${Math.min(100, Math.max(0, ((currentTime + 20) / (duration || 1)) * 100))}%` }}
-                />
-                {/* Played Portion (Royal Electric Blue #2563eb) */}
-                <div 
-                  className="absolute left-0 top-0 bottom-0 bg-[#2563eb] rounded-full transition-all"
+              <div className="relative w-full h-1 group-hover/timeline:h-2 rounded-full bg-black/75 border border-white/50 shadow-[0_1px_4px_rgba(0,0,0,0.85)] transition-all overflow-visible">
+                <div
+                  className="absolute left-0 top-0 bottom-0 rounded-full bg-[#2563eb] pointer-events-none"
                   style={{ width: `${Math.min(100, Math.max(0, (currentTime / (duration || 1)) * 100))}%` }}
                 />
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#2563eb] border-2 border-white shadow-md pointer-events-none"
+                  style={{ left: `calc(${Math.min(100, Math.max(0, (currentTime / (duration || 1)) * 100))}% - 7px)` }}
+                />
               </div>
-
-              {/* Scrubber Handle Dot (Electric Blue with White Rim) */}
-              <div 
-                className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#2563eb] border-2 border-white shadow-md pointer-events-none transition-transform ${
-                  isTimelineHovered || isDraggingTimeline ? 'scale-100' : 'scale-0 group-hover/timeline:scale-100'
-                }`}
-                style={{ left: `${Math.min(100, Math.max(0, (currentTime / (duration || 1)) * 100))}%` }}
-              />
             </div>
 
             </>
@@ -1695,10 +1649,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 {/* Play/Pause Button - Desktop */}
                 <button
                   onClick={togglePlay}
-                  className="hidden sm:flex p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                  className="hidden sm:flex p-1.5 bg-black/65 hover:bg-black/90 rounded-lg transition-colors cursor-pointer text-white opacity-100 shadow-md"
                   title={isPlaying ? "Pause" : "Play"}
                 >
-                  {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+                  {isPlaying ? <Pause className="w-4 h-4 fill-current text-white opacity-100" /> : <Play className="w-4 h-4 fill-current text-white opacity-100" />}
                 </button>
 
                 {/* Next Video Button - Desktop */}
@@ -1710,29 +1664,20 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                       skipSeconds(10);
                     }
                   }}
-                  className="hidden sm:flex p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                  className="flex p-1.5 bg-black/65 hover:bg-black/90 rounded-lg transition-colors cursor-pointer text-white opacity-100 shrink-0 shadow-md"
                   title={hasNextVideo ? "Next Video in Playlist (Shift+N)" : "Skip 10s"}
                 >
-                  <SkipForward className="w-4 h-4 fill-current" />
+                  <SkipForward className="w-4 h-4 fill-current text-white opacity-100" />
                 </button>
 
-                {/* Volume Slider - Desktop */}
-                <div className="hidden sm:flex items-center gap-1.5 group/vol">
+                {/* Volume Button - Desktop */}
+                <div className="hidden sm:flex items-center group/vol">
                   <button
                     onClick={toggleMute}
-                    className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                    className="p-1.5 bg-black/65 hover:bg-black/90 rounded-lg transition-colors cursor-pointer text-white opacity-100 shadow-md"
                   >
-                    {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-white opacity-100" /> : <Volume2 className="w-4 h-4 text-white opacity-100" />}
                   </button>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={isMuted ? 0 : volume}
-                    onChange={handleVolumeChange}
-                    className="w-14 sm:w-16 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-[#2563eb]"
-                  />
                 </div>
 
                 {/* Timeline Time Display */}
@@ -1761,6 +1706,20 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     <span className="text-slate-400">{formatDuration(duration)}</span>
                   </div>
                 )}
+
+                {/* Volume Slider - Desktop */}
+                <div className="hidden sm:flex items-center group/vol">
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={isMuted ? 0 : volume}
+                    onChange={handleVolumeChange}
+                    className="w-14 sm:w-16 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0 [&::-moz-range-thumb]:border-0"
+                  />
+                </div>
+
               </div>
 
               {/* Right Side: Zoom to Fill, CC, Ambient, Settings, Theater, Fullscreen */}
@@ -1769,7 +1728,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 <button
                   type="button"
                   onClick={() => setVideoFitMode(prev => prev === 'contain' ? 'cover' : 'contain')}
-                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white"
+                  className="p-1.5 bg-black/65 hover:bg-black/90 rounded-lg transition-colors cursor-pointer text-white opacity-100 shadow-md"
                   title={videoFitMode === 'cover' ? (isHindi ? "स्क्रीन में फिट करें" : "Original ratio") : (isHindi ? "स्क्रीन भरें" : "Zoom to fill")}
                 >
                   {videoFitMode === 'cover' ? <Minimize className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -1788,19 +1747,6 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   CC
                 </button>
 
-                {/* Ambient Mode Quick Toggle (Enhanced YouTube Ambient Light) - Desktop only */}
-                <button
-                  onClick={toggleAmbientMode}
-                  className={`hidden sm:flex p-1.5 rounded-lg transition-colors cursor-pointer items-center justify-center ${
-                    isAmbientMode 
-                      ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-400/50 shadow-sm shadow-amber-500/20' 
-                      : 'hover:bg-white/20 text-slate-300'
-                  }`}
-                  title={isHindi ? (isAmbientMode ? 'अम्बिएंट मोड: चालू' : 'अम्बिएंट मोड: बंद') : (isAmbientMode ? 'Ambient Mode: On' : 'Ambient Mode: Off')}
-                >
-                  <Sun className={`w-4 h-4 ${isAmbientMode ? 'text-amber-400 animate-spin-slow' : 'text-slate-300'}`} />
-                </button>
-
                 {/* Settings with HD Badge (YouTube Style) */}
                 <button
                   onClick={() => {
@@ -1808,7 +1754,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     setShowPlayerMenu(!showPlayerMenu);
                     setPlayerSubMenu('main');
                   }}
-                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-white"
+                  className="p-1.5 bg-black/65 hover:bg-black/90 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-white opacity-100 shadow-md"
                   title="Playback Settings"
                 >
                   <Settings className="w-4 h-4" />
@@ -1833,7 +1779,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 {/* Fullscreen Button - Always clearly visible on mobile and desktop */}
                 <button
                   onClick={toggleFullscreen}
-                  className="p-1.5 hover:bg-white/20 rounded-lg transition-colors cursor-pointer text-white shrink-0"
+                  className="p-1.5 bg-black/65 hover:bg-black/90 rounded-lg transition-colors cursor-pointer text-white opacity-100 shrink-0 shadow-md"
                   title="Toggle Fullscreen (f)"
                 >
                   {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
@@ -1846,7 +1792,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
       {/* LIVE CAPTIONS / SUBTITLES OVERLAY (YouTube Style with Timestamps) */}
       {isCaptionsOn && (
-        <div className="absolute bottom-16 sm:bottom-20 inset-x-0 z-25 flex items-center justify-center pointer-events-none px-4">
+        <div className="absolute bottom-[76px] sm:bottom-[88px] inset-x-0 z-[35] flex items-center justify-center pointer-events-none px-4">
           {(() => {
             const cue = (video.captions || []).find(
               (c) => currentTime >= c.start && currentTime <= c.end
