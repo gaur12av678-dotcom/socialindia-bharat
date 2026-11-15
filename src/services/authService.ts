@@ -7,6 +7,7 @@ import {
   sendPasswordResetEmail,
   signInWithPopup,
   signInWithRedirect,
+  signInWithCredential,
   getRedirectResult,
   GoogleAuthProvider,
   User as FirebaseUser 
@@ -411,6 +412,66 @@ export const authService = {
 
   // Sign in / Sign up with Google OAuth
   async signInWithGoogle(): Promise<{ userProfile: User; emailVerified: boolean }> {
+    const androidBridge =
+      typeof window !== 'undefined' ? (window as any).SocialIndiaAndroid : null;
+
+    // Inside SocialIndia Android APK: use native Google Sign-In / Chrome Custom Tab deep-link bridge
+    if (androidBridge && typeof androidBridge.startGoogleSignIn === 'function') {
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+          delete (window as any).__onAndroidGoogleAuthSuccess;
+          delete (window as any).__onAndroidGoogleAuthError;
+        };
+
+        (window as any).__onAndroidGoogleAuthSuccess = async (
+          idToken: string,
+          accessToken: string
+        ) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          try {
+            if (!idToken && !accessToken) {
+              throw new Error('No Google authentication token received.');
+            }
+            const credential = GoogleAuthProvider.credential(
+              idToken || undefined,
+              accessToken || undefined
+            );
+            const result = await signInWithCredential(auth, credential);
+            const profileResult = await this.syncGoogleUserProfile(result.user);
+            resolve(profileResult);
+          } catch (err) {
+            reject(err);
+          }
+        };
+
+        (window as any).__onAndroidGoogleAuthError = (errorMsg: string) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          if (errorMsg === 'cancelled') {
+            const cancelErr: any = new Error('Google sign-in cancelled.');
+            cancelErr.code = 'auth/popup-closed-by-user';
+            reject(cancelErr);
+          } else {
+            reject(new Error(errorMsg || 'Google sign-in failed.'));
+          }
+        };
+
+        try {
+          androidBridge.startGoogleSignIn();
+        } catch (bridgeErr) {
+          if (!settled) {
+            settled = true;
+            cleanup();
+            reject(bridgeErr);
+          }
+        }
+      });
+    }
+
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     try {

@@ -3,6 +3,7 @@ import { AppProvider } from './context/AppContext';
 import { AppShell } from './components/AppShell';
 import { useRouter } from './hooks/useRouter';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { AndroidOAuthBridge } from './components/AndroidOAuthBridge';
 
 // Eager Home for 0ms YouTube-style initial boot
 import { Home } from './pages/Home';
@@ -387,7 +388,22 @@ function MainAppContent() {
   );
 }
 
+function isAndroidOAuthFlow(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('android_oauth') === '1') return true;
+    return sessionStorage.getItem('socialindia_android_oauth') === '1';
+  } catch {
+    return false;
+  }
+}
+
 export default function App() {
+  if (isAndroidOAuthFlow()) {
+    return <AndroidOAuthBridge />;
+  }
+
   return (
     <AppProvider>
       <MainAppContent />

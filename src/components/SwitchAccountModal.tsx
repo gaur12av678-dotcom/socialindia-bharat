@@ -204,7 +204,9 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
       );
       onClose();
     } catch (err: any) {
-      setAddAccountError(err.message || 'Google sign-in failed.');
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        setAddAccountError(err.message || 'Google sign-in failed.');
+      }
     } finally {
       setAddAccountGoogleLoading(false);
     }

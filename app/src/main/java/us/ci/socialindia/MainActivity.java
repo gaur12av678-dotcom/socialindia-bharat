@@ -14,12 +14,15 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -39,9 +42,21 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.browser.customtabs.CustomTabColorSchemeParams;
+import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.CommonStatusCodes;
+import com.google.android.gms.tasks.Task;
+
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.IOException;
@@ -73,6 +88,39 @@ public class MainActivity extends AppCompatActivity {
 
     // Back press tracker
     private long lastBackPressTime = 0;
+
+    // Google OAuth / Custom Tab bridge state
+    private boolean isPageLoaded = false;
+    private boolean isCustomTabAuthPending = false;
+    private String pendingAuthIdToken = null;
+    private String pendingAuthAccessToken = null;
+    private String pendingAuthError = null;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable customTabCancelRunnable = null;
+
+    // Native Google Sign-In launcher (used when google_web_client_id + SHA-1 are configured)
+    private final ActivityResultLauncher<Intent> googleSignInLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                try {
+                    Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(result.getData());
+                    GoogleSignInAccount account = task.getResult(ApiException.class);
+                    if (account != null && account.getIdToken() != null && !account.getIdToken().isEmpty()) {
+                        deliverGoogleAuthTokensToWeb(account.getIdToken(), "");
+                        return;
+                    }
+                    launchCustomTabGoogleAuth();
+                } catch (ApiException e) {
+                    int statusCode = e.getStatusCode();
+                    if (statusCode == CommonStatusCodes.CANCELED || statusCode == 12501) {
+                        deliverGoogleAuthErrorToWeb("cancelled");
+                    } else {
+                        // e.g. DEVELOPER_ERROR (10) when SHA-1 is not registered yet -> seamless Custom Tab fallback
+                        launchCustomTabGoogleAuth();
+                    }
+                } catch (Throwable t) {
+                    launchCustomTabGoogleAuth();
+                }
+            });
 
     // Permission request launcher for Web Audio/Camera
     private PermissionRequest pendingWebPermissionRequest;
@@ -193,6 +241,8 @@ public class MainActivity extends AppCompatActivity {
                 showErrorView();
             }
         }
+
+        handleIncomingIntent(getIntent());
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -236,6 +286,9 @@ public class MainActivity extends AppCompatActivity {
         webView.getViewTreeObserver().addOnScrollChangedListener(() -> {
             swipeRefreshLayout.setEnabled(webView.getScrollY() == 0);
         });
+
+        // Expose native Google Sign-In & Custom Tab OAuth bridge to WebView JS
+        webView.addJavascriptInterface(new AndroidAuthBridge(), "SocialIndiaAndroid");
 
         // Set WebViewClient
         webView.setWebViewClient(new SocialIndiaWebViewClient());
@@ -348,21 +401,192 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ==========================================
+    // Native Google Sign-In & Custom Tab Relay
+    // ==========================================
+    private class AndroidAuthBridge {
+        @JavascriptInterface
+        public boolean isNativeAuthSupported() {
+            return true;
+        }
+
+        @JavascriptInterface
+        public void startGoogleSignIn() {
+            runOnUiThread(() -> launchGoogleSignIn());
+        }
+    }
+
+    private void launchGoogleSignIn() {
+        String webClientId = getString(R.string.google_web_client_id).trim();
+        if (!webClientId.isEmpty()) {
+            try {
+                GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestIdToken(webClientId)
+                        .requestEmail()
+                        .build();
+                GoogleSignInClient client = GoogleSignIn.getClient(this, gso);
+                client.signOut().addOnCompleteListener(this, task -> {
+                    try {
+                        googleSignInLauncher.launch(client.getSignInIntent());
+                    } catch (Throwable t) {
+                        launchCustomTabGoogleAuth();
+                    }
+                });
+                return;
+            } catch (Throwable t) {
+                // Fall back to Chrome Custom Tab relay below
+            }
+        }
+        launchCustomTabGoogleAuth();
+    }
+
+    private void launchCustomTabGoogleAuth() {
+        isCustomTabAuthPending = true;
+        if (customTabCancelRunnable != null) {
+            mainHandler.removeCallbacks(customTabCancelRunnable);
+            customTabCancelRunnable = null;
+        }
+
+        Uri authUri = Uri.parse(TARGET_URL + "signin?android_oauth=1");
+        try {
+            CustomTabColorSchemeParams colorParams = new CustomTabColorSchemeParams.Builder()
+                    .setToolbarColor(ContextCompat.getColor(this, R.color.primary))
+                    .build();
+            CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder()
+                    .setDefaultColorSchemeParams(colorParams)
+                    .setShowTitle(true)
+                    .build();
+            customTabsIntent.launchUrl(this, authUri);
+        } catch (Exception e) {
+            try {
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, authUri);
+                startActivity(browserIntent);
+            } catch (Exception ex) {
+                isCustomTabAuthPending = false;
+                deliverGoogleAuthErrorToWeb("Unable to open Google Sign-In.");
+            }
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+        Uri data = intent.getData();
+        if (data == null) return;
+
+        if (handleAuthDeepLink(data)) {
+            return;
+        }
+
+        if ("https".equalsIgnoreCase(data.getScheme()) && data.getHost() != null && isInternalHost(data.getHost())) {
+            if (webView != null) {
+                webView.loadUrl(data.toString());
+            }
+        }
+    }
+
+    private boolean handleAuthDeepLink(Uri data) {
+        if (data == null) return false;
+        if ("socialindia".equalsIgnoreCase(data.getScheme()) && "auth".equalsIgnoreCase(data.getHost())) {
+            isCustomTabAuthPending = false;
+            if (customTabCancelRunnable != null) {
+                mainHandler.removeCallbacks(customTabCancelRunnable);
+                customTabCancelRunnable = null;
+            }
+
+            String error = data.getQueryParameter("error");
+            String idToken = data.getQueryParameter("id_token");
+            String accessToken = data.getQueryParameter("access_token");
+
+            if (error != null && !error.isEmpty()) {
+                deliverGoogleAuthErrorToWeb(error);
+            } else if ((idToken != null && !idToken.isEmpty()) || (accessToken != null && !accessToken.isEmpty())) {
+                deliverGoogleAuthTokensToWeb(
+                        idToken != null ? idToken : "",
+                        accessToken != null ? accessToken : ""
+                );
+            } else {
+                deliverGoogleAuthErrorToWeb("cancelled");
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private void deliverGoogleAuthTokensToWeb(String idToken, String accessToken) {
+        pendingAuthIdToken = null;
+        pendingAuthAccessToken = null;
+        pendingAuthError = null;
+        if (webView == null || !isPageLoaded) {
+            pendingAuthIdToken = idToken;
+            pendingAuthAccessToken = accessToken;
+            return;
+        }
+        String js = "if(window.__onAndroidGoogleAuthSuccess){window.__onAndroidGoogleAuthSuccess("
+                + JSONObject.quote(idToken != null ? idToken : "") + ","
+                + JSONObject.quote(accessToken != null ? accessToken : "") + ");}";
+        webView.post(() -> webView.evaluateJavascript(js, null));
+    }
+
+    private void deliverGoogleAuthErrorToWeb(String errorMessage) {
+        pendingAuthIdToken = null;
+        pendingAuthAccessToken = null;
+        pendingAuthError = null;
+        if (webView == null || !isPageLoaded) {
+            pendingAuthError = errorMessage;
+            return;
+        }
+        String js = "if(window.__onAndroidGoogleAuthError){window.__onAndroidGoogleAuthError("
+                + JSONObject.quote(errorMessage != null ? errorMessage : "Google sign-in failed.") + ");}";
+        webView.post(() -> webView.evaluateJavascript(js, null));
+    }
+
+    private void flushPendingAuthResult() {
+        if (pendingAuthIdToken != null || pendingAuthAccessToken != null) {
+            deliverGoogleAuthTokensToWeb(pendingAuthIdToken, pendingAuthAccessToken);
+        } else if (pendingAuthError != null) {
+            deliverGoogleAuthErrorToWeb(pendingAuthError);
+        }
+    }
+
+    private boolean isInternalHost(String host) {
+        if (host == null) return false;
+        String lower = host.toLowerCase(Locale.ROOT);
+        return lower.equals("socialindia.web.app")
+                || lower.endsWith(".socialindia.web.app")
+                || lower.equals("socialindia-96fa1.web.app")
+                || lower.equals("socialindia-96fa1.firebaseapp.com")
+                || lower.equals("socialindia.firebaseapp.com")
+                || lower.equals("socialindia.us.ci")
+                || lower.endsWith(".socialindia.us.ci")
+                || lower.equals("socialindia.com")
+                || lower.endsWith(".socialindia.com");
+    }
+
+    // ==========================================
     // Web Clients
     // ==========================================
     private class SocialIndiaWebViewClient extends WebViewClient {
         @Override
         public void onPageStarted(WebView view, String url, Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
+            isPageLoaded = false;
             progressBar.setVisibility(View.VISIBLE);
         }
 
         @Override
         public void onPageFinished(WebView view, String url) {
             super.onPageFinished(view, url);
+            isPageLoaded = true;
             progressBar.setVisibility(View.GONE);
             swipeRefreshLayout.setRefreshing(false);
             CookieManager.getInstance().flush();
+            flushPendingAuthResult();
         }
 
         @Override
@@ -383,11 +607,32 @@ public class MainActivity extends AppCompatActivity {
             String scheme = uri.getScheme();
             String host = uri.getHost();
 
+            if (handleAuthDeepLink(uri)) {
+                return true;
+            }
+
             // Keep internal website URLs within WebView
             if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                if (host != null && (host.contains("socialindia.web.app") || host.contains("socialindia-96fa1.web.app") || host.contains("socialindia.firebaseapp.com") || host.contains("socialindia.us.ci") || host.contains("socialindia.com"))) {
+                if (isInternalHost(host)) {
                     return false;
                 }
+            }
+
+            // Safely resolve intent:// URLs
+            if ("intent".equalsIgnoreCase(scheme)) {
+                try {
+                    Intent intent = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME);
+                    if (intent.resolveActivity(getPackageManager()) != null) {
+                        startActivity(intent);
+                        return true;
+                    }
+                    String fallbackUrl = intent.getStringExtra("browser_fallback_url");
+                    if (fallbackUrl != null) {
+                        view.loadUrl(fallbackUrl);
+                        return true;
+                    }
+                } catch (Exception ignored) {}
+                return true;
             }
 
             // Launch external intents (e.g. mailto, tel, whatsapp, maps) in external apps
@@ -551,6 +796,18 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         if (webView != null) {
             webView.onResume();
+        }
+        if (isCustomTabAuthPending) {
+            if (customTabCancelRunnable != null) {
+                mainHandler.removeCallbacks(customTabCancelRunnable);
+            }
+            customTabCancelRunnable = () -> {
+                if (isCustomTabAuthPending) {
+                    isCustomTabAuthPending = false;
+                    deliverGoogleAuthErrorToWeb("cancelled");
+                }
+            };
+            mainHandler.postDelayed(customTabCancelRunnable, 700);
         }
     }
 

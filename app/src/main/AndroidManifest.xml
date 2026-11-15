@@ -50,6 +50,14 @@
                 <data android:scheme="https" android:host="socialindia.us.ci" />
                 <data android:scheme="https" android:host="socialindia.com" />
             </intent-filter>
+
+            <!-- Custom scheme deep link for in-app OAuth callback -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="socialindia" android:host="auth" />
+            </intent-filter>
         </activity>
 
         <!-- FileProvider for secure photo/video uploads from camera/gallery -->
