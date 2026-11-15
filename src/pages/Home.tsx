@@ -137,9 +137,7 @@ const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen
 
         {/* YouTube-style Duration Badge */}
         {Number(short.duration) > 0 && (
-          <div
-            className="absolute bottom-2 right-2 z-10 rounded-[4px] bg-black/80 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white pointer-events-none"
-          >
+          <div className="duration-badge">
             {`${Math.floor(short.duration / 60)}:${(short.duration % 60).toString().padStart(2, '0')}`}
           </div>
         )}
