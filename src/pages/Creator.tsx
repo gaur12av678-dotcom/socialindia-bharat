@@ -903,7 +903,11 @@ export const CreatorProfile: React.FC = () => {
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-[#F8FAFC] flex items-center justify-center sm:justify-start gap-1.5">
                 <span>{creator.displayName}</span>
                 {isUserVerified(creator) && (
-                  <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[10px] w-4.5 h-4.5 rounded-full font-black shrink-0 shadow-sm" title="Verified Channel">✓</span>
+                  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm" title="Verified Channel" aria-label="Verified Channel">
+                    <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
                 )}
               </h1>
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs font-semibold text-slate-500 dark:text-[#94A3B8]">
@@ -1035,7 +1039,11 @@ export const CreatorProfile: React.FC = () => {
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center justify-center sm:justify-start gap-2">
                   <span>{creator.displayName}</span>
                   {isUserVerified(creator) && (
-                    <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[11px] w-5 h-5 rounded-full font-black shrink-0 shadow-xs" title="Verified Channel">✓</span>
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm" title="Verified Channel" aria-label="Verified Channel">
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
                   )}
                 </h1>
               </div>
