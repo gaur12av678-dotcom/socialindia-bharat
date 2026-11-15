@@ -328,7 +328,8 @@ export const chatService = {
       // Use a single-field query to avoid requiring a composite Firestore index.
       const q = query(
         messagesCol,
-        where('senderId', '==', senderId)
+        where('senderId', '==', senderId),
+        where('receiverId', '==', receiverId)
       );
 
       return onSnapshot(

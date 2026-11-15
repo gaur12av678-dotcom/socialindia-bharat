@@ -535,3 +535,32 @@ button.si-upload-select-btn :is(span, svg, i) {
   border-radius: 4px;
   pointer-events: none;
 }
+
+/* Direct Messages message board */
+.dm-message-board {
+  background-color: #efeae2;
+  background-image:
+    radial-gradient(circle at 20px 20px, rgba(90, 110, 120, 0.035) 1px, transparent 1.5px);
+  background-size: 28px 28px;
+}
+
+.dm-loading-state > div {
+  animation: dm-message-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dm-message-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.dark .dm-message-board {
+  background-color: #0b141a;
+  background-image:
+    radial-gradient(circle at 20px 20px, rgba(255, 255, 255, 0.025) 1px, transparent 1.5px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dm-loading-state > div {
+    animation: none;
+  }
+}

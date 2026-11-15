@@ -43,6 +43,7 @@ export const ChatPage: React.FC = () => {
     return currentUser ? chatService.getCachedSessions(currentUser.uid) : [];
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
@@ -198,14 +199,14 @@ export const ChatPage: React.FC = () => {
   useEffect(() => {
     if (!currentUser || !selectedUserId) {
       setMessages([]);
+      setLoadingMessages(false);
       return;
     }
 
     // 1. Immediately hydrate cached conversation messages (0ms instant display!)
     const cachedMsgs = chatService.getCachedMessages(currentUser.uid, selectedUserId);
-    if (cachedMsgs.length > 0) {
-      setMessages(cachedMsgs);
-    }
+    setMessages(cachedMsgs);
+    setLoadingMessages(cachedMsgs.length === 0);
 
     // Ensure an inbox conversation exists as soon as the chat is opened.
     chatService.ensureConversation(currentUser.uid, selectedUserId)
@@ -219,6 +220,7 @@ export const ChatPage: React.FC = () => {
       selectedUserId,
       (incomingMsgs) => {
         setMessages(incomingMsgs);
+        setLoadingMessages(false);
         // Mark as read asynchronously
         chatService.markAsRead(currentUser.uid, selectedUserId);
       }
@@ -661,13 +663,21 @@ export const ChatPage: React.FC = () => {
             </div>
 
             {/* Scrollable messages bubble board */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scrollbar-none bg-[#f8fafc] dark:bg-[#101010]">
-              {messages.length === 0 ? (
+            <div className="dm-message-board flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scrollbar-none bg-[#efeae2] dark:bg-[#0b141a]">
+              {loadingMessages && messages.length === 0 ? (
+                <div className="dm-loading-state max-w-sm mx-auto space-y-3 py-8" aria-label="Loading messages">
+                  <div className="h-12 w-3/4 rounded-xl bg-white/70 dark:bg-white/10 animate-pulse" />
+                  <div className="h-12 w-2/3 ml-auto rounded-xl bg-white/70 dark:bg-white/10 animate-pulse" />
+                  <div className="h-12 w-3/4 rounded-xl bg-white/70 dark:bg-white/10 animate-pulse" />
+                </div>
+              ) : messages.length === 0 ? (
                 <div className="py-20 text-center text-slate-400 dark:text-slate-500 max-w-sm mx-auto space-y-2">
                   <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-500 flex items-center justify-center mx-auto mb-2">
                     <MessageSquare className="w-6 h-6" />
                   </div>
-                  <p className="text-xs font-black text-slate-700 dark:text-slate-300">{t('chat_empty_title', 'Send a friendly message!')}</p>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    {selectedUser ? `Say hi 👋 to ${selectedUser.displayName}` : 'No messages yet'}
+                  </p>
                   <p className="text-[11px] leading-relaxed">{t('chat_empty_desc', 'Introduce yourself, share photos, videos, or discuss awesome ideas together.')}</p>
                 </div>
               ) : (
@@ -697,8 +707,8 @@ export const ChatPage: React.FC = () => {
                           <div
                             className={`p-3 rounded-2xl text-xs font-semibold leading-relaxed shadow-xs ${
                               isMine
-                                ? 'bg-blue-600 text-white rounded-tr-none'
-                                : 'bg-white dark:bg-[#1a1a1a] text-slate-900 dark:text-slate-100 border border-slate-100 dark:border-[#222] rounded-tl-none'
+                                ? 'bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-white rounded-tr-lg'
+                                : 'bg-white dark:bg-[#202c33] text-slate-900 dark:text-slate-100 border border-[#e9edef] dark:border-[#263238] rounded-tl-lg'
                             }`}
                           >
                             {/* Media content: Image */}
