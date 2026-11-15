@@ -1483,7 +1483,11 @@ export const Watch: React.FC = () => {
                 >
                   <span>{video.creatorDisplayName || video.creatorUsername || "Creator"}</span>
                   {isUserVerified(creator) && (
-                    <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">✓</span>
+                    <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm" title="Verified Creator" aria-label="Verified Creator">
+                  <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
                   )}
                 </h4>
                 <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 leading-tight mt-1">
@@ -2350,7 +2354,7 @@ export const Watch: React.FC = () => {
                           className="w-full h-full object-cover pointer-events-none select-none" 
                         />
                         {pVid.duration ? (
-                          <span className="absolute bottom-0.5 right-0.5 px-1 py-0.2 bg-black/80 text-[8px] font-bold rounded text-white pointer-events-none">
+                          <span className="duration-badge">
                             {formatDuration(pVid.duration)}
                           </span>
                         ) : null}
@@ -2463,7 +2467,7 @@ export const Watch: React.FC = () => {
                     />
                     {/* Duration Badge */}
                     {v.duration ? (
-                      <span className="absolute bottom-1 right-1 bg-black/85 text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow-xs pointer-events-none">
+                      <span className="duration-badge">
                         {formatDuration(v.duration)}
                       </span>
                     ) : null}
