@@ -6,8 +6,10 @@ import {
   orderBy, 
   onSnapshot, 
   getDocs, 
-  deleteDoc, 
-  doc, 
+  deleteDoc,
+  doc,
+  getDoc,
+  setDoc,
   writeBatch,
   Timestamp 
 } from 'firebase/firestore';
@@ -20,6 +22,9 @@ const getChatCacheKey = (userA: string, userB: string) => {
   const sorted = [userA, userB].sort().join('_');
   return `socialindia_chat_msgs_${sorted}`;
 };
+
+const getConversationId = (userA: string, userB: string) =>
+  [userA, userB].sort().join('_');
 
 export const chatService = {
   // Local storage cache helpers for instant zero-latency loading
@@ -108,63 +113,118 @@ export const chatService = {
         }
       }
     } catch (cldErr) {
-      console.warn('Cloudinary upload skipped or failed, using local resilient processing:', cldErr);
+      console.warn('Cloudinary media upload failed:', cldErr);
     }
 
-    // 2. Resilient Fallback:
-    // If image, compress via canvas to optimize storage and transfer
-    if (!isVideo) {
-      const compressedDataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_DIM = 1200;
-            let width = img.width;
-            let height = img.height;
+    throw new Error(
+      'Media upload failed. Please check Cloudinary configuration and try again.'
+    );
+  },
 
-            if (width > height) {
-              if (width > MAX_DIM) {
-                height = Math.round((height * MAX_DIM) / width);
-                width = MAX_DIM;
-              }
-            } else {
-              if (height > MAX_DIM) {
-                width = Math.round((width * MAX_DIM) / height);
-                height = MAX_DIM;
-              }
-            }
+  // Create an empty conversation when a user opens a chat.
+  async ensureConversation(userA: string, userB: string): Promise<void> {
+    if (!userA || !userB || userA === userB) return;
 
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-              resolve(e.target?.result as string);
-              return;
-            }
-            ctx.drawImage(img, 0, 0, width, height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-            resolve(dataUrl);
-          };
-          img.onerror = () => resolve(e.target?.result as string);
-          img.src = e.target?.result as string;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+    const participants = [userA, userB].sort();
+    const conversationRef = doc(
+      db,
+      'conversations',
+      getConversationId(userA, userB)
+    );
+
+    const existing = await getDoc(conversationRef);
+
+    if (!existing.exists()) {
+      await setDoc(conversationRef, {
+        participants,
+        lastMessage: '',
+        lastMessageAt: null,
+        updatedAt: Timestamp.now()
       });
-
-      return { url: compressedDataUrl, type: 'image' };
-    } else {
-      // For video fallback: read as data URL
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      return { url: dataUrl, type: 'video' };
     }
+  },
+
+  // Listen to conversations involving the signed-in user.
+  listenToConversations(
+    currentUserId: string,
+    callback: (sessions: ChatSession[]) => void
+  ) {
+    const conversationsQuery = query(
+      collection(db, 'conversations'),
+      where('participants', 'array-contains', currentUserId)
+    );
+
+    return onSnapshot(
+      conversationsQuery,
+      async snapshot => {
+        try {
+          const conversationSessions = await Promise.all(
+            snapshot.docs.map(async conversationDoc => {
+              const data = conversationDoc.data();
+              const partnerId = (data.participants || []).find(
+                (uid: string) => uid !== currentUserId
+              );
+
+              if (!partnerId) return null;
+
+              const profile = await userService.getUserProfile(partnerId);
+              if (!profile) return null;
+
+              const lastMessageTime = data.lastMessageAt?.toDate
+                ? data.lastMessageAt.toDate().toISOString()
+                : undefined;
+
+              return {
+                userId: partnerId,
+                displayName: profile.displayName,
+                username: profile.username,
+                photoURL: profile.photoURL,
+                lastMessage: data.lastMessage || undefined,
+                lastMessageTime,
+                unreadCount: 0
+              } as ChatSession;
+            })
+          );
+
+          const legacySessions = await this.getChatSessions(currentUserId);
+          const merged = new Map<string, ChatSession>();
+
+          legacySessions.forEach(session => merged.set(session.userId, session));
+          conversationSessions.forEach(session => {
+            if (session) {
+              const previous = merged.get(session.userId);
+              merged.set(session.userId, {
+                ...previous,
+                ...session,
+                lastMessage: session.lastMessage || previous?.lastMessage,
+                lastMessageTime: session.lastMessageTime || previous?.lastMessageTime,
+                unreadCount: previous?.unreadCount || 0
+              });
+            }
+          });
+
+          const sorted = [...merged.values()].sort((a, b) => {
+            if (a.lastMessageTime && b.lastMessageTime) {
+              return new Date(b.lastMessageTime).getTime() -
+                new Date(a.lastMessageTime).getTime();
+            }
+            if (a.lastMessageTime) return -1;
+            if (b.lastMessageTime) return 1;
+            return a.displayName.localeCompare(b.displayName);
+          });
+
+          this.setCachedSessions(currentUserId, sorted);
+          callback(sorted);
+        } catch (error) {
+          console.error('Conversation listener processing failed:', error);
+          callback(this.getCachedSessions(currentUserId));
+        }
+      },
+      error => {
+        console.error('Conversation listener failed:', error);
+        callback(this.getCachedSessions(currentUserId));
+      }
+    );
   },
 
   // Send a direct chat message (with optional media attachment)
@@ -189,111 +249,189 @@ export const chatService = {
       read: false
     };
 
-    // Store in local cache immediately
-    const existing = this.getCachedMessages(senderId, receiverId);
-    this.setCachedMessages(senderId, receiverId, [...existing, newMsg]);
+    const messagesCol = collection(db, 'chats');
+    const docPayload: any = {
+      senderId,
+      receiverId,
+      text: trimmedText,
+      createdAt: Timestamp.now(),
+      read: false
+    };
+
+    if (mediaUrl) docPayload.mediaUrl = mediaUrl;
+    if (mediaType) docPayload.mediaType = mediaType;
 
     try {
-      const messagesCol = collection(db, 'chats');
-      const docPayload: any = {
-        senderId,
-        receiverId,
-        text: trimmedText,
-        createdAt: Timestamp.now(),
-        read: false
-      };
-      if (mediaUrl) docPayload.mediaUrl = mediaUrl;
-      if (mediaType) docPayload.mediaType = mediaType;
-
       const docRef = await addDoc(messagesCol, docPayload);
+
+      // Update the inbox preview without treating a preview failure
+      // as a failed message delivery.
+      try {
+        const participants = [senderId, receiverId].sort();
+        await setDoc(
+          doc(db, 'conversations', getConversationId(senderId, receiverId)),
+          {
+            participants,
+            lastMessage: trimmedText || (
+              mediaType === 'image' ? '📷 Photo' :
+              mediaType === 'video' ? '🎥 Video' : 'Attachment'
+            ),
+            lastMessageAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+          },
+          { merge: true }
+        );
+      } catch (conversationError) {
+        console.error('Message sent, but inbox preview update failed:', conversationError);
+      }
+
+      const savedMessage: ChatMessage = {
+        ...newMsg,
+        id: docRef.id
+      };
+
+      const existing = this.getCachedMessages(senderId, receiverId);
+      const withoutDuplicate = existing.filter(message => !message.id.startsWith('temp_'));
+      this.setCachedMessages(senderId, receiverId, [...withoutDuplicate, savedMessage]);
+
       return docRef.id;
     } catch (err) {
-      console.warn('Firestore sendMessage failed, saved locally in cache:', err);
-      return newMsg.id;
+      console.error('Firestore sendMessage failed:', err);
+      throw err;
     }
   },
 
-  // Listen for messages between two users in real-time with instant cache persistence
+  // Listen only to messages exchanged between the selected two users.
   listenToMessages(userA: string, userB: string, callback: (messages: ChatMessage[]) => void) {
     const messagesCol = collection(db, 'chats');
-    
-    // We fetch all messages related to either participant
-    const q = query(
-      messagesCol,
-      orderBy('createdAt', 'asc')
-    );
+    const messagesByPair = new Map<string, ChatMessage[]>();
 
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const allMsgs = snapshot.docs.map(d => {
-          const data = d.data();
-          return {
-            id: d.id,
-            senderId: data.senderId,
-            receiverId: data.receiverId,
-            text: data.text || '',
-            mediaUrl: data.mediaUrl || undefined,
-            mediaType: data.mediaType || undefined,
-            createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-            read: data.read || false
-          } as ChatMessage;
+    const publishMessages = () => {
+      const merged = [...messagesByPair.values()]
+        .flat()
+        .sort((a, b) => {
+          const timeA = new Date(a.createdAt).getTime();
+          const timeB = new Date(b.createdAt).getTime();
+          return timeA - timeB;
         });
 
-        // Filter local memory list to only messages belonging to userA and userB
-        const filtered = allMsgs.filter(m => 
-          (m.senderId === userA && m.receiverId === userB) ||
-          (m.senderId === userB && m.receiverId === userA)
-        );
+      const unique = Array.from(
+        new Map(merged.map(message => [message.id, message])).values()
+      );
 
-        // Persist to local cache for instant future loads
-        this.setCachedMessages(userA, userB, filtered);
-        callback(filtered);
-      },
-      (error) => {
-        console.warn('Real-time chat snapshot listener notice (serving cached messages):', error);
-        const cached = this.getCachedMessages(userA, userB);
-        callback(cached);
-      }
-    );
+      this.setCachedMessages(userA, userB, unique);
+      callback(unique);
+    };
+
+    const createListener = (senderId: string, receiverId: string) => {
+      const pairKey = `${senderId}_${receiverId}`;
+      // Use a single-field query to avoid requiring a composite Firestore index.
+      const q = query(
+        messagesCol,
+        where('senderId', '==', senderId)
+      );
+
+      return onSnapshot(
+        q,
+        snapshot => {
+          const matchingDocs = snapshot.docs.filter(
+            d => d.data().receiverId === receiverId
+          );
+
+          messagesByPair.set(
+            pairKey,
+            matchingDocs.map(d => {
+              const data = d.data();
+              const createdAt = data.createdAt?.toDate
+                ? data.createdAt.toDate().toISOString()
+                : data.createdAt || new Date().toISOString();
+
+              return {
+                id: d.id,
+                senderId: data.senderId,
+                receiverId: data.receiverId,
+                text: data.text || '',
+                mediaUrl: data.mediaUrl || undefined,
+                mediaType: data.mediaType || undefined,
+                createdAt,
+                read: Boolean(data.read)
+              } as ChatMessage;
+            })
+          );
+
+          publishMessages();
+        },
+        error => {
+          console.error(`Chat listener failed for ${pairKey}:`, error);
+          if (messagesByPair.size === 0) {
+            callback(this.getCachedMessages(userA, userB));
+          }
+        }
+      );
+    };
+
+    const unsubscribeOutgoing = createListener(userA, userB);
+    const unsubscribeIncoming = createListener(userB, userA);
+
+    return () => {
+      unsubscribeOutgoing();
+      unsubscribeIncoming();
+    };
   },
 
   // Retrieve list of chat sessions (users whom the current user has chatted with, or can chat with)
   async getChatSessions(currentUserId: string): Promise<ChatSession[]> {
-    // 1. Get all registered users to populate the contact pool
-    let otherUsers: User[] = [];
-    try {
-      const users = await userService.getAllUsers();
-      otherUsers = users.filter(u => u.uid !== currentUserId);
-    } catch (err) {
-      console.warn('Failed to load registered users for chat sessions:', err);
-    }
-
-    // 2. Fetch all messages to identify thread history
+    // 1. Conversation partners are discovered from this user's messages.
+    // 2. Fetch only messages involving the current user.
     let allMsgs: any[] = [];
     try {
       const messagesCol = collection(db, 'chats');
-      const q = query(messagesCol, orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
 
-      allMsgs = snapshot.docs.map(d => {
+      const [sentSnapshot, receivedSnapshot] = await Promise.all([
+        getDocs(query(messagesCol, where('senderId', '==', currentUserId))),
+        getDocs(query(messagesCol, where('receiverId', '==', currentUserId)))
+      ]);
+
+      const messageMap = new Map<string, any>();
+
+      [...sentSnapshot.docs, ...receivedSnapshot.docs].forEach(d => {
         const data = d.data();
-        return {
+        messageMap.set(d.id, {
           id: d.id,
           senderId: data.senderId,
           receiverId: data.receiverId,
-          text: data.text,
-          createdAt: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
-          read: data.read || false
-        };
+          text: data.text || '',
+          mediaType: data.mediaType || undefined,
+          createdAt: data.createdAt?.toDate
+            ? data.createdAt.toDate().toISOString()
+            : data.createdAt || new Date().toISOString(),
+          read: Boolean(data.read)
+        });
       });
+
+      allMsgs = [...messageMap.values()].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
     } catch (err) {
-      console.warn('Failed to load chat messages from Firestore, attempting cached sessions:', err);
+      console.warn('Failed to load current user chat messages:', err);
       const cached = this.getCachedSessions(currentUserId);
-      if (cached.length > 0) {
-        return cached;
-      }
+      if (cached.length > 0) return cached;
     }
+
+    // 3. Fetch profiles only for users who have exchanged messages.
+    const partnerIds = [...new Set(
+      allMsgs
+        .map(m => m.senderId === currentUserId ? m.receiverId : m.senderId)
+        .filter((uid): uid is string => Boolean(uid) && uid !== currentUserId)
+    )];
+
+    const profileResults = await Promise.all(
+      partnerIds.map(uid => userService.getUserProfile(uid))
+    );
+
+    const otherUsers: User[] = profileResults.filter(
+      (user): user is User => user !== null
+    );
 
     const sessions: ChatSession[] = [];
 
@@ -351,33 +489,33 @@ export const chatService = {
     return sorted;
   },
 
-  // Delete chat history between two users
+  // Delete only messages exchanged between the selected two users.
   async deleteChatHistory(userA: string, userB: string): Promise<void> {
-    this.setCachedMessages(userA, userB, []);
-    try {
-      const messagesCol = collection(db, 'chats');
-      const snapshot = await getDocs(messagesCol);
-      
+    const messagesCol = collection(db, 'chats');
+
+    const [sentSnapshot, receivedSnapshot] = await Promise.all([
+      getDocs(query(
+        messagesCol,
+        where('senderId', '==', userA),
+        where('receiverId', '==', userB)
+      )),
+      getDocs(query(
+        messagesCol,
+        where('senderId', '==', userB),
+        where('receiverId', '==', userA)
+      ))
+    ]);
+
+    const docs = [...sentSnapshot.docs, ...receivedSnapshot.docs];
+
+    // Firestore batches support at most 500 writes.
+    for (let i = 0; i < docs.length; i += 450) {
       const batch = writeBatch(db);
-      let count = 0;
-
-      snapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        const s = data.senderId;
-        const r = data.receiverId;
-        
-        if ((s === userA && r === userB) || (s === userB && r === userA)) {
-          batch.delete(docSnap.ref);
-          count++;
-        }
-      });
-
-      if (count > 0) {
-        await batch.commit();
-      }
-    } catch (err) {
-      console.warn('Firestore deleteChatHistory failed, cleared locally:', err);
+      docs.slice(i, i + 450).forEach(docSnap => batch.delete(docSnap.ref));
+      await batch.commit();
     }
+
+    this.setCachedMessages(userA, userB, []);
   },
 
   // Mark all messages from a partner user as read

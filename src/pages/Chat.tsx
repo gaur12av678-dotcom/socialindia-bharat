@@ -140,31 +140,25 @@ export const ChatPage: React.FC = () => {
     }
   };
 
-  // Load chat sessions on mount & refresh dynamically in background
+  // Load and listen to chat sessions in real time.
   useEffect(() => {
     if (!currentUser) return;
 
-    // Immediately hydrate from cache if not already loaded
     const cached = chatService.getCachedSessions(currentUser.uid);
     if (cached.length > 0) {
       setSessions(cached);
       setLoadingSessions(false);
     }
 
-    const loadSessions = async () => {
-      try {
-        const data = await chatService.getChatSessions(currentUser.uid);
+    const unsubscribe = chatService.listenToConversations(
+      currentUser.uid,
+      data => {
         setSessions(data);
-      } catch (err) {
-        console.error('Failed to load chat sessions:', err);
-      } finally {
         setLoadingSessions(false);
       }
-    };
+    );
 
-    loadSessions();
-    const interval = setInterval(loadSessions, 5000);
-    return () => clearInterval(interval);
+    return () => unsubscribe();
   }, [currentUser]);
 
   // Handle selected user parameter route mapping
@@ -212,6 +206,12 @@ export const ChatPage: React.FC = () => {
     if (cachedMsgs.length > 0) {
       setMessages(cachedMsgs);
     }
+
+    // Ensure an inbox conversation exists as soon as the chat is opened.
+    chatService.ensureConversation(currentUser.uid, selectedUserId)
+      .catch(err => {
+        console.error('Failed to ensure conversation:', err);
+      });
 
     // 2. Set up Firestore real-time snapshot listener
     const unsubscribe = chatService.listenToMessages(
@@ -399,7 +399,24 @@ export const ChatPage: React.FC = () => {
       );
     } catch (err) {
       console.error('Failed to deliver message:', err);
-      addToast('Failed to deliver message.', 'error');
+
+      // Remove the optimistic message because Firestore did not confirm delivery.
+      setMessages(prev => {
+        const updated = prev.filter(message => message.id !== tempId);
+        chatService.setCachedMessages(currentUser.uid, selectedUserId, updated);
+        return updated;
+      });
+
+      // Refresh the conversation preview from persisted data.
+      try {
+        const refreshedSessions = await chatService.getChatSessions(currentUser.uid);
+        setSessions(refreshedSessions);
+        chatService.setCachedSessions(currentUser.uid, refreshedSessions);
+      } catch (refreshError) {
+        console.warn('Could not refresh chat sessions:', refreshError);
+      }
+
+      addToast('Failed to deliver message. Please try again.', 'error');
     } finally {
       setIsSending(false);
       setIsUploadingMedia(false);
@@ -840,37 +857,18 @@ export const ChatPage: React.FC = () => {
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   onPaste={handlePaste}
-                  className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-[#222] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-600 placeholder-slate-400 dark:placeholder-slate-500"
+                  className="flex-1 min-w-0 px-4 py-3 bg-[#efefef] dark:bg-[#202124] border-0 rounded-full text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 placeholder-slate-500 dark:placeholder-slate-400"
                 />
 
-                {/* Voice Input Mic Button */}
-                <button
-                  type="button"
-                  onClick={toggleVoiceRecording}
-                  className={`p-2.5 rounded-xl cursor-pointer transition-all ${
-                    isVoiceRecording
-                      ? 'bg-rose-600 text-white shadow-md shadow-rose-500/30 ring-2 ring-rose-400 animate-pulse'
-                      : 'hover:bg-slate-100 dark:hover:bg-[#1e1e1e] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                  }`}
-                  title={isVoiceRecording ? (isHindi ? 'रिकॉर्डिंग रोकें' : 'Stop voice recording') : (isHindi ? 'बोलकर टाइप करें' : 'Voice Typing')}
-                  aria-label={isHindi ? 'बोलकर टाइप करें' : 'Voice Typing'}
-                >
-                  {isVoiceRecording ? <Mic className="w-4 h-4 animate-bounce" /> : <Mic className="w-4 h-4" />}
-                </button>
-
-                {/* Send Button */}
-                <button
-                  type="submit"
-                  disabled={isSending || isUploadingMedia || (!messageText.trim() && !selectedMediaFile)}
-                  className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all shrink-0"
-                  aria-label={isHindi ? 'संदेश भेजें' : 'Send Message'}
-                >
-                  {isSending || isUploadingMedia ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  ) : (
-                    <Send className="w-4 h-4 fill-white" />
-                  )}
-                </button>
+                {messageText.trim() || selectedMediaFile ? (
+                  <button type="submit" disabled={isSending || isUploadingMedia} className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full disabled:opacity-50 shrink-0" aria-label="Send Message">
+                    {isSending || isUploadingMedia ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  </button>
+                ) : (
+                  <button type="button" onClick={toggleVoiceRecording} className={`p-3 rounded-full cursor-pointer ${isVoiceRecording ? 'bg-rose-600 text-white animate-pulse' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#252525]'}`} aria-label="Voice typing">
+                    <Mic className="w-4 h-4" />
+                  </button>
+                )}
               </form>
             </div>
           </>

@@ -620,7 +620,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <button
                     type="button"
                     onClick={() => setSidebarOpen(prev => !prev)}
-                    className="hidden md:flex p-2 -ml-1 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer items-center justify-center shrink-0 active:scale-95"
+                    className={`${route.path === 'chat' ? 'hidden' : 'hidden md:flex'} p-2 -ml-1 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#1e293b] rounded-xl transition-colors cursor-pointer items-center justify-center shrink-0 active:scale-95` }
                     aria-label={sidebarOpen ? (isHindi ? 'मेनू बंद करें' : 'Close Menu') : (isHindi ? 'मेनू खोलें' : 'Open Menu')}
                     title={isHindi ? 'मेनू' : 'Menu'}
                   >
@@ -1351,7 +1351,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           className={
             isWatchPage
               ? `fixed inset-y-0 left-0 h-screen w-64 bg-white dark:bg-[#0f0f0f] border-r-0 z-[1000] transition-transform duration-200 select-none shadow-[2px_0_12px_rgba(0,0,0,0.15)] flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
-              : `hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`
+              : `hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${route.path === 'chat' ? 'w-[76px]' : sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`
           }
         >
           {isWatchPage && (
@@ -1368,7 +1368,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </button>
             </div>
           )}
-          <div className={`${isWatchPage ? 'flex-1 min-h-0 overflow-y-auto' : 'sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto'} px-3.5 py-4 space-y-5 scrollbar-none`}>
+          <div className={`${isWatchPage ? 'flex-1 min-h-0 overflow-y-auto' : 'sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto'} px-3.5 py-4 space-y-5 scrollbar-none ${route.path === 'chat' ? '[&_span]:hidden [&_button]:!justify-center [&_button]:!px-2 [&_button>div]:!justify-center [&_button>div]:!gap-0 [&_button>div]:w-full' : ''}`}>
             
             {/* 1. Feeds & Discover Section */}
             <div className="space-y-1">
