@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DownloadedVideo } from '../types';
+import { DownloadedVideo, Video } from '../types';
 import { downloadService } from '../services/downloadService';
 import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
@@ -18,6 +18,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { UserAvatar } from '../components/UserAvatar';
+import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { useTranslation } from '../i18n';
 
 export const Downloads: React.FC = () => {
@@ -85,11 +86,14 @@ export const Downloads: React.FC = () => {
   };
 
   const handleClosePlayer = () => {
-    if (activePlayingVideo) {
-      URL.revokeObjectURL(activePlayingVideo.blobUrl);
-      setActivePlayingVideo(null);
-    }
+    setActivePlayingVideo(null);
   };
+
+  useEffect(() => {
+    return () => {
+      if (activePlayingVideo) URL.revokeObjectURL(activePlayingVideo.blobUrl);
+    };
+  }, [activePlayingVideo]);
 
   const filteredDownloads = downloads.filter(d => {
     if (filter === 'videos') return !d.isShort;
@@ -130,8 +134,8 @@ export const Downloads: React.FC = () => {
             </h1>
             <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
               {isHindi 
-                ? 'डाउनलोड किए गए वीडियो और शॉर्ट्स आपके डिवाइस में सुरक्षित रहते हैं। बिना इंटरनेट कनेक्शन के कभी भी देखें।'
-                : 'Downloaded videos & shorts are saved locally in your device storage. You can watch them anytime, even without an active internet connection or mobile data.'}
+                ? 'डाउनलोड किए गए वीडियो और क्लिप्स आपके डिवाइस में सुरक्षित रहते हैं। बिना इंटरनेट कनेक्शन के कभी भी देखें।'
+                : 'Downloaded videos & clips are saved locally in your device storage. You can watch them anytime, even without an active internet connection or mobile data.'}
             </p>
           </div>
 
@@ -212,7 +216,7 @@ export const Downloads: React.FC = () => {
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
-            {isHindi ? `शॉर्ट्स (${downloads.filter(d => d.isShort).length})` : `Shorts (${downloads.filter(d => d.isShort).length})`}
+            {isHindi ? `क्लिप्स (${downloads.filter(d => d.isShort).length})` : `Clips (${downloads.filter(d => d.isShort).length})`}
           </button>
         </div>
       </div>
@@ -234,8 +238,8 @@ export const Downloads: React.FC = () => {
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1.5 font-medium leading-relaxed">
             {isHindi 
-              ? 'बिना इंटरनेट देखने के लिए किसी भी वीडियो या शॉर्ट पर डाउनलोड बटन दबाएं!' 
-              : 'Click the Download button on any video or short to save it for offline watching anytime!'}
+              ? 'बिना इंटरनेट देखने के लिए किसी भी वीडियो या क्लिप पर डाउनलोड बटन दबाएं!'
+              : 'Click the Download button on any video or clip to save it for offline watching anytime!'}
           </p>
           <button
             onClick={() => navigate('home')}
@@ -279,7 +283,7 @@ export const Downloads: React.FC = () => {
                 {/* Shorts badge */}
                 {item.isShort && (
                   <div className="absolute top-2 left-2 px-2 py-0.5 bg-red-600 text-white text-[10px] font-black rounded-md uppercase tracking-wider shadow-sm">
-                    Shorts
+                    Clips
                   </div>
                 )}
 
@@ -372,14 +376,32 @@ export const Downloads: React.FC = () => {
               </button>
             </div>
 
-            {/* Offline Video Element */}
+            {/* Reuse the app's YouTube-style controls with the local Blob URL. */}
             <div className="relative w-full bg-black flex items-center justify-center min-h-[300px] max-h-[70vh]">
-              <video
-                src={activePlayingVideo.blobUrl}
-                controls
-                autoPlay
-                playsInline
-                className="w-full max-h-[70vh] object-contain rounded-b-2xl shadow-2xl"
+              <CustomVideoPlayer
+                video={{
+                  videoId: activePlayingVideo.item.videoId,
+                  title: activePlayingVideo.item.title,
+                  description: activePlayingVideo.item.description || '',
+                  videoUrl: activePlayingVideo.blobUrl,
+                  thumbnailUrl: activePlayingVideo.item.thumbnailUrl || '',
+                  duration: Number.isFinite(activePlayingVideo.item.duration) ? activePlayingVideo.item.duration : 0,
+                  creatorId: activePlayingVideo.item.creatorId,
+                  creatorUsername: activePlayingVideo.item.creatorUsername,
+                  creatorDisplayName: activePlayingVideo.item.creatorDisplayName,
+                  creatorPhotoURL: activePlayingVideo.item.creatorPhotoURL,
+                  category: activePlayingVideo.item.category || 'General',
+                  tags: [],
+                  visibility: 'private',
+                  viewsCount: 0,
+                  likesCount: 0,
+                  commentsCount: 0,
+                  sharesCount: 0,
+                  isShort: activePlayingVideo.item.isShort,
+                  status: 'published',
+                  createdAt: activePlayingVideo.item.downloadedAt,
+                  updatedAt: activePlayingVideo.item.downloadedAt
+                } satisfies Video}
               />
             </div>
 

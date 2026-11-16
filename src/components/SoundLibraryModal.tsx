@@ -91,13 +91,13 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-black text-slate-900 dark:text-blue-400 flex items-center gap-1.5">
-                <span>{isHindi ? 'शॉर्ट्स साउंड लाइब्रेरी' : 'Shorts Sound Library'}</span>
+                <span>{isHindi ? 'क्लिप्स साउंड लाइब्रेरी' : 'Clips Sound Library'}</span>
                 <span className="text-[10px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                   <Flame className="w-3 h-3 fill-current" /> {isHindi ? 'वायरल ऑडियो' : 'Viral Audio'}
                 </span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-[#94A3B8] font-semibold">
-                {isHindi ? 'अपने शॉर्ट के लिए बैकग्राउंड संगीत या वायरल ऑडियो चुनें' : 'Select background music or viral audio for your Short'}
+                {isHindi ? 'अपनी क्लिप के लिए बैकग्राउंड संगीत या ऑडियो चुनें' : 'Select background music or audio for your Clip'}
               </p>
             </div>
           </div>
@@ -193,7 +193,7 @@ export const SoundLibraryModal: React.FC<SoundLibraryModalProps> = ({
                         {sound.artist} • <span className="text-blue-600 dark:text-blue-400 font-bold">{sound.duration}s</span>
                       </p>
                       <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
-                        🔥 {sound.usesCount || 0} {isHindi ? 'शॉर्ट्स में उपयोग' : 'Shorts used'}
+                        🔥 {sound.usesCount || 0} {isHindi ? 'क्लिप्स में उपयोग' : 'Clips used'}
                       </p>
                     </div>
                   </div>

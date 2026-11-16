@@ -46,8 +46,8 @@ export const FAQPage: React.FC = () => {
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
               {isHindi 
-                ? 'उ: सोशलइंडिया पर पॉइंट्स कमाना बहुत आसान है! वीडियो देखने पर (+2 पॉइंट्स), वीडियो/शॉर्ट्स लाइक करने पर (+5 पॉइंट्स), कमेंट करने पर (+10 पॉइंट्स) और नए वीडियो अपलोड करने पर (+20 पॉइंट्स) मिलते हैं।' 
-                : 'A: Earning is completely organic! You earn points by engaging: watching videos (+2 points), liking videos/shorts (+5 points), posting constructive comments (+10 points), and uploading standard or short video clips (+20 points).'}
+                ? 'उ: सोशलइंडिया पर पॉइंट्स कमाना बहुत आसान है! वीडियो देखने पर (+2 पॉइंट्स), वीडियो/क्लिप्स लाइक करने पर (+5 पॉइंट्स), कमेंट करने पर (+10 पॉइंट्स) और नए वीडियो अपलोड करने पर (+20 पॉइंट्स) मिलते हैं।'
+                : 'A: Earning is completely organic! You earn points by engaging: watching videos (+2 points), liking videos/clips (+5 points), posting constructive comments (+10 points), and uploading standard videos or clips (+20 points).'}
             </p>
           </div>
 

@@ -208,11 +208,79 @@ match /adminSettings/{docId} {
       allow read, update, delete: if isAdmin() || (isSignedIn() && resource.data.reporterId == request.auth.uid);
     }
 
-    // --- GRIEVANCES & IT RULES COMPLAINTS COLLECTION ---
+    // --- PRIVATE GRIEVANCE SUBMISSIONS ---
     match /grievances/{grievanceId} {
-      allow create: if true;
-      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow update, delete: if isAdmin();
+      allow create: if
+        request.resource.data.keys().hasOnly([
+          'trackingId', 'complainantName', 'email', 'category', 'targetUrl',
+          'emergency', 'description', 'evidenceReference', 'submittedAt',
+          'status', 'adminNotes', 'resolutionDetails', 'updatedAt'
+        ]) &&
+        request.resource.data.keys().hasAll([
+          'trackingId', 'complainantName', 'email', 'category', 'targetUrl',
+          'emergency', 'description', 'evidenceReference', 'submittedAt',
+          'status', 'adminNotes', 'resolutionDetails', 'updatedAt'
+        ]) &&
+        request.resource.data.trackingId is string &&
+        request.resource.data.trackingId == 'SI-' + grievanceId &&
+        request.resource.data.trackingId.size() <= 80 &&
+        request.resource.data.complainantName is string &&
+        request.resource.data.complainantName.size() >= 1 &&
+        request.resource.data.complainantName.size() <= 120 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() <= 254 &&
+        request.resource.data.email.matches('^[^@ ]+@[^@ ]+\\.[^@ ]+$') &&
+        request.resource.data.category in [
+          'Copyright Infringement',
+          'Privacy Violation / Personal Data Exposure',
+          'Child Safety Concern',
+          'Impersonation / Identity Theft',
+          'Cyberbullying / Harassment',
+          'Threatening or Illegal Content',
+          'Account-Related Complaint',
+          'Other Grievance'
+        ] &&
+        request.resource.data.targetUrl is string &&
+        request.resource.data.targetUrl.size() <= 2048 &&
+        (request.resource.data.targetUrl == '' ||
+          request.resource.data.targetUrl.matches('^https?://.+')) &&
+        request.resource.data.emergency is bool &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() >= 10 &&
+        request.resource.data.description.size() <= 10000 &&
+        request.resource.data.evidenceReference is string &&
+        request.resource.data.evidenceReference.size() <= 2048 &&
+        (request.resource.data.evidenceReference == '' ||
+          request.resource.data.evidenceReference.matches('^https?://.+')) &&
+        request.resource.data.submittedAt is timestamp &&
+        request.resource.data.status == 'new' &&
+        request.resource.data.adminNotes == '' &&
+        request.resource.data.resolutionDetails == '' &&
+        request.resource.data.updatedAt is timestamp;
+      allow read: if isAdmin();
+      allow update: if isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'adminNotes', 'resolutionDetails', 'updatedAt'
+        ]) &&
+        request.resource.data.status in [
+          'new', 'pending', 'under_review', 'action_taken', 'resolved', 'rejected'
+        ] &&
+        request.resource.data.adminNotes is string &&
+        request.resource.data.adminNotes.size() <= 5000 &&
+        request.resource.data.resolutionDetails is string &&
+        request.resource.data.resolutionDetails.size() <= 5000 &&
+        request.resource.data.updatedAt is timestamp;
+      allow delete: if false;
+
+      match /history/{historyId} {
+        allow read: if isAdmin();
+        allow create: if isAdmin() &&
+          request.resource.data.adminUid == request.auth.uid &&
+          request.resource.data.trackingId is string &&
+          request.resource.data.action in ['status_updated', 'admin_note_updated'] &&
+          request.resource.data.createdAt is timestamp;
+        allow update, delete: if false;
+      }
     }
 
     // --- CONTENT & ACCOUNT APPEALS COLLECTION ---

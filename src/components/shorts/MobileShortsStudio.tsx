@@ -68,7 +68,7 @@ const FILTER_PRESETS = [
 ];
 
 const QUICK_HASHTAGS = [
-  '#Shorts',
+  '#Clips',
   '#Trending',
   '#Bharat',
   '#Viral',
@@ -97,7 +97,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   // ==========================================
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt');
+  const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied' | 'unsupported' | 'error'>('prompt');
   const [permissionError, setPermissionError] = useState<string>('');
   const [maxDuration, setMaxDuration] = useState<15 | 60>(15);
   const [recordingSpeed, setRecordingSpeed] = useState<number>(1);
@@ -121,6 +121,8 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
   // DOM Refs
   const liveVideoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const cameraRequestIdRef = useRef(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<any>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -171,11 +173,13 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   // Initialize Camera Stream with Progressive Fallback
   // ------------------------------------------
   const startCamera = async (targetFacing: 'user' | 'environment' = facingMode) => {
-    // Stop existing stream if any
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
+    const requestId = ++cameraRequestIdRef.current;
+    cameraStreamRef.current?.getTracks().forEach(track => {
+      track.onended = null;
+      track.stop();
+    });
+    cameraStreamRef.current = null;
+    setCameraStream(null);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setPermissionState('unsupported');
@@ -252,6 +256,12 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         throw lastError || new Error('Unable to access camera');
       }
 
+      if (requestId !== cameraRequestIdRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+
+      cameraStreamRef.current = stream;
       setCameraStream(stream);
       setPermissionState('granted');
       setPermissionError('');
@@ -269,6 +279,13 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       // Check torch support
       const videoTrack = stream.getVideoTracks()[0];
       if (videoTrack) {
+        videoTrack.onended = () => {
+          if (cameraStreamRef.current !== stream) return;
+          cameraStreamRef.current = null;
+          setCameraStream(null);
+          setPermissionState('error');
+          setPermissionError(isHindi ? 'कैमरा कनेक्शन टूट गया। फिर से प्रयास करें।' : 'Camera connection was interrupted. Try again.');
+        };
         const capabilities = (videoTrack.getCapabilities && videoTrack.getCapabilities()) as any;
         if (capabilities && capabilities.torch) {
           setHasTorchSupport(true);
@@ -277,8 +294,13 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         }
       }
     } catch (err: any) {
+      if (requestId !== cameraRequestIdRef.current) return;
       console.warn('Camera access error:', err);
-      setPermissionState('denied');
+      setPermissionState(
+        err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+          ? 'denied'
+          : 'error'
+      );
       setPermissionError(
         err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
           ? (isHindi
@@ -291,10 +313,13 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
   // Stop camera helper
   const stopCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
+    cameraRequestIdRef.current += 1;
+    cameraStreamRef.current?.getTracks().forEach(track => {
+      track.onended = null;
+      track.stop();
+    });
+    cameraStreamRef.current = null;
+    setCameraStream(null);
   };
 
   // Switch Camera Front / Back
@@ -410,7 +435,8 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   };
 
   const startRecording = () => {
-    if (!cameraStream) {
+    const stream = cameraStreamRef.current || cameraStream;
+    if (!stream) {
       addToast('Camera stream is not active. Please grant camera permission.', 'error');
       return;
     }
@@ -435,7 +461,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
     try {
       const options: MediaRecorderOptions = selectedMime ? { mimeType: selectedMime } : {};
-      const recorder = new MediaRecorder(cameraStream, options);
+      const recorder = new MediaRecorder(stream, options);
 
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -681,11 +707,11 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   };
 
   // ------------------------------------------
-  // PUBLISH SHORT (Full Real Upload)
+  // PUBLISH CLIP (Full Real Upload)
   // ------------------------------------------
   const handlePublishShort = async () => {
     if (!currentUser || !currentUserProfile) {
-      addToast('Please sign in to publish Shorts.', 'error');
+      addToast('Please sign in to publish Clips.', 'error');
       navigate('login');
       return;
     }
@@ -695,15 +721,15 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       return;
     }
 
-    const finalTitle = title.trim() || `Short by ${currentUserProfile.displayName || currentUserProfile.username} #${category}`;
+    const finalTitle = title.trim() || `Clip by ${currentUserProfile.displayName || currentUserProfile.username} #${category}`;
 
     setIsPublishing(true);
     setUploadProgress(5);
-    setUploadStage('Preparing your Short...');
+    setUploadStage('Preparing your Clip...');
 
     try {
       // 1. Upload Video
-      setUploadStage('Uploading Short video...');
+      setUploadStage('Uploading Clip video...');
       const videoResult = await videoService.uploadVideo(videoFile, (pct, stage) => {
         setUploadProgress(Math.min(75, Math.round(5 + (pct * 0.7))));
         if (stage) setUploadStage(stage);
@@ -724,7 +750,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
       // 3. Publish to Firestore
       setUploadProgress(95);
-      setUploadStage('Publishing Short to SocialIndia...');
+      setUploadStage('Publishing Clip to SocialIndia...');
 
       const effectiveDuration = Math.round(trimEnd - trimStart) || Math.round(videoDuration) || 15;
 
@@ -735,7 +761,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         thumbnailUrl: finalThumbUrl || videoResult.videoUrl,
         duration: effectiveDuration,
         category: category,
-        tags: [category, 'Shorts', 'Bharat', ...finalTitle.split(' ').filter(w => w.startsWith('#'))],
+        tags: [category, 'Clips', 'Bharat', ...finalTitle.split(' ').filter(w => w.startsWith('#'))],
         visibility: visibility,
         isShort: true,
         commentsCount: 0,
@@ -757,7 +783,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
       setUploadProgress(100);
       setUploadStage('Published successfully! 🎉');
-      addToast('Short published successfully! (+20 Points)', 'success');
+      addToast('Clip published successfully! (+20 Points)', 'success');
 
       // Reset and navigate to shorts feed
       setTimeout(() => {
@@ -766,8 +792,8 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       }, 500);
 
     } catch (err: any) {
-      console.error('Failed to publish Short:', err);
-      addToast(err.message || 'Failed to upload and publish Short. Please try again.', 'error');
+      console.error('Failed to publish Clip:', err);
+      addToast(err.message || 'Failed to upload and publish Clip. Please try again.', 'error');
     } finally {
       setIsPublishing(false);
     }
@@ -791,7 +817,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-black">
           
           {/* Live Camera Viewfinder */}
-          <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-black p-4">
+          <div className="absolute inset-0 z-0 flex items-center justify-center overflow-hidden bg-black">
             {/* The video element is ALWAYS mounted and positioned absolute so it covers the background without pushing siblings */}
             <video
               ref={liveVideoRef}
@@ -805,33 +831,37 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 liveVideoRef.current?.play().catch(console.warn);
               }}
               style={{ filter: activeFilter }}
-              className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-300 ${
+              className={`absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-300 ${
                 facingMode === 'user' ? 'scale-x-[-1]' : ''
               } ${permissionState === 'granted' ? 'opacity-100 visible' : 'opacity-0 invisible'}`}
             />
 
-            {permissionState === 'denied' && (
+            {(permissionState === 'denied' || permissionState === 'error' || permissionState === 'unsupported') && (
               <div className="relative z-10 w-full max-w-[320px] max-h-[75vh] overflow-y-auto scrollbar-none p-4 sm:p-5 text-center space-y-3 bg-slate-900/95 backdrop-blur-md rounded-2xl border border-white/10 mx-auto box-border shadow-2xl">
                 <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center mx-auto shrink-0">
                   <AlertCircle className="w-6 h-6" />
                 </div>
                 <div className="space-y-1">
                   <h4 className="text-sm sm:text-base font-black text-white leading-tight">
-                    {isHindi ? 'कैमरा अनुमति आवश्यक है' : 'Camera Permission Required'}
+                    {permissionState === 'denied'
+                      ? (isHindi ? 'कैमरा अनुमति आवश्यक है' : 'Camera Permission Required')
+                      : (isHindi ? 'कैमरा उपलब्ध नहीं है' : 'Camera Unavailable')}
                   </h4>
                   <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed break-words px-1">
                     {permissionError || (isHindi 
-                      ? 'शॉर्ट्स रिकॉर्ड करने के लिए कैमरा और माइक अनुमति दें, या सीधे गैलरी से वीडियो चुनें।' 
+                      ? 'क्लिप रिकॉर्ड करने के लिए कैमरा और माइक अनुमति दें, या सीधे गैलरी से वीडियो चुनें।'
                       : 'Please allow camera and mic permissions to record live, or select a video from your gallery.')}
                   </p>
                 </div>
                 <div className="space-y-2 pt-1 w-full">
-                  <button
-                    onClick={() => startCamera(facingMode)}
-                    className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all shadow-md"
-                  >
-                    {isHindi ? 'पुनः प्रयास करें' : 'Try Again'}
-                  </button>
+                  {permissionState !== 'unsupported' && (
+                    <button
+                      onClick={() => startCamera(facingMode)}
+                      className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all shadow-md"
+                    >
+                      {isHindi ? 'पुनः प्रयास करें' : 'Try Again'}
+                    </button>
+                  )}
                   <button
                     onClick={() => galleryInputRef.current?.click()}
                     className="w-full py-2.5 px-3 bg-[#262626] hover:bg-[#363636] text-white border border-white/20 text-xs font-black rounded-xl cursor-pointer active:scale-95 transition-all flex items-center justify-center gap-1.5"
@@ -843,18 +873,12 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
               </div>
             )}
 
-            {permissionState !== 'granted' && permissionState !== 'denied' && (
+            {permissionState === 'prompt' && (
               <div className="relative z-10 w-full max-w-[280px] flex flex-col items-center justify-center space-y-2.5 p-4 sm:p-5 text-center bg-black/60 backdrop-blur-md rounded-2xl border border-white/10 mx-auto box-border">
                 <Loader2 className="w-7 h-7 animate-spin text-blue-500" />
                 <p className="text-xs font-bold text-slate-300">
                   {isHindi ? 'कैमरा शुरू हो रहा है...' : 'Starting camera...'}
                 </p>
-                <button
-                  onClick={() => startCamera(facingMode)}
-                  className="mt-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[11px] font-bold text-white transition-all cursor-pointer"
-                >
-                  {isHindi ? 'पुनः कनेक्ट करें' : 'Reconnect Camera'}
-                </button>
               </div>
             )}
           </div>
@@ -872,7 +896,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
           <div className="relative z-20 pt-safe px-4 pt-4 flex flex-col gap-2 bg-gradient-to-b from-black/80 via-black/30 to-transparent">
             
             {/* Top Multi-Segment Progress Bar */}
-            <div className="w-full h-1.5 bg-white/25 rounded-full overflow-hidden">
+            <div className="w-full h-2 bg-white/25 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-400 transition-all duration-100 ease-linear"
                 style={{ width: `${Math.min(100, (recordedSeconds / maxDuration) * 100)}%` }}
@@ -921,6 +945,12 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 {maxDuration}s
               </button>
             </div>
+            {isRecording && (
+              <div className="flex items-center justify-center gap-2 pb-1 text-[11px] font-extrabold tabular-nums text-white drop-shadow">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span>REC {Math.floor(recordedSeconds / 60).toString().padStart(2, '0')}:{Math.floor(recordedSeconds % 60).toString().padStart(2, '0')} / {maxDuration === 60 ? '01:00' : '00:15'}</span>
+              </div>
+            )}
           </div>
 
           {/* RIGHT SIDEBAR TOOLS (Flip, Speed, Timer, Effects, Flash) */}
@@ -1363,7 +1393,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                   <div className="flex items-center gap-2">
                     <Sliders className="w-4 h-4 text-blue-400" />
                     <span className="text-sm font-bold text-white">
-                      {isHindi ? 'शॉर्ट वीडियो ट्रिम करें' : 'Trim Video'}
+                      {isHindi ? 'क्लिप वीडियो ट्रिम करें' : 'Trim Video'}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -1676,7 +1706,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <ImageIcon className="w-4 h-4 text-blue-500" />
-                  <span>{isHindi ? 'शॉर्ट थंबनेल / कवर' : 'Short Thumbnail / Cover'}</span>
+                  <span>{isHindi ? 'क्लिप थंबनेल / कवर' : 'Clip Thumbnail / Cover'}</span>
                 </label>
                 <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">
                   {isHindi ? 'फ़्रेम चुनें' : 'Frame selectable'}
@@ -1763,7 +1793,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 value={title}
                 onChange={(e) => setTitle(e.target.value.slice(0, 100))}
                 disabled={isPublishing}
-                placeholder={isHindi ? 'अपने शॉर्ट का शीर्षक लिखें... #Shorts' : 'Caption your short... #Shorts'}
+                placeholder={isHindi ? 'अपनी क्लिप का शीर्षक लिखें... #Clips' : 'Caption your clip... #Clips'}
                 rows={2}
                 className="w-full px-4 py-3 bg-white dark:bg-[#141518] border border-slate-200 dark:border-slate-800 focus:border-blue-500 rounded-2xl text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors resize-none shadow-xs"
               />
@@ -1797,7 +1827,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isPublishing}
-                placeholder={isHindi ? 'वीडियो के बारे में कुछ और बताएं...' : 'Tell viewers about your Short...'}
+                placeholder={isHindi ? 'वीडियो के बारे में कुछ और बताएं...' : 'Tell viewers about your Clip...'}
                 rows={2}
                 className="w-full px-4 py-2.5 bg-white dark:bg-[#141518] border border-slate-200 dark:border-slate-800 focus:border-blue-500 rounded-2xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors resize-none shadow-xs"
               />
@@ -1860,7 +1890,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                     {isHindi ? 'कमेंट्स की अनुमति दें' : 'Allow Comments'}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'दर्शक आपके शॉर्ट पर टिप्पणी कर सकेंगे' : 'Viewers can leave comments on your Short'}
+                    {isHindi ? 'दर्शक आपकी क्लिप पर टिप्पणी कर सकेंगे' : 'Viewers can leave comments on your Clip'}
                   </p>
                 </div>
                 <input 
@@ -1927,7 +1957,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                   className="flex-1 py-3 bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-black text-sm rounded-2xl shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all"
                 >
                   <Upload className="w-4 h-4 stroke-[2.5]" />
-                  <span>{isHindi ? 'शॉर्ट अपलोड करें' : 'Publish Short'}</span>
+                  <span>{isHindi ? 'क्लिप अपलोड करें' : 'Publish Clip'}</span>
                 </button>
               </div>
             )}
@@ -2067,7 +2097,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 rows={3}
                 value={newTextValue}
                 onChange={(e) => setNewTextValue(e.target.value)}
-                placeholder={isHindi ? 'यहाँ टेक्स्ट टाइप करें... #Shorts' : 'Add text to your Short...'}
+                placeholder={isHindi ? 'यहाँ टेक्स्ट टाइप करें... #Clips' : 'Add text to your Clip...'}
                 className="w-full bg-transparent text-center text-2xl sm:text-3xl font-black placeholder-white/40 focus:outline-none resize-none leading-tight drop-shadow-md"
               />
             </div>

@@ -32,6 +32,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
   const [newTitle, setNewTitle] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [updatingPlaylistIds, setUpdatingPlaylistIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isOpen || !video) return;
@@ -67,6 +68,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
       setPlaylists(list);
     } catch (err) {
       console.error(err);
+      addToast(isHindi ? 'प्लेलिस्ट लोड करने में विफल' : 'Failed to load playlists.', 'error');
     } finally {
       setLoading(false);
     }
@@ -92,7 +94,9 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
   };
 
   const handleTogglePlaylist = async (pl: Playlist) => {
-    if (!video || !currentUser) return;
+    if (!video || !currentUser || updatingPlaylistIds.has(pl.playlistId)) return;
+    const previousPlaylists = playlists;
+    const previousWatchLater = isInWatchLater;
     const isChecked = (pl.videoIds || []).includes(video.videoId);
     const updatedPlaylists = playlists.map(p => {
       if (p.playlistId !== pl.playlistId) return p;
@@ -112,6 +116,7 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
       setIsInWatchLater(nextWatchLater);
     }
     onSavedChange?.(computeAnySaved(nextWatchLater, updatedPlaylists, video.videoId));
+    setUpdatingPlaylistIds(prev => new Set(prev).add(pl.playlistId));
 
     try {
       if (isChecked) {
@@ -128,7 +133,16 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
         addToast(isHindi ? `"${pl.title}" में सहेजा गया` : `Saved to "${pl.title}"`, 'success');
       }
     } catch (err) {
+      setPlaylists(previousPlaylists);
+      setIsInWatchLater(previousWatchLater);
+      onSavedChange?.(computeAnySaved(previousWatchLater, previousPlaylists, video.videoId));
       addToast(isHindi ? 'प्लेलिस्ट अपडेट करने में विफल' : 'Failed to update playlist', 'error');
+    } finally {
+      setUpdatingPlaylistIds(prev => {
+        const next = new Set(prev);
+        next.delete(pl.playlistId);
+        return next;
+      });
     }
   };
 
@@ -261,11 +275,12 @@ export const SaveToPlaylistModal: React.FC<SaveToPlaylistModalProps> = ({
                     <div
                       key={pl.playlistId}
                       onClick={() => handleTogglePlaylist(pl)}
+                      aria-disabled={updatingPlaylistIds.has(pl.playlistId)}
                       className={`p-3 rounded-2xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
                         isSaved
                           ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/50 text-blue-900 dark:text-blue-300'
                           : 'bg-slate-50 dark:bg-[#1E293B]/40 border-slate-200/80 dark:border-slate-800 text-slate-800 dark:text-slate-200 hover:border-blue-400'
-                      }`}
+                      } ${updatingPlaylistIds.has(pl.playlistId) ? 'opacity-60 pointer-events-none' : ''}`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-4 h-4 rounded border flex items-center justify-center shrink-0 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800">

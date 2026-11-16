@@ -29,6 +29,18 @@ interface CacheEntry {
 
 // Simple in-memory cache to store verified creator status with 5-minute TTL
 const creatorVerificationCache: Record<string, CacheEntry> = {};
+const creatorProfileRefreshes = new Map<string, ReturnType<typeof userService.getUserProfile>>();
+
+const getFreshCreatorProfile = (uid: string) => {
+  const pending = creatorProfileRefreshes.get(uid);
+  if (pending) return pending;
+
+  const request = userService.getUserProfile(uid, true).finally(() => {
+    creatorProfileRefreshes.delete(uid);
+  });
+  creatorProfileRefreshes.set(uid, request);
+  return request;
+};
 
 interface VideoCardProps {
   video: Video;
@@ -113,55 +125,58 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
 
     // Pre-cache creator profile info for instant loading across channels, avatars and names
     if (video.creatorDisplayName || video.creatorPhotoURL || video.creatorUsername) {
+      const cachedProfile = userService.getCachedUserProfile(video.creatorId);
       userService.cacheUserProfile({
+        ...cachedProfile,
         uid: video.creatorId,
-        displayName: video.creatorDisplayName,
-        username: video.creatorUsername,
-        photoURL: video.creatorPhotoURL
+        displayName: video.creatorDisplayName || cachedProfile?.displayName || '',
+        username: video.creatorUsername || cachedProfile?.username || '',
+        photoURL: video.creatorPhotoURL || cachedProfile?.photoURL || ''
       });
     }
     
     const now = Date.now();
-    const cached = creatorVerificationCache[video.creatorId];
-    if (cached && cached.expiry > now) {
-      setIsVerified(cached.verified);
-      return;
-    }
-
-    // Check memory profile cache before initiating network request
     const existing = userService.getCachedUserProfile(video.creatorId);
-    if (existing) {
-      const verified = isUserVerified(existing);
+    if (existing && isUserVerified(existing)) {
       creatorVerificationCache[video.creatorId] = {
-        verified,
-        expiry: Date.now() + 10 * 60 * 1000
+        verified: true,
+        expiry: now + 10 * 60 * 1000
       };
-      setIsVerified(verified);
+      setIsVerified(true);
       return;
     }
 
-    // Defer network fetch by 1s so initial feed rendering & image downloads are never blocked
-    const timer = setTimeout(() => {
-      userService.getUserProfile(video.creatorId).then(profile => {
-        const verified = isUserVerified(profile);
-        creatorVerificationCache[video.creatorId] = {
-          verified,
-          expiry: Date.now() + 10 * 60 * 1000
-        };
-        setIsVerified(verified);
-      }).catch(() => {
-        creatorVerificationCache[video.creatorId] = {
-          verified: false,
-          expiry: Date.now() + 10 * 60 * 1000
-        };
-        setIsVerified(false);
-      });
-    }, 1000);
+    const cached = creatorVerificationCache[video.creatorId];
+    if (cached?.verified && cached.expiry > now) {
+      setIsVerified(true);
+      return;
+    }
 
-    return () => clearTimeout(timer);
+    if (existing) {
+      setIsVerified(false);
+    }
+
+    let active = true;
+    getFreshCreatorProfile(video.creatorId).then(profile => {
+      const verified = isUserVerified(profile);
+      if (verified) {
+        creatorVerificationCache[video.creatorId] = {
+          verified: true,
+          expiry: Date.now() + 10 * 60 * 1000
+        };
+      } else {
+        delete creatorVerificationCache[video.creatorId];
+      }
+      if (active) setIsVerified(verified);
+    }).catch(error => {
+      console.error(`Could not load verification status for creator ${video.creatorId}:`, error);
+    });
+    return () => {
+      active = false;
+    };
   }, [video.creatorId, video.creatorDisplayName, video.creatorPhotoURL, video.creatorUsername]);
 
-  const watchUrl = video.isShort ? `#/shorts/${video.videoId}` : `#/watch/${video.videoId}`;
+  const watchUrl = video.isShort ? `#/clips/${video.videoId}` : `#/watch/${video.videoId}`;
   const creatorUrl = video.creatorUsername ? `#/@${video.creatorUsername}` : `#/creator/${video.creatorId}`;
 
   const handleCardClick = (e?: React.MouseEvent) => {
@@ -243,7 +258,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
         {video.isShort && (
           <div className="absolute top-2 left-2 px-2 py-0.5 bg-blue-600 text-white font-black text-[9px] rounded-md uppercase tracking-widest shadow-sm pointer-events-none flex items-center gap-1.5">
             <ShortsLogo className="w-3 h-3" />
-            <span>Shorts</span>
+            <span>Clips</span>
           </div>
         )}
 
@@ -352,7 +367,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
             >
               <button
                 onClick={() => {
-                  const shareUrl = `${window.location.origin}/#/watch/${video.videoId}`;
+                  const shareUrl = `${window.location.origin}/#/${video.isShort ? 'clips' : 'watch'}/${video.videoId}`;
                   if (navigator.share) {
                     navigator.share({ title: video.title, url: shareUrl }).catch(() => {});
                   } else {

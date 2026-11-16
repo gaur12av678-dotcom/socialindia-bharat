@@ -14,33 +14,22 @@ const templateHtml = fs.readFileSync(templatePath, 'utf8');
 const pages = [
   {
     path: 'about',
-    title: 'About Us – SocialIndia | India’s Video & Creator Platform',
-    description: 'SocialIndia is India’s premier video and community platform designed for creators to connect, share high-quality videos and shorts, and monetize their talent.',
+    title: 'About SocialIndia – Built by Bharat.',
+    description: 'SocialIndia is an Indian social media and video-sharing platform for sharing videos, discovering content, connecting with communities, and following creators.',
     schema: {
       '@context': 'https://schema.org',
       '@type': 'AboutPage',
       'name': 'About SocialIndia',
       'url': 'https://socialindia.web.app/about',
-      'description': 'SocialIndia is an Indian social media and video sharing platform where creators connect, publish videos, watch shorts, and earn rewards.',
-      'mainEntity': {
-        '@type': 'Organization',
-        'name': 'SocialIndia',
-        'url': 'https://socialindia.web.app/',
-        'logo': 'https://socialindia.web.app/socialindia-logo.png'
-      }
+      'description': 'SocialIndia is an Indian social media and video-sharing platform.'
     },
-    heading: 'About SocialIndia – India’s Video & Creator Platform',
+    heading: 'SocialIndia · Built by Bharat.',
     content: `
-      <p>SocialIndia is an Indian social media and video sharing platform built for creators and audiences across Bharat. Share your talent, watch trending videos, discover inspiring shorts, and earn rewards through our engagement and monetization programs.</p>
-      <h2>Our Mission</h2>
-      <p>Empowering millions of Indian creators with cutting-edge creator tools, transparent monetization, lightning-fast video delivery, and community discussions.</p>
-      <h2>Key Features</h2>
-      <ul>
-        <li><strong>Shorts & Long Videos:</strong> Seamless vertical short video player and high-definition video streaming.</li>
-        <li><strong>Creator Monetization:</strong> Direct wallet payouts, points conversion, and sponsored brand campaigns.</li>
-        <li><strong>Community & Posts:</strong> Share text thoughts, polls, behind-the-scenes updates, and discuss with fans.</li>
-        <li><strong>Made for India:</strong> Multi-language support including Hindi and English with regional community focus.</li>
-      </ul>
+      <p>SocialIndia is an Indian social media and video-sharing platform where people can share videos, discover content, connect with communities and follow creators.</p>
+      <p>Our goal is to provide an independent platform built for Indian users, creators and communities.</p>
+      <h2>Founder</h2>
+      <p>Gaurav Saini, Founder – SocialIndia.</p>
+      <p>Contact: socialindia.ib@gmail.com · India</p>
     `
   },
   {
@@ -158,26 +147,37 @@ const pages = [
   },
   {
     path: 'contact',
-    title: 'Contact Us – SocialIndia Support & Grievance',
-    description: 'Get in touch with the SocialIndia support team, partner with us, or contact our Grievance Officer in compliance with Indian Information Technology rules.',
+    title: 'Contact SocialIndia – General Support',
+    description: 'Contact SocialIndia for general customer support, user queries, feedback, suggestions, and general questions.',
     schema: {
       '@context': 'https://schema.org',
       '@type': 'ContactPage',
       'name': 'Contact SocialIndia',
       'url': 'https://socialindia.web.app/contact',
-      'description': 'Contact SocialIndia support, partnerships, and grievance officer.'
+      'description': 'Contact SocialIndia for general support and questions.'
     },
-    heading: 'Contact SocialIndia Support & Grievance Officer',
+    heading: 'Contact SocialIndia',
     content: `
-      <p>We are here to assist creators, advertisers, and community members. Reach out to our team through our support channels.</p>
-      <h2>Support Contacts</h2>
-      <ul>
-        <li><strong>Email:</strong> support@socialindia.web.app</li>
-        <li><strong>Business Inquiries:</strong> contact@socialindia.web.app</li>
-        <li><strong>Platform:</strong> Built in Bharat for Indian Creators</li>
-      </ul>
-      <h2>Grievance Redressal</h2>
-      <p>In accordance with Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, users can submit concerns regarding content safety and account moderation directly to our team.</p>
+      <p>Contact SocialIndia for general customer support, user queries, feedback, suggestions, or general questions.</p>
+      <p>Email: socialindia.ib@gmail.com</p>
+      <p>Formal complaints are handled separately on the Grievance Redressal page.</p>
+    `
+  },
+  {
+    path: 'grievance',
+    title: 'Grievance Redressal & Support – SocialIndia',
+    description: 'Submit a grievance to the SocialIndia Grievance & Support Team and receive a complaint tracking ID.',
+    schema: {
+      '@context': 'https://schema.org',
+      '@type': 'ContactPage',
+      'name': 'Grievance Redressal & Support – SocialIndia',
+      'url': 'https://socialindia.web.app/grievance'
+    },
+    heading: 'Grievance Redressal & Support',
+    content: `
+      <p>Contact the SocialIndia Grievance & Support Team at socialindia.ib@gmail.com or submit a complaint using the form.</p>
+      <p>Automatic email acknowledgements are not configured. Keep the tracking ID shown after a successful submission.</p>
+      <p>This page does not claim that a statutory Grievance Officer has been appointed or that all legal requirements are satisfied.</p>
     `
   },
   {
@@ -280,7 +280,7 @@ const pages = [
     },
     heading: 'SocialIndia Community Guidelines & Content Safety',
     content: `
-      <p>SocialIndia is committed to a safe, welcoming, and vibrant creator ecosystem for all Indian citizens.</p>
+      <p>These guidelines describe content and conduct expectations on SocialIndia. A report does not guarantee a particular outcome or removal time.</p>
       <h2>Key Policy Pillars</h2>
       <ul>
         <li><strong>Respect & Non-Discrimination:</strong> Harassment, hate speech, and bullying are strictly prohibited.</li>
@@ -307,7 +307,7 @@ const pages = [
   {
     path: 'privacy',
     title: 'Privacy Policy – SocialIndia',
-    description: 'SocialIndia Privacy Policy explains how we collect, store, and protect your personal information in compliance with Indian Information Technology and data protection laws.',
+    description: 'Learn what information the SocialIndia application processes, how it is used, and how to contact SocialIndia about privacy requests.',
     schema: {
       '@context': 'https://schema.org',
       '@type': 'WebPage',
@@ -316,11 +316,8 @@ const pages = [
     },
     heading: 'SocialIndia Privacy Policy',
     content: `
-      <p>Your privacy is paramount. This Privacy Policy details the types of data collected, purpose of processing, and how user privacy rights are upheld under Indian data governance standards.</p>
-      <h2>Data We Collect</h2>
-      <p>Profile details (username, email, display picture), video metadata, and anonymous device diagnostic metrics for platform optimization.</p>
-      <h2>Data Security</h2>
-      <p>All sensitive authentication credentials and user communications are encrypted in transit and at rest using industry-standard Firebase security mechanisms.</p>
+      <p>The application uses Firebase Authentication, Firestore, Firebase Storage, and, for configured video uploads, Cloudinary. It may also load media from external providers such as YouTube and Google Drive.</p>
+      <p>Contact SocialIndia – Privacy & Support at socialindia.ib@gmail.com. See this policy for actual data categories, retention limits, and privacy assistance.</p>
     `
   },
   {
@@ -341,7 +338,7 @@ const pages = [
   {
     path: 'terms',
     title: 'Terms of Service – SocialIndia',
-    description: 'Terms of Service governing your use of the SocialIndia website, mobile apps, video player, and creator monetization features.',
+    description: 'Terms governing use of SocialIndia, user content, prohibited conduct, reports, and account restrictions.',
     schema: {
       '@context': 'https://schema.org',
       '@type': 'WebPage',
@@ -350,7 +347,7 @@ const pages = [
     },
     heading: 'SocialIndia Terms of Service',
     content: `
-      <p>By using SocialIndia, you agree to these Terms of Service. Review user obligations, intellectual property rights, and platform terms.</p>
+      <p>By using SocialIndia, you agree to these Terms of Use. Review account responsibilities, user content, prohibited activities, copyright, and reporting options.</p>
     `
   },
   {

@@ -100,6 +100,8 @@ export const Watch: React.FC = () => {
   const [subscribed, setSubscribed] = useState<boolean>(() => {
     return !!(activeUid && cachedInitialVid?.creatorId && subscriptionService.isSubscribedSync(activeUid, cachedInitialVid.creatorId, cachedInitialVid.creatorUsername));
   });
+  const likeSyncVersionRef = useRef(0);
+  const subscriptionSyncVersionRef = useRef(0);
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
@@ -551,6 +553,8 @@ export const Watch: React.FC = () => {
 
   // Separate non-blocking user interaction checks (liked, saved, subscribed, history)
   useEffect(() => {
+    const likeSyncVersion = ++likeSyncVersionRef.current;
+    const subscriptionSyncVersion = ++subscriptionSyncVersionRef.current;
     if (!videoId || !activeUid) {
       setLiked(false);
       setSaved(false);
@@ -585,11 +589,17 @@ export const Watch: React.FC = () => {
           historyService.addToHistory(currentUser.uid, video, 0).catch(console.error);
         }
       }
-      likeService.hasLiked(videoId, currentUser.uid).then(isL => isMounted && setLiked(isL)).catch(console.error);
+      likeService.hasLiked(videoId, currentUser.uid)
+        .then(isL => {
+          if (isMounted && likeSyncVersionRef.current === likeSyncVersion) setLiked(isL);
+        })
+        .catch(console.error);
       savedVideoService.isSaved(currentUser.uid, videoId).then(isS => isMounted && setSaved(isS)).catch(console.error);
       if (video?.creatorId) {
         subscriptionService.isSubscribed(currentUser.uid, video.creatorId, video.creatorUsername)
-          .then(isSub => isMounted && setSubscribed(isSub))
+          .then(isSub => {
+            if (isMounted && subscriptionSyncVersionRef.current === subscriptionSyncVersion) setSubscribed(isSub);
+          })
           .catch(console.error);
       }
       // Award 2 points for watching quietly
@@ -706,6 +716,7 @@ export const Watch: React.FC = () => {
     }
 
     const previouslyLiked = liked;
+    likeSyncVersionRef.current += 1;
     if (!previouslyLiked && disliked) {
       setDisliked(false);
     }
@@ -766,6 +777,7 @@ export const Watch: React.FC = () => {
     }
     if (isSubscribing) return;
     setIsSubscribing(true);
+    const subscriptionActionVersion = ++subscriptionSyncVersionRef.current;
 
     const previousSubState = subscribed;
     const nextSubState = !previousSubState;
@@ -783,7 +795,9 @@ export const Watch: React.FC = () => {
         displayName: video.creatorDisplayName,
         photoURL: video.creatorPhotoURL
       }, nextSubState);
-      setSubscribed(isSub);
+      if (subscriptionSyncVersionRef.current === subscriptionActionVersion) {
+        setSubscribed(isSub);
+      }
 
       if (isSub) {
         notificationService.createNotification(video.creatorId, effectiveUserProfile, 'follow', {}).catch(console.error);
@@ -1482,7 +1496,7 @@ export const Watch: React.FC = () => {
                   className="text-xs sm:text-sm font-black text-slate-900 dark:text-[#F8FAFC] hover:underline cursor-pointer truncate flex items-center gap-1.5"
                 >
                   <span>{video.creatorDisplayName || video.creatorUsername || "Creator"}</span>
-                  {isUserVerified(creator) && (
+                  {(isUserVerified(creator) || isUserVerified(userService.getCachedUserProfile(video.creatorId))) && (
                     <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm" title="Verified Creator" aria-label="Verified Creator">
                   <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
@@ -1542,6 +1556,7 @@ export const Watch: React.FC = () => {
                     onClick={() => {
                       setDisliked(!disliked);
                       if (liked) {
+                        likeSyncVersionRef.current += 1;
                         setLiked(false);
                         setVideo(prev => prev ? { ...prev, likesCount: Math.max(0, prev.likesCount - 1) } : null);
                         if (currentUser) {

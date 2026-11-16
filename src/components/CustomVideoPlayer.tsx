@@ -6,7 +6,9 @@ import { useRouter } from '../hooks/useRouter';
 import { useTranslation } from '../i18n';
 import { playbackProgressService } from '../services/playbackProgressService';
 import { liveBroadcastService } from '../services/liveBroadcastService';
+import { userService } from '../services/userService';
 import { UserAvatar } from './UserAvatar';
+import { isUserVerified } from '../utils/userUtils';
 import { 
   Play, 
   Pause, 
@@ -129,6 +131,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(video.duration || 0);
+  const [isCreatorVerified, setIsCreatorVerified] = useState(() =>
+    isUserVerified(userService.getCachedUserProfile(video.creatorId))
+  );
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -152,6 +157,22 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const pointerStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const pointerMovedRef = useRef(false);
   const isLongPressTriggeredRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    const cachedProfile = userService.getCachedUserProfile(video.creatorId);
+    setIsCreatorVerified(isUserVerified(cachedProfile));
+
+    userService.getUserProfile(video.creatorId, !isUserVerified(cachedProfile))
+      .then(profile => {
+        if (active) setIsCreatorVerified(isUserVerified(profile));
+      })
+      .catch(error => console.error('Failed to load creator verification status:', error));
+
+    return () => {
+      active = false;
+    };
+  }, [video.creatorId]);
 
   // Reset the player UI immediately when navigating to a different video.
   // This prevents the previous video's ready/playing state leaking into the next one.
@@ -328,7 +349,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
+    const shareUrl = video.isShort
+      ? `${window.location.origin}/#/clips/${video.videoId}`
+      : window.location.href;
+    navigator.clipboard.writeText(shareUrl);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2200);
   };
@@ -1480,6 +1504,15 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   className="text-[10px] sm:text-[11px] text-white/75 font-bold hover:text-white hover:underline cursor-pointer truncate"
                 >
                   {video.creatorDisplayName} (@{video.creatorUsername})
+                  {isCreatorVerified && (
+                    <span
+                      className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-600 align-middle text-[8px] font-black text-white shadow-sm"
+                      title="Verified Creator"
+                      aria-label="Verified Creator"
+                    >
+                      ✓
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

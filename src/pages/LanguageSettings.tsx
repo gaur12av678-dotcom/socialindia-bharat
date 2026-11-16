@@ -30,7 +30,7 @@ export const LanguageSettingsPage: React.FC = () => {
       code: 'hi',
       nativeName: 'हिन्दी',
       englishName: 'Hindi',
-      description: 'संपूर्ण वेबसाइट का मूल भारतीय हिन्दी संस्करण (मेनू, वीडियो प्लेयर, खोज, शॉर्ट्स और नेविगेशन)',
+      description: 'संपूर्ण वेबसाइट का मूल भारतीय हिन्दी संस्करण (मेनू, वीडियो प्लेयर, खोज, क्लिप्स और नेविगेशन)',
       flag: '🇮🇳',
       isReady: true,
     },

@@ -8,6 +8,96 @@ export interface ParsedVideo {
   youtubeId?: string;
 }
 
+function getVideoSourceDuration(source: File | string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const mediaUrl = typeof source === 'string' ? source : URL.createObjectURL(source);
+    let settled = false;
+    let seekFallbackTimer: number | undefined;
+    const timeout = window.setTimeout(() => {
+      finish(new Error('Could not determine the video duration. Please try another video file.'));
+    }, 120000);
+
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      if (seekFallbackTimer !== undefined) window.clearTimeout(seekFallbackTimer);
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      if (typeof source !== 'string') URL.revokeObjectURL(mediaUrl);
+    };
+
+    const finish = (error?: Error, duration?: number) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else if (duration && Number.isFinite(duration) && duration > 0) resolve(duration);
+      else reject(new Error('Could not determine the video duration. Please try another video file.'));
+    };
+
+    const readFiniteDuration = () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        finish(undefined, video.duration);
+      }
+    };
+
+    const playToEnd = () => {
+      if (settled || !video.paused) return;
+      video.muted = true;
+      video.play().catch(error => {
+        finish(error instanceof Error ? error : new Error('Could not read the video duration.'));
+      });
+    };
+
+    video.preload = 'auto';
+    video.muted = true;
+    video.onloadedmetadata = () => {
+      readFiniteDuration();
+      if (!settled && !Number.isFinite(video.duration)) {
+        try {
+          const lastSeekableRange = video.seekable.length - 1;
+          const seekEnd = lastSeekableRange >= 0 ? video.seekable.end(lastSeekableRange) : NaN;
+          video.currentTime = Number.isFinite(seekEnd) && seekEnd > 0 ? seekEnd : Number.MAX_SAFE_INTEGER;
+          seekFallbackTimer = window.setTimeout(playToEnd, 1500);
+        } catch {
+          playToEnd();
+        }
+      }
+    };
+    video.ondurationchange = readFiniteDuration;
+    video.onseeked = () => {
+      readFiniteDuration();
+      if (!settled && !Number.isFinite(video.duration)) {
+        if (seekFallbackTimer !== undefined) window.clearTimeout(seekFallbackTimer);
+        playToEnd();
+      }
+    };
+    video.ontimeupdate = () => {
+      readFiniteDuration();
+      if (!settled && video.ended && Number.isFinite(video.currentTime) && video.currentTime > 0) {
+        finish(undefined, video.currentTime);
+      }
+    };
+    video.onended = () => {
+      readFiniteDuration();
+      if (!settled && Number.isFinite(video.currentTime) && video.currentTime > 0) {
+        finish(undefined, video.currentTime);
+      }
+    };
+    video.onerror = () => finish(new Error('Could not read the selected video file.'));
+    video.src = mediaUrl;
+  });
+}
+
+export function getVideoFileDuration(file: File): Promise<number> {
+  return getVideoSourceDuration(file);
+}
+
+export function getVideoUrlDuration(url: string): Promise<number> {
+  return getVideoSourceDuration(url);
+}
+
 export function parseVideoUrl(url: string): ParsedVideo {
   if (!url) return { type: 'unsupported', embedUrl: '' };
 

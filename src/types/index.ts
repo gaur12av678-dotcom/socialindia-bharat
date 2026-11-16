@@ -327,24 +327,6 @@ export interface Report {
   appealReason?: string;
 }
 
-export interface GrievanceTicket {
-  ticketId: string;
-  userId?: string;
-  complainantName: string;
-  complainantEmail: string;
-  category: 'copyright_takedown' | 'privacy_violation' | 'child_safety' | 'impersonation' | 'harassment' | 'illegal_content' | 'general';
-  targetUrl?: string;
-  description: string;
-  isUrgent24h: boolean;
-  acknowledgedAt?: any;
-  acknowledgementDeadline: any; // within 24 hours
-  disposalDeadline: any; // within 15 days
-  status: 'acknowledged' | 'under_review' | 'resolved' | 'disposed';
-  resolutionNotes?: string;
-  resolvedAt?: any;
-  createdAt: any;
-}
-
 export interface ContentAppeal {
   appealId: string;
   reportId: string;

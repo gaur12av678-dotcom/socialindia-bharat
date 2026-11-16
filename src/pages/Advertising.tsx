@@ -542,7 +542,7 @@ export const AdvertisingPage: React.FC = () => {
                       mediaType === 'socialindia_video' ? 'bg-[#00A3FF] text-white' : 'bg-slate-100 dark:bg-[#1A1A1A] text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    Promote SocialIndia Video/Short
+                    Promote SocialIndia Video/Clip
                   </button>
                 </div>
 
@@ -574,7 +574,7 @@ export const AdvertisingPage: React.FC = () => {
                         className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-slate-900 dark:text-white font-bold cursor-pointer"
                       >
                         {userVideos.map(v => (
-                          <option key={v.videoId} value={v.videoId}>{v.title} ({v.isShort ? 'Short' : 'Video'})</option>
+                          <option key={v.videoId} value={v.videoId}>{v.title} ({v.isShort ? 'Clip' : 'Video'})</option>
                         ))}
                       </select>
                     )}

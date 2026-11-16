@@ -79,11 +79,7 @@ export const playlistService = {
       updatedAt: now,
     };
 
-    try {
-      await setDoc(doc(db, 'playlists', playlistId), newPlaylist);
-    } catch (err) {
-      console.warn('Firestore setDoc failed for playlist, persisting locally:', err);
-    }
+    await setDoc(doc(db, 'playlists', playlistId), newPlaylist);
 
     // Always update local cache so the playlist exists immediately
     try {
@@ -215,18 +211,12 @@ export const playlistService = {
   async addVideoToPlaylist(playlistId: string, videoId: string, thumbnailUrl?: string): Promise<void> {
     const docRef = doc(db, 'playlists', playlistId);
     const now = new Date().toISOString();
-    try {
-      const updates: any = {
-        videoIds: arrayUnion(videoId),
-        updatedAt: now
-      };
-      if (thumbnailUrl) {
-        updates.thumbnailUrl = thumbnailUrl;
-      }
-      await updateDoc(docRef, updates);
-    } catch (err) {
-      console.warn(`Firestore updateDoc failed for playlist ${playlistId}:`, err);
-    }
+    const updates = {
+      videoIds: arrayUnion(videoId),
+      updatedAt: now,
+      ...(thumbnailUrl ? { thumbnailUrl } : {})
+    };
+    await updateDoc(docRef, updates);
 
     // Update local cache
     try {
@@ -262,14 +252,10 @@ export const playlistService = {
   // Remove video from playlist
   async removeVideoFromPlaylist(playlistId: string, videoId: string): Promise<void> {
     const docRef = doc(db, 'playlists', playlistId);
-    try {
-      await updateDoc(docRef, {
-        videoIds: arrayRemove(videoId),
-        updatedAt: new Date().toISOString()
-      });
-    } catch (err) {
-      console.warn(`Firestore updateDoc remove video failed for playlist ${playlistId}:`, err);
-    }
+    await updateDoc(docRef, {
+      videoIds: arrayRemove(videoId),
+      updatedAt: new Date().toISOString()
+    });
 
     // Update local cache
     try {

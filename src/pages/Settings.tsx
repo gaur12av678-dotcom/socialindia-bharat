@@ -62,6 +62,7 @@ import { verificationService } from '../services/verificationService';
 interface SettingsProps {
   initialTab?: 
     | 'general'
+    | 'appearance'
     | 'profile'
     | 'avatar_cover'
     | 'privacy'
@@ -78,7 +79,7 @@ interface SettingsProps {
 }
 
 export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
-  const { currentUser, currentUserProfile, refreshProfile, updateUserProfileState, addToast, openSwitchAccount } = useApp();
+  const { currentUser, currentUserProfile, refreshProfile, updateUserProfileState, addToast, openSwitchAccount, theme, setTheme } = useApp();
   const { route, navigate } = useRouter();
   const { t, language, setLanguage, isHindi } = useTranslation();
 
@@ -99,6 +100,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
   // Active Tab State
   const [activeTab, setActiveTab] = useState<
     | 'general'
+    | 'appearance'
     | 'profile'
     | 'avatar_cover'
     | 'privacy'
@@ -813,6 +815,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     badge?: string;
     badgeType?: 'blue' | 'amber' | 'rose';
     isDanger?: boolean;
+    mobileOnly?: boolean;
     isExternalRoute?: boolean;
     route?: string;
   }
@@ -827,6 +830,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
       category: isHindi ? 'खाता (Account)' : 'ACCOUNT',
       items: [
         { id: 'general', label: isHindi ? 'सामान्य सेटिंग्स' : 'General', icon: Sun },
+        { id: 'appearance', label: isHindi ? 'दिखावट' : 'Appearance', icon: Sun, mobileOnly: true },
         { id: 'profile', label: isHindi ? 'प्रोफ़ाइल' : 'Profile', icon: User },
         { id: 'avatar_cover', label: isHindi ? 'अवतार व बैनर' : 'Avatar & Cover', icon: ImageIcon },
         { id: 'privacy', label: isHindi ? 'गोपनीयता' : 'Privacy', icon: Shield },
@@ -938,7 +942,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                       <button
                         key={item.id}
                         onClick={() => handleSelectTab(item)}
-                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm transition-all cursor-pointer group ${
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm transition-all cursor-pointer group ${item.mobileOnly ? 'md:hidden' : ''} ${
                           isActive
                             ? 'bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 font-bold'
                             : item.isDanger
@@ -1000,6 +1004,36 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
           {/* ====================================================== */}
           {/* TAB 1: GENERAL SETTINGS (Exact matching user screenshot) */}
           {/* ====================================================== */}
+          {activeTab === 'appearance' && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">Appearance</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose the theme for SocialIndia on this device.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {([
+                  ['light', 'Light'],
+                  ['dark', 'Dark'],
+                  ['system', 'Use device setting'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTheme(value)}
+                    aria-pressed={theme === value}
+                    className={`rounded-2xl border p-4 text-left text-sm font-bold transition-colors ${
+                      theme === value
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                        : 'border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'general' && (
             <div className="space-y-6">
               
@@ -2618,7 +2652,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                       code: 'hi' as LanguageCode,
                       nativeName: 'हिन्दी',
                       englishName: 'Hindi',
-                      description: 'संपूर्ण वेबसाइट का मूल भारतीय हिन्दी संस्करण (मेनू, वीडियो प्लेयर, खोज, शॉर्ट्स और नेविगेशन)',
+                      description: 'संपूर्ण वेबसाइट का मूल भारतीय हिन्दी संस्करण (मेनू, वीडियो प्लेयर, खोज, क्लिप्स और नेविगेशन)',
                       flag: '🇮🇳',
                     },
                     {

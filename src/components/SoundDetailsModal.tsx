@@ -143,7 +143,7 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
                   <div className="flex items-center justify-center sm:justify-start gap-3">
                     <span className="text-xs font-black text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 shadow-2xs">
                       <Film className="w-3.5 h-3.5 text-blue-500" />
-                      <span>{sound.usesCount || videos.length} {isHindi ? 'वास्तविक शॉर्ट्स' : 'REAL Shorts'}</span>
+                      <span>{sound.usesCount || videos.length} {isHindi ? 'वास्तविक क्लिप्स' : 'REAL Clips'}</span>
                     </span>
 
                     {sound.isOriginalSound && (
@@ -164,7 +164,7 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
                       className="px-6 py-3 bg-[#065fd4] hover:bg-[#054fb1] text-white font-black text-xs rounded-2xl shadow-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto"
                     >
                       <Sparkles className="w-4 h-4" />
-                      <span>{isHindi ? '📹 इस साउंड का अपने शॉर्ट में उपयोग करें' : '📹 Use This Sound in My Short'}</span>
+                      <span>{isHindi ? '📹 इस साउंड का अपनी क्लिप में उपयोग करें' : '📹 Use This Sound in My Clip'}</span>
                     </button>
                   </div>
                 </div>
@@ -174,14 +174,14 @@ export const SoundDetailsModal: React.FC<SoundDetailsModalProps> = ({
               {/* Grid of Shorts made with this sound */}
               <div className="space-y-3">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  {isHindi ? `इस साउंड से बने शॉर्ट्स (${videos.length})` : `Shorts created with this sound (${videos.length})`}
+                  {isHindi ? `इस साउंड से बने क्लिप्स (${videos.length})` : `Clips created with this sound (${videos.length})`}
                 </h3>
 
                 {videos.length === 0 ? (
                   <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
                     <Film className="w-8 h-8 text-slate-400 mx-auto" />
                     <p className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
-                      {isHindi ? 'इस साउंड से शॉर्ट बनाने वाले पहले क्रिएटर बनें!' : 'Be the first creator to make a Short with this sound!'}
+                      {isHindi ? 'इस साउंड से क्लिप बनाने वाले पहले क्रिएटर बनें!' : 'Be the first creator to make a Clip with this sound!'}
                     </p>
                   </div>
                 ) : (

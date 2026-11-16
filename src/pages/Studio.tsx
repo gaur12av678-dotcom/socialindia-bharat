@@ -1277,7 +1277,7 @@ export const CreatorStudio: React.FC = () => {
                             <div className="flex gap-4 items-center">
                               <div className="w-24 aspect-video rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-slate-700 relative">
                                 <img src={v.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-                                {v.isShort && <div className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Short</div>}
+                                {v.isShort && <div className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Clip</div>}
                               </div>
                               <div className="min-w-0">
                                 <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate hover:text-blue-600 cursor-pointer" onClick={() => navigate('watch', v.videoId)}>{v.title}</h4>
@@ -1340,7 +1340,7 @@ export const CreatorStudio: React.FC = () => {
                           <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" />
                           {v.isShort && (
                             <div className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">
-                              Short
+                              Clip
                             </div>
                           )}
                           <div className="absolute bottom-1 right-1 px-1 py-0.2 bg-black/80 text-white text-[9px] font-bold rounded">
@@ -2100,10 +2100,10 @@ export const CreatorStudio: React.FC = () => {
                   <h2 className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
                     {editingVideo 
                       ? 'Edit Video Details' 
-                      : (uploadMode === 'short' ? 'Create & Upload Short' : 'Upload & Publish Video')}
+                      : (uploadMode === 'short' ? 'Create & Upload Clip' : 'Upload & Publish Video')}
                   </h2>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
-                    {uploadMode === 'short' ? '9:16 Vertical Short Format' : 'Direct device streaming via Cloud CDN'}
+                    {uploadMode === 'short' ? '9:16 Vertical Clip Format' : 'Direct device streaming via Cloud CDN'}
                   </p>
                 </div>
               </div>
@@ -2364,7 +2364,7 @@ export const CreatorStudio: React.FC = () => {
                           type="text"
                           required
                           maxLength={100}
-                          placeholder={uploadMode === 'short' ? 'Add catchy title... #shorts' : 'Enter an engaging video title...'}
+                          placeholder={uploadMode === 'short' ? 'Add catchy clip title... #clips' : 'Enter an engaging video title...'}
                           value={title}
                           onChange={(e) => setTitle(e.target.value)}
                           className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#1E293B] text-slate-900 dark:text-[#F8FAFC] rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 font-extrabold text-sm shadow-2xs"
@@ -2504,7 +2504,7 @@ export const CreatorStudio: React.FC = () => {
                         <div className="text-[11px] text-slate-500 dark:text-slate-400 font-bold space-y-1">
                           <p className="truncate">File: <span className="text-slate-700 dark:text-slate-300">{videoFileName || 'Selected Video'}</span></p>
                           <p>Duration: <span className="text-slate-700 dark:text-slate-300">{formatDuration(duration)}</span></p>
-                          <p>Format: <span className="text-slate-700 dark:text-slate-300">{isShort ? '⚡ Short (9:16)' : '🎥 Standard Video (16:9)'}</span></p>
+                          <p>Format: <span className="text-slate-700 dark:text-slate-300">{isShort ? '⚡ Clip (9:16)' : '🎥 Standard Video (16:9)'}</span></p>
                         </div>
                       </div>
 
@@ -2842,7 +2842,7 @@ export const CreatorStudio: React.FC = () => {
                             <span>•</span>
                             <span>{formatDuration(duration)}</span>
                             <span>•</span>
-                            <span>{isShort ? '⚡ Shorts' : '🎥 Standard Video'}</span>
+                            <span>{isShort ? '⚡ Clips' : '🎥 Standard Video'}</span>
                             {selectedSoundTrack && (
                               <>
                                 <span>•</span>

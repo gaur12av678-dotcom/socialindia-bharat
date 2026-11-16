@@ -317,7 +317,7 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
             </div>
           ) : (
             <span className="text-xs text-slate-400 italic font-medium">
-              {isHindi ? 'उदा. "Arijit Singh song", "Bharat News", "Funny Shorts"' : 'e.g. "Trending Hindi Songs", "Tech News", "Cricket"'}
+              {isHindi ? 'उदा. "Arijit Singh song", "Bharat News", "Funny Clips"' : 'e.g. "Trending Hindi Songs", "Tech News", "Cricket"'}
             </span>
           )}
         </div>
