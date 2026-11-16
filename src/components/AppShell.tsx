@@ -55,7 +55,6 @@ import {
   MessageCircle,
   Globe,
   ThumbsUp,
-  Mic,
   X,
   ArrowUpLeft,
   Trash2,
@@ -66,7 +65,6 @@ import { getInitials } from '../utils/videoUtils';
 import { authService } from '../services/authService';
 import { accountService, SavedAccount } from '../services/accountService';
 import { UserAvatar } from './UserAvatar';
-import { VoiceSearchModal } from './VoiceSearchModal';
 import { searchHistoryService, SearchHistoryEntry, POPULAR_SEARCH_SUGGESTIONS } from '../services/searchHistoryService';
 import { CreateActionSheet } from './shorts/CreateActionSheet';
 import { MobileShortsStudio } from './shorts/MobileShortsStudio';
@@ -132,7 +130,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [guestMenuOpen, setGuestMenuOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authSuccessCallback, setAuthSuccessCallback] = useState<(() => void) | undefined>(undefined);
@@ -187,10 +184,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       setMobileSearchOpen(false);
       navigate('search', undefined, { q: trimmed });
     }
-  };
-
-  const handleVoiceSearchTranscript = (transcriptText: string) => {
-    executeSearch(transcriptText);
   };
 
   // Sync search history on custom event
@@ -380,8 +373,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <WifiOff className="w-4 h-4" />
             <span>
               {isHindi 
-                ? 'आप अभी ऑफ़लाइन हैं। आप बिना इंटरनेट के अपने डाउनलोड किए वीडियो और शॉर्ट्स देख सकते हैं!' 
-                : 'You are currently Offline. You can watch your downloaded videos & shorts without internet!'}
+                ? 'आप अभी ऑफ़लाइन हैं। आप बिना इंटरनेट के अपने डाउनलोड किए वीडियो और क्लिप्स देख सकते हैं!'
+                : 'You are currently Offline. You can watch your downloaded videos & clips without internet!'}
             </span>
           </div>
           <button
@@ -486,14 +479,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       </button>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setVoiceModalOpen(true)}
-                    className="min-w-10 min-h-10 p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-full flex items-center justify-center cursor-pointer shrink-0 shadow-xs"
-                    title={isHindi ? 'बोलकर खोजें' : 'Voice Search'}
-                  >
-                    <Mic className="w-5 h-5 text-slate-600 dark:text-slate-300 stroke-[2]" />
-                  </button>
                   <button 
                     type="submit"
                     className="min-w-14 min-h-10 px-4 bg-[#2563eb] hover:bg-[#1d4ed8] text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-xs shrink-0"
@@ -795,16 +780,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     )}
                   </form>
 
-                  {/* Circular Voice Search Button matching Capture_9477b767.PNG */}
-                  <button
-                    type="button"
-                    onClick={() => setVoiceModalOpen(true)}
-                    className="w-10 h-10 rounded-full bg-slate-100/90 hover:bg-slate-200/90 dark:bg-[#202124] dark:hover:bg-[#2e3034] text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition-all cursor-pointer active:scale-95 shadow-xs"
-                    aria-label={isHindi ? 'बोलकर खोजें' : 'Search with your voice'}
-                    title={isHindi ? 'बोलकर खोजें' : 'Search with your voice'}
-                  >
-                    <Mic className="w-5 h-5 text-slate-600 dark:text-slate-300 stroke-[2]" />
-                  </button>
                 </div>
 
                 {/* Right Controls */}
@@ -1603,21 +1578,30 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </div>
             )}
 
-            {/* 5. Minimalist Platform Footer */}
-            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/60 px-2 space-y-1.5 select-none">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                <button onClick={() => navigate('about')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'about' ? 'text-blue-600 font-bold' : ''}`}>{isHindi ? 'हमारे बारे में' : 'About Us'}</button>
-                <span>·</span>
-                <button onClick={() => navigate('help')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'help' ? 'text-blue-600 font-bold' : ''}`}>{isHindi ? 'सहायता' : 'Help'}</button>
-                <span>·</span>
-                <button onClick={() => navigate('privacy')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'privacy' ? 'text-blue-600 font-bold' : ''}`}>{t('footer_privacy', 'Privacy')}</button>
-                <span>·</span>
-                <button onClick={() => navigate('terms')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'terms' ? 'text-blue-600 font-bold' : ''}`}>{t('footer_terms', 'Terms')}</button>
-                <span>·</span>
-                <button onClick={() => navigate('guidelines')} className={`hover:text-blue-600 hover:underline cursor-pointer ${route.path === 'guidelines' || route.path === 'community-guidelines' ? 'text-blue-600 font-bold' : ''}`}>{isHindi ? 'कम्युनिटी दिशानिर्देश' : 'Community Guidelines'}</button>
+            {/* 5. Platform and support links */}
+            <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 px-2 space-y-3 select-none">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-3 text-[10px]">
+                {[
+                  { title: 'PLATFORM', links: [['Home', 'home'], ['Trending', 'trending'], ['Clips', 'shorts'], ['Explore', 'explore']] },
+                  { title: 'SUPPORT', links: [['Contact', 'contact'], ['Grievance Redressal', 'grievance'], ['Help', 'help']] },
+                  { title: 'COMPANY', links: [['About', 'about']] },
+                  { title: 'LEGAL & COMMUNITY', links: [['Privacy Policy', 'privacy'], ['Terms of Use', 'terms'], ['Community Guidelines', 'guidelines']] },
+                ].map(section => (
+                  <div key={section.title} className="space-y-1.5">
+                    <p className="font-black tracking-wider text-slate-500 dark:text-slate-400">{section.title}</p>
+                    {section.links.map(([label, path]) => (
+                      <button key={path} onClick={() => navigate(path)} className={`block text-left font-semibold hover:text-blue-600 hover:underline cursor-pointer ${route.path === path ? 'text-blue-600' : 'text-slate-500 dark:text-slate-400'}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ))}
               </div>
+              <a href="mailto:socialindia.ib@gmail.com" className="block text-[10px] font-semibold text-slate-500 hover:text-blue-600 dark:text-slate-400">
+                socialindia.ib@gmail.com
+              </a>
               <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                SocialIndia · {isHindi ? 'भारत का अपना वीडियो मंच 🇮🇳' : 'Made for Bharat 🇮🇳'}
+                © {new Date().getFullYear()} SocialIndia. All rights reserved. · Built by Bharat.
               </p>
             </div>
           </div>
@@ -1668,7 +1652,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             }`}
           >
             <ShortsLogo className="h-6 w-6 transition-transform duration-200" />
-            <span className="text-[11px] font-semibold leading-none">{t('nav_shorts', 'Shorts')}</span>
+            <span className="text-[11px] font-semibold leading-none">{t('nav_shorts', 'Clips')}</span>
           </button>
 
           <button
@@ -1763,13 +1747,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             setAuthSuccessCallback(undefined);
           }
         }}
-      />
-
-      {/* VOICE SEARCH MODAL (YouTube-style Speech Recognition) */}
-      <VoiceSearchModal
-        isOpen={voiceModalOpen}
-        onClose={() => setVoiceModalOpen(false)}
-        onTranscript={handleVoiceSearchTranscript}
       />
 
       {/* MOBILE CREATE ACTION SHEET (YouTube-style: Create Short vs Upload Video vs Post) */}

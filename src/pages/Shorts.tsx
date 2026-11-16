@@ -68,8 +68,7 @@ const ShortVideoMedia: React.FC<{
   isMuted: boolean,
   onMediaReady: () => void,
   onPlaybackStateChange?: (playing: boolean) => void,
-  onMuteChange?: (muted: boolean) => void
-}> = ({ short, isPlaying, volume, isMuted, onMediaReady, onPlaybackStateChange, onMuteChange }) => {
+}> = ({ short, isPlaying, volume, isMuted, onMediaReady, onPlaybackStateChange }) => {
   const parsedMedia = parseVideoUrl(short.videoUrl);
   const containerId = `yt-short-${short.videoId}`;
   const playerRef = useRef<any>(null);
@@ -130,7 +129,6 @@ const ShortVideoMedia: React.FC<{
           .catch((err) => {
             console.warn('Playback with audio restricted by browser policy, falling back to muted playback:', err);
             video.muted = true;
-            onMuteChange?.(true);
             video.play()
               .then(() => setIsFrameReady(true))
               .catch(e => console.error('Muted playback retry failed:', e));
@@ -203,7 +201,6 @@ const ShortVideoMedia: React.FC<{
           videoRef.current.play().catch(() => {
             if (videoRef.current) {
               videoRef.current.muted = true;
-              onMuteChange?.(true);
               videoRef.current.play().catch(() => {});
             }
           });
@@ -273,7 +270,6 @@ const ShortVideoMedia: React.FC<{
               } catch (e) {
                 try {
                   event.target.mute();
-                  onMuteChange?.(true);
                   event.target.playVideo();
                 } catch (_) {}
               }
@@ -366,7 +362,6 @@ const ShortVideoMedia: React.FC<{
           })
           .catch(() => {
             video.muted = true;
-            onMuteChange?.(true);
             video.play().then(() => setIsFrameReady(true)).catch(() => {});
           });
       }
@@ -532,6 +527,8 @@ export const Shorts: React.FC = () => {
   const [isSaved, setIsSaved] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
   const [commentsCount, setCommentsCount] = useState(0);
+  const likeSyncVersionRef = useRef(0);
+  const subscriptionSyncVersionRef = useRef(0);
 
   const COMMENTS_PAGE_SIZE = 10;
   const [showComments, setShowComments] = useState(false);
@@ -695,6 +692,8 @@ export const Shorts: React.FC = () => {
 
   // Sync like and comments stats for active short & increment view count
   useEffect(() => {
+    const likeSyncVersion = ++likeSyncVersionRef.current;
+    const subscriptionSyncVersion = ++subscriptionSyncVersionRef.current;
     if (!activeShort) return;
 
     // Trigger view count increment (protected by 24h Anti-Spam View Guard!)
@@ -707,7 +706,7 @@ export const Shorts: React.FC = () => {
     setCommentsCount(activeShort.commentsCount || 0);
     setShowComments(false);
     setVisibleCommentsCount(COMMENTS_PAGE_SIZE);
-    setCreator(null);
+    setCreator(userService.getCachedUserProfile(activeShort.creatorId));
 
     // Pre-hydrate and prefetch comments immediately so opening comment drawer is instant (0ms)
     const cachedComms = commentService.getCachedComments(activeShort.videoId);
@@ -746,7 +745,11 @@ export const Shorts: React.FC = () => {
       setIsLiked(likeService.hasLikedSync(activeShort.videoId, activeUid));
       setIsSaved(savedVideoService.isSavedSync(activeUid, activeShort.videoId));
       if (currentUser?.uid) {
-        likeService.hasLiked(activeShort.videoId, currentUser.uid).then(setIsLiked).catch(console.error);
+        likeService.hasLiked(activeShort.videoId, currentUser.uid)
+          .then(liked => {
+            if (likeSyncVersionRef.current === likeSyncVersion) setIsLiked(liked);
+          })
+          .catch(console.error);
         savedVideoService.isSaved(currentUser.uid, activeShort.videoId).then(setIsSaved).catch(console.error);
       }
     } else {
@@ -763,7 +766,9 @@ export const Shorts: React.FC = () => {
       setIsSubscribed(subscriptionService.isSubscribedSync(activeUid, activeShort.creatorId, activeShort.creatorUsername));
       if (currentUser?.uid) {
         subscriptionService.isSubscribed(currentUser.uid, activeShort.creatorId, activeShort.creatorUsername)
-          .then(setIsSubscribed)
+          .then(subscribed => {
+            if (subscriptionSyncVersionRef.current === subscriptionSyncVersion) setIsSubscribed(subscribed);
+          })
           .catch(() => {});
       }
     } else {
@@ -797,6 +802,7 @@ export const Shorts: React.FC = () => {
     if (!activeShort?.creatorId || activeShort.creatorId === currentUser.uid) {
       return;
     }
+    const subscriptionActionVersion = ++subscriptionSyncVersionRef.current;
     const nextSub = !isSubscribed;
     setIsSubscribed(nextSub);
     setSubscribing(true);
@@ -811,7 +817,9 @@ export const Shorts: React.FC = () => {
         },
         nextSub
       );
-      setIsSubscribed(newStatus);
+      if (subscriptionSyncVersionRef.current === subscriptionActionVersion) {
+        setIsSubscribed(newStatus);
+      }
     } catch (err) {
       console.warn('Shorts subscription sync warning:', err);
     } finally {
@@ -821,7 +829,7 @@ export const Shorts: React.FC = () => {
 
   const handleUnlockShort = async () => {
     if (!currentUser) {
-      addToast('Please sign in to unlock this exclusive Short.', 'info');
+      addToast('Please sign in to unlock this exclusive Clip.', 'info');
       navigate('signin');
       return;
     }
@@ -844,7 +852,7 @@ export const Shorts: React.FC = () => {
       setIsShortUnlocked(true);
       setIsPlaying(true);
       await refreshProfile();
-      addToast(`🎉 Payment successful! Short unlocked for ₹${price}. Enjoy watching!`, 'success');
+      addToast(`🎉 Payment successful! Clip unlocked for ₹${price}. Enjoy watching!`, 'success');
     } catch (err: any) {
       setShortUnlockError(err.message || 'Payment failed.');
       addToast(err.message || 'Payment failed.', 'error');
@@ -857,11 +865,11 @@ export const Shorts: React.FC = () => {
     if (!activeShort) return;
 
     if (isDownloaded) {
-      if (window.confirm('Delete this short from offline downloads?')) {
+      if (window.confirm('Delete this clip from offline downloads?')) {
         try {
           await downloadService.deleteDownload(activeShort.videoId);
           setIsDownloaded(false);
-          addToast('Short removed from offline downloads.', 'info');
+          addToast('Clip removed from offline downloads.', 'info');
         } catch {
           addToast('Failed to remove download.', 'error');
         }
@@ -871,7 +879,7 @@ export const Shorts: React.FC = () => {
 
     if (downloadProgress !== null) return;
     setDownloadProgress(0);
-    addToast('Downloading Short for offline viewing...', 'info');
+    addToast('Downloading Clip for offline viewing...', 'info');
 
     try {
       await downloadService.downloadVideo(activeShort, (percent) => {
@@ -879,11 +887,11 @@ export const Shorts: React.FC = () => {
       });
       setIsDownloaded(true);
       setDownloadProgress(null);
-      addToast('Short downloaded! Watch offline anytime in Downloads.', 'success');
+      addToast('Clip downloaded! Watch offline anytime in Downloads.', 'success');
     } catch (err) {
       console.error('Download error:', err);
       setDownloadProgress(null);
-      addToast('Failed to download short stream.', 'error');
+      addToast('Failed to download clip stream.', 'error');
     }
   };
 
@@ -1056,11 +1064,12 @@ export const Shorts: React.FC = () => {
 
   const handleLikeToggle = async () => {
     if (!currentUser) {
-      addToast('Please sign in to like Shorts.', 'info');
+      addToast('Please sign in to like Clips.', 'info');
       navigate('signin');
       return;
     }
 
+    likeSyncVersionRef.current += 1;
     try {
       if (isLiked) {
         setIsLiked(false);
@@ -1107,9 +1116,9 @@ export const Shorts: React.FC = () => {
 
   const handleShare = () => {
     if (!activeShort) return;
-    const shareUrl = `${window.location.origin}/#/shorts/${activeShort.videoId}`;
+    const shareUrl = `${window.location.origin}/#/clips/${activeShort.videoId}`;
     navigator.clipboard.writeText(shareUrl).then(() => {
-      addToast('Shorts link copied to clipboard!', 'success');
+      addToast('Clip link copied to clipboard!', 'success');
     });
   };
 
@@ -1397,15 +1406,15 @@ export const Shorts: React.FC = () => {
         <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950/40 rounded-2xl flex items-center justify-center mb-4 border border-blue-100 dark:border-blue-900/30 shadow-xs">
           <ShortsLogo className="w-10 h-10" />
         </div>
-        <h4 className="text-base font-extrabold text-slate-900 dark:text-[#F8FAFC]">No short videos available yet</h4>
+        <h4 className="text-base font-extrabold text-slate-900 dark:text-[#F8FAFC]">No clips available yet</h4>
         <p className="text-xs text-slate-500 dark:text-[#94A3B8] mt-1 max-w-sm font-medium">
-          Short vertical videos published on SocialIndia will appear here.
+          Vertical clips published on SocialIndia will appear here.
         </p>
         <button
           onClick={() => navigate('studio')}
           className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-xs"
         >
-          Publish a Short
+          Publish a Clip
         </button>
       </div>
     );
@@ -1414,23 +1423,22 @@ export const Shorts: React.FC = () => {
   return (
     <div className="flex flex-col items-center justify-start md:justify-center p-0 md:p-3 md:py-2 h-[calc(100dvh-3.5rem)] md:h-[calc(100vh-4.5rem)] relative select-none max-w-6xl mx-auto overflow-hidden">
       
-      <div className="flex flex-col md:flex-row items-center md:items-center justify-center gap-6 w-full h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)]">
+      <div className={`flex flex-col md:flex-row items-center md:items-center justify-center gap-6 w-full h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] transition-transform duration-300 ${showComments ? 'md:-translate-x-40' : ''}`}>
         
         {/* Navigation Arrows for desktop (Left side) */}
-        <div className="hidden md:flex flex-col justify-center gap-4">
+        <div className="hidden md:flex flex-col justify-center gap-4 shrink-0">
           <button
             disabled={currentIndex === 0}
             onClick={handlePrev}
             className="p-4 bg-white dark:bg-[#111827] hover:bg-blue-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-[#334155] rounded-[1.5rem] disabled:opacity-20 cursor-pointer shadow-xl transition-all active:scale-90"
-            title="Previous Short"
+            title="Previous Clip"
           >
             <ChevronUp className="w-6 h-6 text-slate-700 dark:text-slate-300 stroke-[2.5]" />
           </button>
           <button
-            disabled={currentIndex === shorts.length - 1}
             onClick={handleNext}
             className="p-4 bg-white dark:bg-[#111827] hover:bg-blue-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-[#334155] rounded-[1.5rem] disabled:opacity-20 cursor-pointer shadow-xl transition-all active:scale-90"
-            title="Next Short"
+            title="Next Clip"
           >
             <ChevronDown className="w-6 h-6 text-slate-700 dark:text-slate-300 stroke-[2.5]" />
           </button>
@@ -1442,7 +1450,7 @@ export const Shorts: React.FC = () => {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          className="relative w-full max-w-full md:-translate-x-10 md:max-w-[390px] h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] md:aspect-[9/16] bg-black rounded-none md:rounded-[2rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-none select-none"
+          className="relative w-full max-w-full md:max-w-[390px] h-[calc(100dvh-3.5rem)] md:h-[min(calc(100vh-5.5rem),660px)] md:aspect-[9/16] bg-black rounded-none md:rounded-[2rem] shadow-2xl border-none md:border border-slate-200 dark:border-[#334155] overflow-hidden flex flex-col group touch-none select-none shrink-0"
         >
           {/* Top Mobile Overlay: Back to Home Button (YouTube Shorts Style) */}
           <div className="absolute top-3 left-3 md:hidden z-35 flex items-center gap-2">
@@ -1474,7 +1482,6 @@ export const Shorts: React.FC = () => {
               isMuted={isMuted}
               onMediaReady={() => setIsMediaReady(true)}
               onPlaybackStateChange={setIsPlaying}
-              onMuteChange={setIsMuted}
             />
           </div>
 
@@ -1495,7 +1502,7 @@ export const Shorts: React.FC = () => {
 
                 <div className="space-y-1">
                   <span className="inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                    Exclusive Paid Short
+                              Exclusive Paid Clip
                   </span>
                   <h3 className="text-base font-black tracking-tight line-clamp-2">{activeShort.title}</h3>
                   <p className="text-xs text-slate-300 font-medium">
@@ -1565,8 +1572,8 @@ export const Shorts: React.FC = () => {
                 window.dispatchEvent(new CustomEvent('socialindia:open-shorts-studio'));
               }}
               className="w-8.5 h-8.5 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/15 hover:bg-black/65 transition-all cursor-pointer shadow-lg active:scale-95"
-              title={isHindi ? 'नया शॉर्ट बनाएं' : 'Create a Short'}
-              aria-label="Create a Short"
+              title={isHindi ? 'नई क्लिप बनाएं' : 'Create a Clip'}
+              aria-label="Create a Clip"
             >
               <Zap className="w-4 h-4 text-rose-400 fill-rose-400" />
             </button>
@@ -1642,7 +1649,7 @@ export const Shorts: React.FC = () => {
                   ) : (
                     <>
                       <ArrowDownToLine className="w-4 h-4 text-blue-400" />
-                      <span>Download Short</span>
+                      <span>Download Clip</span>
                     </>
                   )}
                 </button>
@@ -1669,7 +1676,7 @@ export const Shorts: React.FC = () => {
                   className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
                 >
                   <Copy className="w-4 h-4 text-slate-300" />
-                  <span>Copy Short Link</span>
+                  <span>Copy Clip Link</span>
                 </button>
 
                 <div className="h-px bg-white/10 my-1" />
@@ -1682,7 +1689,7 @@ export const Shorts: React.FC = () => {
                   className="w-full flex items-center gap-3 px-3.5 py-2 hover:bg-rose-500/20 text-rose-400 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
                 >
                   <Flag className="w-4 h-4" />
-                  <span>Report Short</span>
+                  <span>Report Clip</span>
                 </button>
               </div>
             )}
@@ -1701,16 +1708,16 @@ export const Shorts: React.FC = () => {
           </div>
 
           {/* Interaction Side Overlay */}
-          <div className="absolute right-2 sm:right-2.5 bottom-24 md:bottom-24 w-14 flex flex-col items-center gap-2 text-white z-30">
+          <div className="absolute right-1.5 sm:right-2 bottom-[164px] w-12 sm:w-14 flex flex-col items-center gap-1.5 sm:gap-2 text-white z-30 md:hidden">
             {/* LIKE BUTTON */}
             <button 
               onClick={handleLikeToggle}
               className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className={`w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${isLiked ? 'bg-rose-600/30 border-rose-500/50' : 'hover:bg-black/65'}`}>
-                <Heart className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors ${isLiked ? 'text-rose-500 fill-rose-500' : 'text-white'}`} />
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${isLiked ? 'bg-rose-600/30 border-rose-500/50' : 'hover:bg-black/65'}`}>
+                <Heart className={`w-5 h-5 transition-colors ${isLiked ? 'text-rose-500 fill-rose-500' : 'text-white'}`} />
               </div>
-              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">{likesCount}</span>
+              <span className="text-[9px] sm:text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">{likesCount}</span>
             </button>
 
             {/* COMMENTS BUTTON */}
@@ -1718,10 +1725,10 @@ export const Shorts: React.FC = () => {
               onClick={handleToggleComments}
               className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className={`w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${showComments ? 'bg-blue-600/30 border-blue-500/50' : 'hover:bg-black/65'}`}>
-                <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${showComments ? 'bg-blue-600/30 border-blue-500/50' : 'hover:bg-black/65'}`}>
+                <MessageSquare className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">{commentsCount}</span>
+              <span className="text-[9px] sm:text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">{commentsCount}</span>
             </button>
 
             {/* SHARE BUTTON */}
@@ -1729,10 +1736,10 @@ export const Shorts: React.FC = () => {
               onClick={handleShare}
               className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
             >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
-                <Share2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              <div className="w-9 h-9 sm:w-10 sm:h-10 bg-black/45 backdrop-blur-md hover:bg-black/65 rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95">
+                <Share2 className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">{t('action_share', 'Share')}</span>
+              <span className="text-[9px] sm:text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">{t('action_share', 'Share')}</span>
             </button>
 
             {/* DOWNLOAD BUTTON */}
@@ -1740,9 +1747,9 @@ export const Shorts: React.FC = () => {
               onClick={handleDownloadShort}
               disabled={downloadProgress !== null}
               className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
-              title={isDownloaded ? "Downloaded offline" : "Download short"}
+              title={isDownloaded ? "Downloaded offline" : "Download clip"}
             >
-              <div className={`w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
                 isDownloaded ? 'bg-emerald-600/30 border-emerald-500/50' : 'hover:bg-black/65'
               }`}>
                 {downloadProgress !== null ? (
@@ -1753,7 +1760,7 @@ export const Shorts: React.FC = () => {
                   <ArrowDownToLine className="w-5 h-5 text-white" />
                 )}
               </div>
-              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">
+              <span className="text-[9px] sm:text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">
                 {downloadProgress !== null ? `${downloadProgress}%` : isDownloaded ? (isHindi ? 'सहेजा गया' : 'Saved') : (isHindi ? 'डाउनलोड' : 'Download')}
               </span>
             </button>
@@ -1764,12 +1771,12 @@ export const Shorts: React.FC = () => {
               className="group/btn w-full flex flex-col items-center gap-1 cursor-pointer"
               title={isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}
             >
-              <div className={`w-10 h-10 sm:w-11 sm:h-11 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 bg-black/45 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 transition-all hover:scale-110 active:scale-95 ${
                 isSaved ? 'bg-blue-600/35 border-blue-400/60' : 'hover:bg-black/65'
               }`}>
                 <Bookmark className={`w-5 h-5 ${isSaved ? 'text-blue-400 fill-blue-400' : 'text-white'}`} />
               </div>
-              <span className="text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">
+              <span className="text-[9px] sm:text-[10px] leading-none font-bold whitespace-nowrap drop-shadow-md">
                 {isSaved ? (isHindi ? 'सहेजा गया' : 'Saved') : (isHindi ? 'सहेजें' : 'Save')}
               </span>
             </button>
@@ -1778,8 +1785,8 @@ export const Shorts: React.FC = () => {
           {/* Details Overlay bottom */}
           <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black via-black/85 to-transparent p-4 sm:p-5 pb-4 sm:pb-5 md:pb-4 text-white flex flex-col gap-2 z-25 pointer-events-none">
             {/* Creator Row + Subscribe Button */}
-            <div className="flex items-center justify-between gap-3 pr-16 pointer-events-auto">
-              <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center justify-start gap-2.5 pr-16 md:pr-0 pointer-events-auto">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 <UserAvatar 
                   uid={activeShort.creatorId}
                   fallbackPhotoURL={activeShort.creatorPhotoURL}
@@ -1791,7 +1798,7 @@ export const Shorts: React.FC = () => {
                 <div className="min-w-0">
                   <h4 onClick={() => navigate('creator', activeShort.creatorUsername)} className="text-xs sm:text-sm font-black hover:underline cursor-pointer truncate drop-shadow-md flex items-center gap-1">
                     <span>{activeShort.creatorDisplayName}</span>
-                    {isUserVerified(creator) && (
+                    {(isUserVerified(creator) || isUserVerified(userService.getCachedUserProfile(activeShort.creatorId))) && (
                       <span className="inline-flex items-center justify-center bg-blue-600 dark:bg-blue-500 text-white text-[8px] w-3.5 h-3.5 rounded-full font-black shrink-0 shadow-md" title="Verified Creator">✓</span>
                     )}
                   </h4>
@@ -1814,7 +1821,7 @@ export const Shorts: React.FC = () => {
               )}
             </div>
 
-            <div className="pr-16">
+            <div className="pr-16 md:pr-0">
               <h3 className="text-xs sm:text-[13px] font-bold leading-relaxed line-clamp-2 drop-shadow-lg">
                 {activeShort.title}
               </h3>
@@ -1849,6 +1856,30 @@ export const Shorts: React.FC = () => {
           </div>
         </div>
 
+        {/* Desktop actions stay beside the player instead of covering the video. */}
+        <div className="hidden md:flex self-end mb-5 flex-col items-center gap-2 text-slate-800 dark:text-slate-100 shrink-0">
+          <button onClick={handleLikeToggle} className="flex w-16 flex-col items-center gap-1 rounded-xl p-2 hover:bg-slate-100 dark:hover:bg-slate-800" title="Like">
+            <Heart className={`h-6 w-6 ${isLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
+            <span className="text-[10px] font-bold">{likesCount}</span>
+          </button>
+          <button onClick={handleToggleComments} className="flex w-16 flex-col items-center gap-1 rounded-xl p-2 hover:bg-slate-100 dark:hover:bg-slate-800" title="Comment">
+            <MessageSquare className="h-6 w-6" />
+            <span className="text-[10px] font-bold">{commentsCount}</span>
+          </button>
+          <button onClick={handleShare} className="flex w-16 flex-col items-center gap-1 rounded-xl p-2 hover:bg-slate-100 dark:hover:bg-slate-800" title="Share">
+            <Share2 className="h-6 w-6" />
+            <span className="text-[10px] font-bold">Share</span>
+          </button>
+          <button onClick={() => setPlaylistModalOpen(true)} className="flex w-16 flex-col items-center gap-1 rounded-xl p-2 hover:bg-slate-100 dark:hover:bg-slate-800" title="Save">
+            <Bookmark className={`h-6 w-6 ${isSaved ? 'fill-blue-500 text-blue-500' : ''}`} />
+            <span className="text-[10px] font-bold">{isSaved ? 'Saved' : 'Save'}</span>
+          </button>
+          <button onClick={handleDownloadShort} disabled={downloadProgress !== null} className="flex w-16 flex-col items-center gap-1 rounded-xl p-2 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800" title="Download">
+            {downloadProgress !== null ? <Loader2 className="h-6 w-6 animate-spin" /> : <ArrowDownToLine className="h-6 w-6" />}
+            <span className="text-[10px] font-bold">{downloadProgress !== null ? `${downloadProgress}%` : 'Download'}</span>
+          </button>
+        </div>
+
         {/* Sound Details Modal (Sound Landing Page) */}
         <SoundDetailsModal 
           soundId={activeShort.soundId || `orig_sound_${activeShort.videoId}`}
@@ -1879,7 +1910,7 @@ export const Shorts: React.FC = () => {
 
         {/* YOUTUBE SHORTS OVERLAY COMMENTS DRAWER */}
         {showComments && (
-          <div className="fixed inset-x-0 bottom-14 md:bottom-0 top-1/3 md:top-auto md:right-4 md:inset-x-auto md:w-[380px] md:h-[580px] bg-white dark:bg-[#111827] rounded-t-3xl md:rounded-3xl border border-slate-200 dark:border-[#334155] shadow-2xl flex flex-col overflow-hidden z-50 animate-in slide-in-from-bottom-10 duration-250">
+          <div className="fixed inset-x-0 bottom-14 md:bottom-4 top-1/3 md:top-1/2 md:-translate-y-1/2 md:right-4 md:inset-x-auto md:w-[380px] md:h-[min(580px,calc(100dvh-2rem))] bg-white dark:bg-[#111827] rounded-t-3xl md:rounded-3xl border border-slate-200 dark:border-[#334155] shadow-2xl flex flex-col overflow-hidden z-50 animate-in slide-in-from-bottom-10 duration-250">
             {/* Top Drag Handle indicator for Mobile */}
             <div className="w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mt-2.5 md:hidden" />
             {/* Comments Header */}

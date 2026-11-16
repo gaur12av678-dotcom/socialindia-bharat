@@ -58,7 +58,7 @@ const POLICY_PILLARS: PolicyRule[] = [
     doNotEn: [
       'Using bots, view farms, auto-clickers, or fake accounts to farm Reward Points (+2/+5/+10/+20 pts) or unlock the 500 followers / 1,000 views monetization threshold.',
       'Posting repetitive copy-paste promo links, phishing URLs, malware downloads, or misleading clickbait titles and thumbnails.',
-      'Running deceptive "cash giveaway" scams, pyramid schemes, or unauthorized wallet/UPI solicitation in comments or Shorts.'
+      'Running deceptive "cash giveaway" scams, pyramid schemes, or unauthorized wallet/UPI solicitation in comments or Clips.'
     ],
     doNotHi: [
       'रिवॉर्ड पॉइंट्स (+2/+5/+10/+20 pts) या 500 फॉलोअर्स / 1,000 व्यूज मोनेटाइजेशन लक्ष्य पाने के लिए बॉट्स, व्यू फार्म या फर्जी खातों का उपयोग करना।',
@@ -83,26 +83,26 @@ const POLICY_PILLARS: PolicyRule[] = [
     titleEn: 'Child Safety, Nudity & Sensitive Content',
     titleHi: 'बाल सुरक्षा, अश्लीलता और संवेदनशील सामग्री',
     summaryEn:
-      'SocialIndia is a family-safe platform for ages 13+. Any form of child exploitation, non-consensual imagery, or explicit sexual content triggers immediate permanent termination.',
+      'Help protect children and other vulnerable users. Sexual exploitation of children, non-consensual intimate imagery, and explicit sexual content are prohibited.',
     summaryHi:
-      'सोशलइंडिया 13+ वर्ष के उपयोगकर्ताओं के लिए एक पारिवारिक सुरक्षित मंच है। बाल शोषण, बिना सहमति की तस्वीरें या अश्लील सामग्री पर तुरंत स्थायी प्रतिबंध लगाया जाता है।',
+      'बच्चों और अन्य संवेदनशील उपयोगकर्ताओं की सुरक्षा करें। बाल शोषण, बिना सहमति की निजी तस्वीरें और स्पष्ट यौन सामग्री प्रतिबंधित हैं।',
     doNotEn: [
-      'Child Sexual Abuse Material (CSAM) or any exploitation/grooming of minors (zero tolerance — immediately banned and reported to NCPR & NCRB).',
-      'Pornography, sexually explicit videos, Shorts, thumbnails, or non-consensual intimate/private imagery (removed within 24 hours under IT Rules 2021).',
+      'Child sexual abuse material (CSAM), or any exploitation or grooming of minors.',
+      'Pornography, sexually explicit videos, Clips, thumbnails, or non-consensual intimate/private imagery.',
       'Content promoting suicide, self-harm, eating disorders, or dangerous stunts involving minors.'
     ],
     doNotHi: [
-      'बाल यौन शोषण सामग्री (CSAM) या नाबालिगों का किसी भी प्रकार का शोषण (जीरो टॉलरेंस — तुरंत स्थायी बैन और NCPR व NCRB को रिपोर्ट)।',
-      'पोर्नोग्राफी, अश्लील वीडियो/शॉर्ट्स या किसी की निजी व बिना सहमति की तस्वीरें (IT Rules 2021 के तहत 24 घंटे में हटाया जाएगा)।',
+      'बाल यौन शोषण सामग्री (CSAM), या नाबालिगों का किसी भी प्रकार का शोषण या ग्रूमिंग।',
+      'पोर्नोग्राफी, अश्लील वीडियो/क्लिप्स या किसी की निजी व बिना सहमति की तस्वीरें।',
       'आत्महत्या, आत्म-नुकसान (self-harm) या नाबालिगों के साथ खतरनाक स्टंट को बढ़ावा देने वाली सामग्री।'
     ],
     allowedEn: [
       'Age-appropriate health awareness, certified educational biology/medical resources, and parental online-safety guides.',
-      'Users aged 13–17 using the platform responsibly under parent or legal guardian consent and guidance.'
+      'Age-appropriate educational and safety information.'
     ],
     allowedHi: [
       'स्वास्थ्य जागरूकता, प्रमाणित शैक्षणिक चिकित्सा जानकारी और माता-पिता के लिए ऑनलाइन सुरक्षा गाइड।',
-      '13–17 वर्ष के उपयोगकर्ता माता-पिता या अभिभावक की सहमति और मार्गदर्शन में सुरक्षित उपयोग कर सकते हैं।'
+      'उम्र के अनुसार उपयुक्त शैक्षिक और सुरक्षा संबंधी जानकारी।'
     ]
   },
   {
@@ -118,12 +118,12 @@ const POLICY_PILLARS: PolicyRule[] = [
     summaryHi:
       'भारत भर के हर क्रिएटर और दर्शक का सम्मान करें। नफरत भरे भाषण, क्षेत्रीय/जातीय अपमान, साइबरबुलिंग और हिंसक धमकियां सख्त वर्जित हैं।',
     doNotEn: [
-      'Hate speech, regional, caste, religious, gender, or ethnic slurs in videos, Shorts, Community Posts, live chats, or comments.',
+      'Hate speech, regional, caste, religious, gender, or ethnic slurs in videos, Clips, Community Posts, live chats, or comments.',
       'Targeted harassment, doxxing (sharing private phone numbers, addresses, or Aadhaar/UPI details), or inciting brigading against another creator.',
       'Graphic violence, terrorism glorification, or content threatening India’s sovereignty, integrity, defense, or public order (IT Rules 2021 Rule 3(1)(b)).'
     ],
     doNotHi: [
-      'वीडियो, शॉर्ट्स, कम्युनिटी पोस्ट या कमेंट्स में क्षेत्र, जाति, धर्म, लिंग या भाषा के आधार पर अपमान और नफरत भरे भाषण।',
+      'वीडियो, क्लिप्स, कम्युनिटी पोस्ट या कमेंट्स में क्षेत्र, जाति, धर्म, लिंग या भाषा के आधार पर अपमान और नफरत भरे भाषण।',
       'लक्षित उत्पीड़न, डॉक्सिंग (निजी फोन नंबर, पता या आधार/UPI साझा करना) या किसी क्रिएटर के खिलाफ भीड़ उकसाना।',
       'क्रूर हिंसा, आतंकवाद का महिमामंडन, या भारत की संप्रभुता, अखंडता, रक्षा और सार्वजनिक व्यवस्था के लिए खतरा पैदा करने वाली सामग्री।'
     ],
@@ -145,16 +145,16 @@ const POLICY_PILLARS: PolicyRule[] = [
     titleEn: 'Copyright, Originality & Impersonation',
     titleHi: 'कॉपीराइट, मौलिकता और प्रतिरूपण (Impersonation)',
     summaryEn:
-      'Only upload videos, Shorts, thumbnails, and music that you created or have legal permission to use. Never pretend to be another person or official brand.',
+      'Only upload videos, Clips, thumbnails, and music that you created or have legal permission to use. Never pretend to be another person or official brand.',
     summaryHi:
-      'केवल वही वीडियो, शॉर्ट्स, थंबनेल और संगीत अपलोड करें जिन्हें आपने बनाया है या जिनके उपयोग का कानूनी अधिकार आपके पास है। किसी और के नाम से फर्जी चैनल न बनाएं।',
+      'केवल वही वीडियो, क्लिप्स, थंबनेल और संगीत अपलोड करें जिन्हें आपने बनाया है या जिनके उपयोग का कानूनी अधिकार आपके पास है। किसी और के नाम से फर्जी चैनल न बनाएं।',
     doNotEn: [
-      'Re-uploading movies, TV serials, copyrighted songs, or another creator’s videos/Shorts without written license or transformative commentary.',
+      'Re-uploading movies, TV serials, copyrighted songs, or another creator’s videos/Clips without written license or transformative commentary.',
       'Creating lookalike channels pretending to be another creator, celebrity, government body, or official SocialIndia staff.',
       'Uploading fake verification badge graphics or misleading channel handles to deceive viewers.'
     ],
     doNotHi: [
-      'बिना अनुमति या लाइसेंस के फिल्में, टीवी शो, कॉपीराइट संगीत या अन्य क्रिएटर्स के वीडियो/शॉर्ट्स दोबारा अपलोड करना।',
+      'बिना अनुमति या लाइसेंस के फिल्में, टीवी शो, कॉपीराइट संगीत या अन्य क्रिएटर्स के वीडियो/क्लिप्स दोबारा अपलोड करना।',
       'किसी अन्य क्रिएटर, सेलिब्रिटी, सरकारी संस्था या आधिकारिक सोशलइंडिया टीम की नकल करके फर्जी चैनल बनाना।',
       'दर्शकों को धोखा देने के लिए नकली वेरिफाइड बैज ग्राफिक्स या भ्रामक हैंडल का उपयोग करना।'
     ],
@@ -234,36 +234,36 @@ export const CommunityGuidelinesPage: React.FC = () => {
 
   const strikeLevels = [
     {
-      level: isHindi ? 'स्तर 1 • चेतावनी (Warning)' : 'Level 1 • Warning',
-      badge: isHindi ? 'पहली बार' : 'First Infraction',
+      level: isHindi ? 'चेतावनी' : 'Warning',
+      badge: isHindi ? 'संभावित कार्रवाई' : 'Possible action',
       color: 'border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300',
       desc: isHindi
-        ? 'पहली बार मामूली उल्लंघन होने पर केवल सामग्री हटाई जाती है और आपके नोटिफिकेशन फ़ीड में एक औपचारिक चेतावनी दी जाती है। चैनल पर कोई प्रतिबंध नहीं लगता।'
-        : 'First-time minor infractions remove the offending content and issue a formal educational warning notice in your notifications without channel restrictions.'
+        ? 'परिस्थिति के अनुसार चेतावनी दी जा सकती है।'
+        : 'A warning may be issued depending on the circumstances.'
     },
     {
-      level: isHindi ? 'स्तर 2 • स्ट्राइक 1 (7-दिन अपलोड रोक)' : 'Level 2 • Strike 1 (Content Removal)',
-      badge: isHindi ? '7 दिन रोक' : '7-Day Freeze',
+      level: isHindi ? 'सामग्री हटाना' : 'Content removal',
+      badge: isHindi ? 'संभावित कार्रवाई' : 'Possible action',
       color: 'border-orange-200 dark:border-orange-900/60 bg-orange-50/70 dark:bg-orange-950/20 text-orange-700 dark:text-orange-300',
       desc: isHindi
-        ? 'दोबारा नियम तोड़ने पर सामग्री हटा दी जाती है और 7 दिनों के लिए वीडियो/शॉर्ट्स अपलोड करने व लाइव जाने पर अस्थायी रोक लग जाती है।'
-        : 'Repeated infractions result in content takedown and a temporary 7-day restriction on uploading videos, Shorts, or publishing posts.'
+        ? 'दिशानिर्देशों या लागू कानून का उल्लंघन करने वाली सामग्री हटाई जा सकती है।'
+        : 'Content that violates the Guidelines or applicable law may be removed.'
     },
     {
-      level: isHindi ? 'स्तर 3 • खाता प्रतिबंध (Account Restriction)' : 'Level 3 • Account Restriction',
-      badge: isHindi ? 'फीचर लॉक' : 'Features Locked',
+      level: isHindi ? 'अस्थायी सुविधा प्रतिबंध' : 'Temporary feature restriction',
+      badge: isHindi ? 'संभावित कार्रवाई' : 'Possible action',
       color: 'border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300',
       desc: isHindi
-        ? 'गंभीर या लगातार उल्लंघन पर डायरेक्ट मैसेजिंग, कमेंट करने और वॉलेट विथड्रॉल / मोनेटाइजेशन सुविधाओं को निलंबित कर दिया जाता है।'
-        : 'Severe or repeated violations disable commenting, direct messaging, monetization eligibility, and wallet withdrawals.'
+        ? 'गंभीरता और परिस्थितियों के अनुसार कुछ सुविधाओं पर अस्थायी प्रतिबंध लगाया जा सकता है।'
+        : 'Features may be temporarily restricted depending on the seriousness and circumstances.'
     },
     {
-      level: isHindi ? 'स्तर 4 • स्थायी निलंबन (Permanent Ban)' : 'Level 4 • Permanent Termination',
-      badge: isHindi ? 'स्थायी बैन' : 'Channel Terminated',
+      level: isHindi ? 'खाता निलंबन या समाप्ति' : 'Account suspension or termination',
+      badge: isHindi ? 'उचित परिस्थिति में' : 'Where appropriate',
       color: 'border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/35 text-red-700 dark:text-red-300',
       desc: isHindi
-        ? 'अवैध कार्य, CSAM, गंभीर धोखाधड़ी या लगातार कॉपीराइट चोरी पर चैनल स्थायी रूप से बंद कर दिया जाता है, वॉलेट बैलेंस जब्त होता है और IP/डिवाइस ब्लॉक किया जाता है।'
-        : 'Egregious violations (CSAM, illegal acts, fraud, or systemic piracy) result in permanent channel termination, wallet forfeiture, and IP/device banning.'
+        ? 'गंभीर या बार-बार उल्लंघन पर खाता निलंबित या समाप्त किया जा सकता है।'
+        : 'Accounts may be suspended or terminated for serious or repeated violations.'
     }
   ];
 
@@ -324,23 +324,23 @@ export const CommunityGuidelinesPage: React.FC = () => {
       <div className="max-w-5xl mx-auto p-4 sm:p-6 md:p-8 space-y-10 pb-28">
         
         {/* HERO SECTION (YouTube Community Guidelines Style) */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-[#172554] to-[#1e1b4b] text-white p-6 sm:p-10 shadow-xl border border-white/10">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-[#172554] to-[#1e1b4b] p-6 sm:p-10 shadow-xl border border-white/10">
           <div className="relative z-10 max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-md border border-white/20 rounded-full">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full">
               <BookOpen className="w-3.5 h-3.5 text-blue-300" />
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-100">
-                {isHindi ? 'IT Rules 2021 व DPDP अनुपालित' : 'YouTube-Standard Safety • IT Rules 2021 Compliant'}
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#5D8AA8] dark:text-[#8fb4cc]">
+                {isHindi ? 'कम्युनिटी दिशानिर्देश' : 'Community guidance'}
               </span>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
+            <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight text-[#5D8AA8] dark:text-[#8fb4cc]">
               {isHindi ? 'कम्युनिटी दिशानिर्देश (Community Guidelines)' : 'Community Guidelines'}
             </h1>
 
-            <p className="text-sm sm:text-base text-slate-200 font-medium leading-relaxed">
+            <p className="text-sm sm:text-base text-[#5D8AA8] dark:text-[#8fb4cc] font-medium leading-relaxed">
               {isHindi
-                ? 'सोशलइंडिया भारत का अपना वीडियो और कम्युनिटी मंच है। ये दिशानिर्देश तय करते हैं कि हमारे प्लेटफॉर्म पर किस प्रकार के वीडियो, शॉर्ट्स, कमेंट और पोस्ट सुरक्षित हैं — ताकि हर क्रिएटर और दर्शक सुरक्षित व सम्मानजनक अनुभव पा सके।'
-                : 'When you use SocialIndia, you join a community of creators and viewers across Bharat. These guidelines define what is allowed and prohibited across Videos, Shorts, Comments, Community Posts, and Live Chat.'}
+                ? 'सोशलइंडिया भारत का अपना वीडियो और कम्युनिटी मंच है। ये दिशानिर्देश तय करते हैं कि हमारे प्लेटफॉर्म पर किस प्रकार के वीडियो, क्लिप्स, कमेंट और पोस्ट सुरक्षित हैं — ताकि हर क्रिएटर और दर्शक सुरक्षित व सम्मानजनक अनुभव पा सके।'
+                : 'When you use SocialIndia, you join a community of creators and viewers across Bharat. These guidelines define what is allowed and prohibited across Videos, Clips, Comments, Community Posts, and Live Chat.'}
             </p>
 
             {/* Quick Policy Search Bar */}
@@ -483,15 +483,15 @@ export const CommunityGuidelinesPage: React.FC = () => {
           )}
         </div>
 
-        {/* SECTION 2: YOUTUBE-STYLE 4-LEVEL STRIKE & ENFORCEMENT SYSTEM */}
+        {/* SECTION 2: POSSIBLE ENFORCEMENT ACTIONS */}
         <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xs">
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
               <Gavel className="w-4 h-4" />
-              <span>{isHindi ? 'स्ट्राइक और प्रवर्तन प्रणाली' : 'Enforcement & Strike System'}</span>
+              <span>{isHindi ? 'संभावित प्रवर्तन कार्रवाई' : 'Possible enforcement actions'}</span>
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              {isHindi ? 'नियम उल्लंघन के परिणाम (4-स्तरीय प्रणाली)' : 'How Community Guidelines Strikes Work'}
+              {isHindi ? 'दिशानिर्देश कैसे लागू किए जा सकते हैं' : 'How these Guidelines may be enforced'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
               {isHindi
@@ -530,15 +530,15 @@ export const CommunityGuidelinesPage: React.FC = () => {
                   {isHindi ? 'सामग्री की रिपोर्ट कैसे करें?' : 'How to Report Violations'}
                 </h3>
                 <p className="text-[11px] font-semibold text-slate-500">
-                  {isHindi ? '24x7 कम्युनिटी रिपोर्टिंग' : '24x7 Trust & Safety Review'}
+                  {isHindi ? 'रिपोर्टिंग विकल्प' : 'Reporting options'}
                 </p>
               </div>
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
               {isHindi
-                ? 'यदि कोई वीडियो, शॉर्ट्स, कमेंट या चैनल हमारे दिशानिर्देशों का उल्लंघन करता है, तो वीडियो प्लेयर या चैनल मेनू में (⋮ → Report) पर क्लिक करें। गैर-सहमति वाली निजी सामग्री या पहचान की नकल से जुड़ी शिकायतों को 24 घंटे के भीतर हटाया जाता है।'
-                : 'If you see a video, Short, comment, or channel violating these rules, tap the menu icon (⋮ → Report) and pick the violation category. Non-consensual imagery or impersonation reports receive emergency removal within 24 hours.'}
+                ? 'यदि आपको लगता है कि कोई सामग्री इन दिशानिर्देशों का उल्लंघन करती है, तो उपलब्ध इन-प्रोडक्ट रिपोर्टिंग विकल्प का उपयोग करें या हमसे socialindia.ib@gmail.com पर संपर्क करें।'
+                : 'If you believe content violates these guidelines, use an in-product reporting option where available or contact socialindia.ib@gmail.com. A report does not guarantee a particular outcome or removal time.'}
             </p>
 
             <button
@@ -550,7 +550,7 @@ export const CommunityGuidelinesPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Appeals & Grievance Officer Card */}
+          {/* Appeals and formal complaints */}
           <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xs">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
@@ -558,28 +558,31 @@ export const CommunityGuidelinesPage: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white">
-                  {isHindi ? 'अपील व शिकायत निवारण अधिकारी' : 'Appeals & Grievance Officer'}
+                  {isHindi ? 'अपील और औपचारिक शिकायतें' : 'Appeals and formal complaints'}
                 </h3>
                 <p className="text-[11px] font-semibold text-slate-500">
-                  {isHindi ? 'MeitY IT Rules 2021 अनुपालन' : 'MeitY IT Rules 2021 Redressal'}
+                  {isHindi ? 'सहायता और समीक्षा' : 'Support and review'}
                 </p>
               </div>
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
               {isHindi
-                ? 'यदि आपको लगता है कि आपका वीडियो या खाता गलती से हटाया गया है, तो आप निष्पक्ष समीक्षा के लिए अपील कर सकते हैं। शिकायतों की पावती 24 घंटे में और समाधान 15 दिनों के भीतर किया जाता है।'
-                : 'If you believe your content was removed or restricted by mistake, you have the right to appeal. Complaints are acknowledged within 24 hours and resolved within 15 days.'}
+                ? 'यदि आप किसी सामग्री या खाते के निर्णय पर पुनर्विचार चाहते हैं, तो सोशलइंडिया सहायता से संपर्क करें। औपचारिक शिकायत के लिए अलग शिकायत निवारण पेज का उपयोग करें।'
+                : 'If you want us to reconsider a content or account decision, contact SocialIndia Support. Use the separate Grievance Redressal page for a formal complaint.'}
             </p>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#0f172a] border border-slate-200/80 dark:border-slate-800 text-xs space-y-1">
               <p className="font-black text-slate-900 dark:text-white">
-                {isHindi ? 'निवासी शिकायत अधिकारी: एडवोकेट राजेश शर्मा' : 'Resident Grievance Officer: Adv. Rajesh Sharma'}
+                {isHindi ? 'सोशलइंडिया शिकायत और सहायता टीम' : 'SocialIndia Grievance & Support Team'}
               </p>
               <p className="text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5" />
-                <span>grievance@socialindia.com</span>
+                <span>socialindia.ib@gmail.com</span>
               </p>
+              <button onClick={() => navigate('grievance')} className="text-xs font-bold text-blue-700 hover:underline dark:text-blue-300">
+                Open Grievance Redressal
+              </button>
             </div>
           </div>
         </div>

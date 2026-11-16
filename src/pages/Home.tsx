@@ -12,6 +12,7 @@ import { useTranslation } from '../i18n';
 import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { ShortsLogo } from '../components/ShortsLogo';
 import { Subscriptions } from './Subscriptions';
+import { getVideoUrlDuration, parseVideoUrl } from '../utils/videoUtils';
 
 export const categoriesList = [
   'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy'
@@ -70,6 +71,9 @@ interface HomeClipCardProps {
 const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHindi, onOpen }) => {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
+  const [resolvedDuration, setResolvedDuration] = useState(0);
+  const [shouldResolveDuration, setShouldResolveDuration] = useState(false);
+  const clipCardRef = useRef<HTMLAnchorElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
@@ -80,9 +84,58 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHi
     }
   }, [short.videoId, short.thumbnailUrl]);
 
+  useEffect(() => {
+    const node = clipCardRef.current;
+    if (!node) return;
+    if (!('IntersectionObserver' in window)) {
+      setShouldResolveDuration(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setShouldResolveDuration(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '300px' });
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [short.videoId]);
+
+  useEffect(() => {
+    const savedDuration = Number(short.duration);
+    if (Number.isFinite(savedDuration) && savedDuration > 0) {
+      setResolvedDuration(savedDuration);
+      return;
+    }
+
+    setResolvedDuration(0);
+    if (!shouldResolveDuration || !short.videoUrl || parseVideoUrl(short.videoUrl).type !== 'direct') return;
+
+    let active = true;
+    getVideoUrlDuration(short.videoUrl)
+      .then(duration => {
+        if (active) setResolvedDuration(Math.round(duration));
+      })
+      .catch(error => {
+        console.warn(`Could not resolve duration for clip ${short.videoId}:`, error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [short.videoId, short.videoUrl, short.duration, shouldResolveDuration]);
+
+  const savedDuration = Number(short.duration);
+  const displayDuration = Number.isFinite(savedDuration) && savedDuration > 0
+    ? savedDuration
+    : resolvedDuration;
+
   return (
     <a
-      href={`#/shorts/${short.videoId}`}
+      ref={clipCardRef}
+      href={`#/clips/${short.videoId}`}
       draggable={true}
       title={short.title}
       onClick={(e) => {
@@ -136,9 +189,9 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHi
         </div>
 
         {/* YouTube-style Duration Badge */}
-        {Number(short.duration) > 0 && (
+        {Number.isFinite(displayDuration) && displayDuration > 0 && (
           <div className="duration-badge">
-            {`${Math.floor(short.duration / 60)}:${(short.duration % 60).toString().padStart(2, '0')}`}
+            {`${Math.floor(displayDuration / 60)}:${(displayDuration % 60).toString().padStart(2, '0')}`}
           </div>
         )}
       </div>
@@ -1218,7 +1271,7 @@ export const Home: React.FC = () => {
             <div className="flex items-center gap-2.5">
               <ShortsLogo className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 drop-shadow-sm" />
               <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
-                {t('nav_shorts', 'Shorts')}
+                {t('nav_shorts', 'Clips')}
               </h2>
             </div>
 

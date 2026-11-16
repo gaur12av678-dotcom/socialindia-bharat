@@ -41,6 +41,7 @@ const TermsPage = lazy(() => import('./pages/Terms').then(m => ({ default: m.Ter
 const RefundPolicyPage = lazy(() => import('./pages/RefundPolicy').then(m => ({ default: m.RefundPolicyPage })));
 const FAQPage = lazy(() => import('./pages/FAQ').then(m => ({ default: m.FAQPage })));
 const ContactUsPage = lazy(() => import('./pages/ContactUs').then(m => ({ default: m.ContactUsPage })));
+const GrievancePage = lazy(() => import('./pages/Grievance').then(m => ({ default: m.GrievancePage })));
 const DevelopersPage = lazy(() => import('./pages/Developers').then(m => ({ default: m.DevelopersPage })));
 const LanguageSettingsPage = lazy(() => import('./pages/LanguageSettings').then(m => ({ default: m.LanguageSettingsPage })));
 const CommunityGuidelinesPage = lazy(() => import('./pages/CommunityGuidelines').then(m => ({ default: m.CommunityGuidelinesPage })));
@@ -181,7 +182,7 @@ function MainAppContent() {
 
       // Dynamic page titles for standard routes
       const routeTitles: Record<string, string> = {
-        home: 'SocialIndia (Official) – India’s Video, Shorts & Community Platform',
+        home: 'SocialIndia (Official) – India’s Video, Clips & Community Platform',
         trending: 'Trending Videos & Posts – SocialIndia',
         explore: 'Community & Discussions – SocialIndia',
         community: 'Community & Discussions – SocialIndia',
@@ -190,13 +191,14 @@ function MainAppContent() {
         privacy: 'Privacy Policy – SocialIndia',
         faq: 'Frequently Asked Questions – SocialIndia',
         contact: 'Contact Us – SocialIndia',
+        grievance: 'Grievance Redressal & Support – SocialIndia',
         advertising: 'SocialIndia Advertising – Promote Your Brand',
         adinfo: 'Ad Transparency Center – SocialIndia',
         gopro: 'SocialIndia Pro – Premium Creator Tools',
         downloads: 'Download Mobile App – SocialIndia',
         developers: 'Developer Portal – SocialIndia API',
         guidelines: 'Community Guidelines – SocialIndia',
-        shorts: 'Trending Shorts – Watch Short Videos on SocialIndia',
+        shorts: 'Trending Clips – Watch Clips on SocialIndia',
         search: 'Search Videos & Creators – SocialIndia',
         help: 'Help Center & Tutorials – SocialIndia',
         refund: 'Refund & Cancellation Policy – SocialIndia',
@@ -293,6 +295,9 @@ function MainAppContent() {
   }
   if (route.path === 'contact') {
     return <Suspense fallback={<RouteFallback />}><ContactUsPage /></Suspense>;
+  }
+  if (route.path === 'grievance') {
+    return <Suspense fallback={<RouteFallback />}><GrievancePage /></Suspense>;
   }
   if (route.path === 'developers') {
     return <Suspense fallback={<RouteFallback />}><DevelopersPage /></Suspense>;

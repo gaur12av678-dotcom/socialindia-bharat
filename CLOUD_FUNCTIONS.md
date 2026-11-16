@@ -59,3 +59,17 @@ Registers a request to withdraw active USD Wallet Balance funds to a PayPal or B
 
 ### Security Rule Guard Enforcement:
 Ensure client-side write access to `points` and `walletBalance` is strictly disabled by enforcing `!(request.resource.data.keys().hasAny(['points', 'walletBalance']))` inside `firestore.rules`.
+
+## Grievance Email Delivery (Not Configured)
+
+The current application stores grievance submissions in Firestore but has no email provider or server-side email function configured. It does not send acknowledgement emails. The administrator's response action opens an email application and also does not send automatically.
+
+To enable real email delivery:
+
+1. Select an email provider and verify `socialindia.ib@gmail.com` (or its sending domain) with that provider. Configure the provider's recommended SPF/DKIM records before sending production email.
+2. Deploy a trusted Firebase server-side function. Add a Firestore `onCreate` handler for `grievances/{grievanceId}` to send a receipt containing the stored tracking ID, category, and support contact. Do not send sensitive complaint details in the acknowledgement.
+3. Add an authenticated administrator response function. Verify administrator authorization on the server for every call; never accept an admin role, complaint status, or recipient address as trusted client input.
+4. Store the provider API key or SMTP credentials in Firebase/Google Secret Manager and bind the secret only to the sending function. Never add credentials to Vite client environment variables, Firestore documents, or source control.
+5. Record delivery state/error metadata server-side and update the UI to report delivery only after the provider confirms acceptance. Keep the current "not sent" messaging until this is deployed and tested.
+
+No email credentials or provider settings are present in this repository. Email delivery must remain disabled until these steps are completed.

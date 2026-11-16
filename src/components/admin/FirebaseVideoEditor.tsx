@@ -277,7 +277,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
               <span className="text-xl font-black">{videos.length}</span>
             </div>
             <div className="bg-black/20 backdrop-blur-md rounded-2xl p-3 border border-white/10">
-              <span className="text-[10px] font-bold text-amber-200 uppercase tracking-wider block">Shorts Count</span>
+              <span className="text-[10px] font-bold text-amber-200 uppercase tracking-wider block">Clips Count</span>
               <span className="text-xl font-black">{totalShorts}</span>
             </div>
             <div className="bg-black/20 backdrop-blur-md rounded-2xl p-3 border border-white/10">
@@ -378,7 +378,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
             }`}
           >
             <Smartphone className="w-3 h-3" />
-            <span>Shorts ({totalShorts})</span>
+            <span>Clips ({totalShorts})</span>
           </button>
 
           <button
@@ -461,7 +461,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
                   </div>
                   {video.isShort ? (
                     <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider">
-                      Short
+                      Clip
                     </span>
                   ) : (
                     <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/80 text-white text-[9px] font-bold">
@@ -637,7 +637,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
                     }}
                   />
                   <div className="absolute bottom-1 right-1 bg-black/80 text-white text-[9px] font-black px-1.5 py-0.5 rounded">
-                    {formIsShort ? 'SHORT' : formatDuration(editingVideo.duration)}
+                    {formIsShort ? 'CLIP' : formatDuration(editingVideo.duration)}
                   </div>
                 </div>
 
@@ -860,7 +860,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
                           : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                       }`}
                     >
-                      📱 Short
+                      📱 Clip
                     </button>
                   </div>
                 </div>

@@ -220,6 +220,7 @@ export const CreatorProfile: React.FC = () => {
     }
     return false;
   });
+  const subscriptionSyncVersionRef = useRef(0);
   const [subscribing, setSubscribing] = useState(false);
 
   // Immediately re-sync Follow state when activeUid or creator hydrates on reload
@@ -480,6 +481,7 @@ export const CreatorProfile: React.FC = () => {
         setBannerPreview(uProfile.bannerURL || '');
 
         // Fetch subscriptions, videos, playlists, and community posts in PARALLEL (No waterfall!)
+        const subscriptionSyncVersion = ++subscriptionSyncVersionRef.current;
         const [subResult, vidsResult, plsResult, postsResult] = await Promise.allSettled([
           currentUser
             ? subscriptionService.isSubscribed(currentUser.uid, uProfile.uid, uProfile.username)
@@ -495,7 +497,7 @@ export const CreatorProfile: React.FC = () => {
           let nextPlaylists = playlists;
           let nextPosts = posts;
 
-          if (subResult.status === 'fulfilled') {
+          if (subResult.status === 'fulfilled' && subscriptionSyncVersionRef.current === subscriptionSyncVersion) {
             setSubscribed(subResult.value);
           }
           if (vidsResult.status === 'fulfilled') {
@@ -670,6 +672,7 @@ export const CreatorProfile: React.FC = () => {
     }
     if (subscribing) return;
     setSubscribing(true);
+    const subscriptionActionVersion = ++subscriptionSyncVersionRef.current;
 
     const previousSub = subscribed;
     const nextSub = !previousSub;
@@ -684,7 +687,9 @@ export const CreatorProfile: React.FC = () => {
         displayName: creator.displayName,
         photoURL: creator.photoURL
       }, nextSub);
-      setSubscribed(isSub);
+      if (subscriptionSyncVersionRef.current === subscriptionActionVersion) {
+        setSubscribed(isSub);
+      }
     } catch (err) {
       console.warn('Creator subscription sync warning:', err);
     } finally {
@@ -811,7 +816,7 @@ export const CreatorProfile: React.FC = () => {
       );
       setReportModalOpen(false);
       setReportDetails('');
-      addToast('Grievance & Channel Report submitted. Our Trust & Safety team will review within 24 hours.', 'success');
+      addToast('Channel report submitted.', 'success');
     } catch (err) {
       addToast('Failed to submit channel report.', 'error');
     } finally {
@@ -1072,7 +1077,7 @@ export const CreatorProfile: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => navigate('studio')}
-                      className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-900 dark:bg-white text-white dark:text-black hover:bg-black/90 dark:hover:bg-slate-100 font-extrabold text-xs sm:text-sm rounded-full flex items-center gap-2 cursor-pointer shadow-sm transition-all active:scale-95"
+                      className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-100 dark:bg-white text-black dark:text-black hover:bg-slate-200 dark:hover:bg-slate-100 border border-slate-300 dark:border-slate-600 font-extrabold text-xs sm:text-sm rounded-full flex items-center gap-2 cursor-pointer shadow-sm transition-all active:scale-95"
                     >
                       <SettingsIcon className="w-4 h-4 text-blue-400 dark:text-blue-600" />
                       <span>{t('nav_studio', 'Creator Studio')}</span>
@@ -1329,7 +1334,7 @@ export const CreatorProfile: React.FC = () => {
                 {shorts.map((short, idx) => (
                   <a
                     key={short.videoId}
-                    href={`#/shorts/${short.videoId}`}
+                    href={`#/clips/${short.videoId}`}
                     draggable={true}
                     title={short.title}
                     style={{ animationDelay: `${idx * 40}ms` }}
@@ -1396,8 +1401,8 @@ export const CreatorProfile: React.FC = () => {
                 </h4>
                 <p className="text-xs text-slate-500 max-w-sm">
                   {isOwner 
-                    ? (isHindi ? '60 सेकंड तक के वर्टिकल शॉर्ट्स वीडियो बनाएं और अधिक दर्शकों तक पहुंचें!' : 'Share vertical videos up to 60 seconds with SocialIndia Shorts to reach a wider audience.')
-                    : (isHindi ? 'इस क्रिएटर ने अभी तक कोई शॉर्ट्स प्रकाशित नहीं किया है।' : 'This creator has not published any Clips yet.')}
+                    ? (isHindi ? '60 सेकंड तक के वर्टिकल क्लिप्स बनाएं और अधिक दर्शकों तक पहुंचें!' : 'Share vertical videos up to 60 seconds with SocialIndia Clips to reach a wider audience.')
+                    : (isHindi ? 'इस क्रिएटर ने अभी तक कोई क्लिप प्रकाशित नहीं किया है।' : 'This creator has not published any Clips yet.')}
                 </p>
                 {isOwner && (
                   <button
@@ -1406,7 +1411,7 @@ export const CreatorProfile: React.FC = () => {
                     className="mt-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-full flex items-center gap-2 cursor-pointer shadow-sm transition-all"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>{isHindi ? 'शॉर्ट्स बनाएं' : 'Create Short'}</span>
+                    <span>{isHindi ? 'क्लिप बनाएं' : 'Create Clip'}</span>
                   </button>
                 )}
               </div>
@@ -1706,7 +1711,7 @@ export const CreatorProfile: React.FC = () => {
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">{isHindi ? "कुल वीडियो व शॉर्ट्स" : "Total Videos"}</span>
+                    <span className="text-slate-500 dark:text-slate-400">{isHindi ? "कुल वीडियो व क्लिप्स" : "Total Videos"}</span>
                     <span className="font-mono font-bold text-slate-900 dark:text-white">
                       {(videos.length + shorts.length).toLocaleString()}
                     </span>

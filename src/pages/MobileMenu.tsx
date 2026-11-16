@@ -200,6 +200,14 @@ export const MobileMenu: React.FC = () => {
             <button onClick={() => navigate('terms')} className="hover:text-blue-600 transition-colors cursor-pointer">
               {isHindi ? 'शर्तें' : 'Terms'}
             </button>
+            <span>·</span>
+            <button onClick={() => navigate('contact')} className="hover:text-blue-600 transition-colors cursor-pointer">
+              {isHindi ? 'संपर्क' : 'Contact'}
+            </button>
+            <span>·</span>
+            <button onClick={() => navigate('grievance')} className="hover:text-blue-600 transition-colors cursor-pointer">
+              {isHindi ? 'शिकायत' : 'Grievance Redressal'}
+            </button>
           </div>
 
           <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
@@ -729,6 +737,20 @@ export const MobileMenu: React.FC = () => {
               className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
             >
               {isHindi ? 'नियम व शर्तें' : 'Terms'}
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">·</span>
+            <button
+              onClick={() => navigate('contact')}
+              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            >
+              {isHindi ? 'संपर्क' : 'Contact'}
+            </button>
+            <span className="text-slate-300 dark:text-slate-700">·</span>
+            <button
+              onClick={() => navigate('grievance')}
+              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+            >
+              {isHindi ? 'शिकायत निवारण' : 'Grievance Redressal'}
             </button>
           </div>
 

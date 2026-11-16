@@ -118,8 +118,8 @@ export const LikedVideos: React.FC = () => {
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               {isHindi 
-                ? 'आपके द्वारा लाइक किए गए सभी पसंदीदा वीडियो और शॉर्ट्स'
-                : 'All videos and shorts you gave a thumbs up to across SocialIndia'}
+                ? 'आपके द्वारा लाइक किए गए सभी पसंदीदा वीडियो और क्लिप्स'
+                : 'All videos and clips you gave a thumbs up to across SocialIndia'}
             </p>
           </div>
         </div>
@@ -160,7 +160,7 @@ export const LikedVideos: React.FC = () => {
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
             {isHindi 
               ? 'जब आप किसी वीडियो को देखते समय लाइक बटन दबाएंगे, तो वह यहाँ दिखाई देगा।' 
-              : 'Tap the thumbs-up like button on any video or short to save it to your liked playlist.'}
+              : 'Tap the thumbs-up like button on any video or clip to save it to your liked playlist.'}
           </p>
           <button
             onClick={() => navigate('home')}
@@ -172,7 +172,7 @@ export const LikedVideos: React.FC = () => {
       ) : (
         <div className="space-y-3">
           {likedVideos.map((video, index) => {
-            const watchUrl = video.isShort ? `#/shorts/${video.videoId}` : `#/watch/${video.videoId}`;
+            const watchUrl = video.isShort ? `#/clips/${video.videoId}` : `#/watch/${video.videoId}`;
             return (
             <div
               key={video.videoId}
@@ -216,7 +216,7 @@ export const LikedVideos: React.FC = () => {
                 ) : null}
                 {video.isShort && (
                   <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-wider rounded-md pointer-events-none">
-                    Short
+                    Clip
                   </span>
                 )}
                 {/* Play Hover Overlay */}

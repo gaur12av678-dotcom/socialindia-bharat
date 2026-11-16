@@ -35,6 +35,7 @@ const staticPages = [
   { path: 'help', changefreq: 'monthly', priority: '0.7' },
   { path: 'faq', changefreq: 'monthly', priority: '0.7' },
   { path: 'contact', changefreq: 'monthly', priority: '0.7' },
+  { path: 'grievance', changefreq: 'monthly', priority: '0.6' },
   { path: 'advertising', changefreq: 'monthly', priority: '0.6' },
   { path: 'adinfo', changefreq: 'monthly', priority: '0.6' },
   { path: 'gopro', changefreq: 'monthly', priority: '0.6' },

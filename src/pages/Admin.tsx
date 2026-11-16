@@ -85,6 +85,7 @@ import { verificationService } from '../services/verificationService';
 import { VerificationRequest } from '../types';
 import { notificationService } from '../services/notificationService';
 import { videoService } from '../services/videoService';
+import { GrievanceManagement } from '../components/admin/GrievanceManagement';
 
 type AdminSection = 
   | 'dashboard' 
@@ -95,6 +96,7 @@ type AdminSection =
   | 'withdrawals'
   | 'verification_requests'
   | 'reports' 
+  | 'grievances'
   | 'feedback' 
   | 'storage' 
   | 'trash' 
@@ -1225,7 +1227,7 @@ export const AdminPanel: React.FC = () => {
             style={activeSection === 'videos' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
             <VideoIcon className="w-4 h-4 shrink-0" style={{ color: activeSection === 'videos' ? '#ffffff' : undefined }} />
-            <span style={{ color: activeSection === 'videos' ? '#ffffff' : undefined }}>Videos & Shorts</span>
+            <span style={{ color: activeSection === 'videos' ? '#ffffff' : undefined }}>Videos & Clips</span>
           </button>
 
           <button 
@@ -1309,6 +1311,18 @@ export const AdminPanel: React.FC = () => {
           >
             <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: activeSection === 'reports' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'reports' ? '#ffffff' : undefined }}>Reports</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSection('grievances')}
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'grievances'
+                ? 'bg-[#2563EB] text-white shadow-md shadow-blue-500/25'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 shrink-0" />
+            <span>Grievance Management</span>
           </button>
 
           <button 
@@ -1437,11 +1451,12 @@ export const AdminPanel: React.FC = () => {
                 : ({
                     dashboard: 'Dashboard',
                     users: 'User accounts',
-                    videos: 'Videos & shorts',
+                    videos: 'Videos & Clips',
                     paid_videos: 'Paid videos & earnings',
                     withdrawals: 'Creator withdrawals',
                     verification_requests: 'Verification requests',
                     reports: 'Reports',
+                    grievances: 'Grievance Management',
                     feedback: 'Feedback',
                     storage: 'Cloud storage',
                     trash: 'Trash vault',
@@ -1458,11 +1473,12 @@ export const AdminPanel: React.FC = () => {
                 : ({
                     dashboard: 'A live overview of platform activity and items needing attention.',
                     users: 'Review creator accounts and account details.',
-                    videos: 'Moderate uploaded videos and shorts.',
+                    videos: 'Moderate uploaded videos and clips.',
                     paid_videos: 'Review paid video activity and creator earnings.',
                     withdrawals: 'Review and process creator payout requests.',
                     verification_requests: 'Review creator verification applications.',
                     reports: 'Review content and account reports.',
+                    grievances: 'Review private grievance submissions and record administrative actions.',
                     feedback: 'Review feedback submitted by the community.',
                     storage: 'Manage the platform media storage configuration.',
                     trash: 'Restore or permanently remove archived content.',
@@ -2485,6 +2501,9 @@ export const AdminPanel: React.FC = () => {
             )}
 
             {/* Feedback Section */}
+            {activeSection === 'grievances' && <GrievanceManagement />}
+
+            {/* Feedback Section */}
             {activeSection === 'feedback' && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {feedback.map(f => (
@@ -2614,7 +2633,7 @@ export const AdminPanel: React.FC = () => {
                       <p className="text-[10px] text-white/70 font-mono">~{Math.round((videos.filter(v => !v.isShort).reduce((acc, v) => acc + (Number(v.duration)||0), 0) / 60) * 2.2)} MB</p>
                     </div>
                     <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
-                      <p className="text-[10px] font-black uppercase text-cyan-200">Vertical Shorts</p>
+                      <p className="text-[10px] font-black uppercase text-cyan-200">Vertical Clips</p>
                       <p className="text-lg font-black mt-0.5">{totalShorts} files</p>
                       <p className="text-[10px] text-white/70 font-mono">~{Math.round((videos.filter(v => v.isShort).reduce((acc, v) => acc + (Number(v.duration)||0), 0) / 60) * 2.2)} MB</p>
                     </div>
@@ -2657,7 +2676,7 @@ export const AdminPanel: React.FC = () => {
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-sm">{vid.title}</p>
                               <p className="text-[10px] text-slate-400">
-                                @{vid.creatorUsername || 'creator'} • {vid.isShort ? 'Short' : 'Video'} • {Math.floor((vid.duration || 0) / 60)}m {(vid.duration || 0) % 60}s
+                                @{vid.creatorUsername || 'creator'} • {vid.isShort ? 'Clip' : 'Video'} • {Math.floor((vid.duration || 0) / 60)}m {(vid.duration || 0) % 60}s
                               </p>
                             </div>
                           </div>
@@ -2869,7 +2888,7 @@ export const AdminPanel: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Whenever a creator or admin deletes a video, Short, or account, it is moved here to the Compliance Vault. Metadata and media links are securely held for 180 days before permanent purging. If anything was deleted by mistake, you can <strong className="text-emerald-400 font-bold">Resume / Restore</strong> it back to the active platform with 1 click.
+                    Whenever a creator or admin deletes a video, Clip, or account, it is moved here to the Compliance Vault. Metadata and media links are securely held for 180 days before permanent purging. If anything was deleted by mistake, you can <strong className="text-emerald-400 font-bold">Resume / Restore</strong> it back to the active platform with 1 click.
                   </p>
                 </div>
 
@@ -2879,7 +2898,7 @@ export const AdminPanel: React.FC = () => {
                     {[
                       { id: 'all', label: `All (${trashItems.length})`, icon: Layers },
                       { id: 'video', label: `Videos (${trashItems.filter(t => t.itemType === 'video').length})`, icon: VideoIcon },
-                      { id: 'short', label: `Shorts (${trashItems.filter(t => t.itemType === 'short').length})`, icon: Zap },
+                      { id: 'short', label: `Clips (${trashItems.filter(t => t.itemType === 'short').length})`, icon: Zap },
                       { id: 'user', label: `Accounts (${trashItems.filter(t => t.itemType === 'user').length})`, icon: Users },
                     ].map(f => {
                       const Icon = f.icon;
@@ -3033,7 +3052,7 @@ export const AdminPanel: React.FC = () => {
                           <td colSpan={5} className="py-20 text-center text-slate-400 font-bold">
                             <Archive className="w-12 h-12 mx-auto mb-3 text-slate-300 opacity-60" />
                             <p className="text-sm text-slate-600 dark:text-slate-300 font-black">Compliance Vault is Empty</p>
-                            <p className="text-xs text-slate-400 mt-1">No deleted videos, shorts, or accounts in the 180-day trash archive.</p>
+                            <p className="text-xs text-slate-400 mt-1">No deleted videos, clips, or accounts in the 180-day trash archive.</p>
                           </td>
                         </tr>
                       )}
@@ -3139,7 +3158,7 @@ export const AdminPanel: React.FC = () => {
                       <textarea
                         value={announcementText}
                         onChange={(e) => setAnnouncementText(e.target.value)}
-                        placeholder="e.g. Welcome to SocialIndia! Upload your first video or short today and get featured."
+                        placeholder="e.g. Welcome to SocialIndia! Upload your first video or clip today and get featured."
                         rows={2}
                         className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-2xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                       />
@@ -3239,7 +3258,7 @@ export const AdminPanel: React.FC = () => {
                         <p className="text-[10px] font-black uppercase text-slate-400">Total Videos</p>
                         <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{auditStats.totalVideos}</p>
                         <p className="text-[11px] text-slate-500 font-semibold mt-1">
-                          {auditStats.standardCount} long • {auditStats.shortsCount} shorts
+                          {auditStats.standardCount} videos • {auditStats.shortsCount} clips
                         </p>
                       </div>
 
@@ -3355,7 +3374,7 @@ export const AdminPanel: React.FC = () => {
                     </div>
                     <div>
                       <h3 className="text-lg font-black text-slate-900 dark:text-white">Add New Music / Sound Track</h3>
-                      <p className="text-xs text-slate-500 font-medium">Upload or add new background music tracks for creators to use in Shorts.</p>
+                      <p className="text-xs text-slate-500 font-medium">Upload or add new background music tracks for creators to use in Clips.</p>
                     </div>
                   </div>
 
@@ -3499,7 +3518,7 @@ export const AdminPanel: React.FC = () => {
                               {s.artist} • <span className="text-blue-500">{s.category}</span>
                             </p>
                             <p className="text-[10px] text-emerald-600 font-black mt-0.5">
-                              🔥 {s.usesCount || 0} REAL Shorts created
+                              🔥 {s.usesCount || 0} REAL Clips created
                             </p>
                           </div>
                         </div>
@@ -4416,7 +4435,7 @@ export const AdminPanel: React.FC = () => {
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1">
                     {bonusCreditTarget === 'bonus' 
-                      ? 'Bonus Money can be used to unlock & watch paid videos/shorts.'
+                      ? 'Bonus Money can be used to unlock & watch paid videos/clips.'
                       : 'Direct cash added to creator wallet balance, withdrawable anytime.'}
                   </p>
                 </div>

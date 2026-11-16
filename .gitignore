@@ -2,6 +2,7 @@ node_modules/
 build/
 dist/
 coverage/
+.gradle/
 .DS_Store
 *.log
 .env*
@@ -10,3 +11,4 @@ coverage/
 sa_key.json
 firebase.json
 .firebaserc
+socialindia.keystore

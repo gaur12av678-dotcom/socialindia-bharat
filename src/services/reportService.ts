@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Report, ReportCategory, ModerationAction, GrievanceTicket, ContentAppeal } from '../types';
+import { Report, ReportCategory, ModerationAction, ContentAppeal } from '../types';
 import { notificationService } from './notificationService';
 
 export const reportService = {
@@ -235,61 +235,5 @@ export const reportService = {
     ).catch(console.error);
   },
 
-  // Grievance Redressal Ticket submission (MeitY IT Rules 2021 compliance: 24h ack & 15-day disposal)
-  async submitGrievanceTicket(
-    data: Omit<GrievanceTicket, 'ticketId' | 'status' | 'createdAt' | 'acknowledgementDeadline' | 'disposalDeadline'>
-  ): Promise<GrievanceTicket> {
-    const ticketId = 'GRV-' + Date.now().toString().slice(-6) + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-    const now = new Date();
-    
-    // Acknowledgement deadline: 24 hours
-    const ackDeadline = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-    // Disposal deadline: 15 days
-    const dispDeadline = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000).toISOString();
-
-    const ticket: GrievanceTicket = {
-      ...data,
-      ticketId,
-      acknowledgedAt: now.toISOString(),
-      acknowledgementDeadline: ackDeadline,
-      disposalDeadline: dispDeadline,
-      status: 'acknowledged',
-      createdAt: now.toISOString()
-    };
-
-    try {
-      await setDoc(doc(db, 'grievances', ticketId), ticket);
-      return ticket;
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `grievances/${ticketId}`);
-      return ticket;
-    }
-  },
-
-  // Get all grievance tickets
-  async getGrievanceTickets(): Promise<GrievanceTicket[]> {
-    try {
-      const q = query(collection(db, 'grievances'));
-      const snap = await getDocs(q);
-      const list = snap.docs.map(d => d.data() as GrievanceTicket);
-      return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    } catch (err) {
-      console.warn('Get grievances error:', err);
-      return [];
-    }
-  },
-
-  // Resolve Grievance Ticket
-  async resolveGrievanceTicket(
-    ticketId: string,
-    resolutionNotes: string
-  ): Promise<void> {
-    const docRef = doc(db, 'grievances', ticketId);
-    await updateDoc(docRef, {
-      status: 'resolved',
-      resolutionNotes,
-      resolvedAt: new Date().toISOString(),
-    }).catch(console.error);
-  }
 };
 

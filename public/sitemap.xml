@@ -61,6 +61,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://socialindia.web.app/grievance</loc>
+    <lastmod>2026-11-16</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://socialindia.web.app/advertising</loc>
     <lastmod>2026-11-16</lastmod>
     <changefreq>monthly</changefreq>

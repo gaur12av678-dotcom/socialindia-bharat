@@ -175,7 +175,7 @@ const YouTubeShortCard: React.FC<{ video: Video }> = ({ video }) => {
           <div className="flex justify-end">
             <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs">
               <Smartphone className="w-2.5 h-2.5" />
-              Shorts
+              Clips
             </span>
           </div>
 
@@ -479,7 +479,7 @@ export const Search: React.FC = () => {
           <input
             type="text"
             required
-            placeholder={isHindi ? "वीडियो, चैनल, शॉर्ट्स खोजें..." : "Search videos, channels, shorts..."}
+            placeholder={isHindi ? "वीडियो, चैनल, क्लिप्स खोजें..." : "Search videos, channels, clips..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-4 pr-10 py-2.5 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-[#334155] rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 text-slate-900 dark:text-[#F8FAFC]"
@@ -629,7 +629,7 @@ export const Search: React.FC = () => {
                 }`}
               >
                 <Smartphone className="w-3.5 h-3.5" />
-                <span>Shorts ({shortsVideos.length})</span>
+                <span>Clips ({shortsVideos.length})</span>
               </button>
             </div>
           </div>
@@ -672,7 +672,7 @@ export const Search: React.FC = () => {
                       <Smartphone className="w-3.5 h-3.5" />
                     </div>
                     <h3 className="text-base font-black text-slate-900 dark:text-white">
-                      Shorts
+                      Clips
                     </h3>
                   </div>
 
@@ -697,7 +697,7 @@ export const Search: React.FC = () => {
                       onClick={() => setSearchFilter('shorts')}
                       className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline flex items-center gap-1"
                     >
-                      {isHindi ? `सभी ${shortsVideos.length} शॉर्ट्स देखें ➔` : `View all ${shortsVideos.length} shorts ➔`}
+                      {isHindi ? `सभी ${shortsVideos.length} क्लिप्स देखें ➔` : `View all ${shortsVideos.length} clips ➔`}
                     </button>
                   )}
 

@@ -4,7 +4,7 @@ import { useRouter } from '../hooks/useRouter';
 import { videoService } from '../services/videoService';
 import { userService } from '../services/userService';
 import { SoundTrack } from '../types';
-import { formatDuration, captureFrameFromVideoFile, parseVideoUrl } from '../utils/videoUtils';
+import { formatDuration, captureFrameFromVideoFile, getVideoFileDuration, parseVideoUrl } from '../utils/videoUtils';
 import { categoriesList } from './Home';
 import { soundService } from '../services/soundService';
 import { SoundLibraryModal } from '../components/SoundLibraryModal';
@@ -64,7 +64,7 @@ export const UploadPage: React.FC = () => {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('All');
   const [tagsInput, setTagsInput] = useState('');
-  const [duration, setDuration] = useState(120);
+  const [duration, setDuration] = useState(0);
   const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [isShort, setIsShort] = useState(false);
   const [selectedSoundTrack, setSelectedSoundTrack] = useState<SoundTrack | null>(null);
@@ -161,6 +161,7 @@ export const UploadPage: React.FC = () => {
 
     setSelectedVideoFile(file);
     setVideoFileName(file.name);
+    setDuration(0);
 
     // Auto-fill title from filename if empty
     if (!title.trim()) {
@@ -176,14 +177,17 @@ export const UploadPage: React.FC = () => {
     tempVideo.preload = 'metadata';
     tempVideo.src = localBlobUrl;
     tempVideo.onloadedmetadata = () => {
-      if (tempVideo.duration && !isNaN(tempVideo.duration)) {
-        setDuration(Math.round(tempVideo.duration));
-        if (tempVideo.videoHeight > tempVideo.videoWidth || uploadMode === 'short') {
-          setIsShort(true);
-          setUploadMode('short');
-        }
+      if (tempVideo.videoHeight > tempVideo.videoWidth || uploadMode === 'short') {
+        setIsShort(true);
+        setUploadMode('short');
       }
     };
+    getVideoFileDuration(file)
+      .then(realDuration => setDuration(Math.max(1, Math.round(realDuration))))
+      .catch(error => {
+        console.error('Video duration detection failed:', error);
+        addToast(error instanceof Error ? error.message : 'Could not determine the video duration.', 'error');
+      });
 
     // Auto-capture real frame from video for thumbnail preview locally
     if (!selectedThumbFile && !thumbnailUrl) {
@@ -284,7 +288,7 @@ export const UploadPage: React.FC = () => {
 
     try {
       let finalVideoUrl = videoUrl;
-      let finalDuration = duration;
+      let finalDuration = await getVideoFileDuration(selectedVideoFile);
       let finalThumbnailUrl = thumbnailUrl;
 
       // 1. Upload Video File directly via high-speed chunked stream
@@ -301,10 +305,11 @@ export const UploadPage: React.FC = () => {
           }
         });
         finalVideoUrl = uploadRes.videoUrl;
-        if (uploadRes.duration) {
+        if (typeof uploadRes.duration === 'number' && Number.isFinite(uploadRes.duration) && uploadRes.duration > 0) {
           finalDuration = uploadRes.duration;
         }
       }
+      finalDuration = Math.max(1, Math.round(finalDuration));
 
       // 2. Upload Thumbnail if picked
       if (selectedThumbFile) {
@@ -387,7 +392,7 @@ export const UploadPage: React.FC = () => {
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 font-bold mt-1.5 max-w-sm mx-auto">
           {isHindi 
-            ? 'सोशलइंडिया पर अपने वीडियो, रील्स और शॉर्ट्स लाखों दर्शकों के साथ साझा करें।' 
+            ? 'सोशलइंडिया पर अपने वीडियो और क्लिप्स साझा करें।'
             : 'Share your videos and clips with viewers across SocialIndia.'}
         </p>
         <button
@@ -652,7 +657,7 @@ export const UploadPage: React.FC = () => {
                       <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 dark:text-slate-400 font-medium">
                         <span>{isHindi ? 'अवधि:' : 'Duration:'} {formatDuration(duration)}</span>
                         <span>•</span>
-                        <span>{isShort ? (isHindi ? '⚡ शॉर्ट्स (9:16)' : '⚡ Clips (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span>
+                        <span>{isShort ? (isHindi ? '⚡ क्लिप्स (9:16)' : '⚡ Clips (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span>
                         {selectedVideoFile && (
                           <>
                             <span>•</span>
@@ -797,7 +802,7 @@ export const UploadPage: React.FC = () => {
                     type="text"
                     required
                     maxLength={100}
-                    placeholder={uploadMode === 'short' ? (isHindi ? 'आकर्षक शॉर्ट्स शीर्षक जोड़ें... #shorts' : 'Add catchy clip title... #shorts') : (isHindi ? 'आकर्षक वीडियो शीर्षक दर्ज करें...' : 'Enter an engaging video title...')}
+                    placeholder={uploadMode === 'short' ? (isHindi ? 'आकर्षक क्लिप शीर्षक जोड़ें... #clips' : 'Add a catchy clip title... #clips') : (isHindi ? 'आकर्षक वीडियो शीर्षक दर्ज करें...' : 'Enter an engaging video title...')}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="w-full px-4 py-3 border border-slate-200 dark:border-[#334155] bg-slate-50/70 dark:bg-[#1e293b] text-slate-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-[#065fd4]/20 focus:border-[#065fd4] font-semibold text-sm transition-all"
@@ -932,7 +937,7 @@ export const UploadPage: React.FC = () => {
                 <div className="p-4 bg-slate-50/80 dark:bg-slate-900/60 rounded-2xl border border-slate-200/90 dark:border-slate-800 space-y-2 text-xs text-slate-600 dark:text-slate-400">
                   <p className="truncate">{isHindi ? 'फ़ाइल:' : 'File:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{videoFileName || (isHindi ? 'चुनी गई वीडियो' : 'Selected Video')}</span></p>
                   <p>{isHindi ? 'अवधि:' : 'Duration:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{formatDuration(duration)}</span></p>
-                  <p>{isHindi ? 'प्रारूप:' : 'Format:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{isShort ? (isHindi ? '⚡ शॉर्ट्स (9:16)' : '⚡ Clips (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span></p>
+                  <p>{isHindi ? 'प्रारूप:' : 'Format:'} <span className="font-semibold text-slate-800 dark:text-slate-200">{isShort ? (isHindi ? '⚡ क्लिप्स (9:16)' : '⚡ Clips (9:16)') : (isHindi ? '🎥 वीडियो (16:9)' : '🎥 Video (16:9)')}</span></p>
                 </div>
 
               </div>
@@ -1223,7 +1228,7 @@ export const UploadPage: React.FC = () => {
                       <span>•</span>
                       <span>{formatDuration(duration)}</span>
                       <span>•</span>
-                      <span>{isShort ? (isHindi ? '⚡ शॉर्ट्स' : '⚡ Shorts') : (isHindi ? '🎥 वीडियो' : '🎥 Video')}</span>
+                      <span>{isShort ? (isHindi ? '⚡ क्लिप्स' : '⚡ Clips') : (isHindi ? '🎥 वीडियो' : '🎥 Video')}</span>
                     </div>
                   </div>
                 </div>

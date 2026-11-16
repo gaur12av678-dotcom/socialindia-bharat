@@ -103,7 +103,7 @@ export const CreateActionSheet: React.FC<CreateActionSheetProps> = ({
             </div>
             <div className="min-w-0 flex-1">
               <span className="text-[15px] font-medium text-slate-900 dark:text-[#f1f1f1] block">
-                {isHindi ? 'शॉर्ट्स बनाएं' : 'Create a Short'}
+                {isHindi ? 'क्लिप बनाएं' : 'Create a Clip'}
               </span>
             </div>
           </button>

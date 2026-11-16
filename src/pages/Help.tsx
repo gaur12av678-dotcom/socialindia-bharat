@@ -103,20 +103,20 @@ export const HelpPage: React.FC = () => {
     {
       id: 'upload-shorts',
       category: 'creator',
-      titleEn: 'Upload Videos and Shorts on SocialIndia',
-      titleHi: 'सोशलइंडिया पर वीडियो और शॉर्ट्स कैसे अपलोड करें',
+      titleEn: 'Upload Videos and Clips on SocialIndia',
+      titleHi: 'सोशलइंडिया पर वीडियो और क्लिप्स कैसे अपलोड करें',
       summaryEn: 'Guidelines for video aspect ratios, descriptions, tags, and category selection.',
       summaryHi: 'वीडियो अनुपात, शीर्षक, विवरण, टैग्स और श्रेणी चुनने के नियम।',
       contentEn: [
         '1. Click the "+" or "Upload" button in the top navigation bar.',
         '2. For Regular Videos: Use landscape 16:9 MP4 format. Provide an engaging title and tags.',
-        '3. For Shorts: Upload vertical 9:16 videos under 60 seconds. Add "#Shorts" in your title.',
+        '3. For Clips: Upload vertical 9:16 videos under 60 seconds. Add "#Clips" in your title.',
         '4. Select appropriate category (Gaming, Music, Tech, Comedy, Education) to maximize discovery on Trending.'
       ],
       contentHi: [
         '1. ऊपर नेविगेशन बार में "+" या "अपलोड" बटन पर क्लिक करें।',
         '2. सामान्य वीडियो: 16:9 लैंडस्केप MP4 फ़ाइल अपलोड करें और आकर्षक शीर्षक व टैग जोड़ें।',
-        '3. शॉर्ट्स: 60 सेकंड से कम का 9:16 वर्टिकल वीडियो चुनें और शीर्षक में "#Shorts" लिखें।',
+        '3. क्लिप्स: 60 सेकंड से कम का 9:16 वर्टिकल वीडियो चुनें और शीर्षक में "#Clips" लिखें।',
         '4. ट्रेंडिंग पेज पर अधिक व्यूज के लिए सही श्रेणी (गेमिंग, संगीत, टेक, कॉमेडी) चुनें।'
       ]
     },
@@ -497,9 +497,9 @@ export const HelpPage: React.FC = () => {
               <span>{isHindi ? 'सोशलइंडिया सपोर्ट टीम से संपर्क करें' : 'Contact SocialIndia Support'}</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-              {isHindi 
-                ? 'यदि आपको ऊपर अपने प्रश्न का उत्तर नहीं मिला, तो सहायता टिकट भेजें। हम 24 घंटे के भीतर उत्तर देते हैं।' 
-                : 'Need personalized help? Submit a support request and our team will get back to you within 24 hours.'}
+              {isHindi
+                ? 'यदि आपको ऊपर अपने प्रश्न का उत्तर नहीं मिला, तो सहायता अनुरोध भेजें या socialindia.ib@gmail.com पर संपर्क करें।'
+                : 'Need personalized help? Submit a support request or email socialindia.ib@gmail.com. We do not promise a fixed response time.'}
             </p>
 
             {ticketSuccess ? (
@@ -509,9 +509,9 @@ export const HelpPage: React.FC = () => {
                   {isHindi ? 'आपका अनुरोध सफलतापूर्वक प्राप्त हुआ!' : 'Support Request Received!'}
                 </h3>
                 <p className="text-xs text-emerald-800/90 dark:text-emerald-300 max-w-md mx-auto">
-                  {isHindi 
-                    ? 'हमारी टीम आपके अनुरोध की समीक्षा करेगी। अपडेट के लिए अपने नोटिफिकेशन और ईमेल चेक करें।' 
-                    : 'Our support team has logged your ticket. You will receive an update in your notifications shortly.'}
+                  {isHindi
+                    ? 'आपका अनुरोध सोशलइंडिया में दर्ज हो गया है। इस फॉर्म से ईमेल नहीं भेजा जाता।'
+                    : 'Your request was recorded in SocialIndia. This form does not send an email acknowledgement.'}
                 </p>
                 <button
                   type="button"
@@ -536,7 +536,7 @@ export const HelpPage: React.FC = () => {
                       className="w-full h-11 px-3.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#272727] text-xs sm:text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4] dark:focus:border-[#3ea6ff]"
                     >
                       <option value="technical">{isHindi ? 'तकनीकी / वीडियो प्लेबैक समस्या' : 'Technical / Video playback issue'}</option>
-                      <option value="upload">{isHindi ? 'वीडियो व शॉर्ट्स अपलोड' : 'Video & Shorts uploading'}</option>
+                      <option value="upload">{isHindi ? 'वीडियो व क्लिप्स अपलोड' : 'Video & Clips uploading'}</option>
                       <option value="account">{isHindi ? 'खाता व लॉगिन' : 'Account & Login'}</option>
                       <option value="wallet">{isHindi ? 'क्रिएटर वॉलेट व पेआउट्स' : 'Creator Wallet & Payouts'}</option>
                       <option value="copyright">{isHindi ? 'कॉपीराइट व दिशानिर्देश' : 'Copyright & Guidelines'}</option>

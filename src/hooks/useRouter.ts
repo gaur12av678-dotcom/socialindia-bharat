@@ -37,6 +37,11 @@ export function parseHash(hash: string): Route {
   let param = parts[1] || undefined;
   let subTab: string | undefined = undefined;
 
+  // Keep the existing Shorts page while exposing Clips URLs to users.
+  if (path === 'clips') {
+    path = 'shorts';
+  }
+
   // Handle YouTube-style @handle and channel routes: /@handle, /@handle/shorts, /@handle/about, etc.
   if (path.startsWith('@')) {
     param = path.substring(1);
@@ -86,7 +91,8 @@ export function useRouter() {
   }, []);
 
   const navigate = (path: string, param?: string, searchParams?: Record<string, string>) => {
-    let newHash = `#/${path}`;
+    const routePath = path === 'shorts' ? 'clips' : path;
+    let newHash = `#/${routePath}`;
     if (param) {
       newHash += `/${param}`;
     }
