@@ -31,8 +31,8 @@ export const payoutService = {
     if (!cleanUpi) throw new Error('Please enter a valid UPI ID (e.g. yourname@upi / phone@paytm).');
     
     const withdrawAmount = Number(Number(amount).toFixed(2));
-    if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
-      throw new Error('Please enter a valid withdrawal amount.');
+    if (!Number.isFinite(withdrawAmount) || withdrawAmount < 500) {
+      throw new Error('The minimum withdrawal amount is ₹500.');
     }
 
     // Fetch user profile

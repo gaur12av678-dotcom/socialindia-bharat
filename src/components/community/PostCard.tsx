@@ -5,6 +5,7 @@ import { subscriptionService } from '../../services/subscriptionService';
 import { useApp } from '../../context/AppContext';
 import { useRouter } from '../../hooks/useRouter';
 import { UserAvatar } from '../UserAvatar';
+import { InstagramVideoPlayer } from './InstagramVideoPlayer';
 import { RichText } from '../RichText';
 import { formatTimeAgo, formatViews } from '../../utils/videoUtils';
 import { isUserVerified } from '../../utils/userUtils';
@@ -522,16 +523,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
 
       {/* 3b. Media: Instagram-style Video Post */}
       {post.postType === 'video' && post.videoUrl && (
-        <div className="mb-3.5 rounded-xl overflow-hidden border border-slate-200/80 dark:border-slate-800/80 bg-black">
-          <video
-            src={post.videoUrl}
-            poster={post.videoThumbnailUrl || undefined}
-            controls
-            playsInline
-            preload="metadata"
-            className="w-full max-h-[520px] object-contain bg-black"
-          />
-        </div>
+        <InstagramVideoPlayer
+          src={post.videoUrl}
+          poster={post.videoThumbnailUrl || undefined}
+        />
       )}
 
       {/* 4. Media: Interactive YouTube Poll */}

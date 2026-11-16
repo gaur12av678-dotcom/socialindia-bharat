@@ -200,13 +200,41 @@ const YouTubeShortCard: React.FC<{ video: Video }> = ({ video }) => {
   );
 };
 
+const SearchVideoSkeleton: React.FC = () => (
+  <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-3 sm:p-4 rounded-2xl animate-pulse" aria-hidden="true">
+    <div className="w-full sm:w-72 md:w-80 lg:w-96 aspect-video shrink-0 rounded-xl bg-slate-200 dark:bg-slate-800" />
+    <div className="flex-1 space-y-3 py-1">
+      <div className="h-4 w-4/5 rounded bg-slate-200 dark:bg-slate-800" />
+      <div className="h-3 w-2/5 rounded bg-slate-200 dark:bg-slate-800" />
+      <div className="flex items-center gap-2 pt-1">
+        <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800" />
+        <div className="h-3 w-1/4 rounded bg-slate-200 dark:bg-slate-800" />
+      </div>
+      <div className="h-3 w-full rounded bg-slate-200 dark:bg-slate-800" />
+      <div className="h-3 w-3/5 rounded bg-slate-200 dark:bg-slate-800" />
+    </div>
+  </div>
+);
+
 // YouTube Search Video Card (Horizontal on desktop, stack on mobile)
-const YouTubeSearchVideoCard: React.FC<{ video: Video }> = ({ video }) => {
+const YouTubeSearchVideoCard: React.FC<{ video: Video; priority?: boolean }> = ({ video, priority = false }) => {
   const { navigate } = useRouter();
   const [isVerified, setIsVerified] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const imageRef = useRef<HTMLImageElement>(null);
   const [watchProgress] = useState<number>(() => {
     return playbackProgressService.getProgressPercent(video.videoId, video.duration);
   });
+
+  useEffect(() => {
+    setImageLoaded(false);
+    if (imageRef.current) {
+      delete imageRef.current.dataset.fallbackApplied;
+      if (imageRef.current.complete && imageRef.current.naturalWidth > 0) {
+        setImageLoaded(true);
+      }
+    }
+  }, [video.videoId, video.thumbnailUrl]);
 
   useEffect(() => {
     if (video.creatorId) {
@@ -221,15 +249,26 @@ const YouTubeSearchVideoCard: React.FC<{ video: Video }> = ({ video }) => {
       className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-3 sm:p-4 rounded-3xl hover:bg-slate-100/80 dark:hover:bg-[#16171a] transition-all cursor-pointer group"
     >
       {/* Thumbnail */}
-      <div className="relative w-full sm:w-72 md:w-80 lg:w-96 aspect-video shrink-0 rounded-2xl overflow-hidden bg-slate-900 shadow-xs">
+      <div className="relative w-full sm:w-72 md:w-80 lg:w-96 aspect-video shrink-0 rounded-xl overflow-hidden bg-slate-900">
         <img 
+          ref={imageRef}
           src={video.thumbnailUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80'} 
           alt={video.title} 
-          className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : 'auto'}
+          decoding="async"
+          className={`w-full h-full object-cover transition-opacity duration-200 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+          onLoad={() => setImageLoaded(true)}
           onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80';
+            if (e.currentTarget.dataset.fallbackApplied) {
+              setImageLoaded(true);
+              return;
+            }
+            e.currentTarget.dataset.fallbackApplied = '1';
+            e.currentTarget.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&q=80';
           }}
         />
+        {!imageLoaded && <div className="absolute inset-0 animate-pulse bg-slate-200 dark:bg-slate-800" />}
 
         <div className="absolute bottom-2 right-2 bg-black/85 text-white text-[11px] font-bold px-2 py-0.5 rounded-md shadow-sm">
           {formatDuration(video.duration)}
@@ -251,7 +290,7 @@ const YouTubeSearchVideoCard: React.FC<{ video: Video }> = ({ video }) => {
       </div>
 
       {/* Video Info */}
-      <div className="flex-1 space-y-2 min-w-0">
+      {imageLoaded ? <div className="flex-1 space-y-2 min-w-0">
         <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-snug">
           {video.title}
         </h3>
@@ -307,7 +346,17 @@ const YouTubeSearchVideoCard: React.FC<{ video: Video }> = ({ video }) => {
             </span>
           ))}
         </div>
-      </div>
+      </div> : (
+        <div className="flex-1 space-y-3 py-1 animate-pulse" aria-hidden="true">
+          <div className="h-4 w-4/5 rounded bg-slate-200 dark:bg-slate-800" />
+          <div className="h-3 w-2/5 rounded bg-slate-200 dark:bg-slate-800" />
+          <div className="flex items-center gap-2 pt-1">
+            <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800" />
+            <div className="h-3 w-1/4 rounded bg-slate-200 dark:bg-slate-800" />
+          </div>
+          <div className="h-3 w-full rounded bg-slate-200 dark:bg-slate-800" />
+        </div>
+      )}
     </div>
   );
 };
@@ -349,21 +398,7 @@ export const Search: React.FC = () => {
     }
 
     // Show matching videos from saved cache immediately.
-    const cachedMatches = videoService.getCachedVideos().filter(v => {
-      const title = (v.title || '').toLowerCase();
-      const description = (v.description || '').toLowerCase();
-      const username = (v.creatorUsername || '').toLowerCase();
-      const displayName = (v.creatorDisplayName || '').toLowerCase();
-      const category = (v.category || '').toLowerCase();
-      const tags = Array.isArray(v.tags) ? v.tags : [];
-
-      return title.includes(cleanTerm) ||
-        description.includes(cleanTerm) ||
-        username.includes(cleanTerm) ||
-        displayName.includes(cleanTerm) ||
-        category.includes(cleanTerm) ||
-        tags.some(tag => String(tag).toLowerCase().includes(cleanTerm.replace('#', '')));
-    });
+    const cachedMatches = videoService.searchCachedVideos(cleanTerm);
 
     setVideos(cachedMatches);
     setMatchingUsers([]);
@@ -599,33 +634,6 @@ export const Search: React.FC = () => {
             </div>
           </div>
 
-          {(loadingVideos || loadingUsers) && videos.length === 0 && matchingUsers.length === 0 && (
-            <div className="space-y-3 animate-pulse">
-              <div className="h-3 w-36 rounded bg-slate-200 dark:bg-slate-700" />
-              <div className="flex gap-4 p-3 rounded-2xl">
-                <div className="w-40 aspect-video rounded-xl bg-slate-200 dark:bg-slate-700" />
-                <div className="flex-1 space-y-3 py-2">
-                  <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="h-3 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="h-3 w-1/3 rounded bg-slate-200 dark:bg-slate-700" />
-                </div>
-              </div>
-              <div className="flex gap-4 p-3 rounded-2xl">
-                <div className="w-40 aspect-video rounded-xl bg-slate-200 dark:bg-slate-700" />
-                <div className="flex-1 space-y-3 py-2">
-                  <div className="h-3 w-2/3 rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="h-3 w-1/2 rounded bg-slate-200 dark:bg-slate-700" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {(loadingVideos || loadingUsers) && (videos.length > 0 || matchingUsers.length > 0) && (
-            <p className="text-xs text-slate-400 font-medium">
-              {isHindi ? 'नए परिणाम लोड हो रहे हैं…' : 'Updating search results…'}
-            </p>
-          )}
-
             <div className="space-y-8">
 
               {/* 1. MATCHING CHANNELS / USERS (Shown if searchFilter is 'all' or 'channels') */}
@@ -657,7 +665,7 @@ export const Search: React.FC = () => {
               )}
 
               {/* 2. YOUTUBE SHORTS SHELF (Shown if searchFilter is 'all' or 'shorts') */}
-              {(searchFilter === 'all' || searchFilter === 'shorts') && shortsVideos.length > 0 && (
+              {(searchFilter === 'all' || searchFilter === 'shorts') && (shortsVideos.length > 0 || loadingVideos) && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-lg bg-rose-600 text-white flex items-center justify-center shadow-xs">
@@ -672,6 +680,15 @@ export const Search: React.FC = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                     {(searchFilter === 'all' ? shortsVideos.slice(0, 6) : shortsVideos).map((short) => (
                       <YouTubeShortCard key={short.videoId} video={short} />
+                    ))}
+                    {loadingVideos && Array.from({ length: shortsVideos.length > 0 ? 2 : 4 }).map((_, idx) => (
+                      <div key={`short-skeleton-${idx}`} className="animate-pulse">
+                        <div className="aspect-[9/16] rounded-2xl bg-slate-200 dark:bg-slate-800" />
+                        <div className="mt-2 space-y-2 px-1">
+                          <div className="h-3 rounded bg-slate-200 dark:bg-slate-800 w-[90%]" />
+                          <div className="h-2.5 rounded bg-slate-200 dark:bg-slate-800 w-[60%]" />
+                        </div>
+                      </div>
                     ))}
                   </div>
 
@@ -699,16 +716,27 @@ export const Search: React.FC = () => {
 
                   {regularVideos.length > 0 ? (
                     <div className="space-y-3">
-                      {regularVideos.map((video) => (
-                        <YouTubeSearchVideoCard key={video.videoId} video={video} />
+                      {regularVideos.map((video, idx) => (
+                        <YouTubeSearchVideoCard
+                          key={video.videoId}
+                          video={video}
+                          priority={idx < 2}
+                        />
                       ))}
                     </div>
                   ) : (
-                    searchFilter === 'videos' && (
+                    searchFilter === 'videos' && !loadingVideos && (
                       <div className="py-12 text-center text-slate-500 font-bold text-xs">
                         {isHindi ? 'कोई नियमित वीडियो नहीं मिला' : 'No long-form videos matched your search.'}
                       </div>
                     )
+                  )}
+                  {loadingVideos && (
+                    <div className="space-y-3" aria-label={isHindi ? 'वीडियो परिणाम लोड हो रहे हैं' : 'Loading video results'}>
+                      {Array.from({ length: regularVideos.length > 0 ? 2 : 4 }).map((_, idx) => (
+                        <SearchVideoSkeleton key={idx} />
+                      ))}
+                    </div>
                   )}
                 </div>
               )}

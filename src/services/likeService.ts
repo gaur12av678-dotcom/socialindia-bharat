@@ -6,7 +6,10 @@ import {
   updateDoc,
   increment,
   collection,
-  getDocs
+  getDocsFromServer,
+  collectionGroup,
+  query,
+  where
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Like, Video } from '../types';
@@ -144,18 +147,27 @@ export const likeService = {
     if (Object.prototype.hasOwnProperty.call(dirty, videoId)) {
       const desiredState = Boolean(dirty[videoId]);
       const docRef = doc(db, 'videos', videoId, 'likes', uid);
+      const userLikedDocRef = doc(db, 'users', uid, 'likedVideos', videoId);
       try {
-        const snap = await getDoc(docRef);
-        if (snap.exists() === desiredState) {
-          setDirtyLike(uid, videoId, null);
-        } else if (desiredState) {
-          await setDoc(docRef, { uid, videoId, createdAt: new Date().toISOString() });
-          setDirtyLike(uid, videoId, null);
+        if (desiredState) {
+          const item = getStoredLikedItems(uid).find(likedItem => likedItem.videoId === videoId);
+          const createdAt = item?.likedAt || new Date().toISOString();
+          await Promise.all([
+            setDoc(docRef, { uid, videoId, createdAt }, { merge: true }),
+            setDoc(userLikedDocRef, item || {
+              videoId,
+              title: 'Video',
+              thumbnailUrl: '',
+              likedAt: createdAt
+            }, { merge: true })
+          ]);
         } else {
-          await deleteDoc(docRef);
-          setDirtyLike(uid, videoId, null);
+          await Promise.all([deleteDoc(docRef), deleteDoc(userLikedDocRef)]);
         }
-      } catch (_) {}
+        setDirtyLike(uid, videoId, null);
+      } catch (error) {
+        console.warn('Could not sync pending video like:', error);
+      }
       return desiredState;
     }
 
@@ -170,9 +182,12 @@ export const likeService = {
           const userSnap = await getDoc(doc(db, 'users', uid, 'likedVideos', videoId));
           if (userSnap.exists()) {
             exists = true;
-            setDoc(docRef, { uid, videoId, createdAt: new Date().toISOString() }).catch(() => {});
+            setDoc(docRef, { uid, videoId, createdAt: new Date().toISOString() }, { merge: true })
+              .catch(error => console.warn('Could not restore video like record:', error));
           }
-        } catch (_) {}
+        } catch (error) {
+          console.warn('Could not restore liked video from the user list:', error);
+        }
       }
 
       if (exists !== isLocallyLiked) {
@@ -240,7 +255,7 @@ export const likeService = {
           : Promise.resolve()
       ]);
 
-      if (primaryOk || userSubOk) {
+      if (primaryOk && userSubOk) {
         setDirtyLike(uid, videoId, null);
       }
     } catch (err) {
@@ -288,7 +303,7 @@ export const likeService = {
           : Promise.resolve()
       ]);
 
-      if (primaryOk || userSubOk) {
+      if (primaryOk && userSubOk) {
         setDirtyLike(uid, videoId, null);
       }
     } catch (err) {
@@ -319,24 +334,54 @@ export const likeService = {
       }
     }
 
-    try {
-      const colRef = collection(db, 'users', uid, 'likedVideos');
-      const snap = await getDocs(colRef);
-      snap.docs.forEach((d: any) => {
-        const data = d.data() as LikedVideoItem;
-        if (data?.videoId && dirty[data.videoId] !== false) {
-          itemMap.set(data.videoId, data);
-        }
-      });
-    } catch (err) {
-      console.warn('Failed to fetch liked videos from Firestore, using local cache:', err);
-    }
+    const likedVideosRef = collection(db, 'users', uid, 'likedVideos');
+    const legacyLikeIds = new Set<string>();
+    const likesQuery = query(collectionGroup(db, 'likes'), where('uid', '==', uid));
+    const [likedVideosSnapshot, legacyLikesSnapshot] = await Promise.all([
+      getDocsFromServer(likedVideosRef).catch(error => {
+        console.warn('Failed to fetch liked videos from Firestore server, using other available data:', error);
+        return null;
+      }),
+      getDocsFromServer(likesQuery).catch(error => {
+        console.warn('Failed to fetch legacy video likes from Firestore:', error);
+        return null;
+      })
+    ]);
+
+    likedVideosSnapshot?.docs.forEach(d => {
+      const data = d.data() as LikedVideoItem;
+      if (data?.videoId && dirty[data.videoId] !== false) {
+        itemMap.set(data.videoId, data);
+      }
+    });
+
+    legacyLikesSnapshot?.docs.forEach(likeDoc => {
+      const path = likeDoc.ref.path.split('/');
+      if (path.length !== 4 || path[0] !== 'videos' || path[2] !== 'likes' || path[3] !== uid) return;
+
+      const videoId = path[1];
+      if (!videoId || dirty[videoId] === false) return;
+      legacyLikeIds.add(videoId);
+
+      if (!itemMap.has(videoId)) {
+        const data = likeDoc.data();
+        itemMap.set(videoId, {
+          videoId,
+          title: 'Video',
+          thumbnailUrl: '',
+          likedAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()
+        });
+      }
+    });
 
     // Enrich any stored IDs that don't yet have item metadata
-    const storedIds = Array.from(getStoredLikes(uid));
-    const missingIds = storedIds.filter(id => !itemMap.has(id) && dirty[id] !== false);
+    const storedIds = new Set([...getStoredLikes(uid), ...legacyLikeIds]);
+    const missingIds = Array.from(storedIds).filter(id => {
+      const item = itemMap.get(id);
+      return (!item || item.title === 'Video') && dirty[id] !== false;
+    });
     if (missingIds.length > 0) {
-      for (const missingId of missingIds.slice(0, 25)) {
+      await Promise.all(missingIds.slice(0, 25).map(async missingId => {
         try {
           const v = videoService.getCachedVideo(missingId) || await videoService.getVideo(missingId);
           if (v) {
@@ -349,13 +394,16 @@ export const likeService = {
               duration: v.duration,
               viewsCount: v.viewsCount,
               isShort: v.isShort,
-              likedAt: new Date().toISOString()
+              likedAt: itemMap.get(missingId)?.likedAt || new Date().toISOString()
             };
             itemMap.set(v.videoId, fallbackItem);
-            setDoc(doc(db, 'users', uid, 'likedVideos', v.videoId), fallbackItem).catch(() => {});
+            setDoc(doc(db, 'users', uid, 'likedVideos', v.videoId), fallbackItem, { merge: true })
+              .catch(error => console.warn('Could not sync liked video details:', error));
           }
-        } catch (_) {}
-      }
+        } catch (error) {
+          console.warn(`Could not load liked video ${missingId}:`, error);
+        }
+      }));
     }
 
     const merged = Array.from(itemMap.values()).sort(

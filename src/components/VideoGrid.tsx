@@ -15,9 +15,10 @@ interface VideoGridProps {
   emptyMessage?: string;
   gridColsClass?: string;
   skeletonCount?: number;
+  priorityCount?: number;
 }
 
-export const VideoGrid: React.FC<VideoGridProps> = ({ 
+const VideoGridComponent: React.FC<VideoGridProps> = ({
   videos, 
   loading, 
   activeAds = [],
@@ -25,7 +26,8 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   emptyHeading = 'No videos available yet',
   emptyMessage = 'Videos published on SocialIndia will appear here.',
   gridColsClass = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6',
-  skeletonCount = 6
+  skeletonCount = 6,
+  priorityCount = 3
 }) => {
   const { navigate } = useRouter();
   const { currentUser } = useApp();
@@ -89,7 +91,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
           <VideoCard 
             video={video} 
             index={idx}
-            priority={idx < 4}
+            priority={idx < priorityCount}
           />
         </React.Fragment>
       ))}
@@ -105,3 +107,5 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     </div>
   );
 };
+
+export const VideoGrid = React.memo(VideoGridComponent);

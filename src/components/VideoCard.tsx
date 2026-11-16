@@ -36,7 +36,7 @@ interface VideoCardProps {
   priority?: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority = false }) => {
+const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priority = false }) => {
   const { navigate } = useRouter();
   const { currentUser, addToast } = useApp();
   const { t, isHindi, formatTime } = useTranslation();
@@ -45,6 +45,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
 
   useEffect(() => {
     setImageLoaded(false);
+    if (imgRef.current) {
+      delete imgRef.current.dataset.fallbackApplied;
+    }
     if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
       setImageLoaded(true);
     }
@@ -99,10 +102,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
   }, [video.videoId, video.duration]);
 
   useEffect(() => {
+    if (!showMenu) return;
     const handleOutsideClick = () => setShowMenu(false);
     window.addEventListener('click', handleOutsideClick);
     return () => window.removeEventListener('click', handleOutsideClick);
-  }, []);
+  }, [showMenu]);
 
   useEffect(() => {
     if (!video.creatorId) return;
@@ -184,11 +188,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
   };
 
   return (
-    <div 
-      style={{
-        animationDelay: `${Math.min(index, 12) * 45}ms`
-      }}
-      className="yt-card-animate group flex flex-col transition-all duration-200 w-full"
+    <div
+      style={{ animationDelay: `${(index % 3) * 35}ms` }}
+      className="yt-card-animate group flex flex-col w-full"
     >
       {/* Thumbnail area with duration badge (wrapped in anchor tag with draggable image disabled so dragging transfers the video watch link, opening the actual video page with title & creator!) */}
       <a
@@ -196,7 +198,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
         onClick={handleCardClick}
         draggable={true}
         title={video.title}
-        className={`relative block w-full ${video.isShort ? 'aspect-[9/16] max-w-[240px]' : 'aspect-video'} bg-slate-100 dark:bg-[#1a2333] shrink-0 rounded-2xl overflow-hidden shadow-xs border border-slate-100 dark:border-slate-800/80 cursor-pointer`}
+        className={`relative block w-full ${video.isShort ? 'aspect-[9/16] max-w-[240px]' : 'aspect-video'} bg-slate-100 dark:bg-[#1a2333] shrink-0 rounded-xl overflow-hidden cursor-pointer`}
       >
         {/* Progressive shimmer placeholder while image loads */}
         {!imageLoaded && (
@@ -214,12 +216,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
           decoding="async"
           draggable={false}
           onLoad={() => setImageLoaded(true)}
-          className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-300 pointer-events-none select-none ${
+          className={`w-full h-full object-cover transition-opacity duration-200 pointer-events-none select-none ${
             imageLoaded ? 'opacity-100' : 'opacity-0'
           }`}
           onError={(e) => {
-            setImageLoaded(true);
-            if (e.currentTarget.dataset.fallbackApplied) return;
+            if (e.currentTarget.dataset.fallbackApplied) {
+              setImageLoaded(true);
+              return;
+            }
             e.currentTarget.dataset.fallbackApplied = '1';
             const ytThumb = extractYoutubeThumbnail(video.videoUrl);
             e.currentTarget.src = ytThumb || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
@@ -256,6 +260,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
 
       {/* Content block */}
       <div className="mt-3 flex items-start gap-3">
+        {imageLoaded ? (
+          <>
         {/* Creator avatar - using centralized sync component */}
         <a 
           href={creatorUrl}
@@ -314,6 +320,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
             </div>
           </div>
         </div>
+            </>
+          ) : (
+            <>
+              <div className="w-9 h-9 rounded-full bg-[#dbe2ee] dark:bg-slate-800 shrink-0 animate-pulse" />
+              <div className="flex-1 space-y-2 pt-1 animate-pulse">
+                <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[88%]" />
+                <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[55%]" />
+              </div>
+            </>
+          )}
 
         {/* 3-Dots Menu Button (⋮) */}
         <div className="relative shrink-0">
@@ -421,3 +437,5 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, index = 0, priority
     </div>
   );
 };
+
+export const VideoCard = React.memo(VideoCardComponent);

@@ -199,7 +199,7 @@ html.dark .yt-chip-inactive:hover {
 @keyframes ytCardPop {
   0% {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(6px);
   }
   100% {
     opacity: 1;
@@ -207,7 +207,7 @@ html.dark .yt-chip-inactive:hover {
   }
 }
 .yt-card-animate {
-  animation: ytCardPop 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: ytCardPop 0.22s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -557,6 +557,98 @@ button.si-upload-select-btn :is(span, svg, i) {
   background-color: #0b141a;
   background-image:
     radial-gradient(circle at 20px 20px, rgba(255, 255, 255, 0.025) 1px, transparent 1.5px);
+}
+
+.admin-workspace {
+  background-color: #f4f6fa;
+  color: #1e293b;
+}
+
+.dark .admin-workspace {
+  background-color: #111827;
+  color: #e5eaf2;
+}
+
+.admin-workspace [class*="text-white"],
+.admin-workspace [style*="color: #ffffff"],
+.admin-workspace [style*="color: rgb(255, 255, 255)"] {
+  color: #f5d0fe !important;
+  -webkit-text-fill-color: #f5d0fe !important;
+}
+
+.admin-workspace button[class*="text-white"] {
+  background-color: #6b21a8 !important;
+  background-image: none !important;
+}
+
+.admin-workspace button[class*="text-white"]:hover {
+  background-color: #581c87 !important;
+}
+
+.admin-workspace [class*="bg-linear-to-r"][class*="text-white"] {
+  background-image: linear-gradient(to right, #6b21a8, #9d174d) !important;
+}
+
+.admin-sidebar {
+  border-color: #e1e6ef;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.04);
+}
+
+.dark .admin-sidebar {
+  border-color: #293548;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+}
+
+.admin-sidebar > div:not(:first-child) {
+  margin-top: 1.25rem;
+}
+
+.admin-sidebar > div:not(:first-child) > p {
+  margin-bottom: 0.5rem;
+  color: #718096;
+  font-size: 0.7rem;
+  letter-spacing: 0.09em;
+}
+
+.dark .admin-sidebar > div:not(:first-child) > p {
+  color: #94a3b8;
+}
+
+.admin-sidebar button:not([style*="display: none"]) {
+  min-height: 2.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.admin-sidebar .animate-pulse {
+  animation: none;
+}
+
+.admin-main > div:first-child p {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.admin-main [class*="text-[9px]"] {
+  font-size: 0.6875rem;
+}
+
+.admin-main [class*="text-[10px]"] {
+  font-size: 0.75rem;
+}
+
+.admin-main [class*="text-[11px]"] {
+  font-size: 0.8125rem;
+}
+
+.admin-main :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid rgb(49 93 201 / 0.4);
+  outline-offset: 2px;
+}
+
+.admin-main tbody tr {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4.5rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

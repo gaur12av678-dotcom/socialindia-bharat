@@ -83,14 +83,20 @@ export const adminService = {
   },
 
   // Update a report's resolution status
-  async updateReportStatus(reportId: string, status: Report['status']): Promise<void> {
+  async updateReportStatus(
+    reportId: string,
+    status: Report['status'],
+    adminResponse?: string
+  ): Promise<void> {
     try {
       await updateDoc(doc(db, 'reports', reportId), { 
         status,
+        ...(adminResponse !== undefined ? { adminResponse: adminResponse.trim() } : {}),
         updatedAt: new Date().toISOString()
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `reports/${reportId}`);
+      throw err;
     }
   },
 

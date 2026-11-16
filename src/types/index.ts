@@ -320,6 +320,7 @@ export interface Report {
   status: 'pending' | 'reviewed' | 'resolved' | 'appealed';
   actionTaken?: ModerationAction;
   actionReason?: string;
+  adminResponse?: string;
   actionTakenAt?: any;
   actionTakenBy?: string;
   appealStatus?: 'pending' | 'approved' | 'rejected';

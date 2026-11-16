@@ -576,6 +576,10 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                     key={sub.creatorId}
                     type="button"
                     onClick={() => handleSelectCreator(isSelected ? null : sub.creatorId)}
+                    onDoubleClick={() => navigate('creator', sub.creatorUsername || sub.creatorId)}
+                    aria-label={isHindi
+                      ? `${sub.creatorDisplayName || sub.creatorUsername} की प्रोफ़ाइल खोलने के लिए डबल-क्लिक करें`
+                      : `Double-click to open ${sub.creatorDisplayName || sub.creatorUsername}'s profile`}
                     className="relative flex flex-col items-center gap-1.5 shrink-0 group cursor-pointer focus:outline-none"
                   >
                     <div className="relative">

@@ -84,6 +84,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Refs for tracking timeouts & theme state across listener closures without stale references
   const toastTimeoutsRef = useRef<Record<string, any>>({});
   const themeRef = useRef(theme);
+  const authStateSequenceRef = useRef(0);
 
   // Keep themeRef in sync with actual theme state changes
   useEffect(() => {
@@ -197,14 +198,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const uid = authService.getCurrentUserUid();
     if (uid) {
       let profile = await userService.getUserProfile(uid, true);
-      if (profile) {
+      if (profile && authService.getCurrentUserUid() === uid) {
         setCurrentUserProfile(profile);
         try {
           localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
           accountService.syncCurrentProfile(profile);
         } catch {}
       }
-    } else {
+    } else if (!authService.getCurrentUserUid()) {
       setCurrentUserProfile(null);
       localStorage.removeItem('socialindia_cached_profile');
     }
@@ -225,9 +226,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const uid = authService.getCurrentUserUid();
     if (uid) {
       const list = await notificationService.getNotifications(uid);
+      if (authService.getCurrentUserUid() !== uid) return;
       setNotifications(list);
       setUnreadCount(list.filter((n) => !n.read).length);
-    } else {
+    } else if (!authService.getCurrentUserUid()) {
       setNotifications([]);
       setUnreadCount(0);
     }
@@ -276,21 +278,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     const unsubscribe = authService.onAuthStateChanged(async (user) => {
+      const requestSequence = ++authStateSequenceRef.current;
+      const isCurrentRequest = () =>
+        requestSequence === authStateSequenceRef.current &&
+        authService.getCurrentUserUid() === (user?.uid || null);
+
       // If registration is actively creating and saving profile documents, do not interfere
       if (authService.isRegistrationInProgress()) {
         return;
       }
 
       setLoading(true);
+      setCurrentUser(user);
+      setCurrentUserProfile(null);
+      setNotifications([]);
+      setUnreadCount(0);
       if (user) {
         const isRealEmail = Boolean(user.email && !user.email.endsWith('@socialindia.com'));
         if (isRealEmail && !user.emailVerified) {
           try {
             await user.reload();
           } catch {}
+          if (!isCurrentRequest()) return;
           if (!user.emailVerified) {
             console.warn('Unverified user session detected. Signing out:', user.email);
             await authService.logout();
+            if (!isCurrentRequest()) return;
             setCurrentUser(null);
             setCurrentUserProfile(null);
             localStorage.removeItem('socialindia_cached_profile');
@@ -301,7 +314,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         // Immediately publish authenticated user so UI & Follow/Like states never reset on reload
-        setCurrentUser(user);
         setLoading(false);
 
         // Fetch fresh public profile from Firestore in background
@@ -310,7 +322,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (!profile) {
             profile = await userService.recoverOrCreateProfile(user);
           }
-          if (profile) {
+          if (profile && isCurrentRequest()) {
             setCurrentUserProfile(profile);
             localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
             accountService.syncCurrentProfile(profile);
@@ -323,6 +335,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Fetch private info for theme & language persistence
         try {
           const pInfo = await userService.getPrivateInfo(user.uid);
+          if (!isCurrentRequest()) return;
           if (pInfo?.theme) {
             setThemeState(pInfo.theme);
             applyTheme(pInfo.theme);
@@ -339,6 +352,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Fetch notifications
         try {
           const list = await notificationService.getNotifications(user.uid);
+          if (!isCurrentRequest()) return;
           setNotifications(list);
           setUnreadCount(list.filter((n) => !n.read).length);
         } catch (err) {
@@ -351,7 +365,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setNotifications([]);
         setUnreadCount(0);
       }
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     });
 
     // Listen to systems preferences shifts

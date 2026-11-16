@@ -60,7 +60,8 @@ export const authService = {
       email = usernameToEmail(username);
     }
 
-    const cleanUsername = username.trim().toLowerCase();
+    let cleanUsername = username.trim().toLowerCase();
+    const usesFallbackEmail = arg4 === undefined;
     const usernameRegex = /^[a-z0-9_]{3,20}$/;
     if (!usernameRegex.test(cleanUsername)) {
       throw new Error("Username must be between 3 and 20 characters and contain only lowercase letters, numbers, and underscores.");
@@ -68,7 +69,23 @@ export const authService = {
 
     const isTaken = await userService.isUsernameTaken(cleanUsername);
     if (isTaken) {
-      throw new Error("Username is already taken. Please choose another username.");
+      const baseUsername = cleanUsername;
+      let availableUsername: string | null = null;
+      for (let suffix = 1; suffix <= 999999; suffix += 1) {
+        const suffixText = String(suffix);
+        const candidate = `${baseUsername.slice(0, 20 - suffixText.length)}${suffixText}`;
+        if (!(await userService.isUsernameTaken(candidate))) {
+          availableUsername = candidate;
+          break;
+        }
+      }
+      if (!availableUsername) {
+        throw new Error('Could not generate an available username. Please choose another one.');
+      }
+      cleanUsername = availableUsername;
+      if (usesFallbackEmail) {
+        email = usernameToEmail(cleanUsername);
+      }
     }
 
     registrationInProgress = true;
