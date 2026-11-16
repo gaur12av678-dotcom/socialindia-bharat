@@ -26,6 +26,15 @@ function saveToLocalUserCache(user: Partial<User> & { uid: string }) {
       : (existing.videosCount ?? 0),
   } : (user as User);
 
+  if (existing?.username && existing.username.trim().toLowerCase() !== merged.username?.trim().toLowerCase()) {
+    const oldUsername = existing.username.trim().toLowerCase();
+    usernameToUidMap.delete(oldUsername);
+    try {
+      localStorage.removeItem(`si_un_${oldUsername}`);
+      sessionStorage.removeItem(`si_un_${oldUsername}`);
+    } catch {}
+  }
+
   userProfileMemoryCache.set(user.uid, { data: merged, timestamp: Date.now() });
   if (merged.username) {
     usernameToUidMap.set(merged.username.trim().toLowerCase(), user.uid);
@@ -166,16 +175,16 @@ export const userService = {
   },
 
   // Check if a username is already taken
-  async isUsernameTaken(username: string): Promise<boolean> {
+  async isUsernameTaken(username: string, exceptUid?: string): Promise<boolean> {
     const cleanUsername = username.trim().toLowerCase();
     const q = query(
       collection(db, 'users'),
       where('username', '==', cleanUsername),
-      limit(1)
+      limit(exceptUid ? 2 : 1)
     );
     try {
       const snap = await getDocs(q);
-      return !snap.empty;
+      return snap.docs.some(userDoc => userDoc.id !== exceptUid);
     } catch (err) {
       handleFirestoreError(err, OperationType.GET, 'users');
       return true;
@@ -346,10 +355,22 @@ export const userService = {
 
   // Update user profile details
   async updateProfile(uid: string, updates: Partial<User>): Promise<void> {
+    const sanitizedUpdates = { ...updates };
+    if (sanitizedUpdates.username !== undefined) {
+      const username = sanitizedUpdates.username.trim().toLowerCase();
+      if (!/^[a-z0-9_]{3,20}$/.test(username)) {
+        throw new Error('Username must be 3–20 characters and contain only lowercase letters, numbers, and underscores.');
+      }
+      const currentProfile = await this.getUserProfile(uid, true);
+      if (username !== currentProfile?.username?.trim().toLowerCase() &&
+          await this.isUsernameTaken(username, uid)) {
+        throw new Error('Username is already taken. Please choose another username.');
+      }
+      sanitizedUpdates.username = username;
+    }
+
     const docRef = doc(db, 'users', uid);
     try {
-      const sanitizedUpdates = { ...updates };
-
       // Ensure avatar is compressed if raw base64 data URL
       if (sanitizedUpdates.photoURL && sanitizedUpdates.photoURL.startsWith('data:image')) {
         try {

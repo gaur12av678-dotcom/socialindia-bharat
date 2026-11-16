@@ -83,6 +83,8 @@ import { CaptionEditorModal } from '../components/CaptionEditorModal';
 import { FirebaseVideoEditor } from '../components/admin/FirebaseVideoEditor';
 import { verificationService } from '../services/verificationService';
 import { VerificationRequest } from '../types';
+import { notificationService } from '../services/notificationService';
+import { videoService } from '../services/videoService';
 
 type AdminSection = 
   | 'dashboard' 
@@ -115,6 +117,15 @@ type AdminSection =
   | 'changelogs'
   | 'faq_docs';
 
+const readImagePreview = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => typeof reader.result === 'string'
+    ? resolve(reader.result)
+    : reject(new Error('Could not read the selected image.'));
+  reader.onerror = () => reject(reader.error || new Error('Could not read the selected image.'));
+  reader.readAsDataURL(file);
+});
+
 let persistentAdminSnapshot: {
   users: User[];
   videos: Video[];
@@ -135,6 +146,7 @@ export const AdminPanel: React.FC = () => {
   const { navigate } = useRouter();
 
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
+  const adminMainRef = React.useRef<HTMLElement>(null);
   const [loading, setLoading] = useState(!persistentAdminSnapshot);
   const [users, setUsers] = useState<User[]>(() => persistentAdminSnapshot?.users || []);
   const [videos, setVideos] = useState<Video[]>(() => persistentAdminSnapshot?.videos || []);
@@ -181,6 +193,8 @@ export const AdminPanel: React.FC = () => {
   const [newSongTitle, setNewSongTitle] = useState('');
   const [newSongArtist, setNewSongArtist] = useState('');
   const [newSongCoverUrl, setNewSongCoverUrl] = useState('');
+  const [newSongCoverFile, setNewSongCoverFile] = useState<File | null>(null);
+  const [newSongCoverPreview, setNewSongCoverPreview] = useState('');
   const [newSongAudioUrl, setNewSongAudioUrl] = useState('');
   const [newSongCategory, setNewSongCategory] = useState('Punjabi & Bollywood');
   const [isAddingSong, setIsAddingSong] = useState(false);
@@ -219,7 +233,11 @@ export const AdminPanel: React.FC = () => {
 
   // Sound Track Edit Modal state
   const [editingSound, setEditingSound] = useState<SoundTrack | null>(null);
+  const [editingSoundCoverFile, setEditingSoundCoverFile] = useState<File | null>(null);
+  const [editingSoundCoverPreview, setEditingSoundCoverPreview] = useState('');
   const [isUpdatingSound, setIsUpdatingSound] = useState(false);
+  const [reportMessages, setReportMessages] = useState<Record<string, string>>({});
+  const [sendingReportUpdateId, setSendingReportUpdateId] = useState<string | null>(null);
 
   // Security Check: Only admins allowed
   useEffect(() => {
@@ -233,56 +251,67 @@ export const AdminPanel: React.FC = () => {
     loadData();
   }, []);
 
+  useEffect(() => {
+    adminMainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [activeSection]);
+
   const loadData = async () => {
     if (!persistentAdminSnapshot) {
       setLoading(true);
     }
     try {
-      const results = await Promise.allSettled([
-        adminService.getAllUsers(),
-        adminService.getAllVideos(),
-        adminService.getAllReports(),
-        feedbackService.getAllFeedback(),
-        adminService.getStorageConfig(),
-        trashService.getAllTrash(),
-        soundService.getSounds(),
-        adminService.getAllAdCampaigns(),
-        payoutService.getWithdrawalRequests(),
-        verificationService.getAllVerificationRequests()
+      const loadResource = <T,>(
+        resource: Promise<T>,
+        update: (value: T) => void,
+        previous: T,
+        label: string
+      ): Promise<T> => resource.then(value => {
+        update(value);
+        return value;
+      }).catch(error => {
+        console.error(`Failed to load admin ${label}:`, error);
+        return previous;
+      });
+
+      const usersPromise = loadResource<User[]>(adminService.getAllUsers(), setUsers, users, 'users');
+      const videosPromise = loadResource<Video[]>(adminService.getAllVideos(), setVideos, videos, 'videos');
+      const reportsPromise = loadResource<Report[]>(adminService.getAllReports(), setReports, reports, 'reports');
+      const coreDataPromise = Promise.all([usersPromise, videosPromise, reportsPromise]);
+
+      const secondaryDataPromise = Promise.all([
+        loadResource<WithdrawalRequest[]>(
+          payoutService.getWithdrawalRequests(),
+          setWithdrawalRequests,
+          withdrawalRequests,
+          'payout requests'
+        ),
+        loadResource<VerificationRequest[]>(
+          verificationService.getAllVerificationRequests(),
+          value => setVerificationRequests(value || []),
+          verificationRequests,
+          'verification requests'
+        ),
+        loadResource<FeedbackEntry[]>(feedbackService.getAllFeedback(), setFeedback, feedback, 'feedback'),
+        loadResource<{ cloudName: string; uploadPreset: string; updatedAt?: string }>(
+          adminService.getStorageConfig(),
+          value => {
+            setCloudName(value.cloudName || '');
+            setUploadPreset(value.uploadPreset || '');
+            setStorageUpdatedAt(value.updatedAt);
+          },
+          { cloudName, uploadPreset, updatedAt: storageUpdatedAt },
+          'storage settings'
+        ),
+        loadResource<TrashItem[]>(trashService.getAllTrash(), setTrashItems, trashItems, 'trash'),
+        loadResource<SoundTrack[]>(soundService.getSounds(), setSounds, sounds, 'sounds'),
+        loadResource<any[]>(adminService.getAllAdCampaigns(), setAdCampaigns, adCampaigns, 'ad campaigns')
       ]);
 
-      const nextUsers = results[0].status === 'fulfilled' ? results[0].value : users;
-      const nextVideos = results[1].status === 'fulfilled' ? results[1].value : videos;
-      const nextReports = results[2].status === 'fulfilled' ? results[2].value : reports;
-      const nextFeedback = results[3].status === 'fulfilled' ? results[3].value : feedback;
-      const nextStorage = results[4].status === 'fulfilled' ? results[4].value : null;
-      const nextTrash = results[5].status === 'fulfilled' ? results[5].value : trashItems;
-      const nextSounds = results[6].status === 'fulfilled' ? results[6].value : sounds;
-      const nextAds = results[7].status === 'fulfilled' ? results[7].value : adCampaigns;
-      const nextPayouts = results[8].status === 'fulfilled' ? results[8].value : withdrawalRequests;
-      const nextVReqs = results[9].status === 'fulfilled' ? (results[9].value || []) : verificationRequests;
+      await Promise.race([usersPromise, videosPromise, reportsPromise]);
+      setLoading(false);
 
-      setUsers(nextUsers);
-      setVideos(nextVideos);
-      setReports(nextReports);
-      setFeedback(nextFeedback);
-      setTrashItems(nextTrash);
-      setSounds(nextSounds);
-      setAdCampaigns(nextAds);
-      setWithdrawalRequests(nextPayouts);
-      setVerificationRequests(nextVReqs);
-
-      let nextCloud = cloudName;
-      let nextPreset = uploadPreset;
-      let nextUpdated = storageUpdatedAt;
-      if (nextStorage) {
-        nextCloud = nextStorage.cloudName || '';
-        nextPreset = nextStorage.uploadPreset || '';
-        nextUpdated = nextStorage.updatedAt;
-        setCloudName(nextCloud);
-        setUploadPreset(nextPreset);
-        setStorageUpdatedAt(nextUpdated);
-      }
+      const [nextUsers, nextVideos, nextReports] = await coreDataPromise;
+      const [nextPayouts, nextVReqs, nextFeedback, nextStorage, nextTrash, nextSounds, nextAds] = await secondaryDataPromise;
 
       persistentAdminSnapshot = {
         users: nextUsers,
@@ -294,9 +323,9 @@ export const AdminPanel: React.FC = () => {
         adCampaigns: nextAds,
         withdrawalRequests: nextPayouts,
         verificationRequests: nextVReqs,
-        cloudName: nextCloud,
-        uploadPreset: nextPreset,
-        storageUpdatedAt: nextUpdated
+        cloudName: nextStorage.cloudName || '',
+        uploadPreset: nextStorage.uploadPreset || '',
+        storageUpdatedAt: nextStorage.updatedAt
       };
     } catch (err) {
       if (!persistentAdminSnapshot) {
@@ -454,10 +483,13 @@ export const AdminPanel: React.FC = () => {
     }
     setIsAddingSong(true);
     try {
+      const coverUrl = newSongCoverFile
+        ? await videoService.uploadThumbnail(newSongCoverFile)
+        : newSongCoverUrl.trim() || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80';
       const added = await soundService.addSoundTrack({
         title: newSongTitle.trim(),
         artist: newSongArtist.trim(),
-        coverUrl: newSongCoverUrl.trim() || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80',
+        coverUrl,
         audioUrl: newSongAudioUrl.trim(),
         category: newSongCategory,
         duration: 30
@@ -467,6 +499,8 @@ export const AdminPanel: React.FC = () => {
       setNewSongTitle('');
       setNewSongArtist('');
       setNewSongCoverUrl('');
+      setNewSongCoverFile(null);
+      setNewSongCoverPreview('');
       setNewSongAudioUrl('');
     } catch (err) {
       addToast('Failed to add sound track to library.', 'error');
@@ -494,17 +528,22 @@ export const AdminPanel: React.FC = () => {
     }
     setIsUpdatingSound(true);
     try {
+      const coverUrl = editingSoundCoverFile
+        ? await videoService.uploadThumbnail(editingSoundCoverFile)
+        : editingSound.coverUrl.trim();
       await soundService.updateSoundTrack(editingSound.soundId, {
         title: editingSound.title.trim(),
         artist: editingSound.artist.trim(),
         category: editingSound.category,
-        coverUrl: editingSound.coverUrl.trim(),
+        coverUrl,
         audioUrl: editingSound.audioUrl.trim(),
         duration: Number(editingSound.duration) || 30
       });
-      setSounds(prev => prev.map(s => s.soundId === editingSound.soundId ? { ...s, ...editingSound } : s));
+      setSounds(prev => prev.map(s => s.soundId === editingSound.soundId ? { ...s, ...editingSound, coverUrl } : s));
       addToast(`Sound "${editingSound.title}" updated successfully!`, 'success');
       setEditingSound(null);
+      setEditingSoundCoverFile(null);
+      setEditingSoundCoverPreview('');
     } catch (err: any) {
       addToast(err.message || 'Failed to update sound track.', 'error');
     } finally {
@@ -764,13 +803,45 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const handleResolveReport = async (reportId: string, status: Report['status']) => {
+  const handleReportUpdate = async (report: Report, status: Report['status']) => {
+    const message = (reportMessages[report.reportId] || '').trim();
     try {
-      await adminService.updateReportStatus(reportId, status);
-      setReports(prev => prev.map(r => r.reportId === reportId ? { ...r, status } : r));
+      await adminService.updateReportStatus(report.reportId, status, message);
+      await notificationService.sendSystemNotification(
+        report.reporterId,
+        'Update on your report',
+        message || `Your report about ${report.targetTitle || `${report.targetType} ${report.targetId}`} was marked ${status}.`
+      );
+      setReports(prev => prev.map(r => r.reportId === report.reportId
+        ? { ...r, status, adminResponse: message }
+        : r));
+      setReportMessages(prev => ({ ...prev, [report.reportId]: '' }));
       addToast(`Report marked as ${status}.`, 'success');
     } catch (err) {
-      addToast('Failed to resolve report.', 'error');
+      addToast('Failed to update report or notify its reporter.', 'error');
+    }
+  };
+
+  const handleSendReportUpdate = async (report: Report) => {
+    const message = (reportMessages[report.reportId] || '').trim();
+    if (!message) return;
+    setSendingReportUpdateId(report.reportId);
+    try {
+      await adminService.updateReportStatus(report.reportId, report.status, message);
+      await notificationService.sendSystemNotification(
+        report.reporterId,
+        'Update on your report',
+        message
+      );
+      setReports(prev => prev.map(r => r.reportId === report.reportId
+        ? { ...r, adminResponse: message }
+        : r));
+      setReportMessages(prev => ({ ...prev, [report.reportId]: '' }));
+      addToast('Report update sent to the reporter.', 'success');
+    } catch (err) {
+      addToast('Failed to send report update.', 'error');
+    } finally {
+      setSendingReportUpdateId(null);
     }
   };
 
@@ -787,7 +858,7 @@ export const AdminPanel: React.FC = () => {
   if (currentUserProfile?.role !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center py-40">
-        <ShieldAlert className="w-16 h-16 text-rose-500 mb-4" />
+        <ShieldAlert className="w-16 h-16 text-[#800080] mb-4" />
         <h3 className="text-xl font-black">Access Denied</h3>
         <p className="text-sm text-slate-500 mt-2">You do not have administrative privileges.</p>
       </div>
@@ -901,9 +972,9 @@ export const AdminPanel: React.FC = () => {
   );
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50/80 dark:bg-[#09090b] p-2 md:p-6 gap-6 -mt-2">
+    <div className="admin-workspace flex min-h-screen flex-col gap-5 bg-slate-100 p-3 dark:bg-slate-950 md:flex-row md:p-5">
       {/* Sidebar Navigation Card */}
-      <aside className="w-full md:w-72 bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-4 space-y-4 shrink-0 shadow-sm self-start max-h-[85vh] overflow-y-auto scrollbar-none select-none">
+      <aside className="admin-sidebar w-full shrink-0 self-start rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:sticky md:top-4 md:w-72 md:max-h-[calc(100vh-2rem)] md:overflow-y-auto scrollbar-none select-none">
         
         {/* Header Badging */}
         <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl">
@@ -958,7 +1029,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'settings' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <Sliders className="w-4 h-4 shrink-0" style={{ color: activeSection === 'settings' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'settings' ? '#ffffff' : undefined }}>Settings</span>
@@ -971,7 +1042,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'design' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <Palette className="w-4 h-4 shrink-0" style={{ color: activeSection === 'design' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'design' ? '#ffffff' : undefined }}>Design Layout</span>
@@ -984,7 +1055,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'pages' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <FileText className="w-4 h-4 shrink-0" style={{ color: activeSection === 'pages' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'pages' ? '#ffffff' : undefined }}>Pages Markup</span>
@@ -997,7 +1068,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'sitemap' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <MapIcon className="w-4 h-4 shrink-0" style={{ color: activeSection === 'sitemap' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'sitemap' ? '#ffffff' : undefined }}>Sitemap Index</span>
@@ -1010,7 +1081,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'system_status' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <Activity className="w-4 h-4 shrink-0" style={{ color: activeSection === 'system_status' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'system_status' ? '#ffffff' : undefined }}>System Status</span>
@@ -1023,7 +1094,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'changelogs' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <History className="w-4 h-4 shrink-0" style={{ color: activeSection === 'changelogs' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'changelogs' ? '#ffffff' : undefined }}>Changelogs</span>
@@ -1164,7 +1235,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'movies' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <Film className="w-4 h-4 shrink-0" style={{ color: activeSection === 'movies' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'movies' ? '#ffffff' : undefined }}>Movies Catalog</span>
@@ -1177,7 +1248,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'articles' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <BookOpen className="w-4 h-4 shrink-0" style={{ color: activeSection === 'articles' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'articles' ? '#ffffff' : undefined }}>Articles</span>
@@ -1190,7 +1261,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'categories' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <FolderTree className="w-4 h-4 shrink-0" style={{ color: activeSection === 'categories' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'categories' ? '#ffffff' : undefined }}>Categories</span>
@@ -1203,7 +1274,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'languages' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <Globe className="w-4 h-4 shrink-0" style={{ color: activeSection === 'languages' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'languages' ? '#ffffff' : undefined }}>Languages</span>
@@ -1319,7 +1390,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'mobile_api' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <Smartphone className="w-4 h-4 shrink-0" style={{ color: activeSection === 'mobile_api' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'mobile_api' ? '#ffffff' : undefined }}>Mobile & APIs</span>
@@ -1332,7 +1403,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'backup' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <Database className="w-4 h-4 shrink-0" style={{ color: activeSection === 'backup' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'backup' ? '#ffffff' : undefined }}>Backup Snapshots</span>
@@ -1345,7 +1416,7 @@ export const AdminPanel: React.FC = () => {
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
-            style={activeSection === 'faq_docs' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+            style={{ display: 'none' }}
           >
             <HelpCircle className="w-4 h-4 shrink-0" style={{ color: activeSection === 'faq_docs' ? '#ffffff' : undefined }} />
             <span style={{ color: activeSection === 'faq_docs' ? '#ffffff' : undefined }}>FAQs & Docs</span>
@@ -1355,18 +1426,52 @@ export const AdminPanel: React.FC = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-6 md:p-8 space-y-8 overflow-y-auto max-h-screen">
+      <main ref={adminMainRef} className="admin-main min-w-0 flex-1 space-y-6 p-4 md:p-6">
         
         {/* Section Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white">
-              {activeSection === 'firebase_edit' ? 'Firebase Live Video Editor' : activeSection.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              {activeSection === 'firebase_edit'
+                ? 'Firebase Live Video Editor'
+                : ({
+                    dashboard: 'Dashboard',
+                    users: 'User accounts',
+                    videos: 'Videos & shorts',
+                    paid_videos: 'Paid videos & earnings',
+                    withdrawals: 'Creator withdrawals',
+                    verification_requests: 'Verification requests',
+                    reports: 'Reports',
+                    feedback: 'Feedback',
+                    storage: 'Cloud storage',
+                    trash: 'Trash vault',
+                    tools: 'Operations & diagnostics',
+                    sounds: 'Sound library',
+                    advertising: 'Ad campaigns',
+                    pro_members: 'Pro members',
+                    payments_ads: 'Payments & ads setup'
+                  } as Record<AdminSection, string>)[activeSection]}
             </h2>
             <p className="text-xs text-slate-500 font-medium mt-1">
               {activeSection === 'firebase_edit' 
                 ? 'Directly edit real video metrics, views, and likes stored in Firebase Firestore.' 
-                : `Manage SocialIndia platform ${activeSection.replace('_', ' ')} and operations.`}
+                : ({
+                    dashboard: 'A live overview of platform activity and items needing attention.',
+                    users: 'Review creator accounts and account details.',
+                    videos: 'Moderate uploaded videos and shorts.',
+                    paid_videos: 'Review paid video activity and creator earnings.',
+                    withdrawals: 'Review and process creator payout requests.',
+                    verification_requests: 'Review creator verification applications.',
+                    reports: 'Review content and account reports.',
+                    feedback: 'Review feedback submitted by the community.',
+                    storage: 'Manage the platform media storage configuration.',
+                    trash: 'Restore or permanently remove archived content.',
+                    tools: 'Run platform operations and content diagnostics.',
+                    sounds: 'Manage the platform sound library.',
+                    advertising: 'Manage advertising campaigns.',
+                    pro_members: 'Review creator membership activity.',
+                    payments_ads: 'Configure monetization and review payout activity.'
+                  } as Record<AdminSection, string>)[activeSection]}
             </p>
           </div>
 
@@ -1410,11 +1515,10 @@ export const AdminPanel: React.FC = () => {
         ) : (
           <>
             {/* PlayTube Extra System Panels */}
-            {['settings', 'payments_ads', 'languages', 'movies', 'articles', 'categories', 'design', 'pages', 'sitemap', 'mobile_api', 'backup', 'system_status', 'changelogs', 'faq_docs'].includes(activeSection) && (
+            {activeSection === 'payments_ads' && (
               <AdminExtraTabs 
                 activeSection={activeSection} 
                 users={users} 
-                videos={videos} 
                 withdrawalRequests={withdrawalRequests}
                 onApproveWithdrawal={handleOpenApproveModal}
                 onRejectWithdrawal={handleOpenRejectModal}
@@ -1423,13 +1527,10 @@ export const AdminPanel: React.FC = () => {
                 addToast={addToast} 
               />
             )}
-        {(activeSection === 'dashboard' || activeSection === 'tools') && (
+        {activeSection === 'dashboard' && (
           <div className="mt-6">
-            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">⚡ Quick Tools</h2>
-            <AdminQuickTools 
-              addToast={addToast} 
-              onSelectSection={(sec) => setActiveSection(sec as any)}
-            />
+            <h2 className="mb-3 text-xs font-black uppercase tracking-widest text-slate-500">Quick browser tools</h2>
+            <AdminQuickTools addToast={addToast} />
           </div>
         )}
             {/* Dashboard Section */}
@@ -1583,19 +1684,19 @@ export const AdminPanel: React.FC = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50 dark:bg-[#1a1a1a] text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-100 dark:border-[#272727]">
-                        <th className="px-6 py-4">User</th>
-                        <th className="px-6 py-4">Status & Role</th>
-                        <th className="px-6 py-4">Wallet Balance & Points</th>
-                        <th className="px-6 py-4">Password Audit</th>
-                        <th className="px-6 py-4">Monetization</th>
-                        <th className="px-6 py-4">Stats</th>
-                        <th className="px-6 py-4 text-right">Actions</th>
+                        <th className="px-4 py-2.5">User</th>
+                        <th className="px-4 py-2.5">Status & Role</th>
+                        <th className="px-4 py-2.5">Wallet Balance & Points</th>
+                        <th className="px-4 py-2.5">Password Audit</th>
+                        <th className="px-4 py-2.5">Monetization</th>
+                        <th className="px-4 py-2.5">Stats</th>
+                        <th className="px-4 py-2.5 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-[#272727]">
                       {filteredUsers.map(u => (
                         <tr key={u.uid} className="text-xs hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50 transition-colors">
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-2.5">
                             <div className="flex items-center gap-3">
                               <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
                                 {u.photoURL ? <img src={u.photoURL} className="w-full h-full object-cover" /> : getInitials(u.displayName)}
@@ -1606,9 +1707,9 @@ export const AdminPanel: React.FC = () => {
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 space-y-1">
+                          <td className="px-4 py-2.5 space-y-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30' : 'bg-red-50 text-red-600 dark:bg-red-950/30'}`}>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30' : 'bg-red-50 text-[#800080] dark:bg-red-950/30'}`}>
                                 {u.status}
                               </span>
                               {isUserVerified(u) ? (
@@ -1634,7 +1735,7 @@ export const AdminPanel: React.FC = () => {
                             </div>
                             <p className="text-[10px] font-black text-slate-500 uppercase">{u.role}</p>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-2.5">
                             <p className="font-mono font-black text-blue-600 dark:text-blue-400">
                               ₹{(u.walletBalance || 0).toFixed(2)}
                             </p>
@@ -1647,7 +1748,7 @@ export const AdminPanel: React.FC = () => {
                               {u.points || 0} pts
                             </p>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-2.5">
                             <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block">
                               {u.lastPasswordChangedAt 
                                 ? `Changed: ${new Date(u.lastPasswordChangedAt).toLocaleDateString()}` 
@@ -1657,7 +1758,7 @@ export const AdminPanel: React.FC = () => {
                               Joined {new Date(u.createdAt).toLocaleDateString()}
                             </span>
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-2.5">
                             <button
                               onClick={() => handleToggleMonetization(u.uid, u.isMonetized || false)}
                               className={`px-3 py-1.5 rounded-xl font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer border ${
@@ -1670,13 +1771,13 @@ export const AdminPanel: React.FC = () => {
                               {u.isMonetized ? '✓ Active' : 'Enable'}
                             </button>
                           </td>
-                          <td className="px-6 py-4 text-slate-500">
+                          <td className="px-4 py-2.5 text-slate-500">
                             <div className="flex flex-col gap-0.5">
                               <span className="font-bold">{u.videosCount} videos</span>
                               <span className="text-[10px]">{u.followersCount} followers</span>
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-right space-x-1.5">
+                          <td className="px-4 py-2.5 text-right space-x-1.5">
                             {u.isMonetized ? (
                               <button
                                 onClick={() => {
@@ -1733,7 +1834,7 @@ export const AdminPanel: React.FC = () => {
                             </button>
                             <button 
                               onClick={() => setUserToDelete(u)}
-                              className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition-colors"
+                              className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[#800080] rounded-lg transition-colors"
                               title="Delete user to 180-Day Trash Vault"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1789,7 +1890,7 @@ export const AdminPanel: React.FC = () => {
                         <td className="px-6 py-4 text-right space-x-2">
                           <button 
                             onClick={() => setCaptionEditorVideo(v)}
-                            className="p-2 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg text-purple-500 transition-colors cursor-pointer"
+                            className="p-2 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg text-[#800080] transition-colors cursor-pointer"
                             title="Manage Video Captions & Subtitles (सबटाइटल्स जोड़ें)"
                           >
                             <Subtitles className="w-4 h-4" />
@@ -1803,7 +1904,7 @@ export const AdminPanel: React.FC = () => {
                           </button>
                           <button 
                             onClick={() => setVideoToDelete(v)}
-                            className="p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-rose-500 transition-colors"
+                            className="p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-[#800080] transition-colors"
                             title="Delete Video Permanently"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -2002,11 +2103,11 @@ export const AdminPanel: React.FC = () => {
                                   )}
                                   {req.status === 'rejected' && (
                                     <div className="space-y-0.5">
-                                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">
+                                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-[#800080] dark:bg-rose-950/40 dark:text-[#800080]">
                                         ✕ Rejected & Refunded
                                       </span>
                                       {req.adminNotes && (
-                                        <p className="text-[9px] text-rose-500 font-medium truncate max-w-xs">{req.adminNotes}</p>
+                                        <p className="text-[9px] text-[#800080] font-medium truncate max-w-xs">{req.adminNotes}</p>
                                       )}
                                     </div>
                                   )}
@@ -2034,7 +2135,7 @@ export const AdminPanel: React.FC = () => {
                                           type="button"
                                           onClick={() => handleOpenRejectModal(req)}
                                           disabled={isProcessingPayoutId === req.id}
-                                          className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 font-black text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                                          className="px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-[#800080] dark:text-[#800080] font-black text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1 active:scale-95"
                                           title="Reject and refund money to user balance"
                                         >
                                           <X className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -2054,7 +2155,7 @@ export const AdminPanel: React.FC = () => {
                                     <button
                                       type="button"
                                       onClick={() => handleDeleteWithdrawalRequest(req)}
-                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                                      className="p-1.5 text-slate-400 hover:text-[#800080] hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
                                       title="Permanently delete test or fake request"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -2118,7 +2219,7 @@ export const AdminPanel: React.FC = () => {
 
                   <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] p-5 rounded-2xl shadow-xs space-y-2">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Monetized Channels</span>
-                    <p className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                    <p className="text-2xl font-black text-[#800080] dark:text-[#800080]">
                       {users.filter(u => u.isMonetized).length}
                     </p>
                     <p className="text-[10px] font-bold text-slate-400">Approved for paid content</p>
@@ -2294,6 +2395,25 @@ export const AdminPanel: React.FC = () => {
                       </p>
                     </div>
 
+                    {r.targetType === 'video' && (
+                      <button
+                        type="button"
+                        onClick={() => navigate('watch', r.targetId)}
+                        className="w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-left hover:border-blue-400 dark:border-slate-700 dark:bg-slate-900"
+                      >
+                        {videos.find(video => video.videoId === r.targetId)?.thumbnailUrl && (
+                          <img
+                            src={videos.find(video => video.videoId === r.targetId)?.thumbnailUrl}
+                            alt=""
+                            className="aspect-video w-full object-cover"
+                          />
+                        )}
+                        <span className="block px-3 py-2 text-xs font-bold text-blue-600 dark:text-blue-400">
+                          View reported video: {videos.find(video => video.videoId === r.targetId)?.title || r.targetTitle || r.targetId}
+                        </span>
+                      </button>
+                    )}
+
                     <div className="pt-2 flex flex-col gap-1 text-[10px] text-slate-500 font-bold">
                       <div className="flex justify-between">
                         <span>Reporter ID</span>
@@ -2309,16 +2429,42 @@ export const AdminPanel: React.FC = () => {
                       </div>
                     </div>
 
+                    {r.adminResponse && (
+                      <p className="rounded-xl bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                        Last update sent: {r.adminResponse}
+                      </p>
+                    )}
+                    <div className="space-y-2">
+                      <textarea
+                        value={reportMessages[r.reportId] || ''}
+                        onChange={event => setReportMessages(prev => ({
+                          ...prev,
+                          [r.reportId]: event.target.value
+                        }))}
+                        rows={2}
+                        placeholder="Write an update for the person who submitted this report"
+                        className="w-full resize-y rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSendReportUpdate(r)}
+                        disabled={!reportMessages[r.reportId]?.trim() || sendingReportUpdateId === r.reportId}
+                        className="w-full rounded-xl bg-blue-600 py-2 text-[11px] font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {sendingReportUpdateId === r.reportId ? 'Sending update…' : 'Send update to reporter'}
+                      </button>
+                    </div>
+
                     <div className="pt-4 flex gap-2">
                       <button 
-                        onClick={() => handleResolveReport(r.reportId, 'resolved')}
+                        onClick={() => handleReportUpdate(r, 'resolved')}
                         disabled={r.status === 'resolved'}
                         className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-[11px] rounded-xl transition-colors"
                       >
                         Resolve
                       </button>
                       <button 
-                        onClick={() => handleResolveReport(r.reportId, 'reviewed')}
+                        onClick={() => handleReportUpdate(r, 'reviewed')}
                         disabled={r.status === 'reviewed' || r.status === 'resolved'}
                         className="flex-1 py-2 bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] disabled:opacity-50 text-slate-700 dark:text-slate-300 font-bold text-[11px] rounded-xl transition-colors"
                       >
@@ -2616,12 +2762,12 @@ export const AdminPanel: React.FC = () => {
                       <div className={`p-4 rounded-2xl text-xs font-bold flex items-start gap-3 border ${
                         storageTestStatus === 'success'
                           ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
-                          : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+                          : 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-[#800080] dark:text-[#800080]'
                       }`}>
                         {storageTestStatus === 'success' ? (
                           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                         ) : (
-                          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                          <AlertCircle className="w-5 h-5 text-[#800080] shrink-0 mt-0.5" />
                         )}
                         <div>
                           <p className="font-black">{storageTestStatus === 'success' ? 'Verification Passed' : 'Verification Failed'}</p>
@@ -2710,7 +2856,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="bg-linear-to-r from-slate-900 to-slate-800 dark:from-[#161616] dark:to-[#1f1f1f] text-white p-6 rounded-3xl border border-slate-700 shadow-md space-y-3">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold">
+                      <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-[#800080] border border-rose-500/30 flex items-center justify-center font-bold">
                         <Archive className="w-5 h-5" />
                       </div>
                       <div>
@@ -2802,7 +2948,7 @@ export const AdminPanel: React.FC = () => {
                                   item.itemType === 'video' 
                                     ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400' 
                                     : item.itemType === 'short' 
-                                    ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
+                                    ? 'bg-rose-50 text-[#800080] dark:bg-rose-950/40 dark:text-[#800080]'
                                     : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
                                 }`}>
                                   {item.itemType}
@@ -2827,7 +2973,7 @@ export const AdminPanel: React.FC = () => {
                                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black w-fit ${
                                       daysLeft > 30 
                                         ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800' 
-                                        : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                                        : 'bg-rose-50 text-[#800080] dark:bg-rose-950/40 dark:text-[#800080] border border-rose-200 dark:border-rose-800'
                                     }`}>
                                       <Clock className="w-3 h-3" />
                                       <span>{daysLeft} Days Remaining</span>
@@ -2868,7 +3014,7 @@ export const AdminPanel: React.FC = () => {
                                   type="button"
                                   onClick={() => handlePurgeTrash(item)}
                                   disabled={isPurgingTrashId === item.id}
-                                  className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-lg transition-colors cursor-pointer"
+                                  className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[#800080] rounded-lg transition-colors cursor-pointer"
                                   title="Purge permanently from archive"
                                 >
                                   {isPurgingTrashId === item.id ? (
@@ -3072,7 +3218,7 @@ export const AdminPanel: React.FC = () => {
                       </div>
                       <div>
                         <h3 className="text-lg font-black text-slate-900 dark:text-white">Platform Health & Diagnostic Scanner</h3>
-                        <p className="text-xs text-slate-500 font-medium">Scan platform database, media assets, missing thumbnails and content metrics in real-time.</p>
+                        <p className="text-xs text-slate-500 font-medium">Check the current video list for missing thumbnails, descriptions and engagement totals.</p>
                       </div>
                     </div>
 
@@ -3112,14 +3258,16 @@ export const AdminPanel: React.FC = () => {
                       </div>
 
                       <div className="p-4 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#272727] rounded-2xl">
-                        <p className="text-[10px] font-black uppercase text-slate-400">Database Status</p>
-                        <p className="text-2xl font-black text-emerald-500 mt-1">Healthy</p>
-                        <p className="text-[11px] text-slate-500 font-semibold mt-1">Firestore latency: normal</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400">Empty descriptions</p>
+                        <p className={`text-2xl font-black mt-1 ${auditStats.emptyDescriptions > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                          {auditStats.emptyDescriptions}
+                        </p>
+                        <p className="text-[11px] text-slate-500 font-semibold mt-1">In the current video list</p>
                       </div>
                     </div>
                   ) : (
                     <div className="p-8 text-center bg-slate-50 dark:bg-[#1a1a1a] rounded-2xl border border-dashed border-slate-200 dark:border-[#333]">
-                      <p className="text-xs text-slate-500 font-bold">Click "Run Diagnostics Scan" above to perform a full system audit of all videos, storage, and platform engagement.</p>
+                      <p className="text-xs text-slate-500 font-bold">Run a content check against the videos currently loaded in this panel.</p>
                     </div>
                   )}
                 </div>
@@ -3127,7 +3275,7 @@ export const AdminPanel: React.FC = () => {
                 {/* TOOL 3: QUICK USER ROLE & PRIVILEGE MANAGER */}
                 <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                   <div className="flex items-center gap-3 pb-5 border-b border-slate-100 dark:border-[#272727]">
-                    <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-purple-600 rounded-2xl">
+                    <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-[#800080] rounded-2xl">
                       <ShieldCheck className="w-6 h-6" />
                     </div>
                     <div>
@@ -3245,15 +3393,43 @@ export const AdminPanel: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                          Cover Image URL
+                          Cover Image (URL or upload)
                         </label>
                         <input
                           type="text"
                           placeholder="https://images.unsplash.com/..."
                           value={newSongCoverUrl}
-                          onChange={(e) => setNewSongCoverUrl(e.target.value)}
+                          onChange={(e) => {
+                            setNewSongCoverUrl(e.target.value);
+                            setNewSongCoverFile(null);
+                            setNewSongCoverPreview('');
+                          }}
                           className="w-full px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                         />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          aria-label="Upload sound cover image"
+                          onChange={async event => {
+                            const file = event.currentTarget.files?.[0];
+                            if (!file) return;
+                            if (!file.type.startsWith('image/')) {
+                              addToast('Choose an image file for the sound cover.', 'error');
+                              return;
+                            }
+                            try {
+                              const preview = await readImagePreview(file);
+                              setNewSongCoverFile(file);
+                              setNewSongCoverPreview(preview);
+                            } catch (error) {
+                              addToast(error instanceof Error ? error.message : 'Could not read the selected image.', 'error');
+                            }
+                          }}
+                          className="mt-2 block w-full text-xs text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-xs file:font-bold file:text-blue-700"
+                        />
+                        {newSongCoverPreview && (
+                          <img src={newSongCoverPreview} alt="Selected cover preview" className="mt-2 h-12 w-12 rounded-lg object-cover" />
+                        )}
                       </div>
 
                       <div>
@@ -3331,7 +3507,11 @@ export const AdminPanel: React.FC = () => {
                         <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={() => setEditingSound(s)}
+                            onClick={() => {
+                              setEditingSound(s);
+                              setEditingSoundCoverFile(null);
+                              setEditingSoundCoverPreview('');
+                            }}
                             className="px-2.5 py-1.5 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold active:scale-95"
                             title="Edit sound track details"
                           >
@@ -3341,7 +3521,7 @@ export const AdminPanel: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleDeleteSong(s.soundId)}
-                            className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer active:scale-95"
+                            className="p-2 text-[#800080] hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer active:scale-95"
                             title="Delete sound track"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -3378,7 +3558,7 @@ export const AdminPanel: React.FC = () => {
                   </div>
                   <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
                     <p className="text-[10px] font-black uppercase text-slate-400">Total Ad Clicks</p>
-                    <p className="text-2xl font-black text-purple-500 mt-1">
+                    <p className="text-2xl font-black text-[#800080] mt-1">
                       {adCampaigns.reduce((acc, a) => acc + (a.results || 0), 0)}
                     </p>
                     <p className="text-[11px] text-slate-500 font-bold mt-1">User Engagements</p>
@@ -3643,11 +3823,11 @@ export const AdminPanel: React.FC = () => {
                     </div>
 
                     <div className="p-5 rounded-3xl bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] shadow-xs">
-                      <p className="text-[10px] font-black uppercase text-rose-500">Rejected Applications</p>
-                      <p className="text-2xl font-black text-rose-500 mt-1">
+                      <p className="text-[10px] font-black uppercase text-[#800080]">Rejected Applications</p>
+                      <p className="text-2xl font-black text-[#800080] mt-1">
                         {rejectedCount}
                       </p>
-                      <p className="text-[11px] text-rose-600 font-bold mt-1">Declined by Admin</p>
+                      <p className="text-[11px] text-[#800080] font-bold mt-1">Declined by Admin</p>
                     </div>
                   </div>
 
@@ -3766,7 +3946,7 @@ export const AdminPanel: React.FC = () => {
                                     <span>Approved & Verified ✓</span>
                                   </span>
                                 ) : (
-                                  <span className="px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-black text-[11px] flex items-center gap-1.5 shadow-xs">
+                                  <span className="px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-[#800080] dark:text-[#800080] font-black text-[11px] flex items-center gap-1.5 shadow-xs">
                                     <XCircle className="w-3.5 h-3.5" />
                                     <span>Rejected</span>
                                   </span>
@@ -3824,7 +4004,7 @@ export const AdminPanel: React.FC = () => {
                               </div>
 
                               {req.status === 'rejected' && req.rejectionReason && (
-                                <div className="sm:col-span-2 lg:col-span-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-800 dark:text-rose-300">
+                                <div className="sm:col-span-2 lg:col-span-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-[#800080] dark:text-[#800080]">
                                   <span className="font-bold">Rejection Reason Provided: </span>
                                   <span>"{req.rejectionReason}"</span>
                                 </div>
@@ -3849,7 +4029,7 @@ export const AdminPanel: React.FC = () => {
                                       type="button"
                                       disabled={isProcessing}
                                       onClick={() => handleOpenRejectVerificationModal(req)}
-                                      className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:hover:bg-rose-950/70 dark:text-rose-300 font-bold text-xs rounded-xl border border-rose-200 dark:border-rose-900/60 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+                                      className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-[#800080] dark:bg-rose-950/40 dark:hover:bg-rose-950/70 dark:text-[#800080] font-bold text-xs rounded-xl border border-rose-200 dark:border-rose-900/60 flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
                                     >
                                       <XCircle className="w-4 h-4" />
                                       <span>Reject</span>
@@ -3875,7 +4055,7 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleRevokeVerification(req.userId, req.id)}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 dark:bg-slate-800 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 text-slate-600 dark:text-slate-400 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                                    className="px-4 py-2 bg-slate-100 hover:bg-rose-50 hover:text-[#800080] dark:bg-slate-800 dark:hover:bg-rose-950/40 dark:hover:text-[#800080] text-slate-600 dark:text-slate-400 font-bold text-xs rounded-xl transition-all cursor-pointer"
                                   >
                                     Revoke Blue Tick
                                   </button>
@@ -3994,7 +4174,7 @@ export const AdminPanel: React.FC = () => {
         {userToDelete && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5">
-              <div className="flex items-center gap-3 text-rose-600">
+              <div className="flex items-center gap-3 text-[#800080]">
                 <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-2xl">
                   <Trash2 className="w-6 h-6" />
                 </div>
@@ -4044,7 +4224,7 @@ export const AdminPanel: React.FC = () => {
         {videoToDelete && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5">
-              <div className="flex items-center gap-3 text-rose-600">
+              <div className="flex items-center gap-3 text-[#800080]">
                 <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-2xl">
                   <Trash2 className="w-6 h-6" />
                 </div>
@@ -4565,7 +4745,11 @@ export const AdminPanel: React.FC = () => {
                 </div>
                 <button 
                   type="button"
-                  onClick={() => setEditingSound(null)}
+                  onClick={() => {
+                    setEditingSound(null);
+                    setEditingSoundCoverFile(null);
+                    setEditingSoundCoverPreview('');
+                  }}
                   disabled={isUpdatingSound}
                   className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-[#222] text-slate-400 cursor-pointer"
                 >
@@ -4650,24 +4834,53 @@ export const AdminPanel: React.FC = () => {
                   <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Cover Artwork URL</label>
                   <div className="flex gap-3 items-center">
                     <img 
-                      src={editingSound.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80'} 
+                      src={editingSoundCoverPreview || editingSound.coverUrl || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80'}
                       alt="Cover preview" 
                       className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-[#333] shrink-0"
                     />
                     <input
                       type="url"
                       value={editingSound.coverUrl}
-                      onChange={(e) => setEditingSound(prev => prev ? { ...prev, coverUrl: e.target.value } : null)}
+                      onChange={(e) => {
+                        setEditingSound(prev => prev ? { ...prev, coverUrl: e.target.value } : null);
+                        setEditingSoundCoverFile(null);
+                        setEditingSoundCoverPreview('');
+                      }}
                       placeholder="https://images.unsplash.com/..."
                       className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-xl text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    aria-label="Upload sound cover image"
+                    onChange={async event => {
+                      const file = event.currentTarget.files?.[0];
+                      if (!file) return;
+                      if (!file.type.startsWith('image/')) {
+                        addToast('Choose an image file for the sound cover.', 'error');
+                        return;
+                      }
+                      try {
+                        const preview = await readImagePreview(file);
+                        setEditingSoundCoverFile(file);
+                        setEditingSoundCoverPreview(preview);
+                      } catch (error) {
+                        addToast(error instanceof Error ? error.message : 'Could not read the selected image.', 'error');
+                      }
+                    }}
+                    className="mt-2 block w-full text-xs text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-xs file:font-bold file:text-blue-700"
+                  />
                 </div>
 
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setEditingSound(null)}
+                    onClick={() => {
+                      setEditingSound(null);
+                      setEditingSoundCoverFile(null);
+                      setEditingSoundCoverPreview('');
+                    }}
                     disabled={isUpdatingSound}
                     className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-[#333] text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#222] transition-colors cursor-pointer"
                   >

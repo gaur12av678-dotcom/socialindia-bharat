@@ -87,6 +87,71 @@ const memorySearchCache = new Map<string, { data: Video[]; timestamp: number }>(
 const inFlightVideoQueryPromises = new Map<string, Promise<Video[]>>();
 const CACHE_TTL_MS = 60000; // 60 seconds memory cache
 
+function rankVideoSearchResults(term: string, videos: Video[]): Video[] {
+  const cleanTerm = term.trim().toLowerCase();
+  const tokens = cleanTerm.split(/\s+/).map(token => token.replace(/^[@#]/, '')).filter(Boolean);
+  if (!cleanTerm || tokens.length === 0) return [];
+
+  const candidates = videos.flatMap(video => {
+    const title = (video.title || '').toLowerCase();
+    const description = (video.description || '').toLowerCase();
+    const username = (video.creatorUsername || '').toLowerCase().replace(/^@/, '');
+    const displayName = (video.creatorDisplayName || '').toLowerCase();
+    const category = (video.category || '').toLowerCase();
+    const tags = Array.isArray(video.tags) ? video.tags.map(tag => String(tag).toLowerCase().replace(/^#/, '')) : [];
+    const searchableText = [title, description, username, displayName, category, ...tags].join(' ');
+    const matchedTokens = tokens.filter(token => searchableText.includes(token));
+
+    if (!searchableText.includes(cleanTerm) && matchedTokens.length !== tokens.length) return [];
+
+    let score = 0;
+    if (title === cleanTerm) score += 180;
+    else if (title.startsWith(cleanTerm)) score += 130;
+    else if (title.includes(cleanTerm)) score += 100;
+    const titleTokenMatches = tokens.filter(token => title.includes(token)).length;
+    score += titleTokenMatches * 18;
+
+    if (tags.includes(cleanTerm.replace(/^#/, ''))) score += 95;
+    else if (tags.some(tag => tag.includes(cleanTerm.replace(/^#/, '')))) score += 55;
+    if (username === cleanTerm.replace(/^@/, '')) score += 100;
+    else if (username.startsWith(cleanTerm.replace(/^@/, ''))) score += 65;
+    else if (username.includes(cleanTerm.replace(/^@/, '')) || displayName.includes(cleanTerm)) score += 40;
+    if (category === cleanTerm) score += 50;
+    else if (category.includes(cleanTerm)) score += 28;
+    if (description.includes(cleanTerm)) score += 30;
+    score += matchedTokens.length * 5;
+
+    const views = Math.max(0, Number(video.viewsCount) || 0);
+    const likes = Math.max(0, Number(video.likesCount) || 0);
+    const comments = Math.max(0, Number(video.commentsCount) || 0);
+    const engagementRate = Math.min(12, ((likes + comments * 2 + 1) / (views + 100)) * 400);
+    score += engagementRate + Math.min(14, Math.log10(views + 1) * 2);
+
+    const uploadTime = new Date(video.createdAt || 0).getTime();
+    if (Number.isFinite(uploadTime)) {
+      const ageDays = Math.max(0, (Date.now() - uploadTime) / 86_400_000);
+      score += Math.max(0, 12 - ageDays / 7);
+    }
+
+    return [{ video, score }];
+  });
+
+  const creatorCounts = new Map<string, number>();
+  candidates.forEach(({ video }) => {
+    const creator = video.creatorId || video.creatorUsername;
+    if (creator) creatorCounts.set(creator, (creatorCounts.get(creator) || 0) + 1);
+  });
+
+  return candidates
+    .map(candidate => {
+      const creator = candidate.video.creatorId || candidate.video.creatorUsername;
+      const repetitionPenalty = creator ? Math.log2(creatorCounts.get(creator) || 1) * 4 : 0;
+      return { ...candidate, score: candidate.score - repetitionPenalty };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map(candidate => candidate.video);
+}
+
 function getPersistedVideos(): Video[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -1004,11 +1069,17 @@ export const videoService = {
       if (v.videoId) this.cacheVideo(v);
     });
 
-    if (!filters?.afterDoc && !filters?.creatorId && (!filters?.category || filters.category === 'All')) {
-      if (filters?.isShort === true && sorted.length > 0) {
-        savePersistedShorts(sorted);
-      } else if (filters?.isShort === false && sorted.length > 0) {
-        savePersistedVideos(sorted);
+    if (!filters?.creatorId && (!filters?.category || filters.category === 'All') && sorted.length > 0) {
+      if (filters?.isShort === true) {
+        const cached = getPersistedShorts();
+        const ordered = filters.afterDoc ? [...cached, ...sorted] : [...sorted, ...cached];
+        const merged = new Map(ordered.map(video => [video.videoId, video]));
+        savePersistedShorts([...merged.values()]);
+      } else if (filters?.isShort === false) {
+        const cached = getPersistedVideos().filter(video => !video.isShort);
+        const ordered = filters.afterDoc ? [...cached, ...sorted] : [...sorted, ...cached];
+        const merged = new Map(ordered.map(video => [video.videoId, video]));
+        savePersistedVideos([...merged.values()]);
       }
     }
 
@@ -1137,11 +1208,14 @@ export const videoService = {
     }
   },
 
-  // Search videos across titles, description, creators, tags, category with instant query cache
+  searchCachedVideos(term: string): Video[] {
+    return rankVideoSearchResults(term, this.getCachedVideos());
+  },
+
+  // Search by textual relevance first, with bounded engagement and freshness signals.
   async searchVideos(term: string): Promise<Video[]> {
     if (!term.trim()) return this.getVideos();
     const cleanTerm = term.trim().toLowerCase();
-    const cleanTagTerm = cleanTerm.replace('#', '');
 
     const cachedSearch = memorySearchCache.get(cleanTerm);
     if (cachedSearch && Date.now() - cachedSearch.timestamp < CACHE_TTL_MS) {
@@ -1149,42 +1223,20 @@ export const videoService = {
     }
 
     try {
-      // Get all public videos (from memory cache if available!)
-      const videos = await this.getVideos();
-      
-      // Perform strict multi-field search in-memory to deliver accurate user queries
-      const results = videos.filter(v => {
-        const titleMatch = v.title.toLowerCase().includes(cleanTerm);
-        const descMatch = v.description.toLowerCase().includes(cleanTerm);
-        const creatorMatch = v.creatorUsername.toLowerCase().includes(cleanTerm) || v.creatorDisplayName.toLowerCase().includes(cleanTerm);
-        const categoryMatch = v.category.toLowerCase().includes(cleanTerm);
-        const tagMatch = v.tags.some(tag => tag.toLowerCase().includes(cleanTerm) || tag.toLowerCase().includes(cleanTagTerm));
-        return titleMatch || descMatch || creatorMatch || categoryMatch || tagMatch;
+      const cachedVideos = this.getCachedVideos();
+      const fetchedVideos = await this.getVideos();
+      const videosById = new Map<string, Video>();
+      [...cachedVideos, ...fetchedVideos].forEach(video => {
+        if (video.videoId) videosById.set(video.videoId, video);
       });
 
-      memorySearchCache.set(cleanTerm, { data: results, timestamp: Date.now() });
-           // Rank results: best match first, then engagement
-      const scoreMatch = (v: Video): number => {
-        const title = v.title.toLowerCase();
-        let s = 0;
-        if (title === cleanTerm) s += 120;
-        else if (title.startsWith(cleanTerm)) s += 80;
-        else if (title.includes(cleanTerm)) s += 60;
-        if (v.tags.some(t => t.toLowerCase() === cleanTagTerm)) s += 45;
-        else if (v.tags.some(t => t.toLowerCase().includes(cleanTagTerm))) s += 35;
-        if (v.creatorUsername.toLowerCase().includes(cleanTerm) || v.creatorDisplayName.toLowerCase().includes(cleanTerm)) s += 30;
-        if (v.category.toLowerCase().includes(cleanTerm)) s += 20;
-        if (v.description.toLowerCase().includes(cleanTerm)) s += 10;
-        s += Math.min((v.likesCount || 0) * 2 + (v.viewsCount || 0) * 0.05, 40); // capped popularity
-        return s;
-      };
-      const ranked = results.sort((a, b) => scoreMatch(b) - scoreMatch(a));
+      const ranked = rankVideoSearchResults(cleanTerm, [...videosById.values()]);
 
       memorySearchCache.set(cleanTerm, { data: ranked, timestamp: Date.now() });
       return ranked;
     } catch (err) {
       console.error('Search error:', err);
-      return [];
+      return this.searchCachedVideos(cleanTerm);
     }
   },
 

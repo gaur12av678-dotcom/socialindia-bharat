@@ -51,7 +51,7 @@ export const getFilteredVideosForCategory = (category: string, sourceVideos: Vid
 let persistentMasterVideos: Video[] = [];
 let persistentRankedVideos: Video[] = [];
 let persistentExtraMoreVideos: Video[] = [];
-let persistentMoreDisplayCount = 18;
+let persistentMoreDisplayCount = 3;
 let persistentHomeShorts: Video[] | null = null;
 let persistentHomeCategory = 'All';
 let persistentHomeScrollY = 0;
@@ -67,7 +67,7 @@ interface HomeClipCardProps {
   onOpen: (videoId: string) => void;
 }
 
-const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen }) => {
+const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHindi, onOpen }) => {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -91,10 +91,10 @@ const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen
         onOpen(short.videoId);
       }}
       style={{
-        animationDelay: `${Math.min(idx, 8) * 45}ms`,
+        animationDelay: `${(idx % 3) * 35}ms`,
         animationFillMode: 'both'
       }}
-      className="yt-card-animate w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 group relative block cursor-pointer select-none transition-transform active:scale-[0.98]"
+      className="yt-card-animate w-full min-w-0 group relative block cursor-pointer select-none transition-transform active:scale-[0.98]"
     >
       <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-[#dbe2ee] dark:bg-slate-800 shadow-md">
         {short.thumbnailUrl && !imgLoaded && !imgFailed && (
@@ -105,8 +105,8 @@ const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen
             ref={imgRef}
             src={short.thumbnailUrl}
             alt={short.title}
-            loading={idx < 4 ? 'eager' : 'lazy'}
-            fetchPriority={idx < 4 ? 'high' : 'auto'}
+            loading={idx < 3 ? 'eager' : 'lazy'}
+            fetchPriority={idx < 3 ? 'high' : 'auto'}
             decoding="async"
             draggable={false}
             onLoad={() => setImgLoaded(true)}
@@ -144,6 +144,7 @@ const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen
       </div>
 
       {/* Short Title & Creator & Views */}
+      {imgLoaded || imgFailed || !short.thumbnailUrl ? (
       <div className="mt-2 space-y-0.5 px-0.5">
         <p className="text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-[#065fd4] dark:group-hover:text-[#3b82f6] transition-colors">
           {short.title}
@@ -156,14 +157,21 @@ const HomeClipCard: React.FC<HomeClipCardProps> = ({ short, idx, isHindi, onOpen
           </span>
         </div>
       </div>
+      ) : (
+        <div className="mt-2 space-y-2 px-0.5 animate-pulse" aria-hidden="true">
+          <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[88%]" />
+          <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[60%]" />
+        </div>
+      )}
     </a>
   );
-};
+});
 
 export const Home: React.FC = () => {
   const { currentUser, addToast } = useApp();
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
+  const openHomeShort = React.useCallback((id: string) => navigate('shorts', id), [navigate]);
   const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || persistentHomeCategory || 'All');
   const [mobileFeedTab, setMobileFeedTab] = useState<'all' | 'following'>('all');
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
@@ -184,14 +192,16 @@ export const Home: React.FC = () => {
   }
 
   const [videos, setVideos] = useState<Video[]>(() => {
-    if (persistentRankedVideos.length > 0 && selectedCategory === persistentHomeCategory) {
-      return persistentRankedVideos;
-    }
-    const source = masterVideosRef.current.length > 0 ? masterVideosRef.current : initialAllCached;
+    const source = masterVideosRef.current.length > 0
+      ? masterVideosRef.current
+      : persistentRankedVideos.length > 0
+        ? persistentRankedVideos
+        : initialAllCached;
     if (source.length > 0) {
       const filtered = getFilteredVideosForCategory(selectedCategory, source);
       const ranked = recommendationService.rankAndFilterVideos(filtered, {
-        userUid: currentUser?.uid
+        userUid: currentUser?.uid,
+        rotateTop: true
       });
       persistentRankedVideos = ranked;
       return ranked;
@@ -201,7 +211,17 @@ export const Home: React.FC = () => {
 
   const [shorts, setShorts] = useState<Video[]>(() => {
     if (persistentHomeShorts && persistentHomeShorts.length > 0) {
-      return persistentHomeShorts;
+      const candidates = new Map<string, Video>();
+      [...persistentHomeShorts, ...initialCachedShorts].forEach(short => {
+        if (short.videoId) candidates.set(short.videoId, short);
+      });
+      const ranked = recommendationService.getShortsRecommendations({
+        allShorts: [...candidates.values()],
+        userUid: currentUser?.uid,
+        limit: 5
+      });
+      persistentHomeShorts = ranked;
+      return ranked;
     }
     if (initialCachedShorts.length > 0) {
       const rankedInitialShorts = recommendationService.getShortsRecommendations({
@@ -226,9 +246,12 @@ export const Home: React.FC = () => {
   const [hasMorePlatformVideos, setHasMorePlatformVideos] = useState<boolean>(() => persistentHasMoreVideos);
   const [isLoadingMoreVideos, setIsLoadingMoreVideos] = useState<boolean>(false);
   const moreSentinelRef = useRef<HTMLDivElement>(null);
+  const lastMoreRevealScrollYRef = useRef(-1);
   const lastVideoDocRef = useRef<any>(persistentLastVideoDoc);
+  const categoryLastVideoDocRef = useRef<any>(null);
   const isFetchingMoreRef = useRef<boolean>(false);
   const didInitCategoryEffectRef = useRef<boolean>(false);
+  const hasMoreSelectedCategoryRef = useRef<boolean>(true);
 
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
   const [adDismissed, setAdDismissed] = useState(false);
@@ -311,6 +334,11 @@ export const Home: React.FC = () => {
     if (selectedCategory === cat) return;
     setSelectedCategory(cat);
     persistentHomeCategory = cat;
+    lastMoreRevealScrollYRef.current = -1;
+    categoryLastVideoDocRef.current = null;
+    hasMoreSelectedCategoryRef.current = true;
+    setExtraMoreVideos([]);
+    setMoreDisplayCount(3);
 
     // Scroll to top of main container or window
     const mainEl = document.querySelector('main');
@@ -322,7 +350,8 @@ export const Home: React.FC = () => {
     // 100% INSTANT 0ms filter from masterVideos in memory
     const instantFiltered = getFilteredVideosForCategory(cat, masterVideosRef.current);
     const ranked = recommendationService.rankAndFilterVideos(instantFiltered, {
-      userUid: currentUser?.uid
+      userUid: currentUser?.uid,
+      rotateTop: true
     });
     persistentRankedVideos = ranked;
     setVideos(ranked);
@@ -346,13 +375,7 @@ export const Home: React.FC = () => {
     }
 
     try {
-      let page = await videoService.getVideosPage({ isShort: false, limit: 6 });
-
-// Retry once if the first request returns an empty feed
-if (page.videos.length === 0) {
-  await new Promise(resolve => setTimeout(resolve, 800));
-  page = await videoService.getVideosPage({ isShort: false, limit: 6 });
-}
+      const page = await videoService.getVideosPage({ isShort: false, limit: 3 });
 
       const fetchedVideos = page.videos;
       lastVideoDocRef.current = page.lastDoc;
@@ -361,94 +384,98 @@ if (page.videos.length === 0) {
       setHasMorePlatformVideos(page.hasMore);
 
       if (fetchedVideos && fetchedVideos.length > 0) {
-        if (hadCachedBeforeFetch && !forceFresh) {
-          // Silent merge: keep existing Row 1 & order intact so the page never flashes/reloads twice,
-          // while adding any newly published or uncached videos into masterVideosRef & extraMoreVideos
-          const existingIds = new Set(masterVideosRef.current.map(v => v.videoId));
-          const brandNew = fetchedVideos.filter(v => !existingIds.has(v.videoId));
-          const updatedMaster = [...masterVideosRef.current, ...brandNew];
-          masterVideosRef.current = updatedMaster;
-          persistentMasterVideos = updatedMaster;
-          if (brandNew.length > 0) {
-            setExtraMoreVideos(prev => {
-              const prevIds = new Set(prev.map(v => v.videoId));
-              const toAppend = brandNew.filter(v => !prevIds.has(v.videoId));
-              return toAppend.length > 0 ? [...prev, ...toAppend] : prev;
-            });
-          }
-        } else {
-          masterVideosRef.current = fetchedVideos;
-          persistentMasterVideos = fetchedVideos;
-          persistentExtraMoreVideos = [];
-          persistentMoreDisplayCount = 18;
-          setExtraMoreVideos([]);
-          setMoreDisplayCount(18);
+        const currentIds = new Set(masterVideosRef.current.map(video => video.videoId));
+        const newVideos = fetchedVideos.filter(video => !currentIds.has(video.videoId));
+        const mergedById = new Map(
+          masterVideosRef.current.map(video => [video.videoId, video])
+        );
+        fetchedVideos.forEach(video => mergedById.set(video.videoId, video));
+        const updatedMaster = [...mergedById.values()];
+        masterVideosRef.current = updatedMaster;
+        persistentMasterVideos = updatedMaster;
 
-          const filtered = getFilteredVideosForCategory(selectedCategoryRef.current, fetchedVideos);
+        if (forceFresh || !hadCachedBeforeFetch) {
+          persistentExtraMoreVideos = [];
+          persistentMoreDisplayCount = 3;
+          setExtraMoreVideos([]);
+          setMoreDisplayCount(3);
+        }
+
+        if (forceFresh || !hadCachedBeforeFetch) {
+          const filtered = getFilteredVideosForCategory(
+            selectedCategoryRef.current,
+            updatedMaster
+          );
           const ranked = recommendationService.rankAndFilterVideos(filtered, {
             userUid: currentUser?.uid,
-            rotateTop: forceFresh
+            rotateTop: true
           });
-
           persistentRankedVideos = ranked;
           setVideos(ranked);
+        } else if (newVideos.length > 0 && selectedCategoryRef.current === 'All') {
+          setExtraMoreVideos(previous => {
+            const ids = new Set(previous.map(video => video.videoId));
+            const additions = newVideos.filter(video => !ids.has(video.videoId));
+            return additions.length > 0 ? [...previous, ...additions] : previous;
+          });
         }
         hasLoadedHomeOnce = true;
       }
 
-      // Load the next 12 videos in the background after the first 6 appear.
+      // Prefetch a few small pages while the initial row stays visible.
       if (page.hasMore && page.lastDoc) {
-        setHasMorePlatformVideos(false);
+        isFetchingMoreRef.current = true;
+        setIsLoadingMoreVideos(true);
 
         void (async () => {
+          let cursor = page.lastDoc;
+          let hasMore = page.hasMore;
+          let batchesLoaded = 0;
+
           try {
-            const nextPage = await videoService.getVideosPage({
-              isShort: false,
-              limit: 12,
-              afterDoc: page.lastDoc
-            });
+            while (hasMore && cursor && batchesLoaded < 2) {
+              const nextPage = await videoService.getVideosPage({
+                isShort: false,
+                limit: 6,
+                afterDoc: cursor
+              });
+              cursor = nextPage.lastDoc;
+              hasMore = nextPage.hasMore;
+              batchesLoaded += 1;
 
-            const existingIds = new Set(masterVideosRef.current.map(v => v.videoId));
-            const newBatch = nextPage.videos.filter(v => !existingIds.has(v.videoId));
+              const existingIds = new Set(masterVideosRef.current.map(video => video.videoId));
+              const newBatch = nextPage.videos.filter(video => !existingIds.has(video.videoId));
+              if (newBatch.length > 0) {
+                const updatedMaster = [...masterVideosRef.current, ...newBatch];
+                masterVideosRef.current = updatedMaster;
+                persistentMasterVideos = updatedMaster;
 
-            if (newBatch.length > 0) {
-              const updatedMaster = [...masterVideosRef.current, ...newBatch];
-              masterVideosRef.current = updatedMaster;
-              persistentMasterVideos = updatedMaster;
-
-              if (hadCachedBeforeFetch && !forceFresh) {
-                setExtraMoreVideos(prev => {
-                  const ids = new Set(prev.map(v => v.videoId));
-                  const additions = newBatch.filter(v => !ids.has(v.videoId));
-                  return additions.length ? [...prev, ...additions] : prev;
-                });
-              } else {
-                const filtered = getFilteredVideosForCategory(
-                  selectedCategoryRef.current,
-                  newBatch
-                );
-
-                const rankedBatch = recommendationService.rankAndFilterVideos(filtered, {
-                  userUid: currentUser?.uid
-                });
-
-                setVideos(prev => {
-                  const ids = new Set(prev.map(v => v.videoId));
-                  const additions = rankedBatch.filter(v => !ids.has(v.videoId));
-                  const merged = [...prev, ...additions];
-                  persistentRankedVideos = merged;
-                  return merged;
-                });
+                if (selectedCategoryRef.current === 'All') {
+                  const rankedBatch = recommendationService.rankAndFilterVideos(newBatch, {
+                    userUid: currentUser?.uid
+                  });
+                  setExtraMoreVideos(previous => {
+                    const ids = new Set(previous.map(video => video.videoId));
+                    const additions = rankedBatch.filter(video => !ids.has(video.videoId));
+                    return additions.length > 0 ? [...previous, ...additions] : previous;
+                  });
+                }
               }
             }
 
-            lastVideoDocRef.current = nextPage.lastDoc;
-            persistentLastVideoDoc = nextPage.lastDoc;
-            persistentHasMoreVideos = nextPage.hasMore;
-            setHasMorePlatformVideos(nextPage.hasMore);
+            lastVideoDocRef.current = cursor;
+            persistentLastVideoDoc = cursor;
+            persistentHasMoreVideos = hasMore;
+            setHasMorePlatformVideos(hasMore);
           } catch (err) {
             console.warn('Background video loading failed:', err);
-            setHasMorePlatformVideos(page.hasMore);
+            lastVideoDocRef.current = cursor;
+            persistentLastVideoDoc = cursor;
+            persistentHasMoreVideos = hasMore;
+            setHasMorePlatformVideos(hasMore);
+          } finally {
+            isFetchingMoreRef.current = false;
+            setIsLoadingMoreVideos(false);
           }
         })();
       }
@@ -478,7 +505,7 @@ if (page.videos.length === 0) {
         attempts += 1;
         const page = await videoService.getVideosPage({
           isShort: false,
-          limit: 12,
+          limit: 6,
           afterDoc: cursor
         });
 
@@ -518,7 +545,7 @@ if (page.videos.length === 0) {
           const cleanAppend = rankedBatch.filter(v => !prevIds.has(v.videoId));
           return cleanAppend.length > 0 ? [...prev, ...cleanAppend] : prev;
         });
-        setMoreDisplayCount(prev => prev + 12);
+        setMoreDisplayCount(prev => prev + 3);
       }
     } catch (err) {
       console.warn('Could not load additional platform videos:', err);
@@ -528,9 +555,66 @@ if (page.videos.length === 0) {
     }
   };
 
+  const fetchMoreSelectedCategoryVideos = async () => {
+    if (isFetchingMoreRef.current || selectedCategory === 'All' || !hasMoreSelectedCategoryRef.current) return;
+    isFetchingMoreRef.current = true;
+    setIsLoadingMoreVideos(true);
+
+    try {
+      const page = await videoService.getVideosPage({
+        category: selectedCategory,
+        isShort: false,
+        limit: 24,
+        afterDoc: categoryLastVideoDocRef.current
+      });
+
+      if (!page.videos.length) {
+        hasMoreSelectedCategoryRef.current = false;
+        return;
+      }
+
+      const existingIds = new Set(masterVideosRef.current.map(v => v.videoId));
+      const newUnique = page.videos.filter(v => !existingIds.has(v.videoId));
+
+      if (newUnique.length > 0) {
+        const updatedMaster = [...masterVideosRef.current, ...newUnique];
+        masterVideosRef.current = updatedMaster;
+        persistentMasterVideos = updatedMaster;
+
+        const rankedBatch = recommendationService.rankAndFilterVideos(
+          getFilteredVideosForCategory(selectedCategory, newUnique),
+          {
+            userUid: currentUser?.uid
+          }
+        );
+
+        setVideos(prev => {
+          const currentIds = new Set(prev.map(v => v.videoId));
+          const additions = rankedBatch.filter(v => !currentIds.has(v.videoId));
+          const merged = additions.length > 0 ? [...prev, ...additions] : prev;
+          persistentRankedVideos = merged;
+          return merged;
+        });
+      }
+
+      categoryLastVideoDocRef.current = page.lastDoc;
+      hasMoreSelectedCategoryRef.current = page.hasMore;
+    } catch (err) {
+      console.warn('Could not load more category videos:', err);
+    } finally {
+      isFetchingMoreRef.current = false;
+      setIsLoadingMoreVideos(false);
+    }
+  };
+
   const fetchHomeShorts = async (forceFresh = false) => {
     const hadCachedShorts = Boolean(persistentHomeShorts && persistentHomeShorts.length > 0);
-    if (hadCachedShorts && !forceFresh && hasFetchedShortsOnce) {
+    if (
+      hadCachedShorts &&
+      !forceFresh &&
+      hasFetchedShortsOnce &&
+      initialCachedShorts.length >= 10
+    ) {
       setLoadingShorts(false);
       return;
     }
@@ -540,35 +624,34 @@ if (page.videos.length === 0) {
     }
 
     try {
-      // Lightweight query (20 shorts) so Clips load rapidly alongside Row 1 without disappearing
-      const fetchedShorts = await videoService.getVideos({ isShort: true, limit: 5 });
+      // Fetch enough clips to fill the shelf while keeping the request lightweight.
+      const shortsPage = await videoService.getVideosPage({ isShort: true, limit: 10 });
+      const fetchedShorts = shortsPage.videos;
       hasFetchedShortsOnce = true;
-
       if (fetchedShorts && fetchedShorts.length > 0) {
-        const rankedShorts = recommendationService.getShortsRecommendations({
-          allShorts: fetchedShorts,
-          userUid: currentUser?.uid,
-          limit: 5
+        const candidates = new Map<string, Video>();
+        [...initialCachedShorts, ...fetchedShorts].forEach(short => {
+          if (short.videoId) candidates.set(short.videoId, short);
         });
-
-        if (hadCachedShorts && !forceFresh) {
-          // Preserve currently visible Clips shelf cards to prevent double-load flicker,
-          // while silently appending any newly published/uncached clips at the end
-          setShorts(prev => {
-            if (prev.length === 0) {
-              persistentHomeShorts = rankedShorts;
-              return rankedShorts;
-            }
-            const existingIds = new Set(prev.map(s => s.videoId));
-            const newClips = rankedShorts.filter(s => !existingIds.has(s.videoId));
-            if (newClips.length === 0) return prev;
-            const merged = [...prev, ...newClips];
-            persistentHomeShorts = merged;
-            return merged;
+        if (forceFresh || shorts.length === 0) {
+          const rankedShorts = recommendationService.getShortsRecommendations({
+            allShorts: [...candidates.values()],
+            userUid: currentUser?.uid,
+            limit: 5
           });
-        } else {
           setShorts(rankedShorts);
           persistentHomeShorts = rankedShorts;
+        } else if (shorts.length < 5) {
+          const existingIds = shorts.map(short => short.videoId);
+          const additions = recommendationService.getShortsRecommendations({
+            allShorts: [...candidates.values()],
+            excludeIds: existingIds,
+            userUid: currentUser?.uid,
+            limit: 5 - shorts.length
+          });
+          const merged = [...shorts, ...additions].slice(0, 5);
+          setShorts(merged);
+          persistentHomeShorts = merged;
         }
       }
     } catch (err) {
@@ -589,6 +672,7 @@ if (page.videos.length === 0) {
     setIsRefreshing(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     persistentHomeScrollY = 0;
+    lastMoreRevealScrollYRef.current = -1;
     lastVideoDocRef.current = null;
     persistentLastVideoDoc = null;
     persistentHasMoreVideos = true;
@@ -635,7 +719,8 @@ if (page.videos.length === 0) {
     if (selectedCategory !== 'All') {
       if (cachedCategoryVideos.length > 0) {
         const ranked = recommendationService.rankAndFilterVideos(cachedCategoryVideos, {
-          userUid: currentUser?.uid
+          userUid: currentUser?.uid,
+          rotateTop: true
         });
         persistentRankedVideos = ranked;
         setVideos(ranked);
@@ -646,11 +731,17 @@ if (page.videos.length === 0) {
       }
 
       const loadSelectedCategory = async () => {
+        categoryLastVideoDocRef.current = null;
+        hasMoreSelectedCategoryRef.current = true;
+        if (cachedCategoryVideos.length > 0) {
+          setIsLoadingMoreVideos(true);
+        }
+
         try {
           const page = await videoService.getVideosPage({
             category: selectedCategory,
             isShort: false,
-            limit: 18
+            limit: 24
           });
 
           if (cancelled) return;
@@ -664,21 +755,36 @@ if (page.videos.length === 0) {
             persistentMasterVideos = updatedMaster;
           }
 
-          const categoryVideos = getFilteredVideosForCategory(
-            selectedCategory,
-            updatedMaster
-          );
+          categoryLastVideoDocRef.current = page.lastDoc;
+          hasMoreSelectedCategoryRef.current = page.hasMore;
 
-          const ranked = recommendationService.rankAndFilterVideos(categoryVideos, {
-            userUid: currentUser?.uid
-          });
+          if (additions.length > 0) {
+            const rankedBatch = recommendationService.rankAndFilterVideos(
+              getFilteredVideosForCategory(selectedCategory, additions),
+              { userUid: currentUser?.uid }
+            );
 
-          persistentRankedVideos = ranked;
-          setVideos(ranked);
+            setVideos(prev => {
+              const currentIds = new Set(prev.map(v => v.videoId));
+              const newVideos = rankedBatch.filter(v => !currentIds.has(v.videoId));
+              const merged = newVideos.length > 0 ? [...prev, ...newVideos] : prev;
+              persistentRankedVideos = merged;
+              return merged;
+            });
+          }
         } catch (err) {
           console.error('Category video loading failed:', err);
+          if (!cancelled) {
+            addToast(
+              isHindi ? 'इस श्रेणी के वीडियो लोड नहीं हो सके।' : 'Could not load videos for this category.',
+              'error'
+            );
+          }
         } finally {
-          if (!cancelled) setLoading(false);
+          if (!cancelled) {
+            setLoading(false);
+            setIsLoadingMoreVideos(false);
+          }
         }
       };
 
@@ -691,7 +797,8 @@ if (page.videos.length === 0) {
 
     if (didInitCategoryEffectRef.current) {
       const ranked = recommendationService.rankAndFilterVideos(cachedCategoryVideos, {
-        userUid: currentUser?.uid
+        userUid: currentUser?.uid,
+        rotateTop: true
       });
       persistentRankedVideos = ranked;
       setVideos(ranked);
@@ -702,17 +809,10 @@ if (page.videos.length === 0) {
 
     const loadHomeFeedInOrder = async () => {
       const shouldFetchVideos = !hasLoadedHomeOnce || masterVideosRef.current.length === 0;
-      const shouldFetchShorts = !hasFetchedShortsOnce || !persistentHomeShorts || persistentHomeShorts.length === 0;
-
-      const shortsPromise = shouldFetchShorts
-        ? fetchHomeShorts()
-        : Promise.resolve();
-
-      if (shouldFetchVideos) {
-        await fetchHomeVideos();
-      }
-
-      await shortsPromise;
+      const shouldFetchShorts = !hasFetchedShortsOnce || initialCachedShorts.length < 10;
+      const videosPromise = shouldFetchVideos ? fetchHomeVideos() : Promise.resolve();
+      const shortsPromise = shouldFetchShorts ? fetchHomeShorts() : Promise.resolve();
+      await Promise.all([videosPromise, shortsPromise]);
     };
 
     void loadHomeFeedInOrder();
@@ -725,7 +825,10 @@ if (page.videos.length === 0) {
   // Failsafe: dismiss skeleton quickly if videos or cached data already exist
   useEffect(() => {
     if (!loading) return;
-    if (masterVideosRef.current.length > 0 || videos.length > 0) {
+    const hasVideosForSelection = selectedCategory === 'All'
+      ? masterVideosRef.current.length > 0 || videos.length > 0
+      : videos.length > 0;
+    if (hasVideosForSelection) {
       setLoading(false);
       return;
     }
@@ -733,7 +836,7 @@ if (page.videos.length === 0) {
       setLoading(false);
     }, 8000);
     return () => clearTimeout(timer);
-  }, [loading, videos.length]);
+  }, [loading, selectedCategory, videos.length]);
 
   // Only dismiss shorts skeleton automatically if shorts have populated (never hide section mid-fetch!)
   useEffect(() => {
@@ -791,6 +894,14 @@ if (page.videos.length === 0) {
     return selectedCategory === 'All' ? firstRowVideos.map(v => v.videoId).join(',') : '';
   }, [selectedCategory, firstRowVideos]);
 
+  useEffect(() => {
+    if (selectedCategory === 'All' && firstRowVideos.length > 0) {
+      recommendationService.recordHomeRecommendations(
+        firstRowVideos.slice(0, 3).map(video => video.videoId)
+      );
+    }
+  }, [firstRowIdsKey, selectedCategory]);
+
   // Base "More Videos For You" recommendation list from initial feed (stable while scrolling)
   const baseMoreVideos = React.useMemo(() => {
     if (isFollowingFeed || selectedCategory !== 'All' || videos.length === 0) return [];
@@ -803,13 +914,14 @@ if (page.videos.length === 0) {
 
   // Combine initial More Videos with cursor-paginated extra platform videos (without reordering already-seen items)
   const allMoreVideos = React.useMemo(() => {
-    if (extraMoreVideos.length === 0) return baseMoreVideos;
-    const seen = new Set([
-      ...firstRowVideos.map(v => v.videoId),
-      ...baseMoreVideos.map(v => v.videoId)
-    ]);
-    const appended = extraMoreVideos.filter(v => !seen.has(v.videoId));
-    return [...baseMoreVideos, ...appended];
+    const seen = new Set(firstRowVideos.map(v => v.videoId));
+    const uniqueVideos: Video[] = [];
+    for (const video of [...baseMoreVideos, ...extraMoreVideos]) {
+      if (!video.videoId || seen.has(video.videoId)) continue;
+      seen.add(video.videoId);
+      uniqueVideos.push(video);
+    }
+    return uniqueVideos;
   }, [baseMoreVideos, extraMoreVideos, firstRowVideos]);
 
   const displayedMoreVideos = React.useMemo(() => {
@@ -819,39 +931,77 @@ if (page.videos.length === 0) {
   const canRevealOrFetchMore =
     moreDisplayCount < allMoreVideos.length || hasMorePlatformVideos;
 
-  // Infinite scroll observer for "More Videos For You" (reveals buffered items + fetches remaining platform videos)
+  // Reveal small batches as the user scrolls and prefetch before the buffer runs out.
   useEffect(() => {
-    if (isFollowingFeed || selectedCategory !== 'All' || loading || !canRevealOrFetchMore) return;
     const sentinel = moreSentinelRef.current;
-    if (!sentinel) return;
+    if (!sentinel || loading) return;
+    const scrollContainer = sentinel.closest('main');
+    if (!scrollContainer) return;
+
+    const loadNextBatch = () => {
+      if (selectedCategory !== 'All') return;
+      const bufferedVideos = allMoreVideos.length - moreDisplayCount;
+      if (bufferedVideos > 0) {
+        setMoreDisplayCount(previous => Math.min(previous + 3, allMoreVideos.length));
+      }
+      if (
+        bufferedVideos <= 6 &&
+        hasMorePlatformVideos &&
+        !isFetchingMoreRef.current
+      ) {
+        void fetchMorePlatformVideos();
+      }
+    };
+
+    const revealMoreOnScroll = () => {
+      if (selectedCategory !== 'All') return;
+
+      const bounds = sentinel.getBoundingClientRect();
+      const containerBounds = scrollContainer.getBoundingClientRect();
+      if (bounds.top > containerBounds.bottom + 900) return;
+
+      const currentScrollY = scrollContainer.scrollTop;
+      const previousScrollY = lastMoreRevealScrollYRef.current;
+      if (previousScrollY >= 0 && currentScrollY < previousScrollY) {
+        lastMoreRevealScrollYRef.current = currentScrollY;
+        return;
+      }
+      if (previousScrollY >= 0 && currentScrollY - previousScrollY < 280) return;
+      lastMoreRevealScrollYRef.current = currentScrollY;
+      loadNextBatch();
+    };
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0] && entries[0].isIntersecting) {
-          if (moreDisplayCount < allMoreVideos.length) {
-            setMoreDisplayCount(prev => prev + 18);
-          } else if (hasMorePlatformVideos && !isFetchingMoreRef.current) {
-            fetchMorePlatformVideos();
-          }
+        if (!entries[0] || !entries[0].isIntersecting) return;
+
+        if (selectedCategory === 'All') {
+          loadNextBatch();
+          return;
+        }
+
+        if (!isFetchingMoreRef.current && hasMoreSelectedCategoryRef.current) {
+          void fetchMoreSelectedCategoryVideos();
         }
       },
-      { rootMargin: '500px' }
+      { root: scrollContainer, rootMargin: '900px 0px' }
     );
-
     observer.observe(sentinel);
+    scrollContainer.addEventListener('scroll', revealMoreOnScroll, { passive: true });
     return () => {
-      observer.unobserve(sentinel);
       observer.disconnect();
+      scrollContainer.removeEventListener('scroll', revealMoreOnScroll);
     };
   }, [
     isFollowingFeed,
     selectedCategory,
     loading,
-    canRevealOrFetchMore,
     moreDisplayCount,
     allMoreVideos.length,
     hasMorePlatformVideos,
-    isLoadingMoreVideos
+    isLoadingMoreVideos,
+    hasMoreSelectedCategoryRef.current,
+    videos.length
   ]);
 
   return (
@@ -1025,16 +1175,44 @@ if (page.videos.length === 0) {
           videos={firstRowVideos} 
           loading={loading} 
           skeletonCount={selectedCategory === 'All' ? 3 : 6}
+          priorityCount={3}
           activeAds={adDismissed ? [] : activeAds}
           onDismissAd={() => setAdDismissed(true)}
           gridColsClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
           emptyHeading={isHindi ? 'अभी कोई वीडियो उपलब्ध नहीं है' : 'No videos available yet'}
           emptyMessage={isHindi ? 'सोशलइंडिया पर प्रकाशित वीडियो यहां दिखाई देंगे।' : 'Videos published on SocialIndia will appear here.'}
         />
+        {selectedCategory !== 'All' && !loading && videos.length > 0 && (
+          <>
+            {isLoadingMoreVideos && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6" aria-label={isHindi ? 'वीडियो लोड हो रहे हैं' : 'Loading more videos'}>
+                {Array.from({ length: 12 }).map((_, idx) => (
+                  <div
+                    key={idx}
+                    style={{ animationDelay: `${idx * 70}ms` }}
+                    className="flex flex-col space-y-3 animate-pulse"
+                  >
+                    <div className="aspect-video bg-[#dbe2ee] dark:bg-slate-800 rounded-2xl" />
+                    <div className="flex items-start gap-2.5 pt-1 px-0.5">
+                      <div className="w-9 h-9 rounded-full bg-[#dbe2ee] dark:bg-slate-800 shrink-0" />
+                      <div className="flex-1 space-y-2 pt-0.5">
+                        <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[88%]" />
+                        <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[55%]" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {hasMoreSelectedCategoryRef.current && (
+              <div ref={moreSentinelRef} className="h-1 w-full" aria-hidden="true" />
+            )}
+          </>
+        )}
       </div>
 
       {/* 2. Clips Section (Progressive vertical-video shelf with algorithmic rotation) */}
-      {selectedCategory === 'All' && !loading && (loadingShorts || shorts.length > 0) && (
+      {selectedCategory === 'All' && (loadingShorts || shorts.length > 0) && (
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -1056,12 +1234,12 @@ if (page.videos.length === 0) {
           </div>
 
           {loadingShorts && shorts.length === 0 ? (
-            <div className="flex gap-3 md:gap-4 overflow-x-hidden py-1 px-0.5">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 py-1 px-0.5">
               {[...Array(5)].map((_, i) => (
                 <div 
                   key={i} 
                   style={{ animationDelay: `${i * 75}ms` }}
-                  className="w-[150px] sm:w-[180px] md:w-[200px] lg:w-[215px] shrink-0 flex flex-col space-y-2 animate-pulse"
+                  className="w-full min-w-0 flex flex-col space-y-2 animate-pulse"
                 >
                   <div className="aspect-[9/16] w-full rounded-2xl bg-[#dbe2ee] dark:bg-slate-800 relative overflow-hidden shadow-xs">
                     <div className="absolute bottom-2.5 right-2.5 h-4 w-8 bg-[#bcc8dc] dark:bg-slate-700 rounded-md" />
@@ -1074,18 +1252,14 @@ if (page.videos.length === 0) {
               ))}
             </div>
           ) : (
-            <div 
-              data-no-scrollbar="true"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-              className="flex gap-3 md:gap-4 overflow-x-auto scrollbar-none no-scrollbar scroll-smooth py-1 px-0.5"
-            >
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 py-1 px-0.5">
               {shorts.map((short, idx) => (
                 <HomeClipCard
                   key={short.videoId}
                   short={short}
                   idx={idx}
                   isHindi={isHindi}
-                  onOpen={(id) => navigate('shorts', id)}
+                  onOpen={openHomeShort}
                 />
               ))}
             </div>
@@ -1099,7 +1273,7 @@ if (page.videos.length === 0) {
       </div>
 
       {/* 3. More Videos Section (YouTube Algorithm Recommended Videos + Infinite Platform Scroll) */}
-      {selectedCategory === 'All' && (allMoreVideos.length > 0 || loading) && (
+      {selectedCategory === 'All' && (allMoreVideos.length > 0 || loading || isLoadingMoreVideos) && (
         <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <h2 className="text-base md:text-lg font-black tracking-tight text-slate-900 dark:text-white">
@@ -1110,7 +1284,8 @@ if (page.videos.length === 0) {
           <VideoGrid 
             videos={displayedMoreVideos} 
             loading={loading && allMoreVideos.length === 0} 
-            skeletonCount={6}
+            skeletonCount={3}
+            priorityCount={0}
             activeAds={[]}
             gridColsClass="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
             emptyHeading={isHindi ? 'कोई और वीडियो नहीं' : 'No more videos'}
@@ -1136,24 +1311,13 @@ if (page.videos.length === 0) {
                   ))}
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (moreDisplayCount < allMoreVideos.length) {
-                      setMoreDisplayCount(prev => prev + 18);
-                    } else if (hasMorePlatformVideos) {
-                      fetchMorePlatformVideos();
-                    }
-                  }}
-                  className="px-5 py-2 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
-                >
-                  {isHindi ? 'और वीडियो लोड करें' : 'Load more videos'}
-                </button>
+                <div className="h-1 w-full" aria-hidden="true" />
               )}
             </div>
           )}
         </div>
       )}
+
       </div>
       )}
     </div>

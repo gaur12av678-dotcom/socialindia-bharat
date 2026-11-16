@@ -10,7 +10,6 @@ import {
   Film, 
   HardDrive, 
   WifiOff, 
-  Save, 
   CheckCircle2, 
   X,
   ArrowDownToLine,
@@ -89,15 +88,6 @@ export const Downloads: React.FC = () => {
     if (activePlayingVideo) {
       URL.revokeObjectURL(activePlayingVideo.blobUrl);
       setActivePlayingVideo(null);
-    }
-  };
-
-  const handleExportFile = async (item: DownloadedVideo) => {
-    try {
-      await downloadService.exportToDevice(item);
-      addToast('Saving MP4 to device downloads...', 'success');
-    } catch (err) {
-      addToast('Failed to export file.', 'error');
     }
   };
 
@@ -345,14 +335,6 @@ export const Downloads: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => handleExportFile(item)}
-                    className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl cursor-pointer transition-colors"
-                    title="Export MP4 to device"
-                  >
-                    <Save className="w-4 h-4" />
-                  </button>
-
-                  <button
                     onClick={() => handleDelete(item.videoId, item.title)}
                     className="p-2 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 text-rose-600 dark:text-rose-400 rounded-xl cursor-pointer transition-colors"
                     title="Delete offline file"
@@ -402,19 +384,12 @@ export const Downloads: React.FC = () => {
             </div>
 
             {/* Modal Bottom Bar */}
-            <div className="px-6 py-3 bg-slate-900/90 text-white flex items-center justify-between text-xs font-semibold border-t border-white/10">
+            <div className="px-6 py-3 bg-slate-900/90 text-white flex items-center justify-start text-xs font-semibold border-t border-white/10">
               <div className="flex items-center gap-2">
                 <span>Creator: <strong>{activePlayingVideo.item.creatorDisplayName}</strong></span>
                 <span className="opacity-40">•</span>
                 <span>Size: <strong>{formatFileSize(activePlayingVideo.item.sizeBytes)}</strong></span>
               </div>
-              <button
-                onClick={() => handleExportFile(activePlayingVideo.item)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-white font-bold transition-all cursor-pointer"
-              >
-                <Save className="w-3.5 h-3.5" />
-                Save MP4 to Phone/PC
-              </button>
             </div>
           </div>
         </div>

@@ -151,7 +151,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
 
   // Withdrawal States
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState(100);
+  const [withdrawAmount, setWithdrawAmount] = useState(500);
   const [withdrawUpiId, setWithdrawUpiId] = useState('');
   const [withdrawAccountName, setWithdrawAccountName] = useState('');
   const [withdrawPhone, setWithdrawPhone] = useState('');
@@ -401,7 +401,6 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
         country,
         age,
       };
-      updateUserProfileState(updates);
       await userService.updateProfile(currentUser.uid, updates);
       await refreshProfile();
       setSavingStatus('saved');
@@ -414,7 +413,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     } catch (err) {
       console.error(err);
       setSavingStatus('error');
-      setSaveMsg('Failed to save settings.');
+      setSaveMsg(err instanceof Error ? err.message : 'Failed to save settings.');
     }
   };
 
@@ -555,8 +554,10 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
 
     const availableBal = Number(currentUserProfile?.walletBalance ?? currentUserProfile?.mainBalance ?? 972.01);
 
-    if (withdrawAmount <= 0 || withdrawAmount > availableBal || !withdrawUpiId.trim()) {
-      setWithdrawMsg(isHindi ? `कृपया मान्य राशि (अधिकतम ₹${availableBal.toFixed(2)}) और सही UPI ID दर्ज करें।` : `Please enter a valid amount (up to ₹${availableBal.toFixed(2)}) and UPI ID.`);
+    if (withdrawAmount < 500 || withdrawAmount > availableBal || !withdrawUpiId.trim()) {
+      setWithdrawMsg(isHindi
+        ? `न्यूनतम निकासी ₹500 है। कृपया ₹500 से ${availableBal.toFixed(2)} तक की राशि और सही UPI ID दर्ज करें।`
+        : `Minimum withdrawal is ₹500. Enter an amount from ₹500 to ₹${availableBal.toFixed(2)} and a valid UPI ID.`);
       return;
     }
 
@@ -1457,7 +1458,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                   </span>
                   <button
                     onClick={() => {
-                      setWithdrawAmount(displayWallet);
+                      setWithdrawAmount(Math.max(500, displayWallet));
                       setWithdrawModalOpen(true);
                     }}
                     className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs cursor-pointer transition-all active:scale-95 flex items-center gap-1.5"
@@ -1592,7 +1593,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                   {/* UPI Withdrawal Card */}
                   <div 
                     onClick={() => {
-                      setWithdrawAmount(displayWallet);
+                      setWithdrawAmount(Math.max(500, displayWallet));
                       setWithdrawModalOpen(true);
                     }}
                     className="p-5 bg-white dark:bg-[#1E293B] border border-slate-200/90 dark:border-slate-800 hover:border-indigo-500 rounded-2xl shadow-2xs space-y-2 cursor-pointer transition-all group"
@@ -2747,10 +2748,13 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                 <label className="text-xs font-bold block mb-1">Amount (₹)</label>
                 <input
                   type="number"
+                  min="500"
+                  step="1"
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(Number(e.target.value))}
                   className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-bold"
                 />
+                <p className="mt-1 text-[11px] text-slate-500">Minimum withdrawal: ₹500</p>
               </div>
               <div>
                 <label className="text-xs font-bold block mb-1">UPI ID</label>

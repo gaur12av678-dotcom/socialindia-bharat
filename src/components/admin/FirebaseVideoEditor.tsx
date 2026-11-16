@@ -515,7 +515,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
                     </span>
 
                     <span className="inline-flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-[#202124] px-2.5 py-1 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
-                      <ThumbsUp className="w-3.5 h-3.5 text-rose-500" />
+                      <ThumbsUp className="w-3.5 h-3.5 text-[#800080]" />
                       <strong className="text-slate-900 dark:text-white">{(video.likesCount || 0).toLocaleString()}</strong> likes
                     </span>
 
@@ -554,7 +554,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
                   <button
                     onClick={() => handleQuickBoost(video.videoId, 'likes', 100)}
                     disabled={quickBoostingId === video.videoId}
-                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl text-[11px] font-black transition-all cursor-pointer active:scale-95 border border-rose-200/60 dark:border-rose-900/50"
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-[#800080] dark:text-[#800080] rounded-xl text-[11px] font-black transition-all cursor-pointer active:scale-95 border border-rose-200/60 dark:border-rose-900/50"
                     title="Add 100 likes directly in Firestore"
                   >
                     +100 Likes
@@ -562,7 +562,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
                   <button
                     onClick={() => handleQuickBoost(video.videoId, 'likes', 500)}
                     disabled={quickBoostingId === video.videoId}
-                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl text-[11px] font-black transition-all cursor-pointer active:scale-95 border border-rose-200/60 dark:border-rose-900/50"
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-[#800080] dark:text-[#800080] rounded-xl text-[11px] font-black transition-all cursor-pointer active:scale-95 border border-rose-200/60 dark:border-rose-900/50"
                     title="Add 500 likes directly in Firestore"
                   >
                     +500 Likes
@@ -707,7 +707,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
               {/* 2. LIKES COUNT EDITOR */}
               <div className="bg-slate-50/80 dark:bg-[#1b1c20] p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-black uppercase text-rose-600 dark:text-rose-400 tracking-wider flex items-center gap-1.5">
+                  <label className="text-xs font-black uppercase text-[#800080] dark:text-[#800080] tracking-wider flex items-center gap-1.5">
                     <ThumbsUp className="w-4 h-4" />
                     <span>Likes Count (likesCount)</span>
                   </label>
@@ -738,7 +738,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
                       key={add}
                       type="button"
                       onClick={() => setFormLikes(l => Math.max(0, l + add))}
-                      className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 text-[10px] font-black rounded-lg cursor-pointer transition-colors"
+                      className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-[#800080] dark:text-[#800080] text-[10px] font-black rounded-lg cursor-pointer transition-colors"
                     >
                       +{add >= 1000 ? `${add / 1000}K` : add}
                     </button>

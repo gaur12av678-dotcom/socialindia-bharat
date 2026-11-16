@@ -28,6 +28,11 @@ match /adminSettings/{docId} {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Let signed-in users restore their video-like history across devices.
+    match /{path=**}/likes/{likeId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
     // --- USERS COLLECTION ---
     match /users/{uid} {
       // Public profile fields can be read by anyone

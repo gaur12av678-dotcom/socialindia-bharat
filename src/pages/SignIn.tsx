@@ -103,6 +103,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
 
   // Verification states
   const [verificationTargetEmail, setVerificationTargetEmail] = useState('');
+  const [createdUsername, setCreatedUsername] = useState('');
   const [pendingVerifyPassword, setPendingVerifyPassword] = useState('');
   const [checkingVerification, setCheckingVerification] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
@@ -324,8 +325,10 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
         const cleanUsername = username.trim().toLowerCase();
         const cleanDisplayName = displayName.trim() || cleanUsername;
 
-        await authService.register(cleanEmail, cleanUsername, cleanDisplayName, password);
+        const { userProfile } = await authService.register(cleanEmail, cleanUsername, cleanDisplayName, password);
         // CRITICAL: Do NOT save account or refreshProfile - user is unverified and signed out!
+        setCreatedUsername(userProfile.username);
+        setUsername(userProfile.username);
         setPendingVerifyPassword(password);
         setVerificationTargetEmail(cleanEmail);
         setMode('verify-email');
@@ -970,6 +973,11 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
                   <div className="mt-1 text-[11px] text-slate-500">
                     {isHindi ? 'खाता सक्रिय करने के लिए कृपया लिंक पर क्लिक करें।' : 'Click the link in the email to finish signing in.'}
                   </div>
+                  {createdUsername && (
+                    <div className="mt-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                      {isHindi ? 'आपका यूज़रनेम:' : 'Your username:'} @{createdUsername}
+                    </div>
+                  )}
                 </div>
               </div>
 
