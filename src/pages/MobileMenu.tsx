@@ -93,7 +93,7 @@ export const MobileMenu: React.FC = () => {
   // --------------------------------------------------------------------------
   // AUTH HYDRATING SKELETON (Never flash Sign-In while Auth loads)
   // --------------------------------------------------------------------------
-  if (appLoading && (!currentUser || !currentUserProfile)) {
+  if ((appLoading && !currentUser) || (currentUser && !currentUserProfile)) {
     return (
       <div className="bg-slate-50 dark:bg-[#0f0f0f] min-h-screen pb-32 animate-pulse">
         <div className="bg-white dark:bg-[#0f0f0f] px-4 py-3.5 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between">

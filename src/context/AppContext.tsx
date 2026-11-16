@@ -290,7 +290,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       setLoading(true);
       setCurrentUser(user);
-      setCurrentUserProfile(null);
+      setCurrentUserProfile((cachedProfile) =>
+        user && cachedProfile?.uid === user.uid ? cachedProfile : null
+      );
       setNotifications([]);
       setUnreadCount(0);
       if (user) {
