@@ -2,6 +2,10 @@ plugins {
     id 'com.android.application'
 }
 
+def signingStorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+def signingStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def signingAlias = System.getenv("ANDROID_KEY_ALIAS")
+
 android {
     namespace 'us.ci.socialindia'
     compileSdk 34
@@ -16,8 +20,22 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            if (signingStorePath) {
+                storeFile file(signingStorePath)
+                storePassword signingStorePassword
+                keyAlias signingAlias
+                keyPassword signingStorePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (signingStorePath) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
