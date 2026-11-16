@@ -14,8 +14,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
 import android.provider.MediaStore;
 import android.view.View;
 import android.view.ViewGroup;
@@ -42,8 +40,6 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.browser.customtabs.CustomTabColorSchemeParams;
-import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -89,16 +85,13 @@ public class MainActivity extends AppCompatActivity {
     // Back press tracker
     private long lastBackPressTime = 0;
 
-    // Google OAuth / Custom Tab bridge state
+    // Native Google Sign-In bridge state
     private boolean isPageLoaded = false;
-    private boolean isCustomTabAuthPending = false;
     private String pendingAuthIdToken = null;
     private String pendingAuthAccessToken = null;
     private String pendingAuthError = null;
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private Runnable customTabCancelRunnable = null;
 
-    // Native Google Sign-In launcher (used when google_web_client_id + SHA-1 are configured)
+    // Native Google Sign-In launcher
     private final ActivityResultLauncher<Intent> googleSignInLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 try {
@@ -108,17 +101,19 @@ public class MainActivity extends AppCompatActivity {
                         deliverGoogleAuthTokensToWeb(account.getIdToken(), "");
                         return;
                     }
-                    launchCustomTabGoogleAuth();
+                    deliverGoogleAuthErrorToWeb("Google sign-in returned no ID token. Check the Web client ID configuration.");
                 } catch (ApiException e) {
                     int statusCode = e.getStatusCode();
                     if (statusCode == CommonStatusCodes.CANCELED || statusCode == 12501) {
                         deliverGoogleAuthErrorToWeb("cancelled");
                     } else {
-                        // e.g. DEVELOPER_ERROR (10) when SHA-1 is not registered yet -> seamless Custom Tab fallback
-                        launchCustomTabGoogleAuth();
+                        String message = statusCode == 10
+                                ? "Google sign-in configuration error (10). Check the Android package name and SHA-1 in Firebase."
+                                : "Google sign-in failed (code " + statusCode + ").";
+                        deliverGoogleAuthErrorToWeb(message);
                     }
                 } catch (Throwable t) {
-                    launchCustomTabGoogleAuth();
+                    deliverGoogleAuthErrorToWeb("Native Google sign-in failed: " + t.getClass().getSimpleName());
                 }
             });
 
@@ -417,53 +412,25 @@ public class MainActivity extends AppCompatActivity {
 
     private void launchGoogleSignIn() {
         String webClientId = getString(R.string.google_web_client_id).trim();
-        if (!webClientId.isEmpty()) {
-            try {
-                GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                        .requestIdToken(webClientId)
-                        .requestEmail()
-                        .build();
-                GoogleSignInClient client = GoogleSignIn.getClient(this, gso);
-                client.signOut().addOnCompleteListener(this, task -> {
-                    try {
-                        googleSignInLauncher.launch(client.getSignInIntent());
-                    } catch (Throwable t) {
-                        launchCustomTabGoogleAuth();
-                    }
-                });
-                return;
-            } catch (Throwable t) {
-                // Fall back to Chrome Custom Tab relay below
-            }
+        if (webClientId.isEmpty()) {
+            deliverGoogleAuthErrorToWeb("Native Google Sign-In is not configured: missing Web client ID.");
+            return;
         }
-        launchCustomTabGoogleAuth();
-    }
-
-    private void launchCustomTabGoogleAuth() {
-        isCustomTabAuthPending = true;
-        if (customTabCancelRunnable != null) {
-            mainHandler.removeCallbacks(customTabCancelRunnable);
-            customTabCancelRunnable = null;
-        }
-
-        Uri authUri = Uri.parse(TARGET_URL + "signin?android_oauth=1");
         try {
-            CustomTabColorSchemeParams colorParams = new CustomTabColorSchemeParams.Builder()
-                    .setToolbarColor(ContextCompat.getColor(this, R.color.primary))
+            GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(webClientId)
+                    .requestEmail()
                     .build();
-            CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder()
-                    .setDefaultColorSchemeParams(colorParams)
-                    .setShowTitle(true)
-                    .build();
-            customTabsIntent.launchUrl(this, authUri);
-        } catch (Exception e) {
-            try {
-                Intent browserIntent = new Intent(Intent.ACTION_VIEW, authUri);
-                startActivity(browserIntent);
-            } catch (Exception ex) {
-                isCustomTabAuthPending = false;
-                deliverGoogleAuthErrorToWeb("Unable to open Google Sign-In.");
-            }
+            GoogleSignInClient client = GoogleSignIn.getClient(this, gso);
+            client.signOut().addOnCompleteListener(this, task -> {
+                try {
+                    googleSignInLauncher.launch(client.getSignInIntent());
+                } catch (Throwable t) {
+                    deliverGoogleAuthErrorToWeb("Native Google sign-in could not start: " + t.getClass().getSimpleName());
+                }
+            });
+        } catch (Throwable t) {
+            deliverGoogleAuthErrorToWeb("Native Google sign-in could not start: " + t.getClass().getSimpleName());
         }
     }
 
@@ -479,43 +446,11 @@ public class MainActivity extends AppCompatActivity {
         Uri data = intent.getData();
         if (data == null) return;
 
-        if (handleAuthDeepLink(data)) {
-            return;
-        }
-
         if ("https".equalsIgnoreCase(data.getScheme()) && data.getHost() != null && isInternalHost(data.getHost())) {
             if (webView != null) {
                 webView.loadUrl(data.toString());
             }
         }
-    }
-
-    private boolean handleAuthDeepLink(Uri data) {
-        if (data == null) return false;
-        if ("socialindia".equalsIgnoreCase(data.getScheme()) && "auth".equalsIgnoreCase(data.getHost())) {
-            isCustomTabAuthPending = false;
-            if (customTabCancelRunnable != null) {
-                mainHandler.removeCallbacks(customTabCancelRunnable);
-                customTabCancelRunnable = null;
-            }
-
-            String error = data.getQueryParameter("error");
-            String idToken = data.getQueryParameter("id_token");
-            String accessToken = data.getQueryParameter("access_token");
-
-            if (error != null && !error.isEmpty()) {
-                deliverGoogleAuthErrorToWeb(error);
-            } else if ((idToken != null && !idToken.isEmpty()) || (accessToken != null && !accessToken.isEmpty())) {
-                deliverGoogleAuthTokensToWeb(
-                        idToken != null ? idToken : "",
-                        accessToken != null ? accessToken : ""
-                );
-            } else {
-                deliverGoogleAuthErrorToWeb("cancelled");
-            }
-            return true;
-        }
-        return false;
     }
 
     private void deliverGoogleAuthTokensToWeb(String idToken, String accessToken) {
@@ -606,10 +541,6 @@ public class MainActivity extends AppCompatActivity {
             Uri uri = request.getUrl();
             String scheme = uri.getScheme();
             String host = uri.getHost();
-
-            if (handleAuthDeepLink(uri)) {
-                return true;
-            }
 
             // Keep internal website URLs within WebView
             if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
@@ -796,18 +727,6 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         if (webView != null) {
             webView.onResume();
-        }
-        if (isCustomTabAuthPending) {
-            if (customTabCancelRunnable != null) {
-                mainHandler.removeCallbacks(customTabCancelRunnable);
-            }
-            customTabCancelRunnable = () -> {
-                if (isCustomTabAuthPending) {
-                    isCustomTabAuthPending = false;
-                    deliverGoogleAuthErrorToWeb("cancelled");
-                }
-            };
-            mainHandler.postDelayed(customTabCancelRunnable, 700);
         }
     }
 
