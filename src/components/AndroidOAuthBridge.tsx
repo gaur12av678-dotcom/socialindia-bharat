@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   GoogleAuthProvider,
   getRedirectResult,
-  signInWithPopup,
   signInWithRedirect,
 } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -80,11 +79,9 @@ export const AndroidOAuthBridge: React.FC = () => {
         try {
           sessionStorage.removeItem(ANDROID_OAUTH_SESSION_KEY);
         } catch {}
-        if (err?.code !== 'auth/popup-closed-by-user') {
-          setErrorMsg(err?.message || 'Google sign-in failed.');
-          setStatus('error');
-          return;
-        }
+        setErrorMsg(err?.message || 'Google sign-in failed.');
+        setStatus('error');
+        return;
       }
 
       if (active) {
@@ -107,25 +104,12 @@ export const AndroidOAuthBridge: React.FC = () => {
     provider.setCustomParameters({ prompt: 'select_account' });
 
     try {
-      const result = await signInWithPopup(auth, provider);
-      const cred = GoogleAuthProvider.credentialFromResult(result);
-      completeWithTokens(
-        cred?.idToken,
-        cred?.accessToken,
-        result.user.displayName || result.user.email || ''
-      );
+      sessionStorage.setItem(ANDROID_OAUTH_SESSION_KEY, '1');
+      await signInWithRedirect(auth, provider);
     } catch (err: any) {
-      if (err?.code === 'auth/popup-blocked') {
-        try {
-          sessionStorage.setItem(ANDROID_OAUTH_SESSION_KEY, '1');
-        } catch {}
-        await signInWithRedirect(auth, provider);
-        return;
-      }
-      if (err?.code === 'auth/popup-closed-by-user') {
-        setStatus('ready');
-        return;
-      }
+      try {
+        sessionStorage.removeItem(ANDROID_OAUTH_SESSION_KEY);
+      } catch {}
       setErrorMsg(err?.message || 'Google sign-in could not be completed.');
       setStatus('error');
     }
