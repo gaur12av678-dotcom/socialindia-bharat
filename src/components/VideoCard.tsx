@@ -261,6 +261,11 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
             <span>Clips</span>
           </div>
         )}
+        {video.visibility !== 'public' && currentUser?.uid === video.creatorId && (
+          <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/75 text-white font-bold text-[9px] rounded-md capitalize shadow-sm pointer-events-none">
+            {video.visibility}
+          </div>
+        )}
 
         {/* YouTube Red Watch Progress Bar */}
         {watchProgressPercent > 0 && !video.isShort && !isLive && (
@@ -276,22 +281,23 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
       {/* Content block */}
       <div className="mt-3 flex items-start gap-3">
         {imageLoaded ? (
-          <>
-        {/* Creator avatar - using centralized sync component */}
-        <a 
-          href={creatorUrl}
-          onClick={handleCreatorClick}
-          className="shrink-0 block"
-          title={video.creatorDisplayName || video.creatorUsername}
-        >
-          <UserAvatar 
-            uid={video.creatorId}
-            fallbackPhotoURL={video.creatorPhotoURL}
-            fallbackDisplayName={video.creatorDisplayName || video.creatorUsername}
-            size="sm"
-            className="border border-slate-100 dark:border-slate-800 shadow-xs cursor-pointer hover:opacity-90"
-          />
-        </a>
+          <a
+            href={creatorUrl}
+            onClick={handleCreatorClick}
+            className="shrink-0 block"
+            title={video.creatorDisplayName || video.creatorUsername}
+          >
+            <UserAvatar
+              uid={video.creatorId}
+              fallbackPhotoURL={video.creatorPhotoURL}
+              fallbackDisplayName={video.creatorDisplayName || video.creatorUsername}
+              size="sm"
+              className="border border-slate-100 dark:border-slate-800 shadow-xs cursor-pointer hover:opacity-90"
+            />
+          </a>
+        ) : (
+          <div className="w-9 h-9 rounded-full bg-[#dbe2ee] dark:bg-slate-800 shrink-0 animate-pulse" />
+        )}
 
         {/* Video metadata */}
         <div className="flex-1 min-w-0 pr-1">
@@ -335,16 +341,6 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
             </div>
           </div>
         </div>
-            </>
-          ) : (
-            <>
-              <div className="w-9 h-9 rounded-full bg-[#dbe2ee] dark:bg-slate-800 shrink-0 animate-pulse" />
-              <div className="flex-1 space-y-2 pt-1 animate-pulse">
-                <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[88%]" />
-                <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[55%]" />
-              </div>
-            </>
-          )}
 
         {/* 3-Dots Menu Button (⋮) */}
         <div className="relative shrink-0">

@@ -126,6 +126,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<any>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingStartedAtRef = useRef<number | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const customThumbInputRef = useRef<HTMLInputElement>(null);
 
@@ -159,9 +160,9 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   const [scrubberTime, setScrubberTime] = useState<number>(0);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Entertainment');
+  const [category, setCategory] = useState('All');
   const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
-  const [allowComments, setAllowComments] = useState(true);
+  const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>('allow');
   const [madeForKids, setMadeForKids] = useState(false);
 
   // Publishing Progress
@@ -475,7 +476,12 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         setRecordedBlob(blob);
         const file = new File([blob], `short_camera_${Date.now()}.${mime.includes('mp4') ? 'mp4' : 'webm'}`, { type: mime });
         setVideoFile(file);
-        handleLoadedVideo(blob, file);
+        const startedAt = recordingStartedAtRef.current;
+        const elapsed = startedAt === null ? recordedSeconds : (Date.now() - startedAt) / 1000;
+        const recordedDuration = Math.min(maxDuration, Math.max(0.1, elapsed));
+        setRecordedSeconds(recordedDuration);
+        recordingStartedAtRef.current = null;
+        handleLoadedVideo(blob, file, recordedDuration);
       };
 
       recorder.start(100);
@@ -484,9 +490,10 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
       // Progress Tracker Interval
       const startTime = Date.now();
+      recordingStartedAtRef.current = startTime;
       recordingIntervalRef.current = setInterval(() => {
         const elapsed = (Date.now() - startTime) / 1000;
-        setRecordedSeconds(elapsed);
+        setRecordedSeconds(Math.min(maxDuration, elapsed));
 
         if (elapsed >= maxDuration) {
           stopRecording();
@@ -505,6 +512,9 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
     }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
+    }
+    if (recordingStartedAtRef.current !== null) {
+      setRecordedSeconds(Math.min(maxDuration, (Date.now() - recordingStartedAtRef.current) / 1000));
     }
     setIsRecording(false);
   };
@@ -527,7 +537,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   };
 
   // Load video into preview and extract initial thumbnail
-  const handleLoadedVideo = (blob: Blob, file: File) => {
+  const handleLoadedVideo = (blob: Blob, file: File, recordedDuration?: number) => {
     const url = URL.createObjectURL(blob);
     setPreviewUrl(url);
 
@@ -541,14 +551,32 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
     tempVideo.muted = true;
     tempVideo.playsInline = true;
 
-    tempVideo.onloadedmetadata = () => {
-      const dur = Math.max(1, Math.round(tempVideo.duration || 15));
-      setVideoDuration(dur);
+    const applyDuration = (duration: number) => {
+      if (!Number.isFinite(duration) || duration <= 0) return false;
+      const finiteDuration = Math.min(60, Math.max(0.1, duration));
+      setVideoDuration(finiteDuration);
       setTrimStart(0);
-      setTrimEnd(dur);
+      setTrimEnd(finiteDuration);
+      return true;
+    };
+
+    tempVideo.onloadedmetadata = () => {
+      if (!applyDuration(tempVideo.duration)) {
+        if (recordedDuration && Number.isFinite(recordedDuration)) {
+          applyDuration(recordedDuration);
+        } else {
+          tempVideo.addEventListener('durationchange', () => applyDuration(tempVideo.duration));
+          try {
+            tempVideo.currentTime = Number.MAX_SAFE_INTEGER;
+          } catch (error) {
+            console.warn('Could not determine clip duration from metadata:', error);
+          }
+        }
+      }
 
       // Seek to 1s or 0.1s to capture initial frame
-      tempVideo.currentTime = Math.min(1, dur * 0.2);
+      const duration = Number.isFinite(tempVideo.duration) ? tempVideo.duration : (recordedDuration || 1);
+      tempVideo.currentTime = Math.min(1, duration * 0.2);
     };
 
     tempVideo.onseeked = () => {
@@ -752,7 +780,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       setUploadProgress(95);
       setUploadStage('Publishing Clip to SocialIndia...');
 
-      const effectiveDuration = Math.round(trimEnd - trimStart) || Math.round(videoDuration) || 15;
+      const effectiveDuration = Math.min(60, Math.max(0.1, trimEnd - trimStart));
 
       const createdVideo = await videoService.publishVideo({
         title: finalTitle,
@@ -763,6 +791,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         category: category,
         tags: [category, 'Clips', 'Bharat', ...finalTitle.split(' ').filter(w => w.startsWith('#'))],
         visibility: visibility,
+        commentsMode,
         isShort: true,
         commentsCount: 0,
         likesCount: 0,
@@ -777,19 +806,21 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         soundCoverUrl: selectedSound ? selectedSound.coverUrl : undefined,
       });
 
-      // Award creator points
-      await userService.awardPoints(currentUser.uid, 20);
-      await refreshProfile();
-
       setUploadProgress(100);
       setUploadStage('Published successfully! 🎉');
       addToast('Clip published successfully! (+20 Points)', 'success');
 
-      // Reset and navigate to shorts feed
+      // Open the published Clip directly in the player.
       setTimeout(() => {
         onClose();
-        navigate('shorts');
+        navigate('shorts', createdVideo.videoId);
       }, 500);
+      userService.awardPoints(currentUser.uid, 20).catch(error => {
+        console.error('Could not award Clip upload points:', error);
+      });
+      refreshProfile().catch(error => {
+        console.error('Could not refresh the creator profile after Clip upload:', error);
+      });
 
     } catch (err: any) {
       console.error('Failed to publish Clip:', err);
@@ -1125,7 +1156,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
               loop
               playsInline
               style={{ filter: activeFilter }}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
 
             {/* Play/Pause indicator overlay on tap */}
@@ -1844,7 +1875,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                 disabled={isPublishing}
                 className="w-full px-4 py-2.5 bg-white dark:bg-[#141518] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-900 dark:text-white focus:outline-none cursor-pointer shadow-xs"
               >
-                {categoriesList.filter(c => c !== 'All').map((cat) => (
+                {categoriesList.map((cat) => (
                   <option key={cat} value={cat} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
                     {cat}
                   </option>
@@ -1884,22 +1915,34 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
             {/* COMMENTS & AUDIENCE SETTINGS */}
             <div className="p-4 bg-white dark:bg-[#16171a] rounded-3xl border border-slate-200/90 dark:border-slate-800 space-y-3 shadow-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-slate-900 dark:text-white">
-                    {isHindi ? 'कमेंट्स की अनुमति दें' : 'Allow Comments'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'दर्शक आपकी क्लिप पर टिप्पणी कर सकेंगे' : 'Viewers can leave comments on your Clip'}
-                  </p>
-                </div>
-                <input 
-                  type="checkbox"
-                  checked={allowComments}
-                  onChange={(e) => setAllowComments(e.target.checked)}
-                  disabled={isPublishing}
-                  className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
-                />
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">
+                  {isHindi ? 'कमेंट्स और कम्युनिटी' : 'Comments & Community'}
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  {isHindi ? 'दर्शक कमेंट कर सकते हैं या कमेंट समीक्षा के लिए रोके जा सकते हैं' : 'Allow comments or hold them for review'}
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'allow', label: isHindi ? 'अनुमति दें' : 'Allow All' },
+                  { id: 'hold', label: isHindi ? 'समीक्षा' : 'Hold Review' },
+                  { id: 'disabled', label: isHindi ? 'बंद' : 'Disabled' }
+                ].map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    disabled={isPublishing}
+                    onClick={() => setCommentsMode(option.id as typeof commentsMode)}
+                    className={`p-2 rounded-xl border text-[10px] font-bold transition-colors ${
+                      commentsMode === option.id
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">

@@ -5,10 +5,12 @@ import {
   deleteDoc,
   updateDoc,
   collection,
-  increment
+  increment,
+  query,
+  where
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Comment } from '../types';
+import { Comment, Video } from '../types';
 import { userService } from './userService';
 import { updateUserAvatarCache } from '../components/UserAvatar';
 import { videoService } from './videoService';
@@ -130,11 +132,13 @@ const saveStoredDislikedComments = (uid: string, set: Set<string>) => {
 
 export const commentService = {
   // Synchronous 0ms cache lookup for instant comment rendering
-  getCachedComments(videoId: string): Comment[] {
+  getCachedComments(videoId: string, includePending = false): Comment[] {
     if (!videoId) return [];
     const deleted = getDeletedCommentIds(videoId);
     return sortVideoComments(
-      hydrateAuthorsFromCache(getStoredVideoComments(videoId).filter(c => !deleted.has(c.commentId)))
+      hydrateAuthorsFromCache(getStoredVideoComments(videoId).filter(c =>
+        !deleted.has(c.commentId) && (includePending || c.status !== 'pending')
+      ))
     );
   },
 
@@ -292,14 +296,17 @@ export const commentService = {
   },
 
   // Get comments on a video (merges Firestore + local cache so user comments never disappear)
-  async getComments(videoId: string): Promise<Comment[]> {
+  async getComments(videoId: string, includePending = false, holdForReview = false): Promise<Comment[]> {
     if (!videoId) return [];
     const deletedIds = getDeletedCommentIds(videoId);
     const localComments = getStoredVideoComments(videoId);
     const colRef = collection(db, 'videos', videoId, 'comments');
+    const commentsQuery = holdForReview && !includePending
+      ? query(colRef, where('status', '==', 'published'))
+      : colRef;
 
     try {
-      const snap = await getDocs(colRef);
+      const snap = await getDocs(commentsQuery);
       const remoteComments = snap.docs.map((d: any) => d.data() as Comment);
 
       // Merge: remoteComments + any local comments not yet in Firestore (or retry writing them)
@@ -310,7 +317,12 @@ export const commentService = {
         }
       }
       for (const lc of localComments) {
-        if (lc?.commentId && !deletedIds.has(lc.commentId) && !byId.has(lc.commentId)) {
+        if (
+          lc?.commentId &&
+          !deletedIds.has(lc.commentId) &&
+          (includePending || lc.status !== 'pending') &&
+          !byId.has(lc.commentId)
+        ) {
           byId.set(lc.commentId, lc);
           // Background retry sync for pending local comment
           setDoc(doc(db, 'videos', videoId, 'comments', lc.commentId), lc).catch(() => {});
@@ -347,7 +359,7 @@ export const commentService = {
       return merged;
     } catch (err) {
       console.warn('Could not load comments from Firestore, returning cached comments:', err);
-      return this.getCachedComments(videoId);
+      return this.getCachedComments(videoId, includePending);
     }
   },
 
@@ -364,6 +376,7 @@ export const commentService = {
       displayName: commentData.displayName || commentData.username || 'User',
       photoURL: commentData.photoURL || '',
       text: commentData.text || '',
+      status: commentData.status || 'published',
       likesCount: 0,
       createdAt: now,
       updatedAt: now
@@ -376,23 +389,44 @@ export const commentService = {
     // 1. Immediately persist to local cache so comment stays visible across reloads
     const existing = getStoredVideoComments(videoId).filter(c => c.commentId !== commentId);
     saveStoredVideoComments(videoId, sortVideoComments([comment, ...existing]));
-    updateCachedVideoCommentsCount(videoId, 1);
+    if (comment.status === 'published') {
+      updateCachedVideoCommentsCount(videoId, 1);
+    }
 
     // 2. Sync to Firestore cleanly (never throw away user comment on transient network/rule failure)
     try {
       await setDoc(doc(db, 'videos', videoId, 'comments', commentId), comment);
-      try {
-        await updateDoc(doc(db, 'videos', videoId), {
-          commentsCount: increment(1)
-        });
-      } catch (countErr) {
-        console.warn('Could not increment comments count on video:', countErr);
+      if (comment.status === 'published') {
+        try {
+          await updateDoc(doc(db, 'videos', videoId), {
+            commentsCount: increment(1)
+          });
+        } catch (countErr) {
+          console.warn('Could not increment comments count on video:', countErr);
+        }
       }
     } catch (err) {
       console.warn('Comment persisted locally; Firestore sync deferred:', err);
     }
 
     return comment;
+  },
+
+  async approveComment(videoId: string, commentId: string): Promise<void> {
+    const commentRef = doc(db, 'videos', videoId, 'comments', commentId);
+    await updateDoc(commentRef, {
+      status: 'published',
+      updatedAt: new Date().toISOString()
+    });
+
+    const cachedComments = getStoredVideoComments(videoId).map(comment =>
+      comment.commentId === commentId ? { ...comment, status: 'published' as const } : comment
+    );
+    saveStoredVideoComments(videoId, cachedComments);
+    updateCachedVideoCommentsCount(videoId, 1);
+    await updateDoc(doc(db, 'videos', videoId), {
+      commentsCount: increment(1)
+    });
   },
 
   // Update existing comment
@@ -416,15 +450,23 @@ export const commentService = {
 
   // Delete comment from video
   async deleteComment(videoId: string, commentId: string): Promise<void> {
+    const deletedComment = getStoredVideoComments(videoId).find(comment => comment.commentId === commentId);
     addDeletedCommentId(videoId, commentId);
     const remaining = getStoredVideoComments(videoId).filter(c => c.commentId !== commentId);
     saveStoredVideoComments(videoId, remaining);
-    updateCachedVideoCommentsCount(videoId, -1);
+    if (deletedComment?.status !== 'pending') {
+      updateCachedVideoCommentsCount(videoId, -1);
+    }
 
     try {
       await deleteDoc(doc(db, 'videos', videoId, 'comments', commentId));
+      if (deletedComment?.status !== 'pending') {
+        await updateDoc(doc(db, 'videos', videoId), {
+          commentsCount: increment(-1)
+        });
+      }
     } catch (err) {
-      console.warn('Could not delete comment from Firestore:', err);
+      console.warn('Could not delete comment from Firestore or update its count:', err);
     }
 
     try {
@@ -476,12 +518,18 @@ export const commentService = {
   },
 
   // Get comments across multiple videos for Creator Studio
-  async getCommentsForVideos(videos: { videoId: string; title: string; isShort?: boolean }[]): Promise<(Comment & { videoTitle: string; isShort?: boolean })[]> {
+  async getCommentsForVideos(videos: {
+    videoId: string;
+    title: string;
+    isShort?: boolean;
+    commentsMode?: Video['commentsMode'];
+  }[]): Promise<(Comment & { videoTitle: string; isShort?: boolean })[]> {
     const results: (Comment & { videoTitle: string; isShort?: boolean })[] = [];
     await Promise.all(
       videos.map(async (v) => {
         try {
-          const comms = await this.getComments(v.videoId);
+          if (v.commentsMode === 'disabled') return;
+          const comms = await this.getComments(v.videoId, true, v.commentsMode === 'hold');
           comms.forEach((c) => {
             results.push({
               ...c,

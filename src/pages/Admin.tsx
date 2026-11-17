@@ -857,16 +857,6 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  if (currentUserProfile?.role !== 'admin') {
-    return (
-      <div className="flex flex-col items-center justify-center py-40">
-        <ShieldAlert className="w-16 h-16 text-[#800080] mb-4" />
-        <h3 className="text-xl font-black">Access Denied</h3>
-        <p className="text-sm text-slate-500 mt-2">You do not have administrative privileges.</p>
-      </div>
-    );
-  }
-
   // Platform Tools & Broadcast Announcement State
   const [announcementActive, setAnnouncementActive] = useState(false);
   const [announcementText, setAnnouncementText] = useState('');
@@ -963,15 +953,24 @@ export const AdminPanel: React.FC = () => {
     }, 600);
   };
 
-  const filteredUsers = users.filter(u => 
-    u.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.displayName.toLowerCase().includes(searchTerm.toLowerCase())
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  const filteredUsers = users.filter(u =>
+    `${u.username || ''} ${u.displayName || ''}`.toLowerCase().includes(normalizedSearchTerm)
   );
 
-  const filteredVideos = videos.filter(v => 
-    v.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    v.creatorUsername.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredVideos = videos.filter(v =>
+    `${v.title || ''} ${v.creatorUsername || ''}`.toLowerCase().includes(normalizedSearchTerm)
   );
+
+  if (currentUserProfile?.role !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center py-40">
+        <ShieldAlert className="w-16 h-16 text-[#800080] mb-4" />
+        <h3 className="text-xl font-black">Access Denied</h3>
+        <p className="text-sm text-slate-500 mt-2">You do not have administrative privileges.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-workspace flex min-h-screen flex-col gap-5 bg-slate-100 p-3 dark:bg-slate-950 md:flex-row md:p-5">

@@ -15,7 +15,8 @@ import { Subscriptions } from './Subscriptions';
 import { getVideoUrlDuration, parseVideoUrl } from '../utils/videoUtils';
 
 export const categoriesList = [
-  'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy'
+  'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy',
+  'Travel', 'Food', 'Health & Fitness', 'Beauty & Fashion', 'How-to & Style', 'Film & Animation', 'Autos & Vehicles', 'Pets & Animals', 'People & Blogs'
 ];
 
 export const categoryHindiMap: Record<string, string> = {

@@ -17,6 +17,8 @@ const formatTime = (seconds: number) => {
 export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src, poster }) => {
   const { isHindi } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<HTMLDivElement>(null);
+  const playerIdRef = useRef(Symbol('community-video-player'));
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
@@ -34,6 +36,41 @@ export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src,
       video.currentTime = 0;
       video.load();
     }
+  }, [src]);
+
+  useEffect(() => {
+    const handleOtherPlayerStarted = (event: Event) => {
+      const activePlayerId = (event as CustomEvent<symbol>).detail;
+      if (activePlayerId !== playerIdRef.current) {
+        videoRef.current?.pause();
+      }
+    };
+
+    window.addEventListener('socialindia:community-video-playing', handleOtherPlayerStarted);
+    return () => window.removeEventListener('socialindia:community-video-playing', handleOtherPlayerStarted);
+  }, []);
+
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player || typeof IntersectionObserver === 'undefined') return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      const video = videoRef.current;
+      if (!video || !entry) return;
+
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.65) {
+        if (video.paused) {
+          void video.play().catch(error => {
+            console.warn('Could not autoplay community video:', error);
+          });
+        }
+      } else if (entry.intersectionRatio < 0.25) {
+        video.pause();
+      }
+    }, { threshold: [0, 0.25, 0.65] });
+
+    observer.observe(player);
+    return () => observer.disconnect();
   }, [src]);
 
   const togglePlayback = () => {
@@ -66,7 +103,7 @@ export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src,
   };
 
   return (
-    <div className="relative mb-3.5 aspect-[4/5] max-h-[min(70vh,720px)] overflow-hidden rounded-xl bg-black">
+    <div ref={playerRef} className="relative mb-3.5 aspect-[4/5] max-h-[min(70vh,720px)] overflow-hidden rounded-xl bg-black">
       <video
         ref={videoRef}
         src={src}
@@ -75,7 +112,12 @@ export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src,
         preload="metadata"
         muted={muted}
         onClick={togglePlayback}
-        onPlay={() => setPlaying(true)}
+        onPlay={() => {
+          setPlaying(true);
+          window.dispatchEvent(new CustomEvent('socialindia:community-video-playing', {
+            detail: playerIdRef.current
+          }));
+        }}
         onPause={() => setPlaying(false)}
         onLoadedMetadata={event => {
           const nextDuration = event.currentTarget.duration;

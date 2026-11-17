@@ -96,6 +96,7 @@ export interface Video {
   category: string;
   tags: string[];
   visibility: 'public' | 'unlisted' | 'private';
+  commentsMode?: 'allow' | 'hold' | 'disabled';
   viewsCount: number;
   likesCount: number;
   commentsCount: number;
@@ -223,6 +224,7 @@ export interface Comment {
   displayName: string;
   photoURL?: string;
   text: string;
+  status?: 'published' | 'pending';
   likesCount: number;
   dislikesCount?: number;
   hasCreatorHeart?: boolean;
@@ -387,6 +389,8 @@ export interface ChatMessage {
   text: string;
   mediaUrl?: string;
   mediaType?: 'image' | 'video';
+  deliveryStatus?: 'uploading' | 'sending';
+  uploadProgress?: number;
   createdAt: any;
   read: boolean;
 }
@@ -396,6 +400,7 @@ export interface ChatSession {
   displayName: string;
   username: string;
   photoURL?: string;
+  isVerified?: boolean;
   lastMessage?: string;
   lastMessageTime?: any;
   unreadCount: number;
@@ -441,6 +446,7 @@ export interface CommunityPost {
   authorDisplayName: string;
   authorPhotoURL?: string;
   authorRole?: string;
+  authorIsVerified?: boolean;
   content: string;
   postType: PostType;
   images?: string[];

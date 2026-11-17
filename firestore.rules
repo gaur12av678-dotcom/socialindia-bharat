@@ -103,7 +103,10 @@ match /adminSettings/{docId} {
 
     // --- VIDEOS COLLECTION ---
     match /videos/{videoId} {
-      allow read: if true;
+      allow get: if resource.data.get('visibility', 'public') in ['public', 'unlisted'] ||
+        (isSignedIn() && resource.data.creatorId == request.auth.uid);
+      allow list: if resource.data.get('visibility', 'public') == 'public' ||
+        (isSignedIn() && resource.data.creatorId == request.auth.uid);
       
       allow create: if isSignedIn() && 
         request.resource.data.creatorId == request.auth.uid;
@@ -127,15 +130,23 @@ match /adminSettings/{docId} {
 
       // Video comments subcollection
       match /comments/{commentId} {
-        allow read: if true;
-        allow create: if isSignedIn();
+        allow read: if get(/databases/$(database)/documents/videos/$(videoId)).data.get('commentsMode', 'allow') != 'disabled' &&
+          (resource.data.get('status', 'published') == 'published' ||
+           (isSignedIn() && get(/databases/$(database)/documents/videos/$(videoId)).data.creatorId == request.auth.uid));
+        allow create: if isSignedIn() &&
+          request.resource.data.uid == request.auth.uid &&
+          get(/databases/$(database)/documents/videos/$(videoId)).data.get('commentsMode', 'allow') != 'disabled' &&
+          request.resource.data.get('status', 'published') ==
+            (get(/databases/$(database)/documents/videos/$(videoId)).data.get('commentsMode', 'allow') == 'hold' ? 'pending' : 'published');
         allow update: if isSignedIn() && (
-          resource.data.uid == request.auth.uid || 
-          resource.data.userId == request.auth.uid || 
           isAdmin() ||
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'likesCount', 'dislikesCount', 'hasCreatorHeart', 'heartedAt', 'isPinned', 'pinnedAt', 'text', 'updatedAt'
-          ])
+          ((resource.data.uid == request.auth.uid || resource.data.userId == request.auth.uid) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'updatedAt'])) ||
+          (get(/databases/$(database)/documents/videos/$(videoId)).data.creatorId == request.auth.uid &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'updatedAt', 'hasCreatorHeart', 'heartedAt', 'isPinned', 'pinnedAt'
+            ])) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'dislikesCount'])
         );
         allow delete: if isSignedIn() && (
           resource.data.uid == request.auth.uid || 

@@ -119,7 +119,11 @@ export const CreatorProfile: React.FC = () => {
     .toLowerCase();
 
   const channelCacheKey = targetUsername || rawParam || activeUid || '';
-  const initialChannelSnapshot = channelCacheKey ? persistentChannelCache.get(channelCacheKey) : undefined;
+  const cachedChannelSnapshot = channelCacheKey ? persistentChannelCache.get(channelCacheKey) : undefined;
+  const initialChannelSnapshot = cachedChannelSnapshot && (
+    cachedChannelSnapshot.creator.uid === activeUid ||
+    [...cachedChannelSnapshot.videos, ...cachedChannelSnapshot.shorts].every(video => video.visibility === 'public')
+  ) ? cachedChannelSnapshot : undefined;
 
   const [creator, setCreator] = useState<User | null>(() => {
     if (initialChannelSnapshot?.creator) return initialChannelSnapshot.creator;
@@ -396,13 +400,9 @@ export const CreatorProfile: React.FC = () => {
         );
 
         if (isCurrentMatch) {
-          if (currentUserProfile) {
-            uProfile = currentUserProfile;
-          } else {
-            uProfile = await userService.getUserProfile(currentUser.uid, true);
-            if (!uProfile) {
-              uProfile = await userService.recoverOrCreateProfile(currentUser);
-            }
+          uProfile = await userService.getUserProfile(currentUser.uid, true);
+          if (!uProfile) {
+            uProfile = currentUserProfile || await userService.recoverOrCreateProfile(currentUser);
           }
           if (uProfile) {
             updateUserProfileState(uProfile);
@@ -482,11 +482,17 @@ export const CreatorProfile: React.FC = () => {
 
         // Fetch subscriptions, videos, playlists, and community posts in PARALLEL (No waterfall!)
         const subscriptionSyncVersion = ++subscriptionSyncVersionRef.current;
+        const isViewingOwnChannel = Boolean(
+          currentUser && (
+            currentUser.uid === uProfile.uid ||
+            (currentUserProfile?.username && uProfile.username && currentUserProfile.username.toLowerCase() === uProfile.username.toLowerCase())
+          )
+        );
         const [subResult, vidsResult, plsResult, postsResult] = await Promise.allSettled([
           currentUser
             ? subscriptionService.isSubscribed(currentUser.uid, uProfile.uid, uProfile.username)
             : Promise.resolve(activeUid ? subscriptionService.isSubscribedSync(activeUid, uProfile.uid, uProfile.username) : false),
-          videoService.getCreatorVideos(uProfile.uid, uProfile.username),
+          videoService.getCreatorVideos(uProfile.uid, uProfile.username, isViewingOwnChannel),
           playlistService.getUserPlaylists(uProfile.uid, uProfile.username, uProfile.displayName),
           postService.getPosts({ authorId: uProfile.uid })
         ]);
@@ -501,13 +507,7 @@ export const CreatorProfile: React.FC = () => {
             setSubscribed(subResult.value);
           }
           if (vidsResult.status === 'fulfilled') {
-            const isOwnerUser = Boolean(
-              currentUser && (
-                currentUser.uid === uProfile.uid ||
-                (currentUserProfile?.username && uProfile.username && currentUserProfile.username.toLowerCase() === uProfile.username.toLowerCase())
-              )
-            );
-            const visibleVids = isOwnerUser 
+            const visibleVids = isViewingOwnChannel
               ? vidsResult.value 
               : vidsResult.value.filter(v => v.visibility === 'public');
             nextVideos = visibleVids.filter(v => !v.isShort);
@@ -1368,6 +1368,11 @@ export const CreatorProfile: React.FC = () => {
                       <Zap className="w-3 h-3 text-red-500 fill-red-500" />
                       <span className="text-[10px] font-extrabold text-white uppercase tracking-wider">Clips</span>
                     </div>
+                    {short.visibility !== 'public' && currentUser?.uid === short.creatorId && (
+                      <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/75 text-[9px] font-bold text-white capitalize pointer-events-none">
+                        {short.visibility}
+                      </div>
+                    )}
 
                     {/* Hover Play Button */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
