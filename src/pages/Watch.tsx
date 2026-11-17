@@ -77,7 +77,11 @@ export const Watch: React.FC = () => {
     return null;
   });
   const COMMENTS_PAGE_SIZE = 8;
-  const [comments, setComments] = useState<Comment[]>(() => (videoId ? commentService.getCachedComments(videoId) : []));
+  const [comments, setComments] = useState<Comment[]>(() => (
+    videoId && cachedInitialVid?.commentsMode !== 'disabled'
+      ? commentService.getCachedComments(videoId, cachedInitialVid?.creatorId === currentUser?.uid)
+      : []
+  ));
   const [visibleCommentsCount, setVisibleCommentsCount] = useState<number>(COMMENTS_PAGE_SIZE);
   const [newCommentText, setNewCommentText] = useState('');
   const [candidateVideoPool, setCandidateVideoPool] = useState<Video[]>(() => {
@@ -421,18 +425,7 @@ export const Watch: React.FC = () => {
           : undefined
       );
       setVisibleCommentsCount(COMMENTS_PAGE_SIZE);
-      setComments(commentService.getCachedComments(videoId));
-
-      // Fetch comments IMMEDIATELY in parallel with video details (no waterfall delay!)
-      commentService.getComments(videoId).then(commList => {
-        if (!isMounted) return;
-        setComments(prev => {
-          const seen = new Set(commList.map(c => c.commentId));
-          const pending = prev.filter(c => c.commentId.startsWith('temp-') && !seen.has(c.commentId));
-          return [...pending, ...commList];
-        });
-        setVideo(prev => prev ? { ...prev, commentsCount: Math.max(prev.commentsCount || 0, commList.length) } : prev);
-      }).catch(console.error);
+      setComments(commentService.getCachedComments(videoId, cached?.creatorId === currentUser?.uid));
 
       if (cached) {
         setVideo(cached);
@@ -466,6 +459,25 @@ export const Watch: React.FC = () => {
         // Set video object and close page loading IMMEDIATELY!
         setVideo(vid);
         setLoading(false);
+        if (vid.commentsMode === 'disabled') {
+          setComments([]);
+        } else {
+          const isOwner = currentUser?.uid === vid.creatorId;
+          commentService.getComments(videoId, isOwner, vid.commentsMode === 'hold').then(commList => {
+            if (!isMounted) return;
+            setComments(prev => {
+              const unsynced = prev.filter(c =>
+                c.commentId.startsWith('temp-') &&
+                !commList.some(remote => remote.commentId === c.commentId)
+              );
+              return [...unsynced, ...commList];
+            });
+            setVideo(prev => prev ? {
+              ...prev,
+              commentsCount: Math.max(prev.commentsCount || 0, commList.filter(c => c.status !== 'pending').length)
+            } : prev);
+          }).catch(console.error);
+        }
 
         // Check Paid Video Access
         if (vid.isPaid && (vid.price || 0) > 0) {
@@ -889,6 +901,7 @@ export const Watch: React.FC = () => {
 
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!video || video.commentsMode === 'disabled') return;
     if (!currentUser || !effectiveUserProfile) {
       addToast('Please sign in to leave comments.', 'info');
       navigate('signin');
@@ -910,6 +923,7 @@ export const Watch: React.FC = () => {
       displayName: effectiveUserProfile.displayName,
       photoURL: effectiveUserProfile.photoURL || '',
       text: textToPost,
+      status: video.commentsMode === 'hold' ? 'pending' : 'published',
       likesCount: 0,
       createdAt: now,
       updatedAt: now
@@ -919,7 +933,9 @@ export const Watch: React.FC = () => {
     setComments(prev => [tempComment, ...prev]);
     setVisibleCommentsCount(prev => Math.max(prev, COMMENTS_PAGE_SIZE));
     setNewCommentText('');
-    setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
+    if (tempComment.status === 'published') {
+      setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
+    }
 
     try {
       const realComment = await commentService.addComment(video.videoId, {
@@ -927,19 +943,23 @@ export const Watch: React.FC = () => {
         username: effectiveUserProfile.username,
         displayName: effectiveUserProfile.displayName,
         photoURL: effectiveUserProfile.photoURL || '',
-        text: textToPost
+        text: textToPost,
+        status: video.commentsMode === 'hold' ? 'pending' : 'published'
       });
 
       // Replace the temporary comment with the persisted comment
       setComments(prev => prev.map(c => c.commentId === tempCommentId ? realComment : c));
 
-      userService.awardPoints(currentUser.uid, 10).catch(console.warn);
-
-      notificationService.createNotification(video.creatorId, effectiveUserProfile, 'comment', {
-        videoId: video.videoId,
-        commentId: realComment.commentId,
-        message: textToPost
-      }).catch(console.error);
+      if (realComment.status === 'pending') {
+        addToast('Your comment was sent for review.', 'info');
+      } else {
+        userService.awardPoints(currentUser.uid, 10).catch(console.warn);
+        notificationService.createNotification(video.creatorId, effectiveUserProfile, 'comment', {
+          videoId: video.videoId,
+          commentId: realComment.commentId,
+          message: textToPost
+        }).catch(console.error);
+      }
     } catch (err) {
       console.warn('Comment sync warning:', err);
     } finally {
@@ -947,12 +967,30 @@ export const Watch: React.FC = () => {
     }
   };
 
+  const handleApproveComment = async (commentId: string) => {
+    if (!video || !isVideoOwner) return;
+    try {
+      await commentService.approveComment(video.videoId, commentId);
+      setComments(prev => prev.map(comment =>
+        comment.commentId === commentId ? { ...comment, status: 'published' } : comment
+      ));
+      setVideo(prev => prev ? { ...prev, commentsCount: (prev.commentsCount || 0) + 1 } : prev);
+      addToast('Comment approved.', 'success');
+    } catch (error) {
+      console.error('Failed to approve comment:', error);
+      addToast('Could not approve this comment.', 'error');
+    }
+  };
+
   const handleCommentDelete = async (commentId: string) => {
     if (window.confirm('Delete this comment?')) {
       try {
+        const deletedComment = comments.find(comment => comment.commentId === commentId);
         await commentService.deleteComment(video.videoId, commentId);
         setComments(prev => prev.filter(c => c.commentId !== commentId));
-        setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount - 1 } : null);
+        if (deletedComment?.status !== 'pending') {
+          setVideo(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null);
+        }
         addToast('Comment deleted.', 'info');
       } catch (err) {
         addToast('Failed to delete comment.', 'error');
@@ -1187,6 +1225,7 @@ export const Watch: React.FC = () => {
   };
 
   const handlePostReply = async (parentCommentId: string) => {
+    if (!video || video.commentsMode === 'disabled') return;
     if (!currentUser || !effectiveUserProfile) {
       addToast('Please sign in to reply.', 'info');
       navigate('signin');
@@ -1206,6 +1245,7 @@ export const Watch: React.FC = () => {
       displayName: effectiveUserProfile.displayName,
       photoURL: effectiveUserProfile.photoURL || '',
       text: replyText,
+      status: video.commentsMode === 'hold' ? 'pending' : 'published',
       likesCount: 0,
       parentCommentId,
       createdAt: now,
@@ -1217,7 +1257,9 @@ export const Watch: React.FC = () => {
     setExpandedReplies(prev => ({ ...prev, [parentCommentId]: true }));
     setEditingCommentId(null);
     setEditingCommentText('');
-    setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
+    if (tempReply.status === 'published') {
+      setVideo(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
+    }
 
     try {
       const newReply = await commentService.addComment(video!.videoId, {
@@ -1226,6 +1268,7 @@ export const Watch: React.FC = () => {
         displayName: effectiveUserProfile.displayName,
         photoURL: effectiveUserProfile.photoURL || '',
         text: replyText,
+        status: video.commentsMode === 'hold' ? 'pending' : 'published',
         parentCommentId
       });
 
@@ -1808,6 +1851,12 @@ export const Watch: React.FC = () => {
 
         {/* Comments Section */}
         <div className="space-y-4 bg-white dark:bg-[#111827] p-4 rounded-2xl border border-slate-200/80 dark:border-[#334155] shadow-xs">
+          {video.commentsMode === 'disabled' ? (
+            <p className="py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
+              This comment section is disabled.
+            </p>
+          ) : (
+            <>
           <div 
             onClick={() => setCommentsCollapsed(!commentsCollapsed)}
             className="flex items-center justify-between cursor-pointer select-none pb-1"
@@ -1903,6 +1952,11 @@ export const Watch: React.FC = () => {
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
                           • {formatTimeAgo(comm.createdAt)}
                         </span>
+                        {comm.status === 'pending' && isVideoOwner && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                            Held for review
+                          </span>
+                        )}
                       </div>
 
                       {editingCommentId === comm.commentId ? (
@@ -1934,6 +1988,15 @@ export const Watch: React.FC = () => {
                           
                           {/* YouTube-Style Comment Action Row: Like, Dislike, Creator Heart, Reply */}
                           <div className="flex items-center gap-1 sm:gap-2 mt-3 flex-wrap">
+                            {isVideoOwner && comm.status === 'pending' && (
+                              <button
+                                type="button"
+                                onClick={() => handleApproveComment(comm.commentId)}
+                                className="rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-emerald-700"
+                              >
+                                Approve
+                              </button>
+                            )}
                             {/* Like (Thumbs Up) */}
                             <button
                               onClick={() => handleLikeComment(comm)}
@@ -2166,6 +2229,11 @@ export const Watch: React.FC = () => {
                                   <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                                     <span className="text-[11px] font-black text-slate-900 dark:text-[#F8FAFC]">{reply.displayName}</span>
                                     <span className="text-[9px] text-slate-400 font-medium">• {formatTimeAgo(reply.createdAt)}</span>
+                                    {reply.status === 'pending' && isVideoOwner && (
+                                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                                        Held for review
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-xs text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
                                     {renderCommentText(reply.text)}
@@ -2173,6 +2241,15 @@ export const Watch: React.FC = () => {
 
                                   {/* Action row for reply */}
                                   <div className="flex items-center gap-1 sm:gap-2 mt-2">
+                                    {isVideoOwner && reply.status === 'pending' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApproveComment(reply.commentId)}
+                                        className="rounded-full bg-emerald-600 px-2 py-1 text-[9px] font-bold text-white hover:bg-emerald-700"
+                                      >
+                                        Approve
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => handleLikeComment(reply)}
                                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-90 ${
@@ -2266,6 +2343,8 @@ export const Watch: React.FC = () => {
           </div>
         </>
       )}
+            </>
+          )}
     </div>
       </div>
 

@@ -16,13 +16,12 @@ import {
   Compass,
   Smile,
   Paperclip,
-  Image as ImageIcon,
-  Video as VideoIcon,
   X,
   Maximize2,
   Download,
   Mic,
-  MicOff
+  MicOff,
+  Check
 } from 'lucide-react';
 import { getInitials } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
@@ -59,7 +58,6 @@ export const ChatPage: React.FC = () => {
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   // Voice input state
@@ -270,14 +268,13 @@ export const ChatPage: React.FC = () => {
     }, 50);
   };
 
-  const handleClearMedia = () => {
-    if (mediaPreviewUrl && mediaPreviewUrl.startsWith('blob:')) {
+  const handleClearMedia = (revokePreview = true) => {
+    if (revokePreview && mediaPreviewUrl && mediaPreviewUrl.startsWith('blob:')) {
       URL.revokeObjectURL(mediaPreviewUrl);
     }
     setSelectedMediaFile(null);
     setMediaPreviewUrl(null);
     setMediaType(null);
-    setUploadProgress(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -344,7 +341,7 @@ export const ChatPage: React.FC = () => {
 
     // Reset input fields immediately for snappy feel
     setMessageText('');
-    handleClearMedia();
+    handleClearMedia(false);
 
     // Instant optimistic message rendering
     const tempId = `temp_${Date.now()}`;
@@ -355,6 +352,8 @@ export const ChatPage: React.FC = () => {
       text: content,
       mediaUrl: localPreview || undefined,
       mediaType: currentMediaType || undefined,
+      deliveryStatus: mediaFileToSend ? 'uploading' : undefined,
+      uploadProgress: mediaFileToSend ? 0 : undefined,
       createdAt: new Date().toISOString(),
       read: false
     };
@@ -381,24 +380,47 @@ export const ChatPage: React.FC = () => {
     try {
       let finalMediaUrl: string | undefined = undefined;
       let finalMediaType: 'image' | 'video' | undefined = undefined;
+      const updatePendingMessage = (updates: Partial<ChatMessage>) => {
+        setMessages(prev => {
+          const updated = prev.map(message =>
+            message.id === tempId ? { ...message, ...updates } : message
+          );
+          chatService.setCachedMessages(currentUser.uid, selectedUserId, updated);
+          return updated;
+        });
+      };
 
       // Upload media if present
       if (mediaFileToSend) {
         setIsUploadingMedia(true);
         const uploadResult = await chatService.uploadChatMedia(mediaFileToSend, (pct) => {
-          setUploadProgress(pct);
+          updatePendingMessage({ uploadProgress: pct });
         });
         finalMediaUrl = uploadResult.url;
         finalMediaType = uploadResult.type;
+        updatePendingMessage({
+          mediaUrl: finalMediaUrl,
+          deliveryStatus: 'sending',
+          uploadProgress: 100
+        });
       }
 
-      await chatService.sendMessage(
+      const sentMessageId = await chatService.sendMessage(
         currentUser.uid, 
         selectedUserId, 
         content,
         finalMediaUrl,
         finalMediaType
       );
+      setMessages(prev => {
+        const updated = prev.map(message =>
+          message.id === tempId
+            ? { ...message, id: sentMessageId, deliveryStatus: undefined, uploadProgress: undefined }
+            : message
+        );
+        chatService.setCachedMessages(currentUser.uid, selectedUserId, updated);
+        return updated;
+      });
     } catch (err) {
       console.error('Failed to deliver message:', err);
 
@@ -420,9 +442,11 @@ export const ChatPage: React.FC = () => {
 
       addToast('Failed to deliver message. Please try again.', 'error');
     } finally {
+      if (localPreview?.startsWith('blob:')) {
+        URL.revokeObjectURL(localPreview);
+      }
       setIsSending(false);
       setIsUploadingMedia(false);
-      setUploadProgress(0);
     }
   };
 
@@ -607,7 +631,14 @@ export const ChatPage: React.FC = () => {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-black text-slate-900 dark:text-white truncate">{s.displayName}</p>
+                      <p className="min-w-0 flex items-center gap-1 text-xs font-black text-slate-900 dark:text-white">
+                        <span className="truncate">{s.displayName}</span>
+                        {s.isVerified && (
+                          <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white" title="Verified account" aria-label="Verified account">
+                            <Check className="h-2.5 w-2.5 stroke-[4]" />
+                          </span>
+                        )}
+                      </p>
                       <span className="text-[9px] font-bold text-slate-400 shrink-0">{formatSessionTime(s.lastMessageTime)}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 truncate mt-0.5 font-semibold">
@@ -648,7 +679,14 @@ export const ChatPage: React.FC = () => {
                 />
 
                 <div className="min-w-0">
-                  <p className="text-xs font-black text-slate-900 dark:text-white truncate">{selectedUser.displayName}</p>
+                  <p className="flex items-center gap-1 text-xs font-black text-slate-900 dark:text-white">
+                    <span className="truncate">{selectedUser.displayName}</span>
+                    {selectedUser.isVerified && (
+                      <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white" title="Verified account" aria-label="Verified account">
+                        <Check className="h-2.5 w-2.5 stroke-[4]" />
+                      </span>
+                    )}
+                  </p>
                   <p className="text-[10px] text-slate-500 truncate">@{selectedUser.username}</p>
                 </div>
               </div>
@@ -684,6 +722,7 @@ export const ChatPage: React.FC = () => {
                 messages.map((m, idx) => {
                   const isMine = m.senderId === currentUser.uid;
                   const dayLabel = formatMsgDay(m.createdAt, messages[idx - 1]?.createdAt);
+                  const uploadProgressValue = Math.min(100, Math.max(0, m.uploadProgress || 0));
                   return (
                     <React.Fragment key={m.id}>
                       {dayLabel && (
@@ -729,18 +768,40 @@ export const ChatPage: React.FC = () => {
                                 >
                                   <Maximize2 className="w-3.5 h-3.5" />
                                 </button>
+                                {m.deliveryStatus === 'uploading' && (
+                                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white">
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                    <span className="text-[11px] font-bold">
+                                      {isHindi ? `भेजा जा रहा है ${uploadProgressValue}%` : `Sending ${uploadProgressValue}%`}
+                                    </span>
+                                    <div className="h-1 w-2/3 overflow-hidden rounded-full bg-white/30">
+                                      <div className="h-full bg-white transition-[width]" style={{ width: `${uploadProgressValue}%` }} />
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
 
                             {/* Media content: Video */}
                             {m.mediaUrl && m.mediaType === 'video' && (
-                              <div className="mb-2 overflow-hidden rounded-xl bg-black">
+                              <div className="relative mb-2 overflow-hidden rounded-xl bg-black">
                                 <video
                                   src={m.mediaUrl}
                                   controls
                                   playsInline
                                   className="max-h-72 w-full rounded-xl bg-black"
                                 />
+                                {m.deliveryStatus === 'uploading' && (
+                                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white">
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                    <span className="text-[11px] font-bold">
+                                      {isHindi ? `भेजा जा रहा है ${uploadProgressValue}%` : `Sending ${uploadProgressValue}%`}
+                                    </span>
+                                    <div className="h-1 w-2/3 overflow-hidden rounded-full bg-white/30">
+                                      <div className="h-full bg-white transition-[width]" style={{ width: `${uploadProgressValue}%` }} />
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
 
@@ -752,7 +813,9 @@ export const ChatPage: React.FC = () => {
 
                           <span className={`text-[9px] text-slate-400 font-bold block ${isMine ? 'text-right' : 'text-left'}`}>
                             {formatMsgTime(m.createdAt)}
-                            {isMine && (m.read ? ' ✓✓' : ' ✓')}
+                            {isMine && m.deliveryStatus ? (
+                              <Loader2 className="ml-1 inline h-2.5 w-2.5 animate-spin" />
+                            ) : isMine ? (m.read ? ' ✓✓' : ' ✓') : null}
                           </span>
                         </div>
                       </div>
@@ -775,18 +838,6 @@ export const ChatPage: React.FC = () => {
                 />
               )}
 
-              {/* Uploading Progress Indicator */}
-              {isUploadingMedia && (
-                <div className="mb-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900/50 flex items-center justify-between text-xs text-blue-600 animate-pulse">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span className="font-bold">
-                      {isHindi ? 'मीडिया अपलोड हो रहा है...' : 'Uploading media...'} {uploadProgress > 0 ? `${uploadProgress}%` : ''}
-                    </span>
-                  </div>
-                </div>
-              )}
-
               {/* Media Attachment Preview Bar */}
               {mediaPreviewUrl && (
                 <div className="mb-2.5 p-2 bg-slate-100 dark:bg-[#1a1a1e] rounded-2xl border border-slate-200 dark:border-[#2a2a2e] flex items-center justify-between gap-3 animate-in fade-in duration-150">
@@ -798,9 +849,14 @@ export const ChatPage: React.FC = () => {
                         className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-[#333] shrink-0"
                       />
                     ) : (
-                      <div className="w-12 h-12 rounded-xl bg-purple-600/20 text-purple-600 flex items-center justify-center shrink-0">
-                        <VideoIcon className="w-6 h-6" />
-                      </div>
+                      <video
+                        src={mediaPreviewUrl}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        aria-label={isHindi ? 'वीडियो पूर्वावलोकन' : 'Video preview'}
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-[#333] shrink-0"
+                      />
                     )}
                     <div className="min-w-0 text-left">
                       <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
@@ -818,7 +874,7 @@ export const ChatPage: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={handleClearMedia}
+                    onClick={() => handleClearMedia()}
                     className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-[#252528] rounded-xl cursor-pointer transition-colors"
                     title={isHindi ? 'मीडिया हटाएं' : 'Remove media'}
                   >

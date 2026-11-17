@@ -5,6 +5,7 @@ import { subscriptionService } from '../../services/subscriptionService';
 import { useApp } from '../../context/AppContext';
 import { useRouter } from '../../hooks/useRouter';
 import { UserAvatar } from '../UserAvatar';
+import { userService } from '../../services/userService';
 import { InstagramVideoPlayer } from './InstagramVideoPlayer';
 import { RichText } from '../RichText';
 import { formatTimeAgo, formatViews } from '../../utils/videoUtils';
@@ -24,6 +25,19 @@ import {
   X,
   Loader2
 } from 'lucide-react';
+
+const authorProfileRefreshes = new Map<string, ReturnType<typeof userService.getUserProfile>>();
+
+const getFreshAuthorProfile = (uid: string) => {
+  const pending = authorProfileRefreshes.get(uid);
+  if (pending) return pending;
+
+  const request = userService.getUserProfile(uid, true).finally(() => {
+    authorProfileRefreshes.delete(uid);
+  });
+  authorProfileRefreshes.set(uid, request);
+  return request;
+};
 
 interface PostCardProps {
   post: CommunityPost;
@@ -62,6 +76,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
   const [deletingPost, setDeletingPost] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const menuContainerRef = React.useRef<HTMLDivElement>(null);
+  const [authorIsVerified, setAuthorIsVerified] = useState(() => {
+    const profile = currentUserProfile?.uid === post.authorId
+      ? currentUserProfile
+      : userService.getCachedUserProfile(post.authorId);
+    return Boolean(post.authorIsVerified || isUserVerified(profile));
+  });
 
   const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
   const currentUsername = (currentUserProfile?.username || '').trim().toLowerCase();
@@ -71,6 +91,34 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
     (currentUsername && postUsername && currentUsername === postUsername)
   );
   const canShowFollow = Boolean(showFollowButton && post.authorId && !isAuthor);
+
+  useEffect(() => {
+    const cachedProfile = currentUserProfile?.uid === post.authorId
+      ? currentUserProfile
+      : userService.getCachedUserProfile(post.authorId);
+    setAuthorIsVerified(Boolean(post.authorIsVerified || isUserVerified(cachedProfile)));
+    if (!post.authorId) return;
+
+    let active = true;
+    getFreshAuthorProfile(post.authorId).then(profile => {
+      if (active && profile) setAuthorIsVerified(isUserVerified(profile));
+    }).catch(error => {
+      console.error(`Could not load verification status for post author ${post.authorId}:`, error);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    post.authorId,
+    post.authorIsVerified,
+    currentUserProfile?.uid,
+    currentUserProfile?.isVerified,
+    currentUserProfile?.verified,
+    currentUserProfile?.isPro,
+    currentUserProfile?.role,
+    currentUserProfile?.verificationStatus
+  ]);
 
   const [following, setFollowing] = useState<boolean>(() => {
     if (!activeUid || !post.authorId || isAuthor) return false;
@@ -378,7 +426,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
               >
                 {post.authorDisplayName}
               </span>
-              {isUserVerified({ role: post.authorRole, isVerified: (post as any).authorIsVerified }) && (
+              {authorIsVerified && (
                 <span className="inline-flex items-center justify-center bg-blue-600 text-white text-[9px] w-3.5 h-3.5 rounded-full font-black shrink-0" title="Verified Creator">
                   ✓
                 </span>

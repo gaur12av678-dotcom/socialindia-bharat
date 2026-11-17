@@ -709,19 +709,23 @@ export const Shorts: React.FC = () => {
     setCreator(userService.getCachedUserProfile(activeShort.creatorId));
 
     // Pre-hydrate and prefetch comments immediately so opening comment drawer is instant (0ms)
-    const cachedComms = commentService.getCachedComments(activeShort.videoId);
-    setComments(cachedComms);
-    if (cachedComms.length > 0) {
-      setCommentsCount(prev => Math.max(prev, cachedComms.length));
+    if (activeShort.commentsMode === 'disabled') {
+      setComments([]);
+    } else {
+      const cachedComms = commentService.getCachedComments(activeShort.videoId, isShortOwner);
+      setComments(cachedComms);
+      if (cachedComms.length > 0) {
+        setCommentsCount(prev => Math.max(prev, cachedComms.filter(comment => comment.status !== 'pending').length));
+      }
+      commentService.getComments(activeShort.videoId, isShortOwner, activeShort.commentsMode === 'hold').then(comms => {
+        setComments(prev => {
+          const seen = new Set(comms.map(c => c.commentId));
+          const pending = prev.filter(c => c.commentId.startsWith('temp-') && !seen.has(c.commentId));
+          return [...pending, ...comms];
+        });
+        setCommentsCount(prev => Math.max(prev, comms.filter(comment => comment.status !== 'pending').length));
+      }).catch(console.error);
     }
-    commentService.getComments(activeShort.videoId).then(comms => {
-      setComments(prev => {
-        const seen = new Set(comms.map(c => c.commentId));
-        const pending = prev.filter(c => c.commentId.startsWith('temp-') && !seen.has(c.commentId));
-        return [...pending, ...comms];
-      });
-      setCommentsCount(prev => Math.max(prev, comms.length));
-    }).catch(() => {});
     
     // Fetch latest creator profile for up-to-date avatar & subscriber count
     userService.getUserProfile(activeShort.creatorId, true).then(crProfile => {
@@ -789,7 +793,7 @@ export const Shorts: React.FC = () => {
     } else {
       setIsShortUnlocked(true);
     }
-  }, [activeShort?.videoId, activeShort?.creatorId, activeUid, currentUser?.uid, currentUserProfile?.role]);
+  }, [activeShort?.videoId, activeShort?.creatorId, activeUid, currentUser?.uid, currentUserProfile?.role, activeShort?.commentsMode, isShortOwner]);
 
   const handleSubscribeToggle = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1090,8 +1094,8 @@ export const Shorts: React.FC = () => {
     const nextShow = !showComments;
     setShowComments(nextShow);
 
-    if (nextShow && activeShort) {
-      const cached = commentService.getCachedComments(activeShort.videoId);
+    if (nextShow && activeShort && activeShort.commentsMode !== 'disabled') {
+      const cached = commentService.getCachedComments(activeShort.videoId, isShortOwner);
       if (cached.length > 0) {
         setComments(cached);
         setLoadingComments(false);
@@ -1099,13 +1103,13 @@ export const Shorts: React.FC = () => {
         setLoadingComments(true);
       }
       try {
-        const comms = await commentService.getComments(activeShort.videoId);
+        const comms = await commentService.getComments(activeShort.videoId, isShortOwner, activeShort.commentsMode === 'hold');
         setComments(prev => {
           const seen = new Set(comms.map(c => c.commentId));
           const pending = prev.filter(c => c.commentId.startsWith('temp-') && !seen.has(c.commentId));
           return [...pending, ...comms];
         });
-        setCommentsCount(prev => Math.max(prev, comms.length));
+        setCommentsCount(prev => Math.max(prev, comms.filter(comment => comment.status !== 'pending').length));
       } catch (err) {
         console.error(err);
       } finally {
@@ -1132,6 +1136,7 @@ export const Shorts: React.FC = () => {
       navigate('signin');
       return;
     }
+    if (activeShort.commentsMode === 'disabled') return;
     if (submittingComment) return;
 
     setSubmittingComment(true);
@@ -1145,6 +1150,7 @@ export const Shorts: React.FC = () => {
       displayName: effectiveUserProfile.displayName,
       photoURL: effectiveUserProfile.photoURL || '',
       text: textToPost,
+      status: activeShort.commentsMode === 'hold' ? 'pending' : 'published',
       likesCount: 0,
       createdAt: now,
       updatedAt: now
@@ -1152,7 +1158,9 @@ export const Shorts: React.FC = () => {
 
     setComments(prev => [tempComment, ...prev]);
     setVisibleCommentsCount(prev => Math.max(prev, COMMENTS_PAGE_SIZE));
-    setCommentsCount(prev => prev + 1);
+    if (tempComment.status === 'published') {
+      setCommentsCount(prev => prev + 1);
+    }
     setNewCommentText('');
 
     try {
@@ -1161,11 +1169,12 @@ export const Shorts: React.FC = () => {
         username: effectiveUserProfile.username,
         displayName: effectiveUserProfile.displayName,
         photoURL: effectiveUserProfile.photoURL || '',
-        text: textToPost
+        text: textToPost,
+        status: activeShort.commentsMode === 'hold' ? 'pending' : 'published'
       });
 
       setComments(prev => prev.map(c => c.commentId === tempCommentId ? created : c));
-      addToast('Comment posted!', 'success');
+      addToast(created.status === 'pending' ? 'Your comment was sent for review.' : 'Comment posted!', created.status === 'pending' ? 'info' : 'success');
     } catch (err) {
       console.warn('Shorts comment sync warning:', err);
     } finally {
@@ -1203,6 +1212,7 @@ export const Shorts: React.FC = () => {
       navigate('signin');
       return;
     }
+    if (activeShort.commentsMode === 'disabled') return;
     if (!replyText.trim()) return;
     const currentReplyText = replyText.trim();
     const tempReplyId = `temp-reply-${Date.now()}`;
@@ -1216,6 +1226,7 @@ export const Shorts: React.FC = () => {
       displayName: effectiveUserProfile.displayName,
       photoURL: effectiveUserProfile.photoURL || '',
       text: currentReplyText,
+      status: activeShort.commentsMode === 'hold' ? 'pending' : 'published',
       likesCount: 0,
       parentCommentId,
       createdAt: now,
@@ -1224,10 +1235,12 @@ export const Shorts: React.FC = () => {
 
     // 100% INSTANT OPTIMISTIC UPDATE (0ms latency!)
     setComments(prev => [...prev, tempReply]);
-    setCommentsCount(prev => prev + 1);
+    if (tempReply.status === 'published') {
+      setCommentsCount(prev => prev + 1);
+    }
     setReplyText('');
     setReplyingTo(null);
-    addToast('Reply posted!', 'success');
+    addToast(tempReply.status === 'pending' ? 'Your reply was sent for review.' : 'Reply posted!', tempReply.status === 'pending' ? 'info' : 'success');
 
     try {
       const created = await commentService.addComment(activeShort.videoId, {
@@ -1236,6 +1249,7 @@ export const Shorts: React.FC = () => {
         displayName: effectiveUserProfile.displayName,
         photoURL: effectiveUserProfile.photoURL || '',
         text: currentReplyText,
+        status: activeShort.commentsMode === 'hold' ? 'pending' : 'published',
         parentCommentId
       });
       setComments(prev => prev.map(c => c.commentId === tempReplyId ? created : c));
@@ -1247,13 +1261,31 @@ export const Shorts: React.FC = () => {
   const handleCommentDelete = async (commentId: string) => {
     if (window.confirm('Delete this comment?')) {
       try {
+        const deletedComment = comments.find(comment => comment.commentId === commentId);
         await commentService.deleteComment(activeShort.videoId, commentId);
         setComments(prev => prev.filter(c => c.commentId !== commentId));
-        setCommentsCount(prev => prev - 1);
+        if (deletedComment?.status !== 'pending') {
+          setCommentsCount(prev => Math.max(0, prev - 1));
+        }
         addToast('Comment deleted', 'info');
       } catch (err) {
         addToast('Failed to delete', 'error');
       }
+    }
+  };
+
+  const handleApproveComment = async (commentId: string) => {
+    if (!activeShort || !isShortOwner) return;
+    try {
+      await commentService.approveComment(activeShort.videoId, commentId);
+      setComments(prev => prev.map(comment =>
+        comment.commentId === commentId ? { ...comment, status: 'published' } : comment
+      ));
+      setCommentsCount(prev => prev + 1);
+      addToast('Comment approved.', 'success');
+    } catch (error) {
+      console.error('Failed to approve Clip comment:', error);
+      addToast('Could not approve this comment.', 'error');
     }
   };
 
@@ -1627,14 +1659,14 @@ export const Shorts: React.FC = () => {
             {optionsMenuOpen && (
               <div 
                 onClick={(e) => e.stopPropagation()}
-                className="absolute top-12 right-0 w-60 bg-slate-900/95 backdrop-blur-xl border border-white/15 rounded-2xl p-2 shadow-2xl z-50 text-white animate-zoom-in"
+              className="absolute top-12 right-0 w-60 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/15 rounded-2xl p-2 shadow-2xl z-50 text-slate-900 dark:text-white animate-zoom-in"
               >
                 <button
                   onClick={() => {
                     setOptionsMenuOpen(false);
                     handleDownloadShort();
                   }}
-                  className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
                 >
                   {downloadProgress !== null ? (
                     <>
@@ -1661,7 +1693,7 @@ export const Shorts: React.FC = () => {
                       downloadService.exportToDevice(activeShort);
                       addToast('Saving MP4 to device...', 'success');
                     }}
-                    className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
                   >
                     <Save className="w-4 h-4 text-amber-400" />
                     <span>Save to Phone / PC</span>
@@ -1673,20 +1705,20 @@ export const Shorts: React.FC = () => {
                     setOptionsMenuOpen(false);
                     handleShare();
                   }}
-                  className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
+                  className="w-full flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
                 >
-                  <Copy className="w-4 h-4 text-slate-300" />
+                  <Copy className="w-4 h-4 text-slate-500 dark:text-slate-300" />
                   <span>Copy Clip Link</span>
                 </button>
 
-                <div className="h-px bg-white/10 my-1" />
+                <div className="h-px bg-slate-200 dark:bg-white/10 my-1" />
 
                 <button
                   onClick={() => {
                     setOptionsMenuOpen(false);
                     addToast('Report submitted for review.', 'info');
                   }}
-                  className="w-full flex items-center gap-3 px-3.5 py-2 hover:bg-rose-500/20 text-rose-400 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
+                  className="w-full flex items-center gap-3 px-3.5 py-2 hover:bg-rose-50 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 rounded-xl text-left text-xs font-bold transition-colors cursor-pointer"
                 >
                   <Flag className="w-4 h-4" />
                   <span>Report Clip</span>
@@ -1916,10 +1948,14 @@ export const Shorts: React.FC = () => {
             {/* Comments Header */}
             <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/20">
               <div>
-                <h4 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">
-                  Comments
-                </h4>
-                <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{commentsCount} interactions</p>
+                {activeShort.commentsMode !== 'disabled' && (
+                  <>
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">
+                      Comments
+                    </h4>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{commentsCount} interactions</p>
+                  </>
+                )}
               </div>
               <button 
                 onClick={() => setShowComments(false)}
@@ -1929,6 +1965,12 @@ export const Shorts: React.FC = () => {
               </button>
             </div>
 
+            {activeShort.commentsMode === 'disabled' ? (
+              <p className="flex-1 px-5 py-8 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
+                This comment section is disabled.
+              </p>
+            ) : (
+              <>
             {/* Scrollable Comment List */}
             <div className="flex-1 overflow-y-auto p-5 space-y-5 no-scrollbar">
               {loadingComments ? (
@@ -1964,11 +2006,25 @@ export const Shorts: React.FC = () => {
                           <span className="font-black text-[11px] text-slate-900 dark:text-white truncate">@{c.username}</span>
                           <span className="text-[9px] text-slate-400 font-bold shrink-0">{formatTimeAgo(c.createdAt)}</span>
                         </div>
+                        {c.status === 'pending' && isShortOwner && (
+                          <span className="inline-block mb-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                            Held for review
+                          </span>
+                        )}
                         <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed font-medium break-words">
                           {renderCommentText(c.text)}
                         </p>
                         {/* YouTube-Style Comment Action Row */}
                         <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+                          {isShortOwner && c.status === 'pending' && (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveComment(c.commentId)}
+                              className="rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-emerald-700"
+                            >
+                              Approve
+                            </button>
+                          )}
                           {/* Thumbs Up (Like) */}
                           <button
                             onClick={() => handleLikeComment(c)}
@@ -2104,9 +2160,23 @@ export const Shorts: React.FC = () => {
                               <span className="text-[10px] font-black text-slate-900 dark:text-white truncate">@{r.username}</span>
                               <span className="text-[8px] text-slate-400 font-bold">{formatTimeAgo(r.createdAt)}</span>
                             </div>
+                            {r.status === 'pending' && isShortOwner && (
+                              <span className="inline-block mb-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                                Held for review
+                              </span>
+                            )}
                             <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium break-words">{renderCommentText(r.text)}</p>
                             
                             <div className="flex items-center gap-2 mt-2">
+                              {isShortOwner && r.status === 'pending' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveComment(r.commentId)}
+                                  className="rounded-full bg-emerald-600 px-2 py-1 text-[9px] font-bold text-white hover:bg-emerald-700"
+                                >
+                                  Approve
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleLikeComment(r)}
                                 className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-bold transition-all cursor-pointer active:scale-90 ${
@@ -2204,6 +2274,8 @@ export const Shorts: React.FC = () => {
                 <Send className="w-5 h-5" />
               </button>
             </form>
+              </>
+            )}
           </div>
         )}
 

@@ -16,6 +16,7 @@ import {
 import { db } from '../firebase';
 import { ChatMessage, ChatSession, User } from '../types';
 import { userService } from './userService';
+import { isUserVerified } from '../utils/userUtils';
 import { getCloudinaryConfigAsync } from './videoService';
 
 const getChatCacheKey = (userA: string, userB: string) => {
@@ -25,6 +26,26 @@ const getChatCacheKey = (userA: string, userB: string) => {
 
 const getConversationId = (userA: string, userB: string) =>
   [userA, userB].sort().join('_');
+
+const partnerProfileCache = new Map<string, { profile: User | null; expiresAt: number }>();
+const partnerProfileRequests = new Map<string, Promise<User | null>>();
+
+const getChatPartnerProfile = (uid: string): Promise<User | null> => {
+  const cached = partnerProfileCache.get(uid);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.profile);
+
+  const pending = partnerProfileRequests.get(uid);
+  if (pending) return pending;
+
+  const request = userService.getUserProfile(uid, true).then(profile => {
+    partnerProfileCache.set(uid, { profile, expiresAt: Date.now() + 60_000 });
+    return profile;
+  }).finally(() => {
+    partnerProfileRequests.delete(uid);
+  });
+  partnerProfileRequests.set(uid, request);
+  return request;
+};
 
 export const chatService = {
   // Local storage cache helpers for instant zero-latency loading
@@ -167,7 +188,7 @@ export const chatService = {
 
               if (!partnerId) return null;
 
-              const profile = await userService.getUserProfile(partnerId);
+              const profile = await getChatPartnerProfile(partnerId);
               if (!profile) return null;
 
               const lastMessageTime = data.lastMessageAt?.toDate
@@ -179,6 +200,7 @@ export const chatService = {
                 displayName: profile.displayName,
                 username: profile.username,
                 photoURL: profile.photoURL,
+                isVerified: isUserVerified(profile),
                 lastMessage: data.lastMessage || undefined,
                 lastMessageTime,
                 unreadCount: 0
@@ -427,7 +449,7 @@ export const chatService = {
     )];
 
     const profileResults = await Promise.all(
-      partnerIds.map(uid => userService.getUserProfile(uid))
+      partnerIds.map(uid => getChatPartnerProfile(uid))
     );
 
     const otherUsers: User[] = profileResults.filter(
@@ -455,6 +477,7 @@ export const chatService = {
         displayName: user.displayName,
         username: user.username,
         photoURL: user.photoURL,
+        isVerified: isUserVerified(user),
         lastMessage: lastPreview,
         lastMessageTime: lastMsg ? lastMsg.createdAt : undefined,
         unreadCount: unread

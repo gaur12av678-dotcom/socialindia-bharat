@@ -337,7 +337,7 @@ export const UploadPage: React.FC = () => {
       setUploadStageText('Publishing to SocialIndia Feed...');
       setUploadProgress(100);
 
-      await videoService.publishVideo({
+      const publishedVideo = await videoService.publishVideo({
         title: title.trim(),
         description: description.trim(),
         videoUrl: finalVideoUrl,
@@ -346,6 +346,7 @@ export const UploadPage: React.FC = () => {
         tags,
         duration: finalDuration,
         visibility,
+        commentsMode,
         isShort,
         soundId: selectedSoundTrack?.soundId,
         soundTitle: selectedSoundTrack?.title,
@@ -364,9 +365,13 @@ export const UploadPage: React.FC = () => {
       });
 
       addToast('Video published successfully on SocialIndia! (+20 Points)', 'success');
-      await userService.awardPoints(currentUser.uid, 20);
-      await refreshProfile();
-      navigate(isShort ? 'shorts' : 'home');
+      navigate(isShort ? 'shorts' : 'watch', publishedVideo.videoId);
+      userService.awardPoints(currentUser.uid, 20).catch(error => {
+        console.error('Could not award upload points:', error);
+      });
+      refreshProfile().catch(error => {
+        console.error('Could not refresh the creator profile after upload:', error);
+      });
     } catch (err: any) {
       console.error('Publish error:', err);
       if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
@@ -1319,16 +1324,16 @@ export const UploadPage: React.FC = () => {
                   type="button"
                   onClick={handlePublish}
                   disabled={isPublishing || !title.trim()}
-                  className="px-7 py-3 bg-gradient-to-r from-[#065fd4] to-[#2563eb] hover:from-[#054fb1] hover:to-[#1d4ed8] text-white font-extrabold text-xs sm:text-sm rounded-full shadow-lg shadow-blue-600/30 flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50 active:scale-95"
+                  className="px-7 py-3 bg-white hover:bg-blue-50 dark:bg-slate-900 dark:hover:bg-blue-950 text-blue-700 dark:text-blue-300 border-2 border-blue-600 font-extrabold text-xs sm:text-sm rounded-full shadow-lg shadow-blue-600/20 flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50 active:scale-95"
                 >
                   {isPublishing ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-700 dark:text-blue-300" />
                       <span>{isHindi ? 'वीडियो प्रकाशित हो रहा है...' : 'Publishing Video...'}</span>
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4" />
+                      <Sparkles className="w-4 h-4 text-blue-700 dark:text-blue-300" />
                       <span>{isHindi ? 'वीडियो प्रकाशित करें (+20 पॉइंट्स)' : 'Publish Video (+20 Pts)'}</span>
                     </>
                   )}

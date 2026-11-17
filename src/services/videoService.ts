@@ -16,7 +16,7 @@ import {
   DocumentData
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, UploadTaskSnapshot } from 'firebase/storage';
-import { db, storage, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, storage, handleFirestoreError, OperationType } from '../firebase';
 import { Video } from '../types';
 import { userService } from './userService';
 import { trashService } from './trashService';
@@ -36,6 +36,10 @@ export function getCloudinaryConfig() {
     || import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET 
     || '';
   return { cloudName: cloudName.trim(), preset: preset.trim() };
+}
+
+function canViewVideo(video: Video): boolean {
+  return video.visibility !== 'private' || auth.currentUser?.uid === video.creatorId;
 }
 
 export function setCloudinaryConfig(cloudName: string, preset: string) {
@@ -633,7 +637,7 @@ export const videoService = {
     let soundCoverUrl = videoData.soundCoverUrl || '';
     let soundAudioUrl = videoData.soundAudioUrl || '';
 
-    if (videoData.isShort && !soundId) {
+    if (videoData.isShort && !soundId && (videoData.visibility || 'public') === 'public') {
       soundId = `orig_sound_${videoId}`;
       soundTitle = `Original Sound - ${videoData.creatorDisplayName || 'Creator'}`;
       soundArtist = videoData.creatorDisplayName || 'Original Audio';
@@ -672,6 +676,7 @@ export const videoService = {
       category: videoData.category || 'Other',
       tags: videoData.tags || [],
       visibility: videoData.visibility || 'public',
+      commentsMode: videoData.commentsMode || 'allow',
       viewsCount: 0,
       likesCount: 0,
       commentsCount: 0,
@@ -772,6 +777,7 @@ export const videoService = {
     if (!video || !video.videoId) return;
     memoryVideoDetailCache.set(video.videoId, { data: video, timestamp: Date.now() });
     try {
+      if (video.visibility === 'private') return;
       if (typeof window !== 'undefined' && window.sessionStorage) {
         sessionStorage.setItem(`si_v_${video.videoId}`, JSON.stringify(video));
       }
@@ -799,12 +805,13 @@ export const videoService = {
   getCachedVideo(videoId: string): Video | null {
     if (!videoId || videoId === 'live_XGym1ByjKHw' || videoId === 'XGym1ByjKHw') return null;
     const mem = memoryVideoDetailCache.get(videoId);
-    if (mem) return mem.data;
+    if (mem) return canViewVideo(mem.data) ? mem.data : null;
     try {
       if (typeof window !== 'undefined' && window.sessionStorage) {
         const raw = sessionStorage.getItem(`si_v_${videoId}`);
         if (raw) {
           const parsed = JSON.parse(raw) as Video;
+          if (!canViewVideo(parsed)) return null;
           memoryVideoDetailCache.set(videoId, { data: parsed, timestamp: Date.now() });
           return parsed;
         }
@@ -832,12 +839,14 @@ export const videoService = {
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         const vData = snap.data() as Video;
+        if (!canViewVideo(vData)) return null;
         this.cacheVideo(vData);
         return vData;
       }
       return cached || null;
     } catch (err) {
-      if (cached) return cached;
+      if ((err as { code?: string })?.code === 'permission-denied') return null;
+      if (cached && canViewVideo(cached)) return cached;
       handleFirestoreError(err, OperationType.GET, `videos/${videoId}`);
       return null;
     }
@@ -1241,17 +1250,24 @@ export const videoService = {
   },
 
   // Retrieve creator's dashboard content including private/unlisted videos (supports creatorId & creatorUsername)
-  async getCreatorVideos(creatorId: string, creatorUsername?: string): Promise<Video[]> {
+  async getCreatorVideos(
+    creatorId: string,
+    creatorUsername?: string,
+    includePrivate = auth.currentUser?.uid === creatorId
+  ): Promise<Video[]> {
     if (!creatorId && !creatorUsername) return [];
     const map = new Map<string, Video>();
 
     try {
       // 1. Query by creatorId
       if (creatorId) {
-        const q1 = query(
-          collection(db, 'videos'),
-          where('creatorId', '==', creatorId)
-        );
+        const q1 = includePrivate
+          ? query(collection(db, 'videos'), where('creatorId', '==', creatorId))
+          : query(
+              collection(db, 'videos'),
+              where('creatorId', '==', creatorId),
+              where('visibility', '==', 'public')
+            );
         const snap1 = await getDocs(q1);
         snap1.docs.forEach((d: any) => {
           const v = d.data() as Video;
@@ -1260,11 +1276,12 @@ export const videoService = {
       }
 
       // 2. Also query by creatorUsername to ensure all videos assigned to this handle are retrieved
-      if (creatorUsername && creatorUsername.trim()) {
+      if (!includePrivate && creatorUsername && creatorUsername.trim()) {
         const cleanUser = creatorUsername.trim().toLowerCase().replace(/^@/, '');
         const q2 = query(
           collection(db, 'videos'),
-          where('creatorUsername', '==', cleanUser)
+          where('creatorUsername', '==', cleanUser),
+          where('visibility', '==', 'public')
         );
         const snap2 = await getDocs(q2);
         snap2.docs.forEach((d: any) => {
@@ -1279,7 +1296,7 @@ export const videoService = {
         if (v && v.videoId && !map.has(v.videoId)) {
           const idMatch = creatorId && v.creatorId === creatorId;
           const userMatch = creatorUsername && v.creatorUsername && v.creatorUsername.toLowerCase() === creatorUsername.toLowerCase();
-          if (idMatch || userMatch) {
+          if ((idMatch || userMatch) && (includePrivate || v.visibility === 'public')) {
             map.set(v.videoId, v);
           }
         }
@@ -1294,7 +1311,12 @@ export const videoService = {
         return isNaN(t) ? 0 : t;
       };
 
-      const videos = Array.from(map.values()).filter(v => v && v.videoId !== 'live_XGym1ByjKHw' && v.videoId !== 'XGym1ByjKHw');
+      const videos = Array.from(map.values()).filter(v =>
+        v &&
+        v.videoId !== 'live_XGym1ByjKHw' &&
+        v.videoId !== 'XGym1ByjKHw' &&
+        (includePrivate || v.visibility === 'public')
+      );
       const sorted = videos.sort((a: Video, b: Video) => parseTime(b.createdAt) - parseTime(a.createdAt));
       sorted.forEach(v => {
         if (v && v.videoId) {

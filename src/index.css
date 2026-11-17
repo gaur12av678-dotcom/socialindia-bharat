@@ -656,3 +656,15 @@ button.si-upload-select-btn :is(span, svg, i) {
     animation: none;
   }
 }
+
+/* Give light-only surfaces a dark default without overriding explicit dark utilities. */
+.dark :is(.bg-white, .bg-slate-50, .bg-slate-100, .bg-gray-50, .bg-gray-100):not([class*="dark:bg-"]):not(.rounded-full) {
+  background-color: #1a1a1a !important;
+  border-color: #3f3f3f !important;
+  color: #f1f1f1;
+}
+
+.dark :is(.bg-white, .bg-slate-50, .bg-slate-100, .bg-gray-50, .bg-gray-100):not([class*="dark:bg-"]):not(.rounded-full)
+  :is(.text-slate-900, .text-slate-800, .text-slate-700, .text-gray-900, .text-gray-800, .text-gray-700) {
+  color: #e5e5e5 !important;
+}

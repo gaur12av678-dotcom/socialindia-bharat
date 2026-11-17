@@ -359,7 +359,12 @@ export const CreatorStudio: React.FC = () => {
     setLoadingComments(true);
     try {
       const comms = await commentService.getCommentsForVideos(
-        videos.map(v => ({ videoId: v.videoId, title: v.title, isShort: v.isShort }))
+        videos.map(v => ({
+          videoId: v.videoId,
+          title: v.title,
+          isShort: v.isShort,
+          commentsMode: v.commentsMode || 'allow'
+        }))
       );
       setStudioComments(comms);
     } catch (err) {
@@ -413,6 +418,19 @@ export const CreatorStudio: React.FC = () => {
       } catch {
         addToast('Failed to delete comment.', 'error');
       }
+    }
+  };
+
+  const handleApproveComment = async (videoId: string, commentId: string) => {
+    try {
+      await commentService.approveComment(videoId, commentId);
+      setStudioComments(prev => prev.map(comment =>
+        comment.commentId === commentId ? { ...comment, status: 'published' } : comment
+      ));
+      addToast('Comment approved.', 'success');
+    } catch (error) {
+      console.error('Failed to approve comment:', error);
+      addToast('Could not approve this comment.', 'error');
     }
   };
 
@@ -514,6 +532,7 @@ export const CreatorStudio: React.FC = () => {
       let finalVideoUrl = videoUrl;
       let finalDuration = duration;
       let finalThumbnailUrl = thumbnailUrl;
+      let publishedVideo: Video | null = null;
 
       // 1. Upload Video File if newly selected
       if (selectedVideoFile) {
@@ -569,13 +588,14 @@ export const CreatorStudio: React.FC = () => {
           tags,
           duration: finalDuration,
           visibility,
+          commentsMode,
           isShort,
           isPaid: isPaid && isUserMonetized,
           price: (isPaid && isUserMonetized) ? Number(price || 0) : 0,
         });
         addToast('Video details updated successfully!', 'success');
       } else {
-        await videoService.publishVideo({
+        publishedVideo = await videoService.publishVideo({
           title: title.trim(),
           description: description.trim(),
           videoUrl: finalVideoUrl,
@@ -584,6 +604,7 @@ export const CreatorStudio: React.FC = () => {
           tags,
           duration: finalDuration,
           visibility,
+          commentsMode,
           isShort,
           soundId: selectedSoundTrack?.soundId,
           soundTitle: selectedSoundTrack?.title,
@@ -605,6 +626,9 @@ export const CreatorStudio: React.FC = () => {
 
       setPublishModalOpen(false);
       resetForm();
+      if (publishedVideo) {
+        navigate(publishedVideo.isShort ? 'shorts' : 'watch', publishedVideo.videoId);
+      }
     } catch (err: any) {
       console.error('Publish error:', err);
       if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
@@ -635,6 +659,7 @@ export const CreatorStudio: React.FC = () => {
     setTagsInput(video.tags ? video.tags.join(', ') : '');
     setDuration(video.duration);
     setVisibility(video.visibility);
+    setCommentsMode(video.commentsMode || 'allow');
     setIsShort(video.isShort);
     setIsMonetized(video.isMonetized ?? true);
     setIsPaid(video.isPaid || false);
@@ -1758,6 +1783,11 @@ export const CreatorStudio: React.FC = () => {
                               <span className="text-[11px] text-slate-400 font-semibold">
                                 @{comment.username} • {formatTimeAgo(comment.createdAt)}
                               </span>
+                              {comment.status === 'pending' && (
+                                <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                                  Held for review
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -1779,13 +1809,24 @@ export const CreatorStudio: React.FC = () => {
 
                         {/* Bottom Actions toolbar */}
                         <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-                          <button
-                            onClick={() => setActiveReplyBoxId(isReplying ? null : comment.commentId)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors cursor-pointer"
-                          >
-                            <Reply className="w-3.5 h-3.5" />
-                            <span>{isReplying ? 'Cancel Reply' : 'Reply to Viewer'}</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {comment.status === 'pending' && (
+                              <button
+                                type="button"
+                                onClick={() => handleApproveComment(comment.videoId, comment.commentId)}
+                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
+                              >
+                                Approve
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setActiveReplyBoxId(isReplying ? null : comment.commentId)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              <Reply className="w-3.5 h-3.5" />
+                              <span>{isReplying ? 'Cancel Reply' : 'Reply to Viewer'}</span>
+                            </button>
+                          </div>
 
                           <button
                             onClick={() => handleDeleteComment(comment.videoId, comment.commentId)}
@@ -2940,16 +2981,16 @@ export const CreatorStudio: React.FC = () => {
                       type="button"
                       onClick={handlePublishOrEdit}
                       disabled={isPublishing || (!videoUrl && !selectedVideoFile) || !title.trim()}
-                      className="px-9 py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-black rounded-full cursor-pointer shadow-lg shadow-blue-600/30 transition-all active:scale-95 uppercase text-xs tracking-wider disabled:opacity-50 flex items-center gap-2"
+                      className="px-9 py-3.5 bg-white hover:bg-blue-50 dark:bg-slate-900 dark:hover:bg-blue-950 border-2 border-blue-600 text-blue-700 dark:text-blue-300 font-black rounded-full cursor-pointer shadow-lg shadow-blue-600/20 transition-all active:scale-95 uppercase text-xs tracking-wider disabled:opacity-50 flex items-center gap-2"
                     >
                       {isPublishing ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-700 dark:text-blue-300" />
                           <span>Publishing... {uploadProgress > 0 ? `${uploadProgress}%` : ''}</span>
                         </>
                       ) : (
                         <>
-                          <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                          <CheckCircle2 className="w-4 h-4 stroke-[2.5] text-blue-700 dark:text-blue-300" />
                           <span>{editingVideo ? 'Update Video' : 'Publish to Feed'}</span>
                         </>
                       )}

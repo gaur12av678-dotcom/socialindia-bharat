@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, X, Volume2, AlertCircle, Search, Check, Globe } from 'lucide-react';
+import { Mic, MicOff, X, Volume2, AlertCircle, Search } from 'lucide-react';
 import { useTranslation } from '../i18n';
 
 interface VoiceSearchModalProps {
@@ -12,28 +12,19 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
   const { isHindi } = useTranslation();
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [alternatives, setAlternatives] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [selectedLang, setSelectedLang] = useState<'hi-IN' | 'en-IN' | 'en-US'>(() => isHindi ? 'hi-IN' : 'en-IN');
 
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef('');
-  const autoSubmitTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync ref with state
   useEffect(() => {
     transcriptRef.current = transcript;
   }, [transcript]);
 
-  const clearTimer = () => {
-    if (autoSubmitTimerRef.current) {
-      clearTimeout(autoSubmitTimerRef.current);
-      autoSubmitTimerRef.current = null;
-    }
-  };
-
   const handleFinishTranscript = (textToSubmit?: string) => {
-    clearTimer();
-    const query = (textToSubmit || transcriptRef.current || transcript).trim();
+    const query = (textToSubmit ?? transcriptRef.current ?? transcript).trim();
     if (query) {
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch {}
@@ -45,9 +36,9 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
   };
 
   const startListening = () => {
-    clearTimer();
     setErrorMsg('');
     setTranscript('');
+    setAlternatives([]);
     transcriptRef.current = '';
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -67,7 +58,7 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
       }
 
       const recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      recognition.continuous = false;
       recognition.interimResults = true;
       recognition.maxAlternatives = 3;
       recognition.lang = selectedLang;
@@ -79,36 +70,21 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
       };
 
       recognition.onresult = (event: any) => {
-        let accumulated = '';
-        let hasFinalResult = false;
+        const result = event.results[event.resultIndex] ?? event.results[event.results.length - 1];
+        if (!result) return;
 
-        for (let i = 0; i < event.results.length; i++) {
-          const item = event.results[i];
-          if (item[0]?.transcript) {
-            accumulated += item[0].transcript;
-          }
-          if (item.isFinal) {
-            hasFinalResult = true;
-          }
-        }
+        const recognizedPhrases = Array.from(result as ArrayLike<{ transcript?: string }>)
+          .map(item => item.transcript?.trim() || '')
+          .filter((phrase, index, phrases) => phrase && phrases.indexOf(phrase) === index);
+        const bestMatch = recognizedPhrases[0];
+        if (!bestMatch) return;
 
-        const trimmed = accumulated.trim();
-        if (trimmed) {
-          setTranscript(trimmed);
-          transcriptRef.current = trimmed;
+        setTranscript(bestMatch);
+        transcriptRef.current = bestMatch;
+        setAlternatives(result.isFinal ? recognizedPhrases.slice(1) : []);
 
-          // If speech is final, set an auto-submit timer so user doesn't have to wait
-          clearTimer();
-          if (hasFinalResult) {
-            autoSubmitTimerRef.current = setTimeout(() => {
-              handleFinishTranscript(trimmed);
-            }, 900);
-          } else {
-            // Even for continuous interim results, submit if user pauses for 2.2 seconds
-            autoSubmitTimerRef.current = setTimeout(() => {
-              handleFinishTranscript(trimmed);
-            }, 2200);
-          }
+        if (result.isFinal) {
+          try { recognition.stop(); } catch {}
         }
       };
 
@@ -141,13 +117,6 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
 
       recognition.onend = () => {
         setIsListening(false);
-        // If we captured a valid transcript and stopped, submit it after a brief delay
-        if (transcriptRef.current.trim()) {
-          clearTimer();
-          autoSubmitTimerRef.current = setTimeout(() => {
-            handleFinishTranscript(transcriptRef.current);
-          }, 400);
-        }
       };
 
       recognition.start();
@@ -164,12 +133,12 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
 
   useEffect(() => {
     if (!isOpen) {
-      clearTimer();
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch {}
       }
       setIsListening(false);
       setTranscript('');
+      setAlternatives([]);
       setErrorMsg('');
       return;
     }
@@ -177,7 +146,6 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
     startListening();
 
     return () => {
-      clearTimer();
       if (recognitionRef.current) {
         try { recognitionRef.current.abort(); } catch {}
       }
@@ -300,20 +268,45 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
               <span>{errorMsg}</span>
             </div>
           ) : transcript ? (
-            <div className="w-full p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-2xl flex items-center justify-between gap-3 text-left">
-              <div className="flex items-center gap-2 min-w-0">
-                <Volume2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 animate-pulse" />
-                <span className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white truncate">
-                  "{transcript}"
-                </span>
-              </div>
-              <button
-                onClick={() => handleFinishTranscript(transcript)}
-                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95 transition-all"
-              >
-                <Search className="w-3.5 h-3.5" />
-                <span>{isHindi ? 'खोजें' : 'Search'}</span>
-              </button>
+            <div className="w-full space-y-2">
+              <label className="flex items-center gap-2 p-3 bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 rounded-2xl text-left">
+                <Volume2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                <input
+                  type="text"
+                  value={transcript}
+                  onChange={event => {
+                    setTranscript(event.target.value);
+                    transcriptRef.current = event.target.value;
+                  }}
+                  aria-label={isHindi ? 'पहचाना गया वाक्य संपादित करें' : 'Edit recognized phrase'}
+                  className="min-w-0 flex-1 bg-transparent text-sm sm:text-base font-extrabold text-slate-900 dark:text-white outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleFinishTranscript()}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-sm cursor-pointer active:scale-95 transition-all"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>{isHindi ? 'खोजें' : 'Search'}</span>
+                </button>
+              </label>
+              {alternatives.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-1.5">
+                  {alternatives.map(phrase => (
+                    <button
+                      key={phrase}
+                      type="button"
+                      onClick={() => {
+                        setTranscript(phrase);
+                        transcriptRef.current = phrase;
+                      }}
+                      className="px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    >
+                      {phrase}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <span className="text-xs text-slate-400 italic font-medium">
@@ -334,15 +327,6 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({ isOpen, onCl
             </button>
           )}
 
-          {transcript && !errorMsg && (
-            <button
-              onClick={() => handleFinishTranscript(transcript)}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98"
-            >
-              <Check className="w-4 h-4 stroke-[3]" />
-              <span>{isHindi ? `"${transcript}" अभी खोजें` : `Search for "${transcript}" now`}</span>
-            </button>
-          )}
         </div>
 
       </div>
