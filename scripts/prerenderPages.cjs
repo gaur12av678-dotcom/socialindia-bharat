@@ -592,13 +592,14 @@ function applyMetaAndRoot(html, { title, description, pageUrl, robots, schema, h
 
 // 1. Prerender semantic crawlable shell on Homepage (dist/index.html) so Googlebot sees all internal links immediately
 const homepageHtml = applyMetaAndRoot(templateHtml, {
-  title: 'SocialIndia (Official) – India’s Video, Shorts & Community Platform',
-  description: 'SocialIndia is the official Indian video and community platform. Watch trending videos, viral shorts, share community posts, and discover creators across Bharat.',
+  title: 'SocialIndia (Social India) – India’s Video, Shorts & Community Platform',
+  description: 'SocialIndia (Social India) is an Indian social media and video platform. Watch trending videos, viral Shorts, and connect with creators across Bharat.',
   pageUrl: 'https://socialindia.web.app/',
-  heading: 'SocialIndia – India’s Video, Shorts & Community Platform',
+  heading: 'SocialIndia (Social India) – India’s Video, Shorts & Community Platform',
   content: `
-    <p>Welcome to SocialIndia, India’s own video streaming, vertical Shorts, and community platform built for creators and viewers across Bharat.</p>
-    ${featuredVideosHtml ? `<h2>Trending &amp; Featured Videos</h2><ul>${featuredVideosHtml}</ul>` : ''}
+    <p>Welcome to <strong>SocialIndia</strong> (also searched as <strong>Social India</strong>), an independent Indian social media and video-sharing platform built for creators, viewers, and communities across Bharat.</p>
+    <p>Watch <a href="/trending">trending Indian videos</a>, swipe through viral <a href="/shorts">SocialIndia Shorts</a>, join <a href="/community">community polls and discussions</a>, or download the <a href="/downloads">SocialIndia Android app (APK &amp; PWA)</a>.</p>
+    ${featuredVideosHtml ? `<h2>Trending &amp; Featured Videos on SocialIndia</h2><ul>${featuredVideosHtml}</ul>` : ''}
   `
 });
 fs.writeFileSync(templatePath, homepageHtml, 'utf8');

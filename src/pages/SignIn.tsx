@@ -545,20 +545,6 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
   return (
     <div className="min-h-screen w-full bg-[#f0f4f9] dark:bg-[#131314] text-[#1f1f1f] dark:text-[#e3e3e3] font-['Plus_Jakarta_Sans',sans-serif] flex flex-col justify-between selection:bg-[#c2e7ff] selection:text-[#001d35]">
       
-      {/* Top Mobile Bar with Back Button (< 640px) */}
-      <header className="sm:hidden w-full h-14 px-4 flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-[#131314]/90 backdrop-blur-md sticky top-0 z-40">
-        <button
-          onClick={() => navigate('home')}
-          aria-label="Back to SocialIndia"
-          className="p-2 -ml-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-
-        <SocialIndiaLogo size="sm" onClick={() => navigate('home')} />
-
-        <div className="w-9" /> {/* Spacer balance */}
-      </header>
 
       {/* Main Container - Centered Google/YouTube Card */}
       <main className="flex-1 flex items-center justify-center p-0 sm:p-6 md:p-8">
@@ -1482,7 +1468,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
             aria-label="Change language"
             className="bg-transparent hover:bg-slate-200/50 dark:hover:bg-slate-800 text-xs text-[#444746] dark:text-[#c4c7c5] py-1.5 px-2.5 rounded-lg border-0 focus:outline-none focus:ring-1 focus:ring-slate-300 dark:focus:ring-slate-700 cursor-pointer"
           >
-            <option value="en" className="dark:bg-[#1e1f20] text-slate-900 dark:text-white">English (United States)</option>
+            <option value="en" className="dark:bg-[#1e1f20] text-slate-900 dark:text-white">English (India)</option>
             <option value="hi" className="dark:bg-[#1e1f20] text-slate-900 dark:text-white">हिन्दी (भारत)</option>
             <option value="bn" className="dark:bg-[#1e1f20] text-slate-900 dark:text-white">বাংলা</option>
             <option value="te" className="dark:bg-[#1e1f20] text-slate-900 dark:text-white">తెలుగు</option>
