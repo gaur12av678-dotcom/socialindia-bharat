@@ -1582,18 +1582,31 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 px-2 space-y-3 select-none">
               <div className="grid grid-cols-2 gap-x-3 gap-y-3 text-[10px]">
                 {[
-                  { title: 'PLATFORM', links: [['Home', 'home'], ['Trending', 'trending'], ['Clips', 'shorts'], ['Explore', 'explore']] },
-                  { title: 'SUPPORT', links: [['Contact', 'contact'], ['Grievance Redressal', 'grievance'], ['Help', 'help']] },
-                  { title: 'COMPANY', links: [['About', 'about']] },
-                  { title: 'LEGAL & COMMUNITY', links: [['Privacy Policy', 'privacy'], ['Terms of Use', 'terms'], ['Community Guidelines', 'guidelines']] },
+                  { title: 'PLATFORM', links: [['Home', 'home'], ['Trending', 'trending'], ['Shorts', 'shorts'], ['Community', 'community'], ['Downloads', 'downloads'], ['Go Pro', 'gopro']] },
+                  { title: 'SUPPORT', links: [['Contact', 'contact'], ['FAQ', 'faq'], ['Grievance Redressal', 'grievance'], ['Help', 'help']] },
+                  { title: 'COMPANY', links: [['About', 'about'], ['Advertising', 'advertising'], ['Ad Info', 'adinfo'], ['Developers', 'developers']] },
+                  { title: 'LEGAL & COMMUNITY', links: [['Privacy Policy', 'privacy'], ['Terms of Use', 'terms'], ['Refund Policy', 'refund'], ['Community Guidelines', 'guidelines']] },
                 ].map(section => (
                   <div key={section.title} className="space-y-1.5">
                     <p className="font-black tracking-wider text-slate-500 dark:text-slate-400">{section.title}</p>
-                    {section.links.map(([label, path]) => (
-                      <button key={path} onClick={() => navigate(path)} className={`block text-left font-semibold hover:text-blue-600 hover:underline cursor-pointer ${route.path === path ? 'text-blue-600' : 'text-slate-500 dark:text-slate-400'}`}>
-                        {label}
-                      </button>
-                    ))}
+                    {section.links.map(([label, path]) => {
+                      const href = path === 'home' ? '/' : `/${path}`;
+                      return (
+                        <a
+                          key={path}
+                          href={href}
+                          onClick={(e) => {
+                            if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                              e.preventDefault();
+                              navigate(path);
+                            }
+                          }}
+                          className={`block text-left font-semibold hover:text-blue-600 hover:underline cursor-pointer ${route.path === path ? 'text-blue-600' : 'text-slate-500 dark:text-slate-400'}`}
+                        >
+                          {label}
+                        </a>
+                      );
+                    })}
                   </div>
                 ))}
               </div>

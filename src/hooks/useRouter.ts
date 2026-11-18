@@ -74,35 +74,62 @@ export function parseHash(hash: string): Route {
   return { path, param, subTab, searchParams };
 }
 
+export function buildRoutePath(
+  path: string,
+  param?: string,
+  searchParams?: Record<string, string>
+): string {
+  const cleanPath = (path || 'home').replace(/^\/+/, '');
+  let pathname = cleanPath === 'home' ? '/' : `/${cleanPath}`;
+  if (param && cleanPath !== 'home') {
+    pathname += `/${encodeURIComponent(param)}`;
+  }
+  if (searchParams) {
+    const query = new URLSearchParams(searchParams).toString();
+    if (query) {
+      pathname += `?${query}`;
+    }
+  }
+  return pathname;
+}
+
+const ROUTE_CHANGE_EVENT = 'socialindia:routechange';
+
 export function useRouter() {
   const [currentRoute, setCurrentRoute] = useState<Route>(() => parseHash(window.location.hash));
 
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleRouteChange = () => {
       setCurrentRoute(parseHash(window.location.hash));
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    window.addEventListener('popstate', handleHashChange);
+    window.addEventListener('hashchange', handleRouteChange);
+    window.addEventListener('popstate', handleRouteChange);
+    window.addEventListener(ROUTE_CHANGE_EVENT, handleRouteChange);
     return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-      window.removeEventListener('popstate', handleHashChange);
+      window.removeEventListener('hashchange', handleRouteChange);
+      window.removeEventListener('popstate', handleRouteChange);
+      window.removeEventListener(ROUTE_CHANGE_EVENT, handleRouteChange);
     };
   }, []);
 
   const navigate = (path: string, param?: string, searchParams?: Record<string, string>) => {
-    const routePath = path === 'shorts' ? 'clips' : path;
-    let newHash = `#/${routePath}`;
-    if (param) {
-      newHash += `/${param}`;
-    }
-    if (searchParams) {
-      const query = new URLSearchParams(searchParams).toString();
-      if (query) {
-        newHash += `?${query}`;
+    const targetUrl = buildRoutePath(path, param, searchParams);
+    try {
+      if (window.location.pathname + window.location.search !== targetUrl || window.location.hash) {
+        window.history.pushState(null, '', targetUrl);
       }
+      window.dispatchEvent(new Event(ROUTE_CHANGE_EVENT));
+    } catch {
+      const routePath = path === 'shorts' ? 'clips' : path;
+      let newHash = `#/${routePath}`;
+      if (param) newHash += `/${param}`;
+      if (searchParams) {
+        const query = new URLSearchParams(searchParams).toString();
+        if (query) newHash += `?${query}`;
+      }
+      window.location.hash = newHash;
     }
-    window.location.hash = newHash;
   };
 
   return {

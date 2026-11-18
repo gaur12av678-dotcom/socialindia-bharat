@@ -4,6 +4,7 @@ const path = require('path');
 function escapeXml(unsafe) {
   if (!unsafe) return '';
   return String(unsafe)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\u2060\uFFFD]/g, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

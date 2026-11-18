@@ -1,12 +1,12 @@
 import React from 'react';
-import { ArrowLeft, Mail, Play } from 'lucide-react';
+import { ArrowLeft, Mail } from 'lucide-react';
 import { useRouter } from '../hooks/useRouter';
 
 const footerSections = [
-  { title: 'Platform', links: [['Home', 'home'], ['Trending', 'trending'], ['Clips', 'shorts'], ['Explore', 'explore']] },
-  { title: 'Support', links: [['Contact', 'contact'], ['Grievance Redressal', 'grievance'], ['Help', 'help']] },
-  { title: 'Company', links: [['About', 'about']] },
-  { title: 'Legal & Community', links: [['Privacy Policy', 'privacy'], ['Terms of Use', 'terms'], ['Community Guidelines', 'guidelines']] },
+  { title: 'Platform', links: [['Home', 'home'], ['Trending', 'trending'], ['Shorts', 'shorts'], ['Community', 'community'], ['Downloads', 'downloads'], ['Go Pro', 'gopro']] },
+  { title: 'Support', links: [['Contact', 'contact'], ['FAQ', 'faq'], ['Grievance Redressal', 'grievance'], ['Help', 'help']] },
+  { title: 'Company', links: [['About', 'about'], ['Advertising', 'advertising'], ['Ad Info', 'adinfo'], ['Developers', 'developers']] },
+  { title: 'Legal & Community', links: [['Privacy Policy', 'privacy'], ['Terms of Use', 'terms'], ['Refund Policy', 'refund'], ['Community Guidelines', 'guidelines']] },
 ];
 
 export const AboutPage: React.FC = () => {
@@ -22,8 +22,21 @@ export const AboutPage: React.FC = () => {
         </button>
 
         <section className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-7 dark:border-blue-900/40 dark:from-slate-900 dark:via-[#111827] dark:to-indigo-950/30 sm:p-12">
-          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/20">
-            <Play className="h-5 w-5 fill-current" />
+          <div className="mb-6 inline-flex items-center gap-3.5 rounded-2xl border border-blue-200/80 bg-white px-4 py-2.5 shadow-sm dark:border-blue-800/50 dark:bg-slate-900/90">
+            <img
+              src="/socialindia-icon.png"
+              alt="SocialIndia"
+              className="h-10 w-10 shrink-0 rounded-xl object-contain"
+              draggable={false}
+            />
+            <div className="flex flex-col">
+              <span className="text-xs font-black uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                About SocialIndia
+              </span>
+              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                India&apos;s Video, Shorts &amp; Community Platform
+              </span>
+            </div>
           </div>
           <p className="text-sm font-black uppercase tracking-[0.2em] text-blue-700 dark:text-blue-300">Built by Bharat.</p>
           <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-6xl">SocialIndia</h1>
@@ -56,13 +69,25 @@ export const AboutPage: React.FC = () => {
               <div key={section.title} className="space-y-3">
                 <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">{section.title}</h2>
                 <ul className="space-y-2">
-                  {section.links.map(([label, path]) => (
-                    <li key={path}>
-                      <button onClick={() => navigate(path)} className="text-left text-xs font-semibold text-slate-500 hover:text-blue-600 hover:underline dark:text-slate-400">
-                        {label}
-                      </button>
-                    </li>
-                  ))}
+                  {section.links.map(([label, path]) => {
+                    const href = path === 'home' ? '/' : `/${path}`;
+                    return (
+                      <li key={path}>
+                        <a
+                          href={href}
+                          onClick={(e) => {
+                            if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                              e.preventDefault();
+                              navigate(path);
+                            }
+                          }}
+                          className="text-left text-xs font-semibold text-slate-500 hover:text-blue-600 hover:underline dark:text-slate-400"
+                        >
+                          {label}
+                        </a>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))}

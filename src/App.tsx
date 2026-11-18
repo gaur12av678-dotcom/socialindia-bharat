@@ -146,9 +146,14 @@ function MainAppContent() {
   // Dynamically sync Canonical link, robots tag, and Title for Googlebot and SEO crawlers
   useEffect(() => {
     try {
-      const canonicalHref = route.path === 'home'
+      const isRemovedSample =
+        route.path === 'watch' &&
+        (route.param === 'sample-short-1' || route.param === 'sample-short-2');
+      const canonicalPath =
+        route.path === 'ad-info' || route.path === 'ad' ? 'adinfo' : route.path;
+      const canonicalHref = isRemovedSample || route.path === 'home'
         ? 'https://socialindia.web.app/'
-        : `https://socialindia.web.app/${route.path}${route.param ? `/${route.param}` : ''}`;
+        : `https://socialindia.web.app/${canonicalPath}${route.param ? `/${route.param}` : ''}`;
       
       let linkCanonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
       if (!linkCanonical) {
@@ -166,7 +171,7 @@ function MainAppContent() {
       }
       ogUrl.setAttribute('content', canonicalHref);
 
-      // Protect private/authenticated pages from indexing
+      // Protect private/authenticated pages and removed samples from indexing
       const privateRoutes = ['admin', 'settings', 'history', 'saved', 'liked', 'liked-videos', 'chat', 'login', 'signin', 'signup', 'register', 'forgot-password', 'reset-password'];
       let robotsMeta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
       if (!robotsMeta) {
@@ -174,7 +179,7 @@ function MainAppContent() {
         robotsMeta.setAttribute('name', 'robots');
         document.head.appendChild(robotsMeta);
       }
-      if (privateRoutes.includes(route.path)) {
+      if (privateRoutes.includes(route.path) || isRemovedSample) {
         robotsMeta.setAttribute('content', 'noindex, nofollow');
       } else {
         robotsMeta.setAttribute('content', 'index, follow');
@@ -182,11 +187,11 @@ function MainAppContent() {
 
       // Dynamic page titles for standard routes
       const routeTitles: Record<string, string> = {
-        home: 'SocialIndia (Official) – India’s Video, Clips & Community Platform',
+        home: 'SocialIndia (Official) – India’s Video, Shorts & Community Platform',
         trending: 'Trending Videos & Posts – SocialIndia',
         explore: 'Community & Discussions – SocialIndia',
         community: 'Community & Discussions – SocialIndia',
-        about: 'About Us – SocialIndia',
+        about: 'About SocialIndia – Built by Bharat.',
         terms: 'Terms of Service – SocialIndia',
         privacy: 'Privacy Policy – SocialIndia',
         faq: 'Frequently Asked Questions – SocialIndia',
@@ -194,11 +199,13 @@ function MainAppContent() {
         grievance: 'Grievance Redressal & Support – SocialIndia',
         advertising: 'SocialIndia Advertising – Promote Your Brand',
         adinfo: 'Ad Transparency Center – SocialIndia',
+        'ad-info': 'Ad Transparency Center – SocialIndia',
+        ad: 'Ad Transparency Center – SocialIndia',
         gopro: 'SocialIndia Pro – Premium Creator Tools',
         downloads: 'Download Mobile App – SocialIndia',
         developers: 'Developer Portal – SocialIndia API',
         guidelines: 'Community Guidelines – SocialIndia',
-        shorts: 'Trending Clips – Watch Clips on SocialIndia',
+        shorts: 'Trending Shorts – Watch Short Videos on SocialIndia',
         search: 'Search Videos & Creators – SocialIndia',
         help: 'Help Center & Tutorials – SocialIndia',
         refund: 'Refund & Cancellation Policy – SocialIndia',
@@ -207,8 +214,13 @@ function MainAppContent() {
         admin: 'Super Admin Workspace – SocialIndia',
       };
 
-      if (routeTitles[route.path]) {
-        document.title = routeTitles[route.path];
+      const nextTitle = isRemovedSample ? 'Video Removed – SocialIndia' : routeTitles[route.path];
+      if (nextTitle) {
+        document.title = nextTitle;
+        const ogTitle = document.querySelector('meta[property="og:title"]') as HTMLMetaElement | null;
+        if (ogTitle) ogTitle.setAttribute('content', nextTitle);
+        const twTitle = document.querySelector('meta[name="twitter:title"]') as HTMLMetaElement | null;
+        if (twTitle) twTitle.setAttribute('content', nextTitle);
       }
     } catch {}
   }, [route.path, route.param]);
@@ -367,6 +379,7 @@ function MainAppContent() {
         return <CommunityPage />;
       case 'advertising':
         return <AdvertisingPage />;
+      case 'adinfo':
       case 'ad-info':
       case 'ad':
         return <AdInfoPage />;
