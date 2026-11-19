@@ -40,8 +40,7 @@ import {
   Sun,
   Flag,
   Lock,
-  Unlock,
-  Maximize2
+  Unlock
 } from 'lucide-react';
 
 interface CustomVideoPlayerProps {
@@ -151,7 +150,6 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       return true;
     }
   });
-  const [videoFitMode, setVideoFitMode] = useState<'contain' | 'cover'>('contain');
   const [isDraggingTimeline, setIsDraggingTimeline] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pointerStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -1348,7 +1346,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 onNextVideo();
               }
             }}
-            className={`w-full h-full ${videoFitMode === 'cover' ? 'object-cover' : 'object-contain'}`}
+            className="w-full h-full object-contain"
           />
         )}
       </div>
@@ -1755,31 +1753,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
               </div>
 
-              {/* Right Side: Zoom to Fill, CC, Ambient, Settings, Theater, Fullscreen */}
+              {/* Right Side: Settings, Theater, Fullscreen */}
               <div className="flex items-center gap-1.5 sm:gap-2 relative">
-                {/* Fit / Fill Screen Toggle (Zoom to fill - YouTube mobile signature) */}
-                <button
-                  type="button"
-                  onClick={() => setVideoFitMode(prev => prev === 'contain' ? 'cover' : 'contain')}
-                  className="p-1.5 bg-black/65 hover:bg-black/90 rounded-lg transition-colors cursor-pointer text-white opacity-100 shadow-md"
-                  title={videoFitMode === 'cover' ? (isHindi ? "स्क्रीन में फिट करें" : "Original ratio") : (isHindi ? "स्क्रीन भरें" : "Zoom to fill")}
-                >
-                  {videoFitMode === 'cover' ? <Minimize className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                </button>
-
-                {/* Closed Captions CC Badge */}
-                <button
-                  onClick={() => setIsCaptionsOn(!isCaptionsOn)}
-                  className={`hidden sm:block px-1.5 py-0.5 rounded text-[10px] font-extrabold border transition-colors cursor-pointer ${
-                    isCaptionsOn 
-                      ? 'bg-white text-black border-white shadow-xs' 
-                      : 'border-white/50 text-white/80 hover:border-white hover:text-white'
-                  }`}
-                  title="Subtitles / CC"
-                >
-                  CC
-                </button>
-
                 {/* Settings with HD Badge (YouTube Style) */}
                 <button
                   onClick={() => {

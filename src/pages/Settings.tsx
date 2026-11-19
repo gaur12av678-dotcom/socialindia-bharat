@@ -54,7 +54,6 @@ import { WithdrawalRequest, Video, VerificationRequest } from '../types';
 import { compressAvatar, compressBanner } from '../utils/imageUtils';
 import { updateUserAvatarCache } from '../components/UserAvatar';
 import { useTranslation, LanguageCode } from '../i18n';
-import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { adminConfigService } from '../services/adminConfigService';
 import { isUserVerified } from '../utils/userUtils';
 import { verificationService } from '../services/verificationService';
@@ -2760,10 +2759,6 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
             </div>
           )}
 
-          {/* Settings Panel Sponsored Ad Banner */}
-          <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
-            <ExternalAdBanner type="search-box" locationTag="settings-panel" />
-          </div>
 
         </div>
 

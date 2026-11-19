@@ -30,7 +30,6 @@ import {
 } from '../utils/videoUtils';
 import { isUserVerified } from '../utils/userUtils';
 import { useTranslation } from '../i18n';
-import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { UserAvatar } from '../components/UserAvatar';
 import { searchHistoryService, SearchHistoryEntry, POPULAR_SEARCH_SUGGESTIONS } from '../services/searchHistoryService';
 import { useApp } from '../context/AppContext';
@@ -557,10 +556,6 @@ export const Search: React.FC = () => {
         </div>
       )}
 
-      {/* Ad Banner */}
-      <div className="my-2 max-w-xl">
-        <ExternalAdBanner type="search-box" locationTag="search-page" />
-      </div>
 
       {/* Search Results Area */}
       {route.searchParams?.q && (

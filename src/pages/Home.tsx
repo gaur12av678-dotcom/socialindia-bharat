@@ -9,7 +9,6 @@ import { adService } from '../services/adService';
 import { AdCampaign } from '../types';
 import { Flame, Zap, ArrowRight, Play, RotateCw, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../i18n';
-import { ExternalAdBanner } from '../components/ads/ExternalAdBanner';
 import { ShortsLogo } from '../components/ShortsLogo';
 import { Subscriptions } from './Subscriptions';
 import { getVideoUrlDuration, parseVideoUrl } from '../utils/videoUtils';
@@ -1321,10 +1320,6 @@ export const Home: React.FC = () => {
         </div>
       )}
 
-      {/* External Native / Iframe Ad Banner (YouTube Style, rotating location) */}
-      <div className="my-6">
-        <ExternalAdBanner type="random" locationTag="home-feed-middle" />
-      </div>
 
       {/* 3. More Videos Section (YouTube Algorithm Recommended Videos + Infinite Platform Scroll) */}
       {selectedCategory === 'All' && (allMoreVideos.length > 0 || loading || isLoadingMoreVideos) && (
