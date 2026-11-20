@@ -42,25 +42,61 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(() => auth.currentUser || null);
-  const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(() => {
-    try {
-      const cached = localStorage.getItem('socialindia_cached_profile');
-      if (!cached) return null;
-      const parsed = JSON.parse(cached);
-      // Never restore an unverified profile from cache
-      if (parsed?.email && !parsed.email.endsWith('@socialindia.com') && !parsed.emailVerified) {
-        localStorage.removeItem('socialindia_cached_profile');
-        return null;
-      }
-      return parsed;
-    } catch {
+const getProfileCacheKey = (uid: string) => `socialindia_cached_profile_${uid}`;
+const getThemeCacheKey = (uid: string) => `socialindia_theme_${uid}`;
+
+const readCachedProfile = (uid: string | null): User | null => {
+  if (!uid) return null;
+  try {
+    const raw = localStorage.getItem(getProfileCacheKey(uid))
+      || localStorage.getItem('socialindia_cached_profile');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as User;
+    if (parsed?.uid !== uid) return null;
+    if (parsed.email && !parsed.email.endsWith('@socialindia.com') && !parsed.emailVerified) {
       return null;
     }
-  });
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const readThemePreference = (uid: string | null): 'light' | 'dark' | 'system' => {
+  try {
+    const themeOwnerUid = localStorage.getItem('socialindia_theme_owner_uid');
+    const saved = uid
+      ? localStorage.getItem(getThemeCacheKey(uid))
+        || (themeOwnerUid === uid ? localStorage.getItem('socialindia_theme') : null)
+      : localStorage.getItem('socialindia_theme');
+    return saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system';
+  } catch {
+    return 'system';
+  }
+};
+
+const cacheProfile = (profile: User) => {
+  localStorage.setItem(getProfileCacheKey(profile.uid), JSON.stringify(profile));
+  localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
+};
+
+const cacheThemePreference = (uid: string | null, value: 'light' | 'dark' | 'system') => {
+  if (uid) {
+    localStorage.setItem(getThemeCacheKey(uid), value);
+    localStorage.setItem('socialindia_theme_owner_uid', uid);
+  }
+  localStorage.setItem('socialindia_theme', value);
+};
+
+export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(() => auth.currentUser || null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(() =>
+    readCachedProfile(auth.currentUser?.uid || null)
+  );
   const [loading, setLoading] = useState(true);
-  const [theme, setThemeState] = useState<'light' | 'dark' | 'system'>('system');
+  const [theme, setThemeState] = useState<'light' | 'dark' | 'system'>(() =>
+    readThemePreference(auth.currentUser?.uid || null)
+  );
   const [language, setLanguageState] = useState<LanguageCode>(() => {
     try {
       const saved = localStorage.getItem('socialindia_language');
@@ -131,7 +167,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const setTheme = useCallback((newTheme: 'light' | 'dark' | 'system') => {
     setThemeState(newTheme);
-    localStorage.setItem('socialindia_theme', newTheme);
+    cacheThemePreference(authService.getCurrentUserUid(), newTheme);
     applyTheme(newTheme);
 
     // Persist private settings in firestore if user is logged in
@@ -201,7 +237,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (profile && authService.getCurrentUserUid() === uid) {
         setCurrentUserProfile(profile);
         try {
-          localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
+          cacheProfile(profile);
           accountService.syncCurrentProfile(profile);
         } catch {}
       }
@@ -213,10 +249,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateUserProfileState = useCallback((updates: Partial<User>) => {
     setCurrentUserProfile((prev) => {
-      if (!prev) return prev;
+      if (!prev || prev.uid !== authService.getCurrentUserUid()) return prev;
       const updated = { ...prev, ...updates };
       try {
-        localStorage.setItem('socialindia_cached_profile', JSON.stringify(updated));
+        cacheProfile(updated);
       } catch {}
       return updated;
     });
@@ -238,10 +274,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const markNotificationsAsRead = useCallback(async () => {
     const uid = authService.getCurrentUserUid();
     if (uid) {
-      await notificationService.markAllAsRead(uid);
-      await refreshNotifications();
+      const previousNotifications = notifications;
+      setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+      setUnreadCount(0);
+      try {
+        await notificationService.markAllAsRead(uid);
+      } catch (error) {
+        console.error('Failed to mark notifications as read:', error);
+        setNotifications(previousNotifications);
+        setUnreadCount(previousNotifications.filter((notification) => !notification.read).length);
+      }
     }
-  }, [refreshNotifications]);
+  }, [notifications]);
 
   const logout = useCallback(async () => {
     setLoading(true);
@@ -264,13 +308,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Handle auth state changes
   useEffect(() => {
     // 1. Initial theme load
-    const savedTheme = localStorage.getItem('socialindia_theme') as 'light' | 'dark' | 'system' | null;
-    if (savedTheme) {
-      setThemeState(savedTheme);
-      applyTheme(savedTheme);
-    } else {
-      applyTheme('system');
-    }
+    const initialTheme = readThemePreference(authService.getCurrentUserUid());
+    setThemeState(initialTheme);
+    applyTheme(initialTheme);
 
     // Ensure Live India broadcast channel and video are primed
     import('../services/liveBroadcastService').then(({ liveBroadcastService }) => {
@@ -290,9 +330,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       setLoading(true);
       setCurrentUser(user);
-      setCurrentUserProfile((cachedProfile) =>
-        user && cachedProfile?.uid === user.uid ? cachedProfile : null
-      );
+      setCurrentUserProfile(readCachedProfile(user?.uid || null));
+      const activeUid = user?.uid || null;
+      const preferredTheme = readThemePreference(activeUid);
+      try {
+        if (activeUid) localStorage.setItem('socialindia_active_uid', activeUid);
+        else localStorage.removeItem('socialindia_active_uid');
+      } catch {}
+      setThemeState(preferredTheme);
+      applyTheme(preferredTheme);
       setNotifications([]);
       setUnreadCount(0);
       if (user) {
@@ -309,6 +355,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setCurrentUser(null);
             setCurrentUserProfile(null);
             localStorage.removeItem('socialindia_cached_profile');
+            localStorage.removeItem('socialindia_active_uid');
             accountService.removeAccount(user.uid);
             setLoading(false);
             return;
@@ -326,7 +373,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
           if (profile && isCurrentRequest()) {
             setCurrentUserProfile(profile);
-            localStorage.setItem('socialindia_cached_profile', JSON.stringify(profile));
+            cacheProfile(profile);
             accountService.syncCurrentProfile(profile);
             userService.ensureDefaultSubscription(user.uid).catch(() => {});
           }
@@ -340,7 +387,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (!isCurrentRequest()) return;
           if (pInfo?.theme) {
             setThemeState(pInfo.theme);
+            cacheThemePreference(user.uid, pInfo.theme);
             applyTheme(pInfo.theme);
+          } else {
+            cacheThemePreference(user.uid, preferredTheme);
           }
           if (pInfo?.language === 'hi' || pInfo?.language === 'en') {
             setLanguageState(pInfo.language);
@@ -364,6 +414,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setCurrentUser(null);
         setCurrentUserProfile(null);
         localStorage.removeItem('socialindia_cached_profile');
+        localStorage.removeItem('socialindia_active_uid');
         setNotifications([]);
         setUnreadCount(0);
       }

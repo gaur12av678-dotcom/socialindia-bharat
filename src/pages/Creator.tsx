@@ -514,6 +514,9 @@ export const CreatorProfile: React.FC = () => {
             nextShorts = visibleVids.filter(v => v.isShort);
             setVideos(nextVideos);
             setShorts(nextShorts);
+            setCreator(current => current?.uid === uProfile.uid
+              ? { ...current, videosCount: visibleVids.length }
+              : current);
           }
           if (plsResult.status === 'fulfilled') {
             nextPlaylists = plsResult.value;
@@ -920,7 +923,7 @@ export const CreatorProfile: React.FC = () => {
                 <span>•</span>
                 <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/followers?|subscribers?/i, '').trim()} फ़ॉलोअर्स` : formatSubscribers(creator.followersCount)}</span>
                 <span>•</span>
-                <span>{creator.videosCount} {isHindi ? 'वीडियो' : (creator.videosCount === 1 ? 'video' : 'videos')}</span>
+                <span>{loadingContent ? '…' : videos.length + shorts.length} {isHindi ? 'वीडियो' : (!loadingContent && videos.length + shorts.length === 1 ? 'video' : 'videos')}</span>
               </div>
               <p className="text-xs text-slate-700 dark:text-slate-300 max-w-2xl font-medium line-clamp-2 pt-1">
                 {creator.bio || (isHindi ? "SocialIndia पर मेरे आधिकारिक चैनल में आपका स्वागत है! बेहतरीन वीडियो के लिए जुड़े रहें।" : "Welcome to my SocialIndia official channel! Stay tuned for awesome videos.")}
@@ -1058,7 +1061,7 @@ export const CreatorProfile: React.FC = () => {
                 <span>•</span>
                 <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/followers?|subscribers?/i, '').trim()} फ़ॉलोअर्स` : formatSubscribers(creator.followersCount)}</span>
                 <span>•</span>
-                <span>{creator.videosCount} {isHindi ? 'वीडियो' : (creator.videosCount === 1 ? 'video' : 'videos')}</span>
+                <span>{loadingContent ? '…' : videos.length + shorts.length} {isHindi ? 'वीडियो' : (!loadingContent && videos.length + shorts.length === 1 ? 'video' : 'videos')}</span>
               </div>
 
               <p 
@@ -1174,7 +1177,7 @@ export const CreatorProfile: React.FC = () => {
           <VideoIcon className="w-4 h-4" />
           <span>{t('tab_videos', 'Videos')}</span>
           <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
-            {loadingContent && videos.length === 0 ? (creator?.videosCount !== undefined ? creator.videosCount : '...') : videos.length}
+            {loadingContent && videos.length === 0 ? '…' : videos.length}
           </span>
           {activeTab === 'videos' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>

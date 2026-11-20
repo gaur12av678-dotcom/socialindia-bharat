@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { chatService } from '../services/chatService';
 import { userService } from '../services/userService';
-import { ChatMessage, ChatSession } from '../types';
+import { ChatMessage, ChatSession, User } from '../types';
 import { 
   Search, 
   Trash2, 
@@ -21,12 +21,27 @@ import {
   Download,
   Mic,
   MicOff,
-  Check
+  Check,
+  Reply,
+  Edit2,
+  MoreHorizontal,
+  Share2,
+  UsersRound,
+  Plus,
+  Image as ImageIcon,
+  Move,
+  HardDrive
 } from 'lucide-react';
-import { getInitials } from '../utils/videoUtils';
 import { useTranslation } from '../i18n';
 import { EmojiPicker } from '../components/chat/EmojiPicker';
 import { UserAvatar } from '../components/UserAvatar';
+
+const chatBackgrounds = [
+  { id: 'default', label: 'Classic', image: '' },
+  { id: 'india-gate', label: 'India Gate', image: 'https://en.wikipedia.org/wiki/Special:FilePath/India_Gate,_New_Delhi.jpg?width=1400' },
+  { id: 'taj-mahal', label: 'Taj Mahal', image: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=1400&q=80' },
+  { id: 'qutub-minar', label: 'Qutub Minar', image: 'https://en.wikipedia.org/wiki/Special:FilePath/Qutb_Minar,_Delhi.jpg?width=1400' }
+];
 
 export const ChatPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -41,8 +56,22 @@ export const ChatPage: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     return currentUser ? chatService.getCachedSessions(currentUser.uid) : [];
   });
+  const [chatStateUid, setChatStateUid] = useState<string | null>(() => currentUser?.uid || null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [messageActionId, setMessageActionId] = useState<string | null>(null);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [groupName, setGroupName] = useState('');
+  const [groupSearch, setGroupSearch] = useState('');
+  const [groupResults, setGroupResults] = useState<User[]>([]);
+  const [selectedGroupMembers, setSelectedGroupMembers] = useState<User[]>([]);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [showBackgroundPicker, setShowBackgroundPicker] = useState(false);
+  const [chatBackgroundId, setChatBackgroundId] = useState('default');
+  const [motionEnabled, setMotionEnabled] = useState(false);
+  const [motionOffset, setMotionOffset] = useState({ x: 0, y: 0 });
   
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,6 +80,7 @@ export const ChatPage: React.FC = () => {
     return currentUser ? chatService.getCachedSessions(currentUser.uid).length === 0 : true;
   });
   const [isSending, setIsSending] = useState(false);
+  const isCurrentSession = Boolean(currentUser && chatStateUid === currentUser.uid);
 
   // Media attachment & Emoji states
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -69,6 +99,115 @@ export const ChatPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const messageLongPressTimerRef = useRef<number | null>(null);
+  const isPocket = Boolean(selectedUser?.isPocket);
+  const isGroup = Boolean(selectedUser?.isGroup);
+
+  const startMessageLongPress = (messageId: string) => {
+    if (messageLongPressTimerRef.current !== null) {
+      window.clearTimeout(messageLongPressTimerRef.current);
+    }
+    messageLongPressTimerRef.current = window.setTimeout(() => {
+      setMessageActionId(messageId);
+      messageLongPressTimerRef.current = null;
+    }, 450);
+  };
+
+  const cancelMessageLongPress = () => {
+    if (messageLongPressTimerRef.current !== null) {
+      window.clearTimeout(messageLongPressTimerRef.current);
+      messageLongPressTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => () => cancelMessageLongPress(), []);
+
+  useEffect(() => {
+    if (!showCreateGroup || groupSearch.trim().length < 2) {
+      setGroupResults([]);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      userService.searchUsers(groupSearch).then(results => {
+        setGroupResults(results.filter(user => user.uid !== currentUser?.uid));
+      });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [showCreateGroup, groupSearch, currentUser?.uid]);
+
+  useEffect(() => {
+    if (!selectedUserId) {
+      setChatBackgroundId('default');
+      return;
+    }
+    try {
+      setChatBackgroundId(
+        localStorage.getItem(`socialindia_chat_bg_${currentUser?.uid}_${selectedUserId}`) || 'default'
+      );
+    } catch (error) {
+      console.warn('Could not load chat background preference:', error);
+      setChatBackgroundId('default');
+    }
+  }, [currentUser?.uid, selectedUserId]);
+
+  useEffect(() => {
+    if (!motionEnabled) return;
+    const handleMotion = (event: DeviceMotionEvent) => {
+      const x = event.accelerationIncludingGravity?.x || 0;
+      const y = event.accelerationIncludingGravity?.y || 0;
+      setMotionOffset({
+        x: Math.max(-12, Math.min(12, x * 1.5)),
+        y: Math.max(-12, Math.min(12, y * 1.5))
+      });
+    };
+    window.addEventListener('devicemotion', handleMotion);
+    return () => window.removeEventListener('devicemotion', handleMotion);
+  }, [motionEnabled]);
+
+  const toggleMotionDetection = async () => {
+    if (motionEnabled) {
+      setMotionEnabled(false);
+      setMotionOffset({ x: 0, y: 0 });
+      return;
+    }
+    if (typeof DeviceMotionEvent === 'undefined') {
+      addToast(isHindi ? 'इस डिवाइस पर मोशन सेंसर उपलब्ध नहीं है।' : 'Motion sensors are not available on this device.', 'info');
+      return;
+    }
+    const MotionEventConstructor = DeviceMotionEvent as typeof DeviceMotionEvent & {
+      requestPermission?: () => Promise<'granted' | 'denied'>;
+    };
+    if (MotionEventConstructor.requestPermission) {
+      try {
+        const permission = await MotionEventConstructor.requestPermission();
+        if (permission !== 'granted') {
+          addToast(isHindi ? 'मोशन सेंसर की अनुमति नहीं मिली।' : 'Motion sensor permission was not granted.', 'error');
+          return;
+        }
+      } catch (error) {
+        console.error('Motion sensor permission request failed:', error);
+        addToast(isHindi ? 'मोशन सेंसर शुरू नहीं हो सका।' : 'Could not start motion sensing.', 'error');
+        return;
+      }
+    }
+    setMotionEnabled(true);
+  };
+
+  const selectChatBackground = (backgroundId: string) => {
+    if (!currentUser || !selectedUserId) return;
+    setChatBackgroundId(backgroundId);
+    setShowBackgroundPicker(false);
+    try {
+      localStorage.setItem(
+        `socialindia_chat_bg_${currentUser.uid}_${selectedUserId}`,
+        backgroundId
+      );
+    } catch (error) {
+      console.warn('Could not save chat background preference:', error);
+      addToast(isHindi ? 'बैकग्राउंड सेव नहीं हो सका।' : 'Could not save this background.', 'error');
+    }
+  };
 
   // Voice recording toggle handler
   const toggleVoiceRecording = () => {
@@ -141,13 +280,26 @@ export const ChatPage: React.FC = () => {
 
   // Load and listen to chat sessions in real time.
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setChatStateUid(null);
+      setSessions([]);
+      setLoadingSessions(false);
+      setSelectedUserId(null);
+      setSelectedUser(null);
+      setMessages([]);
+      return;
+    }
 
     const cached = chatService.getCachedSessions(currentUser.uid);
-    if (cached.length > 0) {
-      setSessions(cached);
-      setLoadingSessions(false);
-    }
+    setChatStateUid(currentUser.uid);
+    setSessions(cached);
+    setLoadingSessions(cached.length === 0);
+    setSelectedUserId(null);
+    setSelectedUser(null);
+    setMessages([]);
+    setReplyTo(null);
+    setEditingMessageId(null);
+    setMessageActionId(null);
 
     const unsubscribe = chatService.listenToConversations(
       currentUser.uid,
@@ -158,7 +310,7 @@ export const ChatPage: React.FC = () => {
     );
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [currentUser?.uid]);
 
   // Handle selected user parameter route mapping
   useEffect(() => {
@@ -195,7 +347,7 @@ export const ChatPage: React.FC = () => {
 
   // Real-time listener for current selected chat with instant cache preload
   useEffect(() => {
-    if (!currentUser || !selectedUserId) {
+    if (!currentUser || !isCurrentSession || !selectedUserId) {
       setMessages([]);
       setLoadingMessages(false);
       return;
@@ -206,26 +358,39 @@ export const ChatPage: React.FC = () => {
     setMessages(cachedMsgs);
     setLoadingMessages(cachedMsgs.length === 0);
 
-    // Ensure an inbox conversation exists as soon as the chat is opened.
-    chatService.ensureConversation(currentUser.uid, selectedUserId)
-      .catch(err => {
-        console.error('Failed to ensure conversation:', err);
+    if (selectedUser?.isPocket) {
+      const unsubscribe = chatService.listenToPocketMessages(currentUser.uid, incomingMsgs => {
+        setMessages(incomingMsgs);
+        setLoadingMessages(false);
+        chatService.setCachedMessages(currentUser.uid, selectedUserId, incomingMsgs);
       });
+      return () => unsubscribe();
+    }
 
-    // 2. Set up Firestore real-time snapshot listener
+    if (selectedUser?.isGroup) {
+      const unsubscribe = chatService.listenToGroupMessages(selectedUserId, incomingMsgs => {
+        setMessages(incomingMsgs);
+        setLoadingMessages(false);
+        chatService.setCachedMessages(currentUser.uid, selectedUserId, incomingMsgs);
+      }, currentUser.uid);
+      return () => unsubscribe();
+    }
+
+    chatService.ensureConversation(currentUser.uid, selectedUserId)
+      .catch(err => console.error('Failed to ensure conversation:', err));
+
     const unsubscribe = chatService.listenToMessages(
       currentUser.uid,
       selectedUserId,
-      (incomingMsgs) => {
+      incomingMsgs => {
         setMessages(incomingMsgs);
         setLoadingMessages(false);
-        // Mark as read asynchronously
         chatService.markAsRead(currentUser.uid, selectedUserId);
       }
     );
 
     return () => unsubscribe();
-  }, [currentUser, selectedUserId]);
+  }, [currentUser, isCurrentSession, selectedUser?.isGroup, selectedUser?.isPocket, selectedUserId]);
 
   // Auto scroll to bottom when messages list updates
   useEffect(() => {
@@ -326,10 +491,14 @@ export const ChatPage: React.FC = () => {
   // Send Message with optional Media
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !selectedUserId) return;
+    if (!currentUser || !isCurrentSession || !selectedUserId) return;
 
     const trimmedText = messageText.trim();
     if (!trimmedText && !selectedMediaFile) return;
+    if (!navigator.onLine) {
+      addToast(isHindi ? 'संदेश भेजने के लिए ऑनलाइन आएं।' : 'Connect to the internet to send a message.', 'error');
+      return;
+    }
 
     setIsSending(true);
     setShowEmojiPicker(false);
@@ -339,19 +508,51 @@ export const ChatPage: React.FC = () => {
     const localPreview = mediaPreviewUrl;
     const currentMediaType = mediaType;
 
+    if (editingMessageId) {
+      try {
+        const editedAt = selectedUser?.isPocket
+          ? await chatService.editPocketMessage(currentUser.uid, editingMessageId, trimmedText)
+          : selectedUser?.isGroup
+            ? await chatService.editGroupMessage(selectedUserId, editingMessageId, currentUser.uid, trimmedText)
+            : await chatService.editMessage(editingMessageId, currentUser.uid, trimmedText);
+        setMessages(prev => {
+          const updated = prev.map(message =>
+            message.id === editingMessageId ? { ...message, text: trimmedText, editedAt } : message
+          );
+          chatService.setCachedMessages(currentUser.uid, selectedUserId, updated);
+          return updated;
+        });
+        setMessageText('');
+        setEditingMessageId(null);
+        handleClearMedia();
+      } catch (err) {
+        console.error('Failed to edit message:', err);
+        addToast('Failed to edit message. Please try again.', 'error');
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
     // Reset input fields immediately for snappy feel
     setMessageText('');
     handleClearMedia(false);
 
     // Instant optimistic message rendering
     const tempId = `temp_${Date.now()}`;
+    const reply = replyTo
+      ? { messageId: replyTo.id, senderId: replyTo.senderId, text: replyTo.text, mediaType: replyTo.mediaType }
+      : undefined;
     const optimisticMessage: ChatMessage = {
       id: tempId,
       senderId: currentUser.uid,
-      receiverId: selectedUserId,
+      receiverId: selectedUser?.isPocket ? currentUser.uid : selectedUserId,
+      groupId: selectedUser?.isGroup ? selectedUserId : undefined,
+      senderDisplayName: currentUserProfile?.displayName || currentUser.displayName || 'You',
       text: content,
       mediaUrl: localPreview || undefined,
       mediaType: currentMediaType || undefined,
+      replyTo: reply,
       deliveryStatus: mediaFileToSend ? 'uploading' : undefined,
       uploadProgress: mediaFileToSend ? 0 : undefined,
       createdAt: new Date().toISOString(),
@@ -363,6 +564,7 @@ export const ChatPage: React.FC = () => {
       chatService.setCachedMessages(currentUser.uid, selectedUserId, updated);
       return updated;
     });
+    setReplyTo(null);
 
     // Update local session preview instantly
     const previewSummary = content || (currentMediaType === 'image' ? '📷 Photo' : '🎥 Video');
@@ -405,13 +607,26 @@ export const ChatPage: React.FC = () => {
         });
       }
 
-      const sentMessageId = await chatService.sendMessage(
-        currentUser.uid, 
-        selectedUserId, 
-        content,
-        finalMediaUrl,
-        finalMediaType
-      );
+      const sentMessageId = selectedUser?.isPocket
+        ? await chatService.sendPocketMessage(currentUser.uid, content, finalMediaUrl, finalMediaType, reply)
+        : selectedUser?.isGroup
+          ? await chatService.sendGroupMessage(
+            selectedUserId,
+            currentUser.uid,
+            currentUserProfile?.displayName || currentUser.displayName || 'You',
+            content,
+            finalMediaUrl,
+            finalMediaType,
+            reply
+          )
+          : await chatService.sendMessage(
+            currentUser.uid,
+            selectedUserId,
+            content,
+            finalMediaUrl,
+            finalMediaType,
+            reply
+          );
       setMessages(prev => {
         const updated = prev.map(message =>
           message.id === tempId
@@ -451,7 +666,7 @@ export const ChatPage: React.FC = () => {
   };
 
   const handleDeleteConversation = async () => {
-    if (!currentUser || !selectedUserId) return;
+    if (!currentUser || !isCurrentSession || !selectedUserId) return;
 
     const confirmDelete = window.confirm(
       isHindi 
@@ -461,11 +676,120 @@ export const ChatPage: React.FC = () => {
     if (!confirmDelete) return;
 
     try {
-      await chatService.deleteChatHistory(currentUser.uid, selectedUserId);
+      if (selectedUser?.isPocket) {
+        await chatService.clearPocket(currentUser.uid);
+      } else {
+        await chatService.deleteChatHistory(currentUser.uid, selectedUserId);
+      }
       setMessages([]);
       addToast(isHindi ? 'बातचीत का इतिहास साफ़ हो गया।' : 'Conversation cleared successfully.', 'success');
     } catch (err) {
       addToast(isHindi ? 'इतिहास हटाने में विफल।' : 'Failed to delete history.', 'error');
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!currentUser || !groupName.trim() || selectedGroupMembers.length === 0) return;
+    setIsCreatingGroup(true);
+    try {
+      const group = await chatService.createGroup(
+        currentUser.uid,
+        groupName,
+        selectedGroupMembers.map(member => member.uid)
+      );
+      setSessions(previous => {
+        const updated = [group, ...previous.filter(session => session.userId !== group.userId)];
+        chatService.setCachedSessions(currentUser.uid, updated);
+        return updated;
+      });
+      setSelectedUserId(group.userId);
+      setSelectedUser(group);
+      setGroupName('');
+      setGroupSearch('');
+      setSelectedGroupMembers([]);
+      setShowCreateGroup(false);
+      addToast(isHindi ? 'ग्रुप बन गया।' : 'Group created.', 'success');
+    } catch (error) {
+      console.error('Failed to create group chat:', error);
+      addToast(isHindi ? 'ग्रुप नहीं बन सका। फिर से कोशिश करें।' : 'Could not create the group. Please try again.', 'error');
+    } finally {
+      setIsCreatingGroup(false);
+    }
+  };
+
+  const toggleGroupMember = (member: User) => {
+    setSelectedGroupMembers(previous => previous.some(item => item.uid === member.uid)
+      ? previous.filter(item => item.uid !== member.uid)
+      : [...previous, member]);
+  };
+
+  const handleReplyToMessage = (message: ChatMessage) => {
+    setReplyTo(message);
+    setEditingMessageId(null);
+    setMessageActionId(null);
+    setTimeout(() => textInputRef.current?.focus(), 0);
+  };
+
+  const handleEditMessage = (message: ChatMessage) => {
+    if (message.senderId !== currentUser?.uid || !message.text) return;
+    setMessageText(message.text);
+    setEditingMessageId(message.id);
+    setReplyTo(null);
+    setMessageActionId(null);
+    handleClearMedia();
+    setTimeout(() => textInputRef.current?.focus(), 0);
+  };
+
+  const handleDeleteMessage = async (message: ChatMessage) => {
+    if (!currentUser || message.senderId !== currentUser.uid) return;
+    const confirmed = window.confirm(isHindi ? 'क्या आप यह संदेश हटाना चाहते हैं?' : 'Delete this message?');
+    if (!confirmed) {
+      setMessageActionId(null);
+      return;
+    }
+
+    try {
+      if (selectedUser?.isPocket) {
+        await chatService.deletePocketMessage(currentUser.uid, message.id);
+      } else if (selectedUser?.isGroup) {
+        await chatService.deleteGroupMessage(selectedUserId || '', message.id, currentUser.uid);
+      } else {
+        await chatService.deleteMessage(message.id, currentUser.uid);
+      }
+      setMessages(prev => {
+        const updated = prev.filter(item => item.id !== message.id);
+        chatService.setCachedMessages(currentUser.uid, selectedUserId || message.receiverId, updated);
+        return updated;
+      });
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+      addToast('Failed to delete message. Please try again.', 'error');
+    } finally {
+      setMessageActionId(null);
+    }
+  };
+
+  const handleShareMessage = async (message: ChatMessage) => {
+    const shareText = message.text || (isHindi ? 'SocialIndia पर साझा किया गया संदेश' : 'A message shared on SocialIndia');
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: isHindi ? 'SocialIndia संदेश' : 'SocialIndia message',
+          text: shareText,
+          ...(message.mediaUrl ? { url: message.mediaUrl } : {})
+        });
+      } else {
+        await navigator.clipboard.writeText(
+          [shareText, message.mediaUrl].filter(Boolean).join('\n')
+        );
+        addToast(isHindi ? 'संदेश कॉपी किया गया।' : 'Message copied.', 'success');
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      console.error('Failed to share message:', err);
+      addToast(isHindi ? 'संदेश साझा नहीं हो सका।' : 'Could not share message.', 'error');
+    } finally {
+      setMessageActionId(null);
     }
   };
 
@@ -515,10 +839,28 @@ export const ChatPage: React.FC = () => {
   };
 
   // Filter sessions based on search query input
-  const filteredSessions = sessions.filter(s => 
+  const filteredSessions = (isCurrentSession ? sessions : []).filter(s =>
     s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const pocketSession: ChatSession = currentUser ? {
+    userId: `pocket_${currentUser.uid}`,
+    displayName: isHindi ? 'मेरा Pocket' : 'My Pocket',
+    username: isHindi ? 'आपकी निजी जगह' : 'Personal storage',
+    isPocket: true,
+    lastMessage: isHindi ? 'सिर्फ़ आपके लिए सेव किया गया' : 'Saved just for you',
+    unreadCount: 0
+  } : {
+    userId: '',
+    displayName: '',
+    username: '',
+    unreadCount: 0
+  };
+  const visibleSessions = [
+    ...(pocketSession.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      pocketSession.username.toLowerCase().includes(searchQuery.toLowerCase()) ? [pocketSession] : []),
+    ...filteredSessions
+  ];
 
   if (!currentUser) {
     return (
@@ -560,7 +902,7 @@ export const ChatPage: React.FC = () => {
       />
 
       {/* LEFT CHAT DIRECTORY LIST */}
-      <div className={`w-full md:w-80 shrink-0 border-r border-slate-200 dark:border-[#222] flex flex-col h-full bg-white dark:bg-[#0f0f0f] ${selectedUserId ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-80 shrink-0 border-r border-slate-200 dark:border-[#222] flex flex-col h-full bg-white dark:bg-[#0f0f0f] ${isCurrentSession && selectedUserId ? 'hidden md:flex' : 'flex'}`}>
         
         {/* Search header bar */}
         <div className="p-4 border-b border-slate-100 dark:border-[#222] space-y-3 shrink-0">
@@ -572,7 +914,16 @@ export const ChatPage: React.FC = () => {
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <span className="font-black text-sm tracking-tight uppercase">{t('chat_direct_messages', 'Direct Messages')}</span>
+            <span className="min-w-0 flex-1 truncate font-black text-sm tracking-tight uppercase">{t('chat_direct_messages', 'Direct Messages')}</span>
+            <button
+              type="button"
+              onClick={() => setShowCreateGroup(true)}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1.5 text-[10px] font-black text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950"
+              title={isHindi ? 'नया ग्रुप बनाएं' : 'Create a group'}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <UsersRound className="h-3.5 w-3.5" />
+            </button>
           </div>
           
           <div className="relative">
@@ -594,12 +945,12 @@ export const ChatPage: React.FC = () => {
               <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
               <p className="text-xs font-semibold">{t('chat_loading', 'Loading contacts...')}</p>
             </div>
-          ) : filteredSessions.length === 0 ? (
+          ) : visibleSessions.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-xs font-medium">
               {t('chat_no_conversations', 'No matching conversations found')}
             </div>
           ) : (
-            filteredSessions.map((s) => {
+            visibleSessions.map((s) => {
               const isSelected = selectedUserId === s.userId;
               return (
                 <button
@@ -615,13 +966,23 @@ export const ChatPage: React.FC = () => {
                   }`}
                 >
                   <div className="relative shrink-0">
-                    <UserAvatar
-                      uid={s.userId}
-                      fallbackPhotoURL={s.photoURL}
-                      fallbackDisplayName={s.displayName || s.username}
-                      size="sm"
-                      className="w-11 h-11"
-                    />
+                    {s.isPocket || s.isGroup ? (
+                      <div className={`flex h-11 w-11 items-center justify-center rounded-full ${
+                        s.isPocket
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
+                          : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
+                      }`}>
+                        {s.isPocket ? <HardDrive className="h-5 w-5" /> : <UsersRound className="h-5 w-5" />}
+                      </div>
+                    ) : (
+                      <UserAvatar
+                        uid={s.userId}
+                        fallbackPhotoURL={s.photoURL}
+                        fallbackDisplayName={s.displayName || s.username}
+                        size="sm"
+                        className="w-11 h-11"
+                      />
+                    )}
                     {s.unreadCount > 0 && (
                       <span className="absolute bottom-0 right-0 w-3 h-3 bg-blue-600 border border-white dark:border-[#0f0f0f] rounded-full flex items-center justify-center text-[8px] text-white font-black">
                         {s.unreadCount}
@@ -642,7 +1003,7 @@ export const ChatPage: React.FC = () => {
                       <span className="text-[9px] font-bold text-slate-400 shrink-0">{formatSessionTime(s.lastMessageTime)}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 truncate mt-0.5 font-semibold">
-                      {s.lastMessage || `@${s.username}`}
+                      {s.lastMessage || (s.isGroup ? (isHindi ? 'ग्रुप चैट' : 'Group chat') : `@${s.username}`)}
                     </p>
                   </div>
                 </button>
@@ -653,8 +1014,8 @@ export const ChatPage: React.FC = () => {
       </div>
 
       {/* RIGHT MESSAGE WORKSPACE PANE */}
-      <div className={`flex-1 flex flex-col h-full bg-slate-50 dark:bg-[#121212] ${!selectedUserId ? 'hidden md:flex' : 'flex'}`}>
-        {selectedUserId && selectedUser ? (
+      <div className={`flex-1 flex flex-col h-full bg-slate-50 dark:bg-[#121212] ${!isCurrentSession || !selectedUserId ? 'hidden md:flex' : 'flex'}`}>
+        {isCurrentSession && selectedUserId && selectedUser ? (
           <>
             {/* Header bar */}
             <div className="h-14 shrink-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-200 dark:border-[#222] px-4 flex items-center justify-between">
@@ -670,13 +1031,23 @@ export const ChatPage: React.FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                 </button>
 
-                <UserAvatar
-                  uid={selectedUser.userId}
-                  fallbackPhotoURL={selectedUser.photoURL}
-                  fallbackDisplayName={selectedUser.displayName || selectedUser.username}
-                  size="sm"
-                  className="w-9 h-9"
-                />
+                {selectedUser.isGroup || selectedUser.isPocket ? (
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                    selectedUser.isPocket
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
+                      : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
+                  }`}>
+                    {selectedUser.isPocket ? <HardDrive className="h-4 w-4" /> : <UsersRound className="h-4 w-4" />}
+                  </div>
+                ) : (
+                  <UserAvatar
+                    uid={selectedUser.userId}
+                    fallbackPhotoURL={selectedUser.photoURL}
+                    fallbackDisplayName={selectedUser.displayName || selectedUser.username}
+                    size="sm"
+                    className="w-9 h-9"
+                  />
+                )}
 
                 <div className="min-w-0">
                   <p className="flex items-center gap-1 text-xs font-black text-slate-900 dark:text-white">
@@ -687,21 +1058,78 @@ export const ChatPage: React.FC = () => {
                       </span>
                     )}
                   </p>
-                  <p className="text-[10px] text-slate-500 truncate">@{selectedUser.username}</p>
+                  <p className="text-[10px] text-slate-500 truncate">
+                    {selectedUser.isPocket
+                      ? (isHindi ? 'आपकी निजी जगह' : 'Only you can see these messages')
+                      : selectedUser.isGroup
+                        ? `${selectedUser.participantIds?.length || 0} ${isHindi ? 'सदस्य' : 'members'}`
+                        : `@${selectedUser.username}`}
+                  </p>
                 </div>
               </div>
 
-              <button
-                onClick={handleDeleteConversation}
-                className="p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-500 rounded-xl transition-colors cursor-pointer"
-                title={t('chat_delete_history', 'Delete Conversation History')}
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowBackgroundPicker(value => !value)}
+                  className={`rounded-xl p-2 transition-colors ${showBackgroundPicker ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1e1e1e]'}`}
+                  title={isHindi ? 'भारतीय चैट बैकग्राउंड' : 'Chat backgrounds'}
+                  aria-label={isHindi ? 'भारतीय चैट बैकग्राउंड' : 'Chat backgrounds'}
+                >
+                  <ImageIcon className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void toggleMotionDetection()}
+                  className={`rounded-xl p-2 transition-colors ${motionEnabled ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1e1e1e]'}`}
+                  title={isHindi ? 'मोशन इफेक्ट' : 'Motion effect'}
+                  aria-label={isHindi ? 'मोशन इफेक्ट' : 'Motion effect'}
+                >
+                  <Move className="h-4 w-4" />
+                </button>
+                {!selectedUser.isGroup && (
+                  <button
+                    onClick={() => void handleDeleteConversation()}
+                    className="rounded-xl p-2 text-rose-500 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    title={t('chat_delete_history', 'Delete Conversation History')}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Scrollable messages bubble board */}
-            <div className="dm-message-board flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scrollbar-none bg-[#efeae2] dark:bg-[#0b141a]">
+            {showBackgroundPicker && (
+              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 dark:border-[#222] dark:bg-[#0f0f0f]">
+                <span className="mr-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                  {isHindi ? 'भारतीय बैकग्राउंड' : 'Indian backgrounds'}
+                </span>
+                {chatBackgrounds.map(background => (
+                  <button
+                    key={background.id}
+                    type="button"
+                    onClick={() => selectChatBackground(background.id)}
+                    className={`rounded-full border px-3 py-1.5 text-[10px] font-bold transition-colors ${
+                      chatBackgroundId === background.id
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    {background.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div
+              className="dm-message-board flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scrollbar-none bg-[#efeae2] dark:bg-[#0b141a]"
+              style={chatBackgroundId !== 'default' ? {
+                backgroundImage: `linear-gradient(rgb(10 15 20 / 38%), rgb(10 15 20 / 38%)), url("${chatBackgrounds.find(background => background.id === chatBackgroundId)?.image}")`,
+                backgroundSize: 'cover',
+                backgroundPosition: `${50 + motionOffset.x}% ${50 + motionOffset.y}%`,
+                backgroundAttachment: 'local'
+              } : undefined}
+            >
               {loadingMessages && messages.length === 0 ? (
                 <div className="dm-loading-state max-w-sm mx-auto space-y-3 py-8" aria-label="Loading messages">
                   <div className="h-12 w-3/4 rounded-xl bg-white/70 dark:bg-white/10 animate-pulse" />
@@ -735,21 +1163,48 @@ export const ChatPage: React.FC = () => {
 
                       <div className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
                         <UserAvatar
-                          uid={isMine ? currentUser.uid : selectedUser.userId}
-                          fallbackPhotoURL={isMine ? currentUserProfile?.photoURL : selectedUser.photoURL}
-                          fallbackDisplayName={isMine ? (currentUserProfile?.displayName || 'Me') : selectedUser.displayName}
+                          uid={m.senderId}
+                          fallbackPhotoURL={isMine ? currentUserProfile?.photoURL : (selectedUser.isGroup ? undefined : selectedUser.photoURL)}
+                          fallbackDisplayName={isMine ? (currentUserProfile?.displayName || 'Me') : (m.senderDisplayName || selectedUser.displayName)}
                           size="xs"
                           className={`w-7 h-7 ${isMine ? 'order-2' : 'order-1'}`}
                         />
 
-                        <div className={`space-y-1 max-w-[85%] sm:max-w-[70%] ${isMine ? 'order-1' : 'order-2'}`}>
+                        <div className={`dm-message-enter relative space-y-1 max-w-[85%] sm:max-w-[70%] ${isMine ? 'order-1' : 'order-2'}`}>
+                          {selectedUser.isGroup && (
+                            <p className={`px-1 text-[9px] font-black text-slate-600 dark:text-slate-300 ${isMine ? 'text-right' : 'text-left'}`}>
+                              {isMine ? (isHindi ? 'आप' : 'You') : (m.senderDisplayName || (isHindi ? 'ग्रुप सदस्य' : 'Group member'))}
+                            </p>
+                          )}
                           <div
+                            onContextMenu={(event) => {
+                              event.preventDefault();
+                              if (!m.id.startsWith('temp_')) setMessageActionId(m.id);
+                            }}
+                            onTouchStart={() => {
+                              if (!m.id.startsWith('temp_')) startMessageLongPress(m.id);
+                            }}
+                            onTouchEnd={cancelMessageLongPress}
+                            onTouchCancel={cancelMessageLongPress}
+                            onTouchMove={cancelMessageLongPress}
                             className={`p-3 rounded-2xl text-xs font-semibold leading-relaxed shadow-xs ${
                               isMine
                                 ? 'bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-white rounded-tr-lg'
                                 : 'bg-white dark:bg-[#202c33] text-slate-900 dark:text-slate-100 border border-[#e9edef] dark:border-[#263238] rounded-tl-lg'
                             }`}
                           >
+                            {m.replyTo && (
+                              <div className="mb-2 rounded-lg border-l-2 border-blue-500 bg-black/5 dark:bg-white/10 px-2 py-1.5">
+                                <p className="text-[9px] font-black text-blue-700 dark:text-blue-300">
+                                  {m.replyTo.senderId === currentUser.uid
+                                    ? (isHindi ? 'आप' : 'You')
+                                    : selectedUser.displayName}
+                                </p>
+                                <p className="truncate text-[10px] opacity-75">
+                                  {m.replyTo.text || (m.replyTo.mediaType === 'image' ? '📷 Photo' : m.replyTo.mediaType === 'video' ? '🎥 Video' : '')}
+                                </p>
+                              </div>
+                            )}
                             {/* Media content: Image */}
                             {m.mediaUrl && m.mediaType === 'image' && (
                               <div className="mb-2 relative group overflow-hidden rounded-xl bg-black/5 dark:bg-black/30">
@@ -813,10 +1268,57 @@ export const ChatPage: React.FC = () => {
 
                           <span className={`text-[9px] text-slate-400 font-bold block ${isMine ? 'text-right' : 'text-left'}`}>
                             {formatMsgTime(m.createdAt)}
+                            {m.editedAt ? (isHindi ? ' · संशोधित' : ' · edited') : null}
                             {isMine && m.deliveryStatus ? (
                               <Loader2 className="ml-1 inline h-2.5 w-2.5 animate-spin" />
-                            ) : isMine ? (m.read ? ' ✓✓' : ' ✓') : null}
+                            ) : isMine ? (m.read && !isGroup && !isPocket ? ' ✓✓' : ' ✓') : null}
+                            {!m.id.startsWith('temp_') && (
+                              <button
+                                type="button"
+                                onClick={() => setMessageActionId(current => current === m.id ? null : m.id)}
+                                className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-500 hover:bg-black/10 dark:hover:bg-white/10"
+                                aria-label={isHindi ? 'संदेश विकल्प' : 'Message options'}
+                              >
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </span>
+                          {messageActionId === m.id && (
+                            <div className={`absolute bottom-full z-30 mb-1 flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-[#202c33] ${isMine ? 'right-0' : 'left-0'}`}>
+                              <button
+                                type="button"
+                                onClick={() => handleReplyToMessage(m)}
+                                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-white/10"
+                              >
+                                <Reply className="h-3.5 w-3.5" /> {isHindi ? 'जवाब' : 'Reply'}
+                              </button>
+                              {isMine && m.text && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditMessage(m)}
+                                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-white/10"
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" /> {isHindi ? 'बदलें' : 'Edit'}
+                                </button>
+                              )}
+                              {isMine && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteMessage(m)}
+                                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" /> {isHindi ? 'हटाएं' : 'Delete'}
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => void handleShareMessage(m)}
+                                className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-white/10"
+                              >
+                                <Share2 className="h-3.5 w-3.5" /> {isHindi ? 'शेयर' : 'Share'}
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </React.Fragment>
@@ -883,6 +1385,35 @@ export const ChatPage: React.FC = () => {
                 </div>
               )}
 
+              {(replyTo || editingMessageId) && (
+                <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border-l-2 border-blue-600 bg-blue-50 px-3 py-2 dark:bg-blue-950/30">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black text-blue-700 dark:text-blue-300">
+                      {editingMessageId
+                        ? (isHindi ? 'संदेश बदल रहे हैं' : 'Editing message')
+                        : `${isHindi ? 'जवाब' : 'Replying to'} ${replyTo?.senderId === currentUser.uid ? (isHindi ? 'आप' : 'yourself') : selectedUser.displayName}`}
+                    </p>
+                    <p className="truncate text-[11px] text-slate-600 dark:text-slate-300">
+                      {editingMessageId
+                        ? messageText
+                        : (replyTo?.text || (replyTo?.mediaType === 'image' ? '📷 Photo' : replyTo?.mediaType === 'video' ? '🎥 Video' : ''))}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplyTo(null);
+                      setEditingMessageId(null);
+                      setMessageText('');
+                    }}
+                    className="shrink-0 rounded-lg p-1 text-slate-500 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                    aria-label={isHindi ? 'बंद करें' : 'Cancel'}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
               <form onSubmit={handleSendMessage} className="flex items-center gap-2">
                 {/* Media Button */}
                 <button
@@ -919,7 +1450,11 @@ export const ChatPage: React.FC = () => {
                 <input
                   ref={textInputRef}
                   type="text"
-                  placeholder={selectedMediaFile ? (isHindi ? 'कैप्शन जोड़ें...' : 'Add a caption...') : (isHindi ? 'संदेश लिखें...' : 'Write a message...')}
+                  placeholder={editingMessageId
+                    ? (isHindi ? 'संदेश बदलें...' : 'Edit message...')
+                    : selectedMediaFile
+                      ? (isHindi ? 'कैप्शन जोड़ें...' : 'Add a caption...')
+                      : (isHindi ? 'संदेश लिखें...' : 'Write a message...')}
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   onPaste={handlePaste}
@@ -950,6 +1485,124 @@ export const ChatPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showCreateGroup && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+          onClick={() => setShowCreateGroup(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-chat-group-title"
+            className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-[#15191e]"
+            onClick={event => event.stopPropagation()}
+          >
+            <header className="flex items-center justify-between border-b border-slate-100 p-4 dark:border-slate-800">
+              <div>
+                <h2 id="create-chat-group-title" className="text-sm font-black text-slate-900 dark:text-white">
+                  {isHindi ? 'नया ग्रुप बनाएं' : 'Create a group'}
+                </h2>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {isHindi ? 'दोस्तों को जोड़कर साथ में चैट करें।' : 'Add people and start chatting together.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateGroup(false)}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10"
+                aria-label={isHindi ? 'बंद करें' : 'Close'}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+            <div className="space-y-3 overflow-y-auto p-4">
+              <input
+                value={groupName}
+                onChange={event => setGroupName(event.target.value)}
+                maxLength={80}
+                placeholder={isHindi ? 'ग्रुप का नाम' : 'Group name'}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-[#0f1216] dark:text-white"
+              />
+              <input
+                value={groupSearch}
+                onChange={event => setGroupSearch(event.target.value)}
+                placeholder={isHindi ? 'यूज़र खोजें...' : 'Search people to add...'}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-[#0f1216] dark:text-white"
+              />
+              {selectedGroupMembers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedGroupMembers.map(member => (
+                    <button
+                      key={member.uid}
+                      type="button"
+                      onClick={() => toggleGroupMember(member)}
+                      className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                    >
+                      {member.displayName || member.username}
+                      <X className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="max-h-56 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-100 dark:divide-slate-800 dark:border-slate-800">
+                {groupSearch.trim().length < 2 ? (
+                  <p className="p-4 text-center text-[11px] text-slate-500">
+                    {isHindi ? 'खोजने के लिए कम से कम 2 अक्षर लिखें।' : 'Type at least 2 characters to search.'}
+                  </p>
+                ) : groupResults.length === 0 ? (
+                  <p className="p-4 text-center text-[11px] text-slate-500">
+                    {isHindi ? 'कोई यूज़र नहीं मिला।' : 'No people found.'}
+                  </p>
+                ) : groupResults.map(member => {
+                  const isSelected = selectedGroupMembers.some(item => item.uid === member.uid);
+                  return (
+                    <button
+                      key={member.uid}
+                      type="button"
+                      onClick={() => toggleGroupMember(member)}
+                      className="flex w-full items-center gap-3 p-3 text-left hover:bg-slate-50 dark:hover:bg-white/5"
+                    >
+                      <UserAvatar
+                        uid={member.uid}
+                        fallbackPhotoURL={member.photoURL}
+                        fallbackDisplayName={member.displayName || member.username}
+                        size="xs"
+                        className="h-8 w-8"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-bold text-slate-900 dark:text-white">{member.displayName || member.username}</span>
+                        <span className="block truncate text-[10px] text-slate-500">@{member.username}</span>
+                      </span>
+                      <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-black ${isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 text-transparent dark:border-slate-600'}`}>
+                        ✓
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-slate-100 p-4 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowCreateGroup(false)}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+              >
+                {isHindi ? 'रद्द करें' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCreateGroup()}
+                disabled={!groupName.trim() || selectedGroupMembers.length === 0 || isCreatingGroup}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isCreatingGroup && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {isHindi ? 'ग्रुप बनाएं' : 'Create group'}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       {/* Fullscreen Image Lightbox Modal */}
       {fullscreenImage && (

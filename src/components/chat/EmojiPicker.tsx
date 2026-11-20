@@ -340,8 +340,8 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelectEmoji, onClose
   return (
     <div
       ref={pickerRef}
-      className="absolute bottom-full left-0 mb-3 z-50 w-80 sm:w-88 bg-white dark:bg-[#161618] border border-slate-200 dark:border-[#2a2a2e] rounded-3xl shadow-2xl overflow-hidden flex flex-col text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-150"
-      style={{ maxHeight: '380px' }}
+      className="absolute bottom-full left-0 mb-3 z-50 w-[min(22rem,calc(100vw-2rem))] bg-white dark:bg-[#161618] border border-slate-200 dark:border-[#2a2a2e] rounded-3xl shadow-2xl overflow-hidden flex flex-col text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95 duration-150"
+      style={{ maxHeight: 'min(380px, 60dvh)' }}
     >
       {/* Search Header */}
       <div className="p-3 border-b border-slate-100 dark:border-[#222] flex items-center gap-2">

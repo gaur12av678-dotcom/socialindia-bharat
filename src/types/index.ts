@@ -262,6 +262,7 @@ export interface Notification {
   videoId?: string;
   videoTitle?: string;
   commentId?: string;
+  title?: string;
   message: string;
   read: boolean;
   createdAt: any;
@@ -386,12 +387,21 @@ export interface ChatMessage {
   id: string;
   senderId: string;
   receiverId: string;
+  groupId?: string;
+  senderDisplayName?: string;
   text: string;
   mediaUrl?: string;
   mediaType?: 'image' | 'video';
+  replyTo?: {
+    messageId: string;
+    senderId: string;
+    text: string;
+    mediaType?: 'image' | 'video';
+  };
   deliveryStatus?: 'uploading' | 'sending';
   uploadProgress?: number;
   createdAt: any;
+  editedAt?: string;
   read: boolean;
 }
 
@@ -401,6 +411,9 @@ export interface ChatSession {
   username: string;
   photoURL?: string;
   isVerified?: boolean;
+  isGroup?: boolean;
+  isPocket?: boolean;
+  participantIds?: string[];
   lastMessage?: string;
   lastMessageTime?: any;
   unreadCount: number;

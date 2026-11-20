@@ -22,22 +22,25 @@ export const notificationService = {
   ): Promise<void> {
     if (recipientId === actor.uid) return; // Never notify user about their own actions
 
+    const actorIsAdmin = actor.role === 'admin';
+    const actorDisplayName = actorIsAdmin ? 'Team SocialIndia' : actor.displayName;
+    const actorUsername = actorIsAdmin ? 'team_socialindia' : actor.username;
     const notificationId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     const now = new Date().toISOString();
 
     let message = '';
     switch (type) {
       case 'like':
-        message = `${actor.displayName} liked your video "${details.videoTitle || 'Untitled'}"`;
+        message = `${actorDisplayName} liked your video "${details.videoTitle || 'Untitled'}"`;
         break;
       case 'comment':
-        message = `${actor.displayName} commented on your video: "${details.message || ''}"`;
+        message = `${actorDisplayName} commented on your video: "${details.message || ''}"`;
         break;
       case 'follow':
-        message = `${actor.displayName} started following your channel`;
+        message = `${actorDisplayName} started following your channel`;
         break;
       case 'upload':
-        message = `${actor.displayName} published a new video: "${details.videoTitle || 'Untitled'}"`;
+        message = `${actorDisplayName} published a new video: "${details.videoTitle || 'Untitled'}"`;
         break;
     }
 
@@ -45,8 +48,8 @@ export const notificationService = {
       notificationId,
       recipientId,
       actorId: actor.uid,
-      actorUsername: actor.username,
-      actorDisplayName: actor.displayName,
+      actorUsername,
+      actorDisplayName,
       actorPhotoURL: actor.photoURL || '',
       type,
       videoId: details.videoId || '',
@@ -74,10 +77,11 @@ export const notificationService = {
       notificationId,
       recipientId,
       actorId: 'system',
-      actorUsername: 'SocialIndia',
-      actorDisplayName: title || 'SocialIndia System',
+      actorUsername: 'team_socialindia',
+      actorDisplayName: 'Team SocialIndia',
       actorPhotoURL: '',
       type: 'system',
+      title: title || undefined,
       message,
       read: false,
       createdAt: now,

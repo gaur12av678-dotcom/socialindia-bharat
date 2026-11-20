@@ -9,6 +9,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  updateDoc,
   setDoc,
   writeBatch,
   Timestamp 
@@ -170,12 +171,28 @@ export const chatService = {
     currentUserId: string,
     callback: (sessions: ChatSession[]) => void
   ) {
+    let directSessions: ChatSession[] = this.getCachedSessions(currentUserId);
+    let groupSessions: ChatSession[] = [];
+    const publishSessions = () => {
+      const merged = [...directSessions, ...groupSessions].sort((a, b) => {
+        if (a.lastMessageTime && b.lastMessageTime) {
+          return new Date(b.lastMessageTime).getTime() -
+            new Date(a.lastMessageTime).getTime();
+        }
+        if (a.lastMessageTime) return -1;
+        if (b.lastMessageTime) return 1;
+        return a.displayName.localeCompare(b.displayName);
+      });
+      this.setCachedSessions(currentUserId, merged);
+      callback(merged);
+    };
+
     const conversationsQuery = query(
       collection(db, 'conversations'),
       where('participants', 'array-contains', currentUserId)
     );
 
-    return onSnapshot(
+    const unsubscribeConversations = onSnapshot(
       conversationsQuery,
       async snapshot => {
         try {
@@ -225,28 +242,262 @@ export const chatService = {
             }
           });
 
-          const sorted = [...merged.values()].sort((a, b) => {
-            if (a.lastMessageTime && b.lastMessageTime) {
-              return new Date(b.lastMessageTime).getTime() -
-                new Date(a.lastMessageTime).getTime();
-            }
-            if (a.lastMessageTime) return -1;
-            if (b.lastMessageTime) return 1;
-            return a.displayName.localeCompare(b.displayName);
-          });
-
-          this.setCachedSessions(currentUserId, sorted);
-          callback(sorted);
+          directSessions = [...merged.values()];
+          publishSessions();
         } catch (error) {
           console.error('Conversation listener processing failed:', error);
-          callback(this.getCachedSessions(currentUserId));
+          directSessions = this.getCachedSessions(currentUserId).filter(session => !session.isGroup && !session.isPocket);
+          publishSessions();
         }
       },
       error => {
         console.error('Conversation listener failed:', error);
-        callback(this.getCachedSessions(currentUserId));
+        directSessions = this.getCachedSessions(currentUserId).filter(session => !session.isGroup && !session.isPocket);
+        publishSessions();
       }
     );
+
+    const groupsQuery = query(
+      collection(db, 'groupChats'),
+      where('participants', 'array-contains', currentUserId)
+    );
+    const unsubscribeGroups = onSnapshot(
+      groupsQuery,
+      async snapshot => {
+        try {
+          groupSessions = snapshot.docs.map(groupDoc => {
+            const data = groupDoc.data();
+            const lastMessageTime = data.lastMessageAt?.toDate
+              ? data.lastMessageAt.toDate().toISOString()
+              : undefined;
+            return {
+              userId: groupDoc.id,
+              displayName: data.name || 'Group',
+              username: 'group',
+              photoURL: data.photoURL || undefined,
+              isGroup: true,
+              participantIds: Array.isArray(data.participants) ? data.participants : [],
+              lastMessage: data.lastMessage || undefined,
+              lastMessageTime,
+              unreadCount: 0
+            };
+          });
+          publishSessions();
+        } catch (error) {
+          console.error('Group conversation listener processing failed:', error);
+        }
+      },
+      error => {
+        console.error('Group conversation listener failed:', error);
+      }
+    );
+
+    return () => {
+      unsubscribeConversations();
+      unsubscribeGroups();
+    };
+  },
+
+  async createGroup(currentUserId: string, name: string, memberIds: string[]): Promise<ChatSession> {
+    const cleanName = name.trim();
+    const participants = [...new Set([currentUserId, ...memberIds])];
+    if (!cleanName) throw new Error('Group name cannot be empty.');
+    if (participants.length < 2) throw new Error('Choose at least one other member.');
+
+    const groupRef = doc(collection(db, 'groupChats'));
+    await setDoc(groupRef, {
+      name: cleanName,
+      createdBy: currentUserId,
+      participants,
+      lastMessage: '',
+      lastMessageAt: null,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now()
+    });
+
+    return {
+      userId: groupRef.id,
+      displayName: cleanName,
+      username: 'group',
+      isGroup: true,
+      participantIds: participants,
+      unreadCount: 0
+    };
+  },
+
+  listenToGroupMessages(groupId: string, callback: (messages: ChatMessage[]) => void, cacheOwnerId: string) {
+    const messagesQuery = query(
+      collection(db, 'groupChats', groupId, 'messages'),
+      orderBy('createdAt', 'asc')
+    );
+    return onSnapshot(
+      messagesQuery,
+      snapshot => {
+        callback(snapshot.docs.map(messageDoc => {
+          const data = messageDoc.data();
+          return {
+            id: messageDoc.id,
+            senderId: data.senderId,
+            senderDisplayName: data.senderDisplayName || '',
+            receiverId: groupId,
+            groupId,
+            text: data.text || '',
+            mediaUrl: data.mediaUrl || undefined,
+            mediaType: data.mediaType || undefined,
+            replyTo: data.replyTo || undefined,
+            createdAt: data.createdAt?.toDate
+              ? data.createdAt.toDate().toISOString()
+              : data.createdAt || new Date().toISOString(),
+            editedAt: data.editedAt?.toDate
+              ? data.editedAt.toDate().toISOString()
+              : data.editedAt || undefined,
+            read: false
+          } as ChatMessage;
+        }));
+      },
+      error => {
+        console.error(`Group message listener failed for ${groupId}:`, error);
+        callback(this.getCachedMessages(cacheOwnerId, groupId));
+      }
+    );
+  },
+
+  async sendGroupMessage(
+    groupId: string,
+    senderId: string,
+    senderDisplayName: string,
+    text: string,
+    mediaUrl?: string,
+    mediaType?: 'image' | 'video',
+    replyTo?: ChatMessage['replyTo']
+  ): Promise<string> {
+    const trimmedText = text.trim();
+    if (!trimmedText && !mediaUrl) return '';
+    const messagesRef = collection(db, 'groupChats', groupId, 'messages');
+    const payload: Record<string, unknown> = {
+      senderId,
+      senderDisplayName,
+      text: trimmedText,
+      createdAt: Timestamp.now()
+    };
+    if (mediaUrl) payload.mediaUrl = mediaUrl;
+    if (mediaType) payload.mediaType = mediaType;
+    if (replyTo) payload.replyTo = replyTo;
+
+    const messageRef = await addDoc(messagesRef, payload);
+    try {
+      await updateDoc(doc(db, 'groupChats', groupId), {
+        lastMessage: trimmedText || (mediaType === 'image' ? '📷 Photo' : '🎥 Video'),
+        lastMessageAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+    } catch (error) {
+      console.error('Group message sent, but group preview update failed:', error);
+    }
+    return messageRef.id;
+  },
+
+  listenToPocketMessages(userId: string, callback: (messages: ChatMessage[]) => void) {
+    const messagesQuery = query(
+      collection(db, 'users', userId, 'pocketMessages'),
+      orderBy('createdAt', 'asc')
+    );
+    return onSnapshot(
+      messagesQuery,
+      snapshot => {
+        callback(snapshot.docs.map(messageDoc => {
+          const data = messageDoc.data();
+          return {
+            id: messageDoc.id,
+            senderId: userId,
+            receiverId: userId,
+            text: data.text || '',
+            mediaUrl: data.mediaUrl || undefined,
+            mediaType: data.mediaType || undefined,
+            replyTo: data.replyTo || undefined,
+            createdAt: data.createdAt?.toDate
+              ? data.createdAt.toDate().toISOString()
+              : data.createdAt || new Date().toISOString(),
+            editedAt: data.editedAt?.toDate
+              ? data.editedAt.toDate().toISOString()
+              : data.editedAt || undefined,
+            read: true
+          } as ChatMessage;
+        }));
+      },
+      error => {
+        console.error('Pocket message listener failed:', error);
+        callback(this.getCachedMessages(userId, `pocket_${userId}`));
+      }
+    );
+  },
+
+  async sendPocketMessage(
+    userId: string,
+    text: string,
+    mediaUrl?: string,
+    mediaType?: 'image' | 'video',
+    replyTo?: ChatMessage['replyTo']
+  ): Promise<string> {
+    const trimmedText = text.trim();
+    if (!trimmedText && !mediaUrl) return '';
+    const payload: Record<string, unknown> = {
+      text: trimmedText,
+      createdAt: Timestamp.now()
+    };
+    if (mediaUrl) payload.mediaUrl = mediaUrl;
+    if (mediaType) payload.mediaType = mediaType;
+    if (replyTo) payload.replyTo = replyTo;
+
+    const messageRef = await addDoc(collection(db, 'users', userId, 'pocketMessages'), payload);
+    return messageRef.id;
+  },
+
+  async editGroupMessage(groupId: string, messageId: string, senderId: string, text: string): Promise<string> {
+    const trimmedText = text.trim();
+    if (!trimmedText) throw new Error('Message text cannot be empty.');
+    const messageRef = doc(db, 'groupChats', groupId, 'messages', messageId);
+    const snapshot = await getDoc(messageRef);
+    if (!snapshot.exists() || snapshot.data().senderId !== senderId) {
+      throw new Error('You can only edit your own messages.');
+    }
+    const editedAt = Timestamp.now();
+    await updateDoc(messageRef, { text: trimmedText, editedAt });
+    return editedAt.toDate().toISOString();
+  },
+
+  async deleteGroupMessage(groupId: string, messageId: string, senderId: string): Promise<void> {
+    const messageRef = doc(db, 'groupChats', groupId, 'messages', messageId);
+    const snapshot = await getDoc(messageRef);
+    if (!snapshot.exists() || snapshot.data().senderId !== senderId) {
+      throw new Error('You can only delete your own messages.');
+    }
+    await deleteDoc(messageRef);
+  },
+
+  async editPocketMessage(userId: string, messageId: string, text: string): Promise<string> {
+    const trimmedText = text.trim();
+    if (!trimmedText) throw new Error('Message text cannot be empty.');
+    const editedAt = Timestamp.now();
+    await updateDoc(doc(db, 'users', userId, 'pocketMessages', messageId), {
+      text: trimmedText,
+      editedAt
+    });
+    return editedAt.toDate().toISOString();
+  },
+
+  async deletePocketMessage(userId: string, messageId: string): Promise<void> {
+    await deleteDoc(doc(db, 'users', userId, 'pocketMessages', messageId));
+  },
+
+  async clearPocket(userId: string): Promise<void> {
+    const snapshot = await getDocs(collection(db, 'users', userId, 'pocketMessages'));
+    for (let i = 0; i < snapshot.docs.length; i += 450) {
+      const batch = writeBatch(db);
+      snapshot.docs.slice(i, i + 450).forEach(messageDoc => batch.delete(messageDoc.ref));
+      await batch.commit();
+    }
+    this.setCachedMessages(userId, `pocket_${userId}`, []);
   },
 
   // Send a direct chat message (with optional media attachment)
@@ -255,7 +506,8 @@ export const chatService = {
     receiverId: string, 
     text: string,
     mediaUrl?: string,
-    mediaType?: 'image' | 'video'
+    mediaType?: 'image' | 'video',
+    replyTo?: ChatMessage['replyTo']
   ): Promise<string> {
     const trimmedText = text.trim();
     if (!trimmedText && !mediaUrl) return '';
@@ -267,6 +519,7 @@ export const chatService = {
       text: trimmedText,
       mediaUrl: mediaUrl || undefined,
       mediaType: mediaType || undefined,
+      replyTo: replyTo || undefined,
       createdAt: new Date().toISOString(),
       read: false
     };
@@ -282,6 +535,7 @@ export const chatService = {
 
     if (mediaUrl) docPayload.mediaUrl = mediaUrl;
     if (mediaType) docPayload.mediaType = mediaType;
+    if (replyTo) docPayload.replyTo = replyTo;
 
     try {
       const docRef = await addDoc(messagesCol, docPayload);
@@ -327,6 +581,7 @@ export const chatService = {
   listenToMessages(userA: string, userB: string, callback: (messages: ChatMessage[]) => void) {
     const messagesCol = collection(db, 'chats');
     const messagesByPair = new Map<string, ChatMessage[]>();
+    const serverSyncedPairs = new Set<string>();
 
     const publishMessages = () => {
       const merged = [...messagesByPair.values()]
@@ -356,7 +611,10 @@ export const chatService = {
 
       return onSnapshot(
         q,
+        { includeMetadataChanges: true },
         snapshot => {
+          if (snapshot.metadata.fromCache) return;
+
           const matchingDocs = snapshot.docs.filter(
             d => d.data().receiverId === receiverId
           );
@@ -376,13 +634,18 @@ export const chatService = {
                 text: data.text || '',
                 mediaUrl: data.mediaUrl || undefined,
                 mediaType: data.mediaType || undefined,
+                replyTo: data.replyTo || undefined,
                 createdAt,
+                editedAt: data.editedAt?.toDate
+                  ? data.editedAt.toDate().toISOString()
+                  : data.editedAt || undefined,
                 read: Boolean(data.read)
               } as ChatMessage;
             })
           );
 
-          publishMessages();
+          serverSyncedPairs.add(pairKey);
+          if (serverSyncedPairs.size === 2) publishMessages();
         },
         error => {
           console.error(`Chat listener failed for ${pairKey}:`, error);
@@ -511,6 +774,30 @@ export const chatService = {
 
     this.setCachedSessions(currentUserId, sorted);
     return sorted;
+  },
+
+  async editMessage(messageId: string, senderId: string, text: string): Promise<string> {
+    const trimmedText = text.trim();
+    if (!trimmedText) throw new Error('Message text cannot be empty.');
+
+    const messageRef = doc(db, 'chats', messageId);
+    const messageSnapshot = await getDoc(messageRef);
+    if (!messageSnapshot.exists() || messageSnapshot.data().senderId !== senderId) {
+      throw new Error('You can only edit your own messages.');
+    }
+
+    const editedAt = Timestamp.now();
+    await updateDoc(messageRef, { text: trimmedText, editedAt });
+    return editedAt.toDate().toISOString();
+  },
+
+  async deleteMessage(messageId: string, senderId: string): Promise<void> {
+    const messageRef = doc(db, 'chats', messageId);
+    const messageSnapshot = await getDoc(messageRef);
+    if (!messageSnapshot.exists() || messageSnapshot.data().senderId !== senderId) {
+      throw new Error('You can only delete your own messages.');
+    }
+    await deleteDoc(messageRef);
   },
 
   // Delete only messages exchanged between the selected two users.

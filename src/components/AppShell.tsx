@@ -820,7 +820,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {activeUid && (
                 <div ref={notifRef} className="relative">
                   <button
-                    onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
+                    onClick={() => {
+                      const opening = !notifDropdownOpen;
+                      setNotifDropdownOpen(opening);
+                      if (opening && unreadCount > 0) void markNotificationsAsRead();
+                    }}
                     className={`p-2 rounded-xl transition-colors cursor-pointer relative ${
                       isShortsPage
                         ? 'hover:bg-white/10 text-white'
@@ -837,7 +841,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   </button>
 
                   {notifDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-2xl z-50 overflow-hidden">
+                    <div className="absolute right-0 top-full mt-2 w-[min(22rem,calc(100vw-1rem))] max-h-[min(75dvh,34rem)] bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col">
                       <div className="p-4 border-b border-slate-100 dark:border-[#334155] flex items-center justify-between">
                         <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-slate-100">{t('notifications', 'Notifications')}</span>
                         {unreadCount > 0 && (
@@ -850,7 +854,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                           </button>
                         )}
                       </div>
-                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                      <div className="min-h-0 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                         {notifications.length === 0 ? (
                           <div className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">
                             {t('no_notifications', 'No notifications yet.')}
@@ -867,12 +871,18 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                             >
                               <UserAvatar 
                                 fallbackPhotoURL={n.actorPhotoURL}
-                                fallbackDisplayName={n.actorDisplayName || n.actorUsername}
+                                fallbackDisplayName={n.type === 'system' ? 'Team SocialIndia' : (n.actorDisplayName || n.actorUsername)}
                                 size="xs"
                                 className="w-8 h-8 rounded-full shrink-0"
                               />
                               <div className="flex-1 min-w-0">
-                                <p className="text-xs text-slate-800 dark:text-slate-200 font-medium leading-normal">{n.message}</p>
+                                <p className="text-[11px] font-extrabold text-slate-900 dark:text-slate-100 truncate">
+                                  {n.type === 'system' ? 'Team SocialIndia' : (n.actorDisplayName || n.actorUsername || 'SocialIndia')}
+                                </p>
+                                {(n.title || (n.type === 'system' && n.actorDisplayName !== 'Team SocialIndia' && n.actorDisplayName !== 'SocialIndia System' ? n.actorDisplayName : '')) && (
+                                  <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mt-0.5">{n.title || n.actorDisplayName}</p>
+                                )}
+                                <p className="text-xs text-slate-700 dark:text-slate-200 font-medium leading-normal mt-0.5 break-words">{n.message}</p>
                                 <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1">{new Date(n.createdAt).toLocaleDateString()}</span>
                               </div>
                             </div>

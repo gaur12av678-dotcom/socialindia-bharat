@@ -652,8 +652,30 @@ button.si-upload-select-btn :is(span, svg, i) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dm-loading-state > div {
+  .dm-loading-state > div,
+  .dm-message-enter,
+  .dm-message-board {
     animation: none;
+    transition: none;
+  }
+}
+
+.dm-message-board {
+  transition: background-position 180ms ease-out;
+}
+
+.dm-message-enter {
+  animation: dm-message-arrive 180ms ease-out both;
+}
+
+@keyframes dm-message-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(7px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
