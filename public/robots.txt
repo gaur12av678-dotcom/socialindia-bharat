@@ -4,27 +4,20 @@ Disallow: /admin
 Disallow: /settings
 Disallow: /history
 Disallow: /liked
+Disallow: /liked-videos
 Disallow: /saved
+Disallow: /playlists
+Disallow: /subscriptions
+Disallow: /upload
+Disallow: /feedback
+Disallow: /profile-menu
 Disallow: /chat
+Disallow: /messages
 Disallow: /login
 Disallow: /signin
 Disallow: /signup
 Disallow: /register
-Disallow: /forgot-password
-Disallow: /reset-password
-
-User-agent: Googlebot
-Allow: /
-Disallow: /admin
-Disallow: /settings
-Disallow: /history
-Disallow: /liked
-Disallow: /saved
-Disallow: /chat
-Disallow: /login
-Disallow: /signin
-Disallow: /signup
-Disallow: /register
+Disallow: /create-account
 Disallow: /forgot-password
 Disallow: /reset-password
 

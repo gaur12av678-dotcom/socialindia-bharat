@@ -4,6 +4,13 @@ import { AppShell } from './components/AppShell';
 import { useRouter } from './hooks/useRouter';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AndroidOAuthBridge } from './components/AndroidOAuthBridge';
+import {
+  ROUTE_SEO_META,
+  SITE_URL,
+  DEFAULT_TITLE,
+  DEFAULT_DESCRIPTION,
+  applySeoMetadata,
+} from './utils/seo';
 
 // Eager Home for 0ms YouTube-style initial boot
 import { Home } from './pages/Home';
@@ -143,85 +150,54 @@ function MainAppContent() {
     }
   }, [route.path, route.param]);
 
-  // Dynamically sync Canonical link, robots tag, and Title for Googlebot and SEO crawlers
+  // Dynamically sync Canonical link, robots tag, description, OG/Twitter tags, and Title
   useEffect(() => {
     try {
       const isRemovedSample =
         route.path === 'watch' &&
         (route.param === 'sample-short-1' || route.param === 'sample-short-2');
-      const canonicalPath =
-        route.path === 'ad-info' || route.path === 'ad' ? 'adinfo' : route.path;
-      const canonicalHref = isRemovedSample || route.path === 'home'
-        ? 'https://socialindia.web.app/'
-        : `https://socialindia.web.app/${canonicalPath}${route.param ? `/${route.param}` : ''}`;
-      
-      let linkCanonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-      if (!linkCanonical) {
-        linkCanonical = document.createElement('link');
-        linkCanonical.setAttribute('rel', 'canonical');
-        document.head.appendChild(linkCanonical);
-      }
-      linkCanonical.setAttribute('href', canonicalHref);
 
-      let ogUrl = document.querySelector('meta[property="og:url"]') as HTMLMetaElement | null;
-      if (!ogUrl) {
-        ogUrl = document.createElement('meta');
-        ogUrl.setAttribute('property', 'og:url');
-        document.head.appendChild(ogUrl);
-      }
-      ogUrl.setAttribute('content', canonicalHref);
-
-      // Protect private/authenticated pages and removed samples from indexing
-      const privateRoutes = ['admin', 'settings', 'history', 'saved', 'liked', 'liked-videos', 'chat', 'login', 'signin', 'signup', 'register', 'forgot-password', 'reset-password'];
-      let robotsMeta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
-      if (!robotsMeta) {
-        robotsMeta = document.createElement('meta');
-        robotsMeta.setAttribute('name', 'robots');
-        document.head.appendChild(robotsMeta);
-      }
-      if (privateRoutes.includes(route.path) || isRemovedSample) {
-        robotsMeta.setAttribute('content', 'noindex, nofollow');
-      } else {
-        robotsMeta.setAttribute('content', 'index, follow');
+      if (isRemovedSample) {
+        applySeoMetadata({
+          title: 'Video Removed – SocialIndia',
+          description: 'This sample video is no longer available on SocialIndia.',
+          canonicalUrl: `${SITE_URL}/`,
+          noIndex: true,
+        });
+        return;
       }
 
-      // Dynamic page titles for standard routes
-      const routeTitles: Record<string, string> = {
-        home: 'SocialIndia (Social India) – India’s Video, Shorts & Community Platform',
-        trending: 'Trending Videos & Posts – SocialIndia',
-        explore: 'Community & Discussions – SocialIndia',
-        community: 'Community & Discussions – SocialIndia',
-        about: 'About SocialIndia – Built by Bharat.',
-        terms: 'Terms of Service – SocialIndia',
-        privacy: 'Privacy Policy – SocialIndia',
-        faq: 'Frequently Asked Questions – SocialIndia',
-        contact: 'Contact Us – SocialIndia',
-        grievance: 'Grievance Redressal & Support – SocialIndia',
-        advertising: 'SocialIndia Advertising – Promote Your Brand',
-        adinfo: 'Ad Transparency Center – SocialIndia',
-        'ad-info': 'Ad Transparency Center – SocialIndia',
-        ad: 'Ad Transparency Center – SocialIndia',
-        gopro: 'SocialIndia Pro – Premium Creator Tools',
-        downloads: 'Download Mobile App – SocialIndia',
-        developers: 'Developer Portal – SocialIndia API',
-        guidelines: 'Community Guidelines – SocialIndia',
-        shorts: 'Trending Shorts – Watch Short Videos on SocialIndia',
-        search: 'Search Videos & Creators – SocialIndia',
-        help: 'Help Center & Tutorials – SocialIndia',
-        refund: 'Refund & Cancellation Policy – SocialIndia',
-        studio: 'Creator Studio – SocialIndia',
-        playlists: 'My Playlists – SocialIndia',
-        admin: 'Super Admin Workspace – SocialIndia',
-      };
-
-      const nextTitle = isRemovedSample ? 'Video Removed – SocialIndia' : routeTitles[route.path];
-      if (nextTitle) {
-        document.title = nextTitle;
-        const ogTitle = document.querySelector('meta[property="og:title"]') as HTMLMetaElement | null;
-        if (ogTitle) ogTitle.setAttribute('content', nextTitle);
-        const twTitle = document.querySelector('meta[name="twitter:title"]') as HTMLMetaElement | null;
-        if (twTitle) twTitle.setAttribute('content', nextTitle);
+      const routeMeta = ROUTE_SEO_META[route.path];
+      let canonicalUrl = `${SITE_URL}/`;
+      if (route.path === 'creator' && route.param) {
+        canonicalUrl = `${SITE_URL}/@${encodeURIComponent(route.param)}`;
+      } else if ((route.path === 'watch' || route.path === 'shorts') && route.param) {
+        canonicalUrl = `${SITE_URL}/${route.path}/${encodeURIComponent(route.param)}`;
+      } else if (routeMeta) {
+        canonicalUrl = routeMeta.canonicalPath
+          ? `${SITE_URL}/${routeMeta.canonicalPath}`
+          : `${SITE_URL}/`;
       }
+
+      if (route.path === 'watch' || route.path === 'shorts' || route.path === 'creator') {
+        const fallbackTitle = routeMeta?.title || DEFAULT_TITLE;
+        const fallbackDescription = routeMeta?.description || DEFAULT_DESCRIPTION;
+        applySeoMetadata({
+          title: fallbackTitle,
+          description: fallbackDescription,
+          canonicalUrl,
+          ogType: route.path === 'watch' || (route.path === 'shorts' && route.param) ? 'video.other' : 'website',
+          noIndex: route.path === 'creator' && !route.param,
+        });
+        return;
+      }
+
+      applySeoMetadata({
+        title: routeMeta?.title || DEFAULT_TITLE,
+        description: routeMeta?.description || DEFAULT_DESCRIPTION,
+        canonicalUrl,
+        noIndex: Boolean(routeMeta?.noIndex),
+      });
     } catch {}
   }, [route.path, route.param]);
 

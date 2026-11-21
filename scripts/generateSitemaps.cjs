@@ -3,7 +3,10 @@ const path = require('path');
 
 function escapeXml(unsafe) {
   if (!unsafe) return '';
-  return String(unsafe)
+  const wellFormed = typeof String.prototype.toWellFormed === 'function'
+    ? String(unsafe).toWellFormed()
+    : String(unsafe);
+  return wellFormed
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\u2060\uFFFD]/g, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -12,15 +15,19 @@ function escapeXml(unsafe) {
     .replace(/'/g, '&apos;');
 }
 
+function cleanText(str) {
+  return String(str || '').replace(/\s+/g, ' ').trim();
+}
+
 function cleanIsoDate(dateStr) {
-  if (!dateStr) return new Date().toISOString().split('T')[0];
+  if (!dateStr) return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   try {
     const d = new Date(dateStr);
     if (!isNaN(d.getTime())) {
-      return d.toISOString();
+      return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
     }
   } catch (_) {}
-  return new Date().toISOString().split('T')[0];
+  return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
 const todayDate = new Date().toISOString().split('T')[0];
@@ -106,9 +113,9 @@ let videoSitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
 for (const v of videos) {
   if (!v.videoId || !v.videoUrl) continue;
   const watchUrl = v.isShort ? `https://socialindia.web.app/shorts/${v.videoId}` : `https://socialindia.web.app/watch/${v.videoId}`;
-  const title = escapeXml((v.title || 'SocialIndia Video').slice(0, 100));
-  const desc = escapeXml((v.description || 'Watch on SocialIndia video platform.').slice(0, 2040));
-  const thumb = escapeXml(v.thumbnailUrl || 'https://socialindia.web.app/icon-512.png');
+  const title = escapeXml((cleanText(v.title) || 'SocialIndia Video').slice(0, 100));
+  const desc = escapeXml((cleanText(v.description) || 'Watch videos and explore Clips on SocialIndia, India’s own social media platform.').slice(0, 2040));
+  const thumb = escapeXml(v.thumbnailUrl || 'https://socialindia.web.app/socialindia-logo.png');
   const contentLoc = escapeXml(v.videoUrl);
   const duration = Math.min(Math.max(Number(v.duration) || 30, 1), 28800);
   const pubDate = cleanIsoDate(v.createdAt);

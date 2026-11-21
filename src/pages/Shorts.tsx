@@ -14,6 +14,13 @@ import { parseVideoUrl, getInitials, formatTimeAgo, formatViews } from '../utils
 import { isUserVerified } from '../utils/userUtils';
 import { UserAvatar } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
+import {
+  SITE_URL,
+  DEFAULT_TITLE,
+  DEFAULT_DESCRIPTION,
+  applySeoMetadata,
+  truncateSeoDescription,
+} from '../utils/seo';
 import { 
   Heart, 
   MessageSquare, 
@@ -673,16 +680,43 @@ export const Shorts: React.FC = () => {
 
   const activeShort = shorts[currentIndex];
 
-  // Sync document title with active short like YouTube Shorts
+  // Sync document title and social/SEO metadata with active Clip
   useEffect(() => {
     if (activeShort?.title) {
       const creatorPart = activeShort.creatorDisplayName ? ` - ${activeShort.creatorDisplayName}` : '';
-      document.title = `${activeShort.title}${creatorPart} | Clips - SocialIndia`;
+      const pageTitle = `${activeShort.title}${creatorPart} | Clips - SocialIndia`;
+      const canonicalUrl = targetShortId || activeShort.videoId
+        ? `${SITE_URL}/shorts/${encodeURIComponent(targetShortId || activeShort.videoId)}`
+        : `${SITE_URL}/shorts`;
+      applySeoMetadata({
+        title: pageTitle,
+        description: truncateSeoDescription(
+          activeShort.description,
+          `Watch "${activeShort.title}" Clips on SocialIndia, India’s own social media and video platform.`
+        ),
+        canonicalUrl,
+        image: activeShort.thumbnailUrl || undefined,
+        imageAlt: activeShort.title,
+        ogType: 'video.other',
+        noIndex: activeShort.visibility === 'private' || activeShort.visibility === 'unlisted',
+      });
     }
     return () => {
-      document.title = 'SocialIndia – Connect, Share, Discover & Explore';
+      applySeoMetadata({
+        title: DEFAULT_TITLE,
+        description: DEFAULT_DESCRIPTION,
+        canonicalUrl: `${SITE_URL}/`,
+      });
     };
-  }, [activeShort?.title, activeShort?.creatorDisplayName]);
+  }, [
+    targetShortId,
+    activeShort?.videoId,
+    activeShort?.title,
+    activeShort?.creatorDisplayName,
+    activeShort?.description,
+    activeShort?.thumbnailUrl,
+    activeShort?.visibility,
+  ]);
 
   const isShortOwner = currentUser?.uid === activeShort?.creatorId;
   const isShortAdmin = currentUserProfile?.role === 'admin';

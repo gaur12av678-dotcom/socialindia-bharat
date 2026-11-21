@@ -1,6 +1,6 @@
 {
   "name": "SocialIndia",
-  "description": "SocialIndia is the official Indian video and community platform. Watch trending videos, viral shorts, share community posts, and discover creators across Bharat.",
+  "description": "SocialIndia is India’s own social media platform. Watch videos, explore Clips, discover creators, share photos and videos, and connect and chat with people.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

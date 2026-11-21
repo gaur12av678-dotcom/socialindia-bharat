@@ -16,6 +16,13 @@ import { compressBanner, compressAvatar } from '../utils/imageUtils';
 import { UserAvatar, updateUserAvatarCache } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
 import { isUserVerified } from '../utils/userUtils';
+import {
+  SITE_URL,
+  DEFAULT_TITLE,
+  DEFAULT_DESCRIPTION,
+  applySeoMetadata,
+  truncateSeoDescription,
+} from '../utils/seo';
 import { 
   Video as VideoIcon, 
   Film, 
@@ -259,16 +266,35 @@ export const CreatorProfile: React.FC = () => {
     }
   }, [creator?.country, currentUserProfile?.country]);
 
-  // Update document title for Creator Channel page like YouTube (e.g., "Creator Name (@username) - SocialIndia")
+  // Update document title and social/SEO metadata for Creator Channel page
   useEffect(() => {
     if (creator?.displayName || creator?.username) {
+      const name = creator.displayName || creator.username;
       const handlePart = creator.username ? ` (@${creator.username})` : '';
-      document.title = `${creator.displayName || creator.username}${handlePart} - SocialIndia`;
+      const pageTitle = `${name}${handlePart} - SocialIndia`;
+      const canonicalUrl = creator.username
+        ? `${SITE_URL}/@${encodeURIComponent(creator.username)}`
+        : `${SITE_URL}/`;
+      applySeoMetadata({
+        title: pageTitle,
+        description: truncateSeoDescription(
+          creator.bio,
+          `Discover ${name}${handlePart} on SocialIndia. Watch videos, explore Clips, view shared photos, and connect with creators across India.`
+        ),
+        canonicalUrl,
+        image: creator.bannerURL || creator.photoURL || undefined,
+        imageAlt: `${name} on SocialIndia`,
+        ogType: 'profile',
+      });
     }
     return () => {
-      document.title = 'SocialIndia – Connect, Share, Discover & Explore';
+      applySeoMetadata({
+        title: DEFAULT_TITLE,
+        description: DEFAULT_DESCRIPTION,
+        canonicalUrl: `${SITE_URL}/`,
+      });
     };
-  }, [creator?.displayName, creator?.username]);
+  }, [creator?.displayName, creator?.username, creator?.bio, creator?.bannerURL, creator?.photoURL]);
 
   const [videoSort, setVideoSort] = useState<'latest' | 'popular' | 'oldest'>('latest');
 

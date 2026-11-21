@@ -26,6 +26,13 @@ import { liveBroadcastService } from '../services/liveBroadcastService';
 import { isUserVerified } from '../utils/userUtils';
 import { RichText } from '../components/RichText';
 import { useTranslation } from '../i18n';
+import {
+  SITE_URL,
+  DEFAULT_TITLE,
+  DEFAULT_DESCRIPTION,
+  applySeoMetadata,
+  truncateSeoDescription,
+} from '../utils/seo';
 import { 
   Heart, 
   Share2, 
@@ -251,16 +258,32 @@ export const Watch: React.FC = () => {
     return () => window.removeEventListener('socialindia:live-stream-ended', handleStreamEnded);
   }, [video?.videoId]);
 
-  // Update document title for Watch page like YouTube (e.g., "Video Title - Creator Name - SocialIndia")
+  // Update document title and social/SEO metadata for Watch page
   useEffect(() => {
     if (video?.title) {
       const creatorPart = video.creatorDisplayName ? ` - ${video.creatorDisplayName}` : '';
-      document.title = `${video.title}${creatorPart} - SocialIndia`;
+      const pageTitle = `${video.title}${creatorPart} - SocialIndia`;
+      applySeoMetadata({
+        title: pageTitle,
+        description: truncateSeoDescription(
+          video.description,
+          `Watch "${video.title}" on SocialIndia, India’s own social media and video platform.`
+        ),
+        canonicalUrl: `${SITE_URL}/watch/${encodeURIComponent(video.videoId)}`,
+        image: video.thumbnailUrl || undefined,
+        imageAlt: video.title,
+        ogType: 'video.other',
+        noIndex: video.visibility === 'private' || video.visibility === 'unlisted',
+      });
     }
     return () => {
-      document.title = 'SocialIndia – Connect, Share, Discover & Explore';
+      applySeoMetadata({
+        title: DEFAULT_TITLE,
+        description: DEFAULT_DESCRIPTION,
+        canonicalUrl: `${SITE_URL}/`,
+      });
     };
-  }, [video?.title, video?.creatorDisplayName]);
+  }, [video?.videoId, video?.title, video?.creatorDisplayName, video?.description, video?.thumbnailUrl, video?.visibility]);
 
   // Keyboard shortcut listener for 't' (Theater Mode)
   const [commentsCollapsed, setCommentsCollapsed] = useState(false);

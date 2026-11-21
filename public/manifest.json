@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "SocialIndia - Video Platform",
+  "name": "SocialIndia – India’s Own Social Media & Video Platform",
   "short_name": "SocialIndia",
-  "description": "Watch, download and stream videos & shorts offline on SocialIndia.",
+  "description": "SocialIndia is India’s own social media platform. Watch videos, explore Clips, discover creators, share photos and videos, and connect and chat with people.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
