@@ -15,43 +15,97 @@ import {
 // Eager Home for 0ms YouTube-style initial boot
 import { Home } from './pages/Home';
 
+const CHUNK_RELOAD_GUARD_KEY = 'socialindia_chunk_reload_at';
+
+function isDynamicImportError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error || '');
+  return (
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Importing a module script failed') ||
+    msg.includes('error loading dynamically imported module') ||
+    msg.includes('Loading chunk') ||
+    msg.includes('ChunkLoadError')
+  );
+}
+
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  importer: () => Promise<{ default: T }>
+): React.LazyExoticComponent<T> {
+  return lazy(async () => {
+    const delays = [300, 900];
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+      try {
+        return await importer();
+      } catch (err) {
+        lastError = err;
+        if (!isDynamicImportError(err) || attempt === delays.length) {
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+      }
+    }
+
+    if (typeof window !== 'undefined' && navigator.onLine && isDynamicImportError(lastError)) {
+      try {
+        const lastReload = Number(sessionStorage.getItem(CHUNK_RELOAD_GUARD_KEY) || '0');
+        const now = Date.now();
+        if (!lastReload || now - lastReload > 15000) {
+          sessionStorage.setItem(CHUNK_RELOAD_GUARD_KEY, String(now));
+          if ('caches' in window) {
+            const keys = await caches.keys().catch(() => [] as string[]);
+            await Promise.all(keys.map(key => caches.delete(key).catch(() => false)));
+          }
+          window.location.reload();
+          return new Promise<{ default: T }>(() => {});
+        }
+      } catch {
+        // Ignore storage/cache errors and let ErrorBoundary handle fallback UI
+      }
+    }
+
+    throw lastError;
+  });
+}
+
 // Lazy-loaded pages to keep initial bundle lightweight and fast on live mobile/app
-const Search = lazy(() => import('./pages/Search').then(m => ({ default: m.Search })));
-const Watch = lazy(() => import('./pages/Watch').then(m => ({ default: m.Watch })));
-const Shorts = lazy(() => import('./pages/Shorts').then(m => ({ default: m.Shorts })));
-const Trending = lazy(() => import('./pages/Trending').then(m => ({ default: m.Trending })));
-const Subscriptions = lazy(() => import('./pages/Subscriptions').then(m => ({ default: m.Subscriptions })));
-const WatchHistory = lazy(() => import('./pages/History').then(m => ({ default: m.WatchHistory })));
-const SavedVideos = lazy(() => import('./pages/Saved').then(m => ({ default: m.SavedVideos })));
-const LikedVideos = lazy(() => import('./pages/Liked').then(m => ({ default: m.LikedVideos })));
-const PlaylistsPage = lazy(() => import('./pages/Playlists').then(m => ({ default: m.PlaylistsPage })));
-const CreatorProfile = lazy(() => import('./pages/Creator').then(m => ({ default: m.CreatorProfile })));
-const CreatorStudio = lazy(() => import('./pages/Studio').then(m => ({ default: m.CreatorStudio })));
-const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
-const AdminPanel = lazy(() => import('./pages/Admin').then(m => ({ default: m.AdminPanel })));
-const HelpPage = lazy(() => import('./pages/Help').then(m => ({ default: m.HelpPage })));
-const FeedbackPage = lazy(() => import('./pages/Feedback').then(m => ({ default: m.FeedbackPage })));
-const Downloads = lazy(() => import('./pages/Downloads').then(m => ({ default: m.Downloads })));
-const AboutPage = lazy(() => import('./pages/About').then(m => ({ default: m.AboutPage })));
-const UploadPage = lazy(() => import('./pages/Upload').then(m => ({ default: m.UploadPage })));
-const AdvertisingPage = lazy(() => import('./pages/Advertising').then(m => ({ default: m.AdvertisingPage })));
-const AdInfoPage = lazy(() => import('./pages/AdInfo').then(m => ({ default: m.AdInfoPage })));
-const GoProPage = lazy(() => import('./pages/GoPro').then(m => ({ default: m.GoProPage })));
-const SignInPage = lazy(() => import('./pages/SignIn').then(m => ({ default: m.SignInPage })));
-const ChatPage = lazy(() => import('./pages/Chat').then(m => ({ default: m.ChatPage })));
-const MobileMenu = lazy(() => import('./pages/MobileMenu').then(m => ({ default: m.MobileMenu })));
-const CommunityPage = lazy(() => import('./pages/Community').then(m => ({ default: m.CommunityPage })));
+const Search = lazyWithRetry(() => import('./pages/Search').then(m => ({ default: m.Search })));
+const Watch = lazyWithRetry(() => import('./pages/Watch').then(m => ({ default: m.Watch })));
+const Shorts = lazyWithRetry(() => import('./pages/Shorts').then(m => ({ default: m.Shorts })));
+const Trending = lazyWithRetry(() => import('./pages/Trending').then(m => ({ default: m.Trending })));
+const Subscriptions = lazyWithRetry(() => import('./pages/Subscriptions').then(m => ({ default: m.Subscriptions })));
+const WatchHistory = lazyWithRetry(() => import('./pages/History').then(m => ({ default: m.WatchHistory })));
+const SavedVideos = lazyWithRetry(() => import('./pages/Saved').then(m => ({ default: m.SavedVideos })));
+const LikedVideos = lazyWithRetry(() => import('./pages/Liked').then(m => ({ default: m.LikedVideos })));
+const PlaylistsPage = lazyWithRetry(() => import('./pages/Playlists').then(m => ({ default: m.PlaylistsPage })));
+const CreatorProfile = lazyWithRetry(() => import('./pages/Creator').then(m => ({ default: m.CreatorProfile })));
+const CreatorStudio = lazyWithRetry(() => import('./pages/Studio').then(m => ({ default: m.CreatorStudio })));
+const Settings = lazyWithRetry(() => import('./pages/Settings').then(m => ({ default: m.Settings })));
+const AdminPanel = lazyWithRetry(() => import('./pages/Admin').then(m => ({ default: m.AdminPanel })));
+const HelpPage = lazyWithRetry(() => import('./pages/Help').then(m => ({ default: m.HelpPage })));
+const FeedbackPage = lazyWithRetry(() => import('./pages/Feedback').then(m => ({ default: m.FeedbackPage })));
+const Downloads = lazyWithRetry(() => import('./pages/Downloads').then(m => ({ default: m.Downloads })));
+const AboutPage = lazyWithRetry(() => import('./pages/About').then(m => ({ default: m.AboutPage })));
+const UploadPage = lazyWithRetry(() => import('./pages/Upload').then(m => ({ default: m.UploadPage })));
+const AdvertisingPage = lazyWithRetry(() => import('./pages/Advertising').then(m => ({ default: m.AdvertisingPage })));
+const AdInfoPage = lazyWithRetry(() => import('./pages/AdInfo').then(m => ({ default: m.AdInfoPage })));
+const GoProPage = lazyWithRetry(() => import('./pages/GoPro').then(m => ({ default: m.GoProPage })));
+const SignInPage = lazyWithRetry(() => import('./pages/SignIn').then(m => ({ default: m.SignInPage })));
+const ChatPage = lazyWithRetry(() => import('./pages/Chat').then(m => ({ default: m.ChatPage })));
+const MobileMenu = lazyWithRetry(() => import('./pages/MobileMenu').then(m => ({ default: m.MobileMenu })));
+const CommunityPage = lazyWithRetry(() => import('./pages/Community').then(m => ({ default: m.CommunityPage })));
 
 // Standalone policy components
-const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicyPage })));
-const TermsPage = lazy(() => import('./pages/Terms').then(m => ({ default: m.TermsPage })));
-const RefundPolicyPage = lazy(() => import('./pages/RefundPolicy').then(m => ({ default: m.RefundPolicyPage })));
-const FAQPage = lazy(() => import('./pages/FAQ').then(m => ({ default: m.FAQPage })));
-const ContactUsPage = lazy(() => import('./pages/ContactUs').then(m => ({ default: m.ContactUsPage })));
-const GrievancePage = lazy(() => import('./pages/Grievance').then(m => ({ default: m.GrievancePage })));
-const DevelopersPage = lazy(() => import('./pages/Developers').then(m => ({ default: m.DevelopersPage })));
-const LanguageSettingsPage = lazy(() => import('./pages/LanguageSettings').then(m => ({ default: m.LanguageSettingsPage })));
-const CommunityGuidelinesPage = lazy(() => import('./pages/CommunityGuidelines').then(m => ({ default: m.CommunityGuidelinesPage })));
+const PrivacyPolicyPage = lazyWithRetry(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicyPage })));
+const TermsPage = lazyWithRetry(() => import('./pages/Terms').then(m => ({ default: m.TermsPage })));
+const RefundPolicyPage = lazyWithRetry(() => import('./pages/RefundPolicy').then(m => ({ default: m.RefundPolicyPage })));
+const FAQPage = lazyWithRetry(() => import('./pages/FAQ').then(m => ({ default: m.FAQPage })));
+const ContactUsPage = lazyWithRetry(() => import('./pages/ContactUs').then(m => ({ default: m.ContactUsPage })));
+const GrievancePage = lazyWithRetry(() => import('./pages/Grievance').then(m => ({ default: m.GrievancePage })));
+const DevelopersPage = lazyWithRetry(() => import('./pages/Developers').then(m => ({ default: m.DevelopersPage })));
+const LanguageSettingsPage = lazyWithRetry(() => import('./pages/LanguageSettings').then(m => ({ default: m.LanguageSettingsPage })));
+const CommunityGuidelinesPage = lazyWithRetry(() => import('./pages/CommunityGuidelines').then(m => ({ default: m.CommunityGuidelinesPage })));
 
 import { ArrowLeft, Home as HomeIcon, ShieldCheck } from 'lucide-react';
 import { SocialIndiaLogo } from './components/SocialIndiaLogo';

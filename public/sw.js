@@ -1,5 +1,5 @@
 // SocialIndia Real Offline Service Worker
-const VERSION = '1.0.3';
+const VERSION = '1.0.4';
 const CACHE_NAME = `socialindia-shell-v${VERSION}`;
 
 const STATIC_ASSETS = [
@@ -46,7 +46,6 @@ self.addEventListener('fetch', (event) => {
                           url.pathname.includes('/api/auth');
 
   if (!isSameOrigin || isProtectedPath) {
-    // Network-only for protected, external, or non-origin assets
     return;
   }
 
@@ -56,6 +55,12 @@ self.addEventListener('fetch', (event) => {
     url.pathname === '/' ||
     url.pathname.endsWith('.html');
 
+  const isScriptOrStyle =
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.mjs') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.startsWith('/assets/');
+
   const fetchRequest = isHtmlNavigation
     ? new Request(event.request, { cache: 'no-cache' })
     : event.request;
@@ -64,7 +69,15 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(fetchRequest)
       .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+        const contentType = networkResponse.headers.get('content-type') || '';
+        const isSpaHtmlFallbackForAsset = isScriptOrStyle && contentType.includes('text/html');
+
+        if (
+          networkResponse &&
+          networkResponse.status === 200 &&
+          networkResponse.type === 'basic' &&
+          !isSpaHtmlFallbackForAsset
+        ) {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
