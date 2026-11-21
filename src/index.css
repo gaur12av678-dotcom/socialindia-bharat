@@ -690,3 +690,140 @@ button.si-upload-select-btn :is(span, svg, i) {
   :is(.text-slate-900, .text-slate-800, .text-slate-700, .text-gray-900, .text-gray-800, .text-gray-700) {
   color: #e5e5e5 !important;
 }
+
+.emoji-font {
+  font-family: 'Plus Jakarta Sans', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Twemoji Mozilla', sans-serif;
+}
+
+@supports not (color: oklch(0 0 0)) {
+  :root, :host {
+    --color-amber-50: #fffbeb;
+    --color-amber-100: #fef3c6;
+    --color-amber-200: #fee685;
+    --color-amber-300: #ffd230;
+    --color-amber-400: #ffb900;
+    --color-amber-500: #fe9a00;
+    --color-amber-600: #e17100;
+    --color-amber-700: #bb4d00;
+    --color-amber-800: #973c00;
+    --color-amber-900: #7b3306;
+    --color-amber-950: #461901;
+    --color-blue-50: #eff6ff;
+    --color-blue-100: #dbeafe;
+    --color-blue-200: #bedbff;
+    --color-blue-300: #8ec5ff;
+    --color-blue-400: #51a2ff;
+    --color-blue-500: #2b7fff;
+    --color-blue-600: #155dfc;
+    --color-blue-700: #1447e6;
+    --color-blue-800: #193cb8;
+    --color-blue-900: #1c398e;
+    --color-blue-950: #162456;
+    --color-cyan-200: #a2f4fd;
+    --color-cyan-300: #53eafd;
+    --color-cyan-400: #00d3f2;
+    --color-cyan-800: #005f78;
+    --color-emerald-50: #ecfdf5;
+    --color-emerald-100: #d0fae5;
+    --color-emerald-200: #a4f4cf;
+    --color-emerald-300: #5ee9b5;
+    --color-emerald-400: #00d492;
+    --color-emerald-500: #00bc7d;
+    --color-emerald-600: #009966;
+    --color-emerald-700: #007a55;
+    --color-emerald-800: #006045;
+    --color-emerald-900: #004f3b;
+    --color-emerald-950: #002c22;
+    --color-fuchsia-400: #ed6aff;
+    --color-gray-300: #d1d5dc;
+    --color-green-500: #00c950;
+    --color-indigo-50: #eef2ff;
+    --color-indigo-100: #e0e7ff;
+    --color-indigo-200: #c6d2ff;
+    --color-indigo-300: #a3b3ff;
+    --color-indigo-400: #7c86ff;
+    --color-indigo-500: #615fff;
+    --color-indigo-600: #4f39f6;
+    --color-indigo-700: #432dd7;
+    --color-indigo-900: #312c85;
+    --color-indigo-950: #1e1a4d;
+    --color-orange-50: #fff7ed;
+    --color-orange-200: #ffd6a7;
+    --color-orange-300: #ffb86a;
+    --color-orange-400: #ff8904;
+    --color-orange-500: #ff6900;
+    --color-orange-600: #f54900;
+    --color-orange-700: #ca3500;
+    --color-orange-900: #7e2a0c;
+    --color-orange-950: #441306;
+    --color-pink-50: #fdf2f8;
+    --color-pink-100: #fce7f3;
+    --color-pink-400: #fb64b6;
+    --color-pink-500: #f6339a;
+    --color-pink-900: #861043;
+    --color-pink-950: #510424;
+    --color-purple-50: #faf5ff;
+    --color-purple-100: #f3e8ff;
+    --color-purple-200: #e9d4ff;
+    --color-purple-300: #dab2ff;
+    --color-purple-400: #c27aff;
+    --color-purple-500: #ad46ff;
+    --color-purple-600: #9810fa;
+    --color-purple-700: #8200db;
+    --color-purple-800: #6e11b0;
+    --color-purple-900: #59168b;
+    --color-purple-950: #3c0366;
+    --color-red-50: #fef2f2;
+    --color-red-100: #ffe2e2;
+    --color-red-200: #ffc9c9;
+    --color-red-300: #ffa2a2;
+    --color-red-400: #ff6467;
+    --color-red-500: #fb2c36;
+    --color-red-600: #e7000b;
+    --color-red-700: #c10007;
+    --color-red-900: #82181a;
+    --color-red-950: #460809;
+    --color-rose-50: #fff1f2;
+    --color-rose-100: #ffe4e6;
+    --color-rose-200: #ffccd3;
+    --color-rose-300: #ffa1ad;
+    --color-rose-400: #ff637e;
+    --color-rose-500: #ff2056;
+    --color-rose-600: #ec003f;
+    --color-rose-700: #c70036;
+    --color-rose-800: #a50036;
+    --color-rose-900: #8b0836;
+    --color-rose-950: #4d0218;
+    --color-sky-800: #00598a;
+    --color-slate-50: #f8fafc;
+    --color-slate-100: #f1f5f9;
+    --color-slate-200: #e2e8f0;
+    --color-slate-300: #cad5e2;
+    --color-slate-400: #90a1b9;
+    --color-slate-500: #62748e;
+    --color-slate-600: #45556c;
+    --color-slate-700: #314158;
+    --color-slate-800: #1d293d;
+    --color-slate-900: #0f172b;
+    --color-slate-950: #020618;
+    --color-teal-50: #f0fdfa;
+    --color-teal-100: #cbfbf1;
+    --color-teal-200: #96f7e4;
+    --color-teal-600: #009689;
+    --color-teal-700: #00786f;
+    --color-teal-950: #022f2e;
+    --color-zinc-700: #3f3f46;
+    --color-zinc-800: #27272a;
+    --color-zinc-900: #18181b;
+  }
+}
+
+@media (forced-colors: active) {
+  button.bg-blue-600,
+  button[class*="bg-blue-600"] {
+    forced-color-adjust: none;
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+  }
+}
+

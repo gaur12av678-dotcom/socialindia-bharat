@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { EmojiPicker } from '../components/chat/EmojiPicker';
+import { EmojiText } from '../components/EmojiGraphic';
 import { UserAvatar } from '../components/UserAvatar';
 
 export const ChatPage: React.FC = () => {
@@ -923,7 +924,7 @@ export const ChatPage: React.FC = () => {
                   }}
                   className={`w-full p-3.5 flex items-center gap-3 transition-colors text-left cursor-pointer ${
                     isSelected 
-                      ? 'bg-blue-50/70 dark:bg-blue-950/20 border-r-2 border-blue-600' 
+                      ? 'bg-blue-50 dark:bg-blue-950/20 border-r-2 border-blue-600' 
                       : 'hover:bg-slate-50 dark:hover:bg-[#161616]'
                   }`}
                 >
@@ -964,8 +965,8 @@ export const ChatPage: React.FC = () => {
                       </p>
                       <span className="text-[9px] font-bold text-slate-400 shrink-0">{formatSessionTime(s.lastMessageTime)}</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5 font-semibold">
-                      {s.lastMessage || (s.isGroup ? (isHindi ? 'ग्रुप चैट' : 'Group chat') : `@${s.username}`)}
+                    <p className="text-[11px] text-slate-500 truncate mt-0.5 font-semibold emoji-font">
+                      <EmojiText text={s.lastMessage || (s.isGroup ? (isHindi ? 'ग्रुप चैट' : 'Group chat') : `@${s.username}`)} />
                     </p>
                   </div>
                 </button>
@@ -1115,8 +1116,8 @@ export const ChatPage: React.FC = () => {
                                     ? (isHindi ? 'आप' : 'You')
                                     : selectedUser.displayName}
                                 </p>
-                                <p className="truncate text-[10px] opacity-75">
-                                  {m.replyTo.text || (m.replyTo.mediaType === 'image' ? '📷 Photo' : m.replyTo.mediaType === 'video' ? '🎥 Video' : '')}
+                                <p className="truncate text-[10px] opacity-75 emoji-font">
+                                  <EmojiText text={m.replyTo.text || (m.replyTo.mediaType === 'image' ? '📷 Photo' : m.replyTo.mediaType === 'video' ? '🎥 Video' : '')} />
                                 </p>
                               </div>
                             )}
@@ -1177,7 +1178,9 @@ export const ChatPage: React.FC = () => {
 
                             {/* Text message */}
                             {m.text && (
-                              <p className="break-words whitespace-pre-wrap">{m.text}</p>
+                              <p className="break-words whitespace-pre-wrap emoji-font">
+                                <EmojiText text={m.text} />
+                              </p>
                             )}
                           </div>
 
@@ -1308,10 +1311,12 @@ export const ChatPage: React.FC = () => {
                         ? (isHindi ? 'संदेश बदल रहे हैं' : 'Editing message')
                         : `${isHindi ? 'जवाब' : 'Replying to'} ${replyTo?.senderId === currentUser.uid ? (isHindi ? 'आप' : 'yourself') : selectedUser.displayName}`}
                     </p>
-                    <p className="truncate text-[11px] text-slate-600 dark:text-slate-300">
-                      {editingMessageId
-                        ? messageText
-                        : (replyTo?.text || (replyTo?.mediaType === 'image' ? '📷 Photo' : replyTo?.mediaType === 'video' ? '🎥 Video' : ''))}
+                    <p className="truncate text-[11px] text-slate-600 dark:text-slate-300 emoji-font">
+                      <EmojiText
+                        text={editingMessageId
+                          ? messageText
+                          : (replyTo?.text || (replyTo?.mediaType === 'image' ? '📷 Photo' : replyTo?.mediaType === 'video' ? '🎥 Video' : ''))}
+                      />
                     </p>
                   </div>
                   <button
@@ -1373,7 +1378,7 @@ export const ChatPage: React.FC = () => {
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
                   onPaste={handlePaste}
-                  className="flex-1 min-w-0 px-4 py-3 bg-[#efefef] dark:bg-[#202124] border-0 rounded-full text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 placeholder-slate-500 dark:placeholder-slate-400"
+                  className="flex-1 min-w-0 px-4 py-3 bg-[#efefef] dark:bg-[#202124] border-0 rounded-full text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 placeholder-slate-500 dark:placeholder-slate-400 emoji-font"
                 />
 
                 {messageText.trim() || selectedMediaFile ? (

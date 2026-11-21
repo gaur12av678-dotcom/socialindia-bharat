@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, X, Smile, ThumbsUp, Heart, PartyPopper, Sparkles, Flag } from 'lucide-react';
 import { useTranslation } from '../../i18n';
+import { TwemojiImg } from '../EmojiGraphic';
 
 interface EmojiPickerProps {
   onSelectEmoji: (emoji: string) => void;
@@ -64,7 +65,6 @@ const EMOJI_CATEGORIES: EmojiCategory[] = [
       { emoji: '🙄', keywords: ['rolling', 'eyes', 'whatever'] },
       { emoji: '😬', keywords: ['grimace', 'awkward'] },
       { emoji: '🤥', keywords: ['lying', 'pinocchio'] },
-      { emoji: '😌', keywords: ['calm', 'phew'] },
       { emoji: '😔', keywords: ['pensive', 'sad'] },
       { emoji: '😪', keywords: ['sleepy', 'tired'] },
       { emoji: '🤤', keywords: ['drooling', 'hungry'] },
@@ -375,17 +375,18 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelectEmoji, onClose
 
       {/* Category Tabs (shown only if not searching) */}
       {!search && (
-        <div className="flex items-center justify-around px-2 py-1.5 border-b border-slate-100 dark:border-[#222] bg-slate-50/70 dark:bg-[#1a1a1e]">
+        <div className="flex items-center justify-around px-2 py-1.5 border-b border-slate-100 dark:border-[#222] bg-slate-50 dark:bg-[#1a1a1e]">
           {EMOJI_CATEGORIES.map((cat) => {
             const isActive = activeTab === cat.id;
             return (
               <button
                 key={cat.id}
+                type="button"
                 onClick={() => setActiveTab(cat.id)}
                 className={`p-1.5 rounded-xl transition-all cursor-pointer ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-[#252528]'
+                    : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-[#252528]'
                 }`}
                 title={isHindi ? cat.hindiName : cat.name}
               >
@@ -406,10 +407,12 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({ onSelectEmoji, onClose
           displayedEmojis.map((emoji, idx) => (
             <button
               key={`${emoji}-${idx}`}
+              type="button"
               onClick={() => onSelectEmoji(emoji)}
-              className="w-9 h-9 flex items-center justify-center text-xl rounded-xl hover:bg-slate-100 dark:hover:bg-[#25252b] active:scale-90 transition-transform cursor-pointer select-none"
+              aria-label={emoji}
+              className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-[#25252b] active:scale-90 transition-transform cursor-pointer select-none"
             >
-              {emoji}
+              <TwemojiImg emoji={emoji} className="w-6 h-6 pointer-events-none" />
             </button>
           ))
         )}

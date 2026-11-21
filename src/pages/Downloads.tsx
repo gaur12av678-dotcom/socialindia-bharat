@@ -8,14 +8,11 @@ import {
   Trash2, 
   Play, 
   Film, 
-  HardDrive, 
   WifiOff, 
   CheckCircle2, 
   X,
   ArrowDownToLine,
-  Download,
-  ArrowLeft,
-  Smartphone
+  ArrowLeft
 } from 'lucide-react';
 import { UserAvatar } from '../components/UserAvatar';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
@@ -29,7 +26,6 @@ export const Downloads: React.FC = () => {
   const [downloads, setDownloads] = useState<DownloadedVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'videos' | 'shorts'>('all');
-  const [storageUsage, setStorageUsage] = useState(0);
 
   // Active video playing in offline modal
   const [activePlayingVideo, setActivePlayingVideo] = useState<{
@@ -42,8 +38,6 @@ export const Downloads: React.FC = () => {
     try {
       const items = await downloadService.getAllDownloads();
       setDownloads(items);
-      const usage = await downloadService.getTotalStorageUsage();
-      setStorageUsage(usage);
     } catch (err) {
       console.error('Failed to load downloads:', err);
     } finally {
@@ -68,8 +62,6 @@ export const Downloads: React.FC = () => {
     try {
       await downloadService.deleteDownload(videoId);
       setDownloads(prev => prev.filter(d => d.videoId !== videoId));
-      const updatedUsage = await downloadService.getTotalStorageUsage();
-      setStorageUsage(updatedUsage);
       addToast(isHindi ? `"${title}" को ऑफ़लाइन स्टोरेज से हटा दिया गया।` : `"${title}" removed from offline storage.`, 'info');
     } catch (err) {
       addToast(isHindi ? 'डाउनलोड हटाने में विफल।' : 'Failed to delete download.', 'error');
@@ -116,70 +108,6 @@ export const Downloads: React.FC = () => {
         <span className="text-lg font-black text-slate-900 dark:text-white">
           {t('downloads_title', 'Downloads')}
         </span>
-      </div>
-
-      {/* TOP STORAGE HEADER BANNER - Guaranteed High Contrast */}
-      <div 
-        style={{ backgroundColor: '#0f172a' }}
-        className="rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden border border-slate-800"
-      >
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2.5 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full text-xs font-black uppercase tracking-wider">
-              <WifiOff className="w-3.5 h-3.5" />
-              {isHindi ? '100% असली ऑफ़लाइन मोड' : '100% Real Offline Mode'}
-            </div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white">
-              {isHindi ? 'ऑफ़लाइन डाउनलोड्स वॉल्ट' : 'Offline Downloads Vault'}
-            </h1>
-            <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
-              {isHindi 
-                ? 'डाउनलोड किए गए वीडियो और क्लिप्स आपके डिवाइस में सुरक्षित रहते हैं। बिना इंटरनेट कनेक्शन के कभी भी देखें।'
-                : 'Downloaded videos & clips are saved locally in your device storage. You can watch them anytime, even without an active internet connection or mobile data.'}
-            </p>
-          </div>
-
-          {/* Storage Meter Widget */}
-          <div className="bg-slate-800/80 border border-slate-700 rounded-2xl p-4 md:p-5 flex items-center gap-4 shrink-0 shadow-inner">
-            <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center text-white shrink-0 shadow-md">
-              <HardDrive className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-slate-400">
-                {isHindi ? 'डिवाइस स्टोरेज उपयोग' : 'Device Storage Used'}
-              </div>
-              <div className="text-xl md:text-2xl font-black text-white">{formatFileSize(storageUsage)}</div>
-              <div className="text-[11px] font-semibold text-blue-400 mt-0.5">
-                {isHindi ? `${downloads.length} वीडियो ऑफ़लाइन सहेजे गए` : `${downloads.length} items saved offline`}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ANDROID APP PROMPT BANNER */}
-      <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-900/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-xs shrink-0">
-            <Smartphone className="w-4 h-4" />
-          </div>
-          <div>
-            <h4 className="text-xs sm:text-sm font-black text-slate-900 dark:text-white">
-              {isHindi ? 'सोशलइंडिया एंड्रॉयड ऐप से सुपर-फ़ास्ट ऑफ़लाइन देखें' : 'Get the SocialIndia Android App for Fast Offline Play'}
-            </h4>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              {isHindi ? 'बिना इंटरनेट कभी भी वीडियो देखने के लिए आधिकारिक एपीके डाउनलोड करें।' : 'Download the official APK with dedicated offline caching and zero lag.'}
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => navigate('settings', 'app_download')}
-          className="px-4 py-2 bg-[#2563EB] hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-xs cursor-pointer transition-all active:scale-95 shrink-0 flex items-center gap-1.5"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>{isHindi ? 'एपीके डाउनलोड करें' : 'Download APK'}</span>
-        </button>
       </div>
 
       {/* FILTER TABS */}
