@@ -9,7 +9,6 @@ import {
   Bookmark, 
   History as HistoryIcon, 
   LogOut, 
-  ArrowRight,
   Lock,
   RefreshCw,
   ListVideo,
@@ -519,38 +518,29 @@ export const MobileMenu: React.FC = () => {
           </button>
         </div>
 
-        {/* 6. ADMIN HUB (Specifically Requested: "admin hub missing hai") */}
+        {/* 6. ADMIN HUB */}
         {isAdmin && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <p className="px-1 text-[11px] font-black uppercase text-red-500 tracking-wider flex items-center gap-1.5">
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>{isHindi ? 'प्रशासन (Administration)' : 'Platform Administration'}</span>
             </p>
 
-            <div 
+            <button
+              type="button"
               onClick={() => navigate('admin')}
-              className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white p-5 border border-white/10 shadow-lg cursor-pointer active:scale-98 transition-all group"
+              className="w-full flex items-center justify-between p-3.5 bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all cursor-pointer text-left shadow-xs active:scale-98 group"
             >
-              <div className="relative z-10 flex items-center justify-between">
-                <div className="space-y-1 max-w-[240px]">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 text-[10px] font-black uppercase tracking-wider">
-                    <ShieldCheck className="w-3 h-3" />
-                    <span>Admin Hub</span>
-                  </div>
-                  <h4 className="text-base font-black tracking-tight text-white">
-                    {isHindi ? 'सोशल इंडिया एडमिन हब' : 'SocialIndia Admin Hub'}
-                  </h4>
-                  <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
-                    {isHindi 
-                      ? 'उपयोगकर्ता, वीडियो मॉडरेशन, मोनेटाइजेशन, स्टोरेज और विज्ञापन प्रबंधित करें।' 
-                      : 'Manage users, video moderation, monetization payouts, storage & ads.'}
-                  </p>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="p-2 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded-xl shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform shadow-md">
-                  <ArrowRight className="w-6 h-6 stroke-[2.5]" />
-                </div>
+                <span className="text-xs font-black text-slate-900 dark:text-white truncate">
+                  {isHindi ? 'एडमिन हब (Admin Hub)' : 'Admin Hub'}
+                </span>
               </div>
-            </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+            </button>
           </div>
         )}
 
