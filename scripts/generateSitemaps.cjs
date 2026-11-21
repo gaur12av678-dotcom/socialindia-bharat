@@ -47,9 +47,30 @@ function isIndexableVideo(v) {
   if (!v || !v.videoId) return false;
   const title = cleanText(v.title);
   if (!title || title.length < 6) return false;
+  if (/^\d+$/.test(title)) return false;
   if (/^(check|test|testing|demo|sample)$/i.test(title)) return false;
   if (/64ce2ae8e3535d266be88a/i.test(title)) return false;
   return true;
+}
+
+function getVideoMediaTag(rawUrl) {
+  const url = String(rawUrl || '').trim();
+  const driveFileMatch = url.match(/https?:\/\/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+  if (driveFileMatch) {
+    const previewUrl = `https://drive.google.com/file/d/${driveFileMatch[1]}/preview`;
+    return `<video:player_loc>${escapeXml(previewUrl)}</video:player_loc>`;
+  }
+  const driveOpenMatch = url.match(/https?:\/\/drive\.google\.com\/(?:open|uc)\?[^#]*\bid=([a-zA-Z0-9_-]+)/i);
+  if (driveOpenMatch) {
+    const previewUrl = `https://drive.google.com/file/d/${driveOpenMatch[1]}/preview`;
+    return `<video:player_loc>${escapeXml(previewUrl)}</video:player_loc>`;
+  }
+  const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{6,})/i);
+  if (ytMatch) {
+    const embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+    return `<video:player_loc>${escapeXml(embedUrl)}</video:player_loc>`;
+  }
+  return `<video:content_loc>${escapeXml(url)}</video:content_loc>`;
 }
 
 const todayDate = new Date().toISOString().split('T')[0];
@@ -145,7 +166,7 @@ for (const v of videos) {
     2040
   ) || 'Watch videos and explore Clips on SocialIndia.';
   const thumb = escapeXml(v.thumbnailUrl || 'https://socialindia.web.app/socialindia-logo.png');
-  const contentLoc = escapeXml(v.videoUrl);
+  const mediaTag = getVideoMediaTag(v.videoUrl);
   const duration = Math.min(Math.max(Math.round(Number(v.duration) || 30), 1), 28800);
   const pubDate = cleanIsoDate(v.createdAt);
 
@@ -155,7 +176,7 @@ for (const v of videos) {
       <video:thumbnail_loc>${thumb}</video:thumbnail_loc>
       <video:title>${title}</video:title>
       <video:description>${desc}</video:description>
-      <video:content_loc>${contentLoc}</video:content_loc>
+      ${mediaTag}
       <video:duration>${duration}</video:duration>
       <video:publication_date>${pubDate}</video:publication_date>
       <video:family_friendly>yes</video:family_friendly>

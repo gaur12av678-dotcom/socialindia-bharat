@@ -1472,20 +1472,6 @@
     </video:video>
   </url>
   <url>
-    <loc>https://socialindia.web.app/watch/r3ayb3djfbhhzqthfqc5i</loc>
-    <video:video>
-      <video:thumbnail_loc>https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&amp;auto=format&amp;fit=crop&amp;q=60</video:thumbnail_loc>
-      <video:title>1000017783</video:title>
-      <video:description>Watch &quot;1000017783&quot; on SocialIndia, India’s own social media and video platform.</video:description>
-      <video:content_loc>https://res.cloudinary.com/wgk5kuxe/video/upload/v1794316182/socialindia_videos/wgto18mdsz8mx8jh64k4.mp4</video:content_loc>
-      <video:duration>3</video:duration>
-      <video:publication_date>2026-11-10T13:09:42Z</video:publication_date>
-      <video:family_friendly>yes</video:family_friendly>
-      <video:requires_subscription>no</video:requires_subscription>
-      <video:live>no</video:live>
-    </video:video>
-  </url>
-  <url>
     <loc>https://socialindia.web.app/watch/rbkbuqrojby1ce9kmi6ar</loc>
     <video:video>
       <video:thumbnail_loc>https://res.cloudinary.com/wgk5kuxe/image/upload/v1791973264/socialindia_thumbnails/flauvhfaw9eeiqpqphgx.jpg</video:thumbnail_loc>
@@ -1505,7 +1491,7 @@
       <video:thumbnail_loc>https://res.cloudinary.com/wgk5kuxe/image/upload/v1794219765/socialindia_thumbnails/l6jicsv1ukuvifgbn7vi.webp</video:thumbnail_loc>
       <video:title>Ramayana - Rise of a Legend (2026) Bollywood Hindi Movie</video:title>
       <video:description>Ramayana: Part 1[a] is a 2026 Indian Hindi-language epic mythological film[9][10] directed by Nitesh Tiwari, who co-wrote the screenplay with Shridhar Raghavan. Produced by Namit Malhotra and Yash,[11] the film is based on the Hindu epic Ramayana by Valmiki. It is the first of a two-part film, with Part 1 being based on the first three kāṇḍa (chapters) of Ramayana which chronicles the life of Prince Rama from childhood up to his adventurous 14-year exile.[12][13][14] The first part features ensemble cast that includes Ranbir Kapoor, Yash (in his Hindi film debut), Sai Pallavi, Ravi Dubey (in his film debut), Anupam Kher, Kajal Aggarwal, Rakul Preet Singh, Vivek Oberoi, Kunal Kapoor, Adinath Kothare, Arun Govil, Indira Krishnan, and Lara Dutta.[13][15]</video:description>
-      <video:content_loc>https://drive.google.com/file/d/1wRxXKjWE_JPKanGQTaea9EO90M7m9dhm/view?usp=sharing</video:content_loc>
+      <video:player_loc>https://drive.google.com/file/d/1wRxXKjWE_JPKanGQTaea9EO90M7m9dhm/preview</video:player_loc>
       <video:duration>120</video:duration>
       <video:publication_date>2026-11-09T10:22:47Z</video:publication_date>
       <video:family_friendly>yes</video:family_friendly>
@@ -1771,7 +1757,7 @@
       <video:thumbnail_loc>https://res.cloudinary.com/wgk5kuxe/image/upload/v1794218217/socialindia_thumbnails/vxzdhurfj6fpq8oqoqxj.jpg</video:thumbnail_loc>
       <video:title>vidssave.com THE BHOOTNII (2026) Full Movie _ New Released Superhit Horror Comedy Movie _ Sanjay Dut</video:title>
       <video:description>Watch &quot;vidssave.com THE BHOOTNII (2026) Full Movie _ New Released Superhit Horror Comedy Movie _ Sanjay Dut&quot; on SocialIndia, India’s own social media and video platform.</video:description>
-      <video:content_loc>https://drive.google.com/file/d/1awAciCD9DBJgaSwYf1Z18kvZ5_SyAUbj/view?usp=sharing</video:content_loc>
+      <video:player_loc>https://drive.google.com/file/d/1awAciCD9DBJgaSwYf1Z18kvZ5_SyAUbj/preview</video:player_loc>
       <video:duration>120</video:duration>
       <video:publication_date>2026-11-09T09:56:57Z</video:publication_date>
       <video:family_friendly>yes</video:family_friendly>

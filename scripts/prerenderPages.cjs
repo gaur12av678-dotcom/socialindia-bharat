@@ -143,6 +143,7 @@ const isQualitySeedVideo = (v) => {
   if (!v || !v.videoId || !v.title) return false;
   const t = cleanText(v.title);
   if (t.length < 6) return false;
+  if (/^\d+$/.test(t)) return false;
   if (/^(check|test|testing|demo|sample)$/i.test(t)) return false;
   if (/64ce2ae8e3535d266be88a/i.test(t)) return false;
   return true;
@@ -777,6 +778,19 @@ for (const v of seedVideos) {
   );
   const thumbUrl = v.thumbnailUrl || DEFAULT_IMAGE;
 
+  const rawVideoUrl = String(v.videoUrl || '').trim();
+  const driveFileMatch = rawVideoUrl.match(/https?:\/\/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
+  const driveOpenMatch = rawVideoUrl.match(/https?:\/\/drive\.google\.com\/(?:open|uc)\?[^#]*\bid=([a-zA-Z0-9_-]+)/i);
+  const ytMatch = rawVideoUrl.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{6,})/i);
+  const isNonDirectUrl = Boolean(driveFileMatch || driveOpenMatch || ytMatch);
+  const resolvedEmbedUrl = driveFileMatch
+    ? `https://drive.google.com/file/d/${driveFileMatch[1]}/preview`
+    : driveOpenMatch
+      ? `https://drive.google.com/file/d/${driveOpenMatch[1]}/preview`
+      : ytMatch
+        ? `https://www.youtube.com/embed/${ytMatch[1]}`
+        : pageUrl;
+
   const videoSchema = {
     '@type': 'VideoObject',
     'name': cleanTitle,
@@ -784,8 +798,8 @@ for (const v of seedVideos) {
     'thumbnailUrl': [thumbUrl],
     'uploadDate': toIsoUploadDate(v.createdAt),
     'duration': toIsoDuration(v.duration),
-    'contentUrl': v.videoUrl || pageUrl,
-    'embedUrl': pageUrl,
+    ...(!isNonDirectUrl && rawVideoUrl ? { 'contentUrl': rawVideoUrl } : {}),
+    'embedUrl': resolvedEmbedUrl,
     'publisher': { '@id': `${SITE_URL}/#organization` }
   };
 
