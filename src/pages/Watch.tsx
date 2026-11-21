@@ -104,7 +104,6 @@ export const Watch: React.FC = () => {
   const [liked, setLiked] = useState<boolean>(() => {
     return !!(activeUid && videoId && likeService.hasLikedSync(videoId, activeUid));
   });
-  const [disliked, setDisliked] = useState(false);
   const [saved, setSaved] = useState<boolean>(() => {
     return !!(activeUid && videoId && savedVideoService.isSavedSync(activeUid, videoId));
   });
@@ -286,7 +285,9 @@ export const Watch: React.FC = () => {
   }, [video?.videoId, video?.title, video?.creatorDisplayName, video?.description, video?.thumbnailUrl, video?.visibility]);
 
   // Keyboard shortcut listener for 't' (Theater Mode)
-  const [commentsCollapsed, setCommentsCollapsed] = useState(false);
+  const [commentsCollapsed, setCommentsCollapsed] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing inside input, textarea, or contentEditable
@@ -448,6 +449,7 @@ export const Watch: React.FC = () => {
           : undefined
       );
       setVisibleCommentsCount(COMMENTS_PAGE_SIZE);
+      setCommentsCollapsed(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
       setComments(commentService.getCachedComments(videoId, cached?.creatorId === currentUser?.uid));
 
       if (cached) {
@@ -752,9 +754,6 @@ export const Watch: React.FC = () => {
 
     const previouslyLiked = liked;
     likeSyncVersionRef.current += 1;
-    if (!previouslyLiked && disliked) {
-      setDisliked(false);
-    }
 
     // Optimistic Update (INSTANT reaction!)
     setLiked(!previouslyLiked);
@@ -1532,7 +1531,7 @@ export const Watch: React.FC = () => {
         )}
 
         {/* Video Title and Social Interactions block */}
-        <div className="px-3.5 sm:px-0 space-y-4">
+        <div className="px-3.5 sm:px-0 space-y-4 min-w-0 w-full">
           <div className="flex flex-wrap items-start gap-2.5">
             {video.isLive && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-600 text-white text-xs font-black rounded-lg uppercase tracking-wider shadow-sm shrink-0">
@@ -1540,14 +1539,14 @@ export const Watch: React.FC = () => {
                 {isHindi ? 'लाइव' : 'LIVE'}
               </span>
             )}
-            <h1 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-[#F8FAFC] leading-snug flex-1">
+            <h1 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-[#F8FAFC] leading-snug flex-1 min-w-0 break-words">
               <RichText text={video.title} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 py-2 border-y border-slate-200 dark:border-[#334155]">
+          <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 py-2 border-y border-slate-200 dark:border-[#334155] min-w-0 w-full">
             {/* Creator Channel Card (Left Side) */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0 max-w-full flex-wrap sm:flex-nowrap">
               <UserAvatar 
                 uid={video.creatorId}
                 fallbackPhotoURL={video.creatorPhotoURL}
@@ -1602,76 +1601,57 @@ export const Watch: React.FC = () => {
               )}
             </div>
 
-            {/* Video Social controls (Likes/Dislike Split Pill, Share, Download, Save, 3-Dots) */}
-            <div className="relative">
-              <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pb-1 max-w-full">
-                {/* Like / Dislike Split Pill */}
-                <div className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full flex items-center text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors shadow-xs shrink-0">
+            {/* Video Social controls (Like, Share, Download, Save, 3-Dots) */}
+            <div className="relative w-full xl:w-auto max-w-full min-w-0">
+              <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 sm:gap-2 pb-1 w-full max-w-full min-w-0 overflow-x-auto sm:overflow-visible [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {/* Like Pill */}
+                <div className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full flex items-center text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors shadow-xs shrink-0">
                   <button
                     onClick={handleLikeToggle}
-                    className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-l-full cursor-pointer transition-colors"
+                    className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-full cursor-pointer transition-colors"
                     title={t('action_like', 'Like')}
                   >
-                    <ThumbsUp className={`w-4 h-4 ${liked ? 'fill-[#2563eb] text-[#2563eb]' : ''}`} />
+                    <ThumbsUp className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${liked ? 'fill-[#2563eb] text-[#2563eb]' : ''}`} />
                     <span>{(video.likesCount || 0).toLocaleString()}</span>
-                  </button>
-
-                  <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
-
-                  <button
-                    onClick={() => {
-                      setDisliked(!disliked);
-                      if (liked) {
-                        likeSyncVersionRef.current += 1;
-                        setLiked(false);
-                        setVideo(prev => prev ? { ...prev, likesCount: Math.max(0, prev.likesCount - 1) } : null);
-                        if (currentUser) {
-                          likeService.unlikeVideo(video.videoId, currentUser.uid).catch(console.error);
-                        }
-                      }
-                    }}
-                    className="px-3 sm:px-3.5 py-2 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-r-full cursor-pointer transition-colors"
-                    title={t('action_dislike', 'Dislike')}
-                  >
-                    <ThumbsDown className={`w-4 h-4 ${disliked ? 'fill-slate-700 text-slate-700 dark:fill-white dark:text-white' : ''}`} />
                   </button>
                 </div>
 
                 {/* Share Pill */}
                 <button
                   onClick={handleShare}
-                  className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors cursor-pointer shadow-xs shrink-0"
+                  className="bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 rounded-full px-2.5 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 transition-colors cursor-pointer shadow-xs shrink-0"
                   title={t('action_share', 'Share')}
                 >
-                  <Share2 className="w-4 h-4" />
+                  <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span>{t('action_share', 'Share')}</span>
                 </button>
 
-                {/* Download Pill */}
+                {/* Download Pill (icon-only on mobile so all action buttons fit in one row) */}
                 <button
                   onClick={handleDownloadToggle}
                   disabled={downloadProgress !== null}
-                  className={`rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
+                  className={`rounded-full px-2.5 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
                     isDownloaded
                       ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
                       : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
                   }`}
                   title={isDownloaded ? t('action_downloaded', 'Downloaded') : t('action_download', 'Download')}
+                  aria-label={isDownloaded ? t('action_downloaded', 'Downloaded') : t('action_download', 'Download')}
                 >
                   {downloadProgress !== null ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-blue-600" />
                       <span>{downloadProgress}%</span>
                     </>
                   ) : isDownloaded ? (
                     <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span>{t('action_downloaded', 'Downloaded')}</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-500" />
+                      <span className="hidden sm:inline">{t('action_downloaded', 'Downloaded')}</span>
                     </>
                   ) : (
                     <>
-                      <ArrowDownToLine className="w-4 h-4" />
-                      <span>{t('action_download', 'Download')}</span>
+                      <ArrowDownToLine className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">{t('action_download', 'Download')}</span>
                     </>
                   )}
                 </button>
@@ -1679,14 +1659,14 @@ export const Watch: React.FC = () => {
                 {/* Save Pill */}
                 <button
                   onClick={() => setPlaylistModalOpen(true)}
-                  className={`rounded-full px-3.5 sm:px-4 py-2 flex items-center gap-1.5 text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
+                  className={`rounded-full px-2.5 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs font-bold transition-colors cursor-pointer shadow-xs shrink-0 ${
                     saved
                       ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
                       : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
                   }`}
                   title={isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}
                 >
-                  <Bookmark className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
+                  <Bookmark className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${saved ? 'fill-current' : ''}`} />
                   <span>{saved ? t('action_saved', 'Saved') : t('action_save', 'Save')}</span>
                 </button>
 
@@ -1697,7 +1677,7 @@ export const Watch: React.FC = () => {
                       e.stopPropagation();
                       setShowMoreActions(!showMoreActions);
                     }}
-                    className={`rounded-full w-9 h-9 flex items-center justify-center transition-colors cursor-pointer shadow-xs ${
+                    className={`rounded-full w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center transition-colors cursor-pointer shadow-xs ${
                       showMoreActions 
                         ? 'bg-blue-600 text-white' 
                         : 'bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100'
@@ -1718,7 +1698,7 @@ export const Watch: React.FC = () => {
                   />
                   <div 
                     onClick={(e) => e.stopPropagation()}
-                    className="absolute right-0 top-12 w-60 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl py-2 z-50 text-xs animate-in fade-in space-y-0.5"
+                    className="absolute right-0 top-full mt-2 w-60 max-w-[calc(100vw-2rem)] bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-2xl py-2 z-50 text-xs animate-in fade-in space-y-0.5"
                   >
                     {/* 1. Watch Ad-free / Premium (YouTube style) */}
                     <button
@@ -2512,8 +2492,8 @@ export const Watch: React.FC = () => {
           <SponsoredAdCard ad={activeAds[0]} layout="sidebar" />
         )}
 
-        {/* Category Filter Pills (YouTube Style) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {/* Category Filter Pills (YouTube Style - Web/Desktop only) */}
+        <div className="hidden md:flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
           {categoryPills.map((pill) => {
             const isActive = selectedCategoryFilter === pill.id;
             return (
@@ -2539,7 +2519,7 @@ export const Watch: React.FC = () => {
         </div>
         
         {/* Related Videos List with YouTube-style Dynamic Algorithm & Infinite Scroll */}
-        <div className="space-y-3">
+        <div className="space-y-5 md:space-y-3">
           {displayedSidebarVideos.length === 0 ? (
             <div className="py-8 px-4 text-center bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
               <p className="text-xs text-slate-500 font-medium">
@@ -2561,7 +2541,7 @@ export const Watch: React.FC = () => {
               return (
                 <div 
                   key={v.videoId}
-                  className="flex items-start gap-3 bg-white dark:bg-[#111827] border border-slate-200/70 dark:border-[#334155] p-2.5 rounded-2xl hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 transition-all group relative"
+                  className="flex flex-col md:flex-row md:items-start gap-2.5 md:gap-3 bg-transparent md:bg-white md:dark:bg-[#111827] border-0 md:border md:border-slate-200/70 md:dark:border-[#334155] p-0 md:p-2.5 rounded-xl md:rounded-2xl md:hover:shadow-md md:hover:border-blue-300 md:dark:hover:border-blue-700 transition-all group relative"
                 >
                   {/* 16:9 Thumbnail with Duration Badge (Link with draggable false on img) */}
                   <a
@@ -2574,7 +2554,7 @@ export const Watch: React.FC = () => {
                       navigate('watch', v.videoId);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                    className="relative block w-36 sm:w-40 aspect-video bg-slate-900 shrink-0 rounded-xl overflow-hidden shadow-xs cursor-pointer"
+                    className="relative block w-full md:w-40 aspect-video bg-slate-900 shrink-0 rounded-xl overflow-hidden shadow-xs cursor-pointer"
                   >
                     <img 
                       src={v.thumbnailUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60'} 
@@ -2600,63 +2580,105 @@ export const Watch: React.FC = () => {
                     )}
                   </a>
 
-                  {/* Video Info */}
-                  <div className="min-w-0 flex-1 flex flex-col justify-between py-0.5">
+                  {/* Mobile: Avatar + Title/Meta + 3-Dots row below thumbnail | Desktop: Video Info + 3-Dots beside thumbnail */}
+                  <div className="flex items-start gap-3 flex-1 min-w-0 w-full">
+                    {/* Creator Avatar (YouTube Mobile Style) */}
                     <a
-                      href={relWatchUrl}
-                      draggable={true}
-                      title={v.title}
+                      href={relCreatorUrl}
                       onClick={(e) => {
                         if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
                         e.preventDefault();
-                        navigate('watch', v.videoId);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        navigate('creator', v.creatorUsername || v.creatorId);
                       }}
-                      className="block text-xs font-bold text-slate-900 dark:text-[#F8FAFC] leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 cursor-pointer"
+                      className="md:hidden shrink-0 pt-0.5 block"
+                      title={v.creatorDisplayName || v.creatorUsername}
                     >
-                      {v.title}
+                      <UserAvatar
+                        uid={v.creatorId}
+                        fallbackPhotoURL={v.creatorPhotoURL}
+                        fallbackDisplayName={v.creatorDisplayName || v.creatorUsername}
+                        size="sm"
+                        className="border border-slate-200 dark:border-slate-800 shadow-xs"
+                      />
                     </a>
-                    
-                    <div className="mt-1 space-y-0.5">
-                      {/* Creator Display Name */}
-                      <a 
-                        href={relCreatorUrl}
+
+                    {/* Video Info */}
+                    <div className="min-w-0 flex-1 flex flex-col justify-between py-0.5">
+                      <a
+                        href={relWatchUrl}
+                        draggable={true}
+                        title={v.title}
                         onClick={(e) => {
                           if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
                           e.preventDefault();
-                          navigate('creator', v.creatorUsername || v.creatorId);
+                          navigate('watch', v.videoId);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium truncate flex items-center gap-1 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                        className="block text-[13px] sm:text-sm md:text-xs font-bold text-slate-900 dark:text-[#F8FAFC] leading-snug line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 cursor-pointer"
                       >
-                        <span>{v.creatorDisplayName}</span>
+                        {v.title}
                       </a>
+                      
+                      {/* Mobile YouTube-style inline metadata */}
+                      <div className="mt-1 flex md:hidden flex-wrap items-center gap-x-1.5 text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium">
+                        <a
+                          href={relCreatorUrl}
+                          onClick={(e) => {
+                            if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                            e.preventDefault();
+                            navigate('creator', v.creatorUsername || v.creatorId);
+                          }}
+                          className="truncate max-w-[140px] hover:text-slate-900 dark:hover:text-white"
+                        >
+                          {v.creatorDisplayName}
+                        </a>
+                        <span>•</span>
+                        <span>{formatViews(v.viewsCount).replace(/\s+views?$/i, '')} {isHindi ? 'व्यूज' : 'views'}</span>
+                        <span>•</span>
+                        <span>{formatTimeAgo(v.createdAt)}</span>
+                      </div>
 
-                      {/* Views Count and Upload Date */}
-                      <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium">
-                        {formatViews(v.viewsCount).replace(/\s+views?$/i, '')} {isHindi ? 'व्यूज' : 'views'} • {formatTimeAgo(v.createdAt)}
-                      </p>
+                      {/* Desktop Sidebar stacked metadata */}
+                      <div className="mt-1 space-y-0.5 hidden md:block">
+                        {/* Creator Display Name */}
+                        <a 
+                          href={relCreatorUrl}
+                          onClick={(e) => {
+                            if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                            e.preventDefault();
+                            navigate('creator', v.creatorUsername || v.creatorId);
+                          }}
+                          className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium truncate flex items-center gap-1 hover:text-slate-900 dark:hover:text-white cursor-pointer"
+                        >
+                          <span>{v.creatorDisplayName}</span>
+                        </a>
+
+                        {/* Views Count and Upload Date */}
+                        <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-medium">
+                          {formatViews(v.viewsCount).replace(/\s+views?$/i, '')} {isHindi ? 'व्यूज' : 'views'} • {formatTimeAgo(v.createdAt)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                {/* 3-Dots Menu Button (⋮) */}
-                <div className="relative shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveRelatedMenuId(activeRelatedMenuId === v.videoId ? null : v.videoId);
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
-                    title="Action menu"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
+                    {/* 3-Dots Menu Button (⋮) */}
+                    <div className="relative shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveRelatedMenuId(activeRelatedMenuId === v.videoId ? null : v.videoId);
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+                        title="Action menu"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
 
-                  {/* 3-Dots Dropdown Popover */}
-                  {activeRelatedMenuId === v.videoId && (
-                    <div 
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute right-0 top-7 w-44 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in"
-                    >
+                      {/* 3-Dots Dropdown Popover */}
+                      {activeRelatedMenuId === v.videoId && (
+                        <div 
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute right-0 top-7 w-44 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in"
+                        >
                       <button
                         onClick={() => {
                           const shareUrl = `${window.location.origin}/#/watch/${v.videoId}`;
@@ -2733,11 +2755,12 @@ export const Watch: React.FC = () => {
                         <Ban className="w-3.5 h-3.5 text-slate-400" />
                         <span>{isHindi ? 'रुचि नहीं है' : 'Not interested'}</span>
                       </button>
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
+                  </div>
                 </div>
-              </div>
-            );
+              );
           })
           )}
 
