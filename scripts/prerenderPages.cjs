@@ -139,8 +139,17 @@ const sharedFooterHtml = `
   </footer>
 `;
 
+const isQualitySeedVideo = (v) => {
+  if (!v || !v.videoId || !v.title) return false;
+  const t = cleanText(v.title);
+  if (t.length < 6) return false;
+  if (/^(check|test|testing|demo|sample)$/i.test(t)) return false;
+  if (/64ce2ae8e3535d266be88a/i.test(t)) return false;
+  return true;
+};
+
 const featuredVideosHtml = seedVideos
-  .filter(v => v && v.videoId && v.title)
+  .filter(isQualitySeedVideo)
   .slice(0, 12)
   .map(v => {
     const url = v.isShort ? `/shorts/${v.videoId}` : `/watch/${v.videoId}`;
@@ -187,10 +196,15 @@ const pages = [
     },
     heading: 'SocialIndia Community Posts, Photos & Discussions',
     content: `
-      <p>Connect with creators and people across India. Share photos and videos, participate in interactive polls, and discover discussions happening across SocialIndia.</p>
-      <h2>Explore Community Conversations</h2>
-      <p>Creators use the Community feed to share photos, behind-the-scenes updates, audience polls, and video announcements while connecting directly with followers.</p>
-      <p>Please review our <a href="/guidelines">Community Guidelines</a> to help keep conversations respectful, safe, and welcoming for everyone across Bharat.</p>
+      <p>Connect with creators, educators, artists, and communities across India. Share photos, status updates, video previews, and interactive polls in the SocialIndia Community Feed.</p>
+      <h2>What Happens in the SocialIndia Community Feed</h2>
+      <ul>
+        <li><strong>Creator Announcements:</strong> Get early previews of upcoming videos, live broadcasts, and behind-the-scenes photos directly from channels you follow.</li>
+        <li><strong>Interactive Polls &amp; Discussions:</strong> Vote on community polls, share feedback in comment threads, and connect with viewers who share your interests.</li>
+        <li><strong>Regional &amp; Cultural Conversations:</strong> Discover trending topics across Indian cities, languages, entertainment, technology, and cricket.</li>
+      </ul>
+      <h2>Safe &amp; Welcoming Community Standards</h2>
+      <p>Every member contributes to making SocialIndia respectful and constructive. Review our <a href="/guidelines">Community Guidelines</a> or visit <a href="/trending">Trending Videos</a> and <a href="/shorts">SocialIndia Clips</a>.</p>
     `
   },
   {
@@ -222,13 +236,15 @@ const pages = [
     },
     heading: 'SocialIndia Clips – Explore Short Videos',
     content: `
-      <p>Explore vertical Clips and short videos from Indian creators. Watch comedy skits, news explainers, music clips, devotionals, and daily moments in a swipeable player.</p>
-      <h2>Why Watch &amp; Share Clips on SocialIndia</h2>
+      <p>Explore vertical Clips and short videos from Indian creators. Watch comedy skits, news explainers, music clips, devotionals, sports highlights, and daily moments in a fast swipeable player built for Bharat.</p>
+      <h2>Why Watch &amp; Create Clips on SocialIndia</h2>
       <ul>
-        <li>Instant vertical playback optimized for mobile networks and desktop browsers.</li>
-        <li>Like, comment, share, and follow creators directly from the Clips feed.</li>
-        <li>Upload Clips via <a href="/studio">Creator Studio</a> to grow your audience and earn reward points.</li>
+        <li><strong>Fast Adaptive Playback:</strong> Smooth vertical streaming engineered for Indian mobile data networks as well as desktop browsers.</li>
+        <li><strong>Full Creator Engagement:</strong> Like, comment, save for offline viewing, share links, and follow your favorite creators in one tap.</li>
+        <li><strong>Built-In Sounds &amp; Creator Studio:</strong> Upload vertical Clips with background tracks via <a href="/studio">Creator Studio</a> and grow your audience organically.</li>
+        <li><strong>Reward Points &amp; Milestones:</strong> Active creators and viewers earn engagement points and can unlock monetization as their channel grows.</li>
       </ul>
+      <p>Want to watch full-length uploads? Visit <a href="/trending">Trending Videos</a> or download the mobile app from <a href="/downloads">Downloads</a>.</p>
     `
   },
   {
@@ -298,14 +314,15 @@ const pages = [
     },
     heading: 'Contact SocialIndia',
     content: `
-      <p>Reach out to SocialIndia for general customer support, creator questions, partnership inquiries, feedback, or platform suggestions.</p>
+      <p>Reach out to SocialIndia for general customer support, creator channel questions, brand sponsorships, technical feedback, and platform partnership inquiries across India.</p>
       <h2>Direct Email Support</h2>
-      <p>Email: <a href="mailto:socialindia.ib@gmail.com">socialindia.ib@gmail.com</a></p>
-      <h2>Other Support Channels</h2>
+      <p>Official Support Email: <a href="mailto:socialindia.ib@gmail.com">socialindia.ib@gmail.com</a>. Please include your registered username or channel handle so our support team can assist you faster.</p>
+      <h2>Specialized Support &amp; Policy Channels</h2>
       <ul>
-        <li>Read answers to common questions in our <a href="/faq">FAQ</a> and <a href="/help">Help Center</a>.</li>
-        <li>For formal content, privacy, or policy complaints, please use the <a href="/grievance">Grievance Redressal</a> form to receive a complaint tracking ID.</li>
-        <li>For brand promotions and sponsorships, visit <a href="/advertising">SocialIndia Advertising</a>.</li>
+        <li><strong>Common Questions:</strong> Browse answers about uploads, points, monetization, and accounts in our <a href="/faq">FAQ</a> and <a href="/help">Help Center</a>.</li>
+        <li><strong>Formal Grievances &amp; Takedowns:</strong> For copyright notices, privacy requests, or safety complaints, submit the <a href="/grievance">Grievance Redressal</a> form to generate a complaint tracking ID.</li>
+        <li><strong>Brand Advertising:</strong> Promote your business or app on SocialIndia via <a href="/advertising">SocialIndia Advertising</a>.</li>
+        <li><strong>Developer &amp; Embed Inquiries:</strong> Check metadata and canonical URL guides in our <a href="/developers">Developer Portal</a>.</li>
       </ul>
     `
   },
@@ -320,10 +337,16 @@ const pages = [
     },
     heading: 'Grievance Redressal & Support',
     content: `
-      <p>If you need to report a formal content concern, copyright issue, account dispute, or safety complaint on SocialIndia, submit your request through the Grievance Redressal form.</p>
+      <p>SocialIndia provides a structured Grievance Redressal mechanism for users, creators, and copyright holders to report content violations, impersonation, privacy concerns, or account disputes.</p>
       <h2>How Grievance Tracking Works</h2>
-      <p>Each submission generates a tracking ID on screen so you can reference your case when following up with the SocialIndia Grievance &amp; Support Team at socialindia.ib@gmail.com.</p>
-      <p>Please save the tracking ID shown after submission. Review our <a href="/guidelines">Community Guidelines</a>, <a href="/privacy">Privacy Policy</a>, and <a href="/terms">Terms of Service</a> for policy details.</p>
+      <p>When you submit a formal report through the Grievance Redressal form, the system records your complaint in our moderation queue and generates a unique tracking ID on screen. Save your tracking ID for follow-up communication with the SocialIndia Grievance &amp; Support Team at <a href="mailto:socialindia.ib@gmail.com">socialindia.ib@gmail.com</a>.</p>
+      <h2>Categories Covered Under Grievance Redressal</h2>
+      <ul>
+        <li>Copyright and intellectual property infringement claims with original proof of ownership.</li>
+        <li>Harassment, impersonation, privacy leaks, or non-consensual content reports.</li>
+        <li>Account suspension appeals and monetization or payout review requests.</li>
+      </ul>
+      <p>Before submitting, please review our <a href="/guidelines">Community Guidelines</a>, <a href="/privacy">Privacy Policy</a>, and <a href="/terms">Terms of Service</a>.</p>
     `
   },
   {
@@ -337,14 +360,15 @@ const pages = [
     },
     heading: 'SocialIndia Advertising & Brand Promotions',
     content: `
-      <p>Promote your brand, app, or product with custom in-stream video advertisements, sponsored feed cards, and creator campaigns built for Indian audiences.</p>
+      <p>Promote your brand, mobile app, e-commerce store, or creator launch with native video advertisements, sponsored feed cards, and creator campaigns tailored for Indian audiences.</p>
       <h2>Why Advertise with SocialIndia?</h2>
       <ul>
-        <li>Reach engaged audiences across Tier 1, Tier 2, and Tier 3 cities in India.</li>
-        <li>Clear campaign analytics with impressions, click-through rates, and performance tracking.</li>
-        <li>Seamless native formats across home feeds, watch pages, and community discussions.</li>
+        <li><strong>Nationwide Bharat Reach:</strong> Connect with engaged viewers across Tier 1 metros as well as fast-growing Tier 2 and Tier 3 cities across India.</li>
+        <li><strong>Non-Intrusive Native Placements:</strong> Run campaigns across home feeds, watch pages, and community discovery without disrupting viewer experience.</li>
+        <li><strong>Transparent Performance Tracking:</strong> Monitor campaign impressions, clicks, and engagement directly from your advertiser campaign dashboard.</li>
+        <li><strong>Creator-First Ecosystem:</strong> Ad revenue helps support Indian creators who publish original videos, Clips, and educational content.</li>
       </ul>
-      <p>Learn about our advertising disclosure standards in the <a href="/adinfo">Ad Transparency Center</a> or <a href="/contact">contact our team</a> to launch a campaign.</p>
+      <p>Learn about our advertising disclosure standards in the <a href="/adinfo">Ad Transparency Center</a>, review billing rules in our <a href="/refund">Refund Policy</a>, or <a href="/contact">contact our team</a> to start a campaign.</p>
     `
   },
   {
@@ -358,14 +382,15 @@ const pages = [
     },
     heading: 'SocialIndia Ad Transparency & Standards',
     content: `
-      <p>We believe in honest, safe, and transparent advertising across SocialIndia. Every sponsored placement is clearly labeled so viewers always know when content is promoted.</p>
-      <h2>Our Advertising Principles</h2>
+      <p>SocialIndia is committed to honest, clear, and user-respecting advertising across the entire platform. Every sponsored video, brand promotion, or feed placement is visibly labeled so viewers always know when content is paid advertising.</p>
+      <h2>Our Core Advertising Standards</h2>
       <ul>
-        <li><strong>Clear Labeling:</strong> Sponsored videos and brand cards carry visible ad indicators.</li>
-        <li><strong>User Privacy:</strong> Advertising operates in accordance with our <a href="/privacy">Privacy Policy</a>.</li>
-        <li><strong>Safety Review:</strong> Prohibited, deceptive, or harmful promotions are restricted under our platform policies.</li>
+        <li><strong>Clear Sponsored Labeling:</strong> All promoted cards and in-stream ads display clear sponsored badges and advertiser attribution.</li>
+        <li><strong>Privacy-Respecting Delivery:</strong> Advertising operates strictly within the commitments described in our <a href="/privacy">Privacy Policy</a>.</li>
+        <li><strong>Strict Safety Review:</strong> Misleading claims, financial scams, phishing links, counterfeit goods, and unsafe promotions are prohibited under our <a href="/guidelines">Community Guidelines</a>.</li>
+        <li><strong>Ad-Free Viewing Option:</strong> Viewers who prefer an uninterrupted experience can upgrade to <a href="/gopro">SocialIndia Pro</a>.</li>
       </ul>
-      <p>Interested in promoting on SocialIndia? Explore <a href="/advertising">SocialIndia Advertising</a>.</p>
+      <p>Interested in promoting your business responsibly across Bharat? Visit <a href="/advertising">SocialIndia Advertising</a> or report an ad concern via <a href="/grievance">Grievance Redressal</a>.</p>
     `
   },
   {
@@ -379,14 +404,15 @@ const pages = [
     },
     heading: 'SocialIndia Pro – Creator Tools & Verified Perks',
     content: `
-      <p>Unlock enhanced creator capabilities with SocialIndia Pro. Built for growing Indian channels, educators, entertainers, and brands.</p>
+      <p>Unlock enhanced creator capabilities and an uninterrupted viewing experience with SocialIndia Pro. Designed for growing Indian creators, educators, independent journalists, musicians, and brands.</p>
       <h2>What Is Included in SocialIndia Pro</h2>
       <ul>
-        <li>Verified creator badge eligibility and standout channel branding.</li>
-        <li>Ad-free viewing experience and high-quality video streaming.</li>
-        <li>Extended analytics inside <a href="/studio">Creator Studio</a> and priority creator support.</li>
+        <li><strong>Verified Creator Badge Eligibility:</strong> Stand out in search results, watch pages, comments, and community threads with verified channel credibility.</li>
+        <li><strong>Ad-Free Streaming Experience:</strong> Watch long-form videos and explore <a href="/shorts">SocialIndia Clips</a> without sponsored interruptions.</li>
+        <li><strong>Advanced Creator Studio Insights:</strong> Track audience performance, watch engagement, and monetization readiness inside <a href="/studio">Creator Studio</a>.</li>
+        <li><strong>Priority Creator Support:</strong> Faster assistance for channel verification reviews and technical account questions.</li>
       </ul>
-      <p>Review subscription terms and cancellation rules on our <a href="/refund">Refund Policy</a> and <a href="/terms">Terms of Service</a> pages.</p>
+      <p>Review membership billing and cancellation rules on our <a href="/refund">Refund Policy</a> and <a href="/terms">Terms of Service</a> pages, or check common questions in our <a href="/faq">FAQ</a>.</p>
     `
   },
   {
@@ -407,14 +433,14 @@ const pages = [
     },
     heading: 'Download SocialIndia Mobile App (Android APK & PWA)',
     content: `
-      <p>Take SocialIndia anywhere on your phone. Download the official Android app (APK) or install the lightweight Progressive Web App (PWA) directly from your browser.</p>
-      <h2>App Highlights</h2>
+      <p>Take SocialIndia everywhere on your smartphone or desktop. Install the lightweight Progressive Web App (PWA) directly from your browser or access your personal offline Downloads library to watch saved videos and Clips anytime, even without an active internet connection.</p>
+      <h2>Mobile App &amp; Offline Library Features</h2>
       <ul>
-        <li>Watch trending videos and explore <a href="/shorts">Clips</a> with fast adaptive playback.</li>
-        <li>Save videos for offline viewing in your personal Downloads library.</li>
-        <li>Share photos and videos, receive notifications, and chat with people on the go.</li>
+        <li><strong>Offline Video &amp; Clips Vault:</strong> Save videos locally on your device so you can watch them smoothly in the full video and Clips player while traveling or on low connectivity.</li>
+        <li><strong>Fast Native-Like Experience:</strong> Instant launch from your home screen with push-ready notifications, dark/light themes, and Hindi &amp; English interface support.</li>
+        <li><strong>Create &amp; Chat on the Go:</strong> Upload Clips, post in the <a href="/community">Community Feed</a>, and message creators or friends directly from mobile.</li>
       </ul>
-      <p>Need help installing the app? Visit our <a href="/help">Help Center</a> or <a href="/faq">FAQ</a>.</p>
+      <p>Need help installing or managing offline downloads? Visit our <a href="/help">Help Center</a>, read our <a href="/faq">FAQ</a>, or explore <a href="/trending">Trending Videos</a>.</p>
     `
   },
   {
@@ -428,13 +454,15 @@ const pages = [
     },
     heading: 'SocialIndia Developer Portal & Embeds',
     content: `
-      <p>Build integrations and embed SocialIndia videos across blogs, portals, and web apps using standard web links and responsive embed workflows.</p>
-      <h2>Developer Resources</h2>
+      <p>Build web integrations, creator tools, and rich link previews for SocialIndia content using clean canonical URLs, structured Schema.org markup, and responsive embed workflows.</p>
+      <h2>Platform URL &amp; Metadata Standards</h2>
       <ul>
-        <li>Clean canonical watch URLs (<code>/watch/&lt;id&gt;</code> and <code>/shorts/&lt;id&gt;</code>) and creator handle routing (<code>/@handle</code>).</li>
-        <li>Structured OpenGraph and Schema.org metadata for rich link previews.</li>
-        <li>Integration support via <a href="/contact">Contact Us</a>.</li>
+        <li><strong>Canonical Video &amp; Clip Routes:</strong> Share and reference long-form videos via <code>/watch/&lt;videoId&gt;</code> and vertical Clips via <code>/shorts/&lt;videoId&gt;</code>.</li>
+        <li><strong>Creator Channel Handles:</strong> Every creator profile resolves cleanly through handle routing (<code>/@username</code>) with OpenGraph preview tags.</li>
+        <li><strong>Structured Data &amp; Discovery:</strong> Every public video and page exposes OpenGraph, Twitter Card, and Schema.org <code>VideoObject</code> JSON-LD metadata for rich social and search indexing.</li>
+        <li><strong>Progressive Web App Compatibility:</strong> Supports standard Web App Manifest and offline media caching for modern mobile and desktop browsers.</li>
       </ul>
+      <p>Have a technical integration question or partnership proposal? Reach out via <a href="/contact">Contact Us</a> or read <a href="/about">About SocialIndia</a>.</p>
     `
   },
   {
@@ -448,14 +476,16 @@ const pages = [
     },
     heading: 'SocialIndia Community Guidelines & Content Safety',
     content: `
-      <p>These guidelines describe content and conduct expectations across SocialIndia so creators and viewers can share ideas safely and respectfully.</p>
+      <p>SocialIndia is built for creators and viewers across Bharat to share knowledge, entertainment, culture, and discussions safely. These Community Guidelines apply to all videos, Clips, thumbnails, titles, comments, community posts, and direct messages on the platform.</p>
       <h2>Core Safety &amp; Content Pillars</h2>
       <ul>
-        <li><strong>Respect &amp; Anti-Harassment:</strong> Hate speech, bullying, threats, and targeted harassment are prohibited.</li>
-        <li><strong>Copyright &amp; Originality:</strong> Only upload videos, photos, audio, and thumbnails you own or have permission to share.</li>
-        <li><strong>No Spam or Scams:</strong> Deceptive metadata, phishing links, and artificial engagement manipulation are not permitted.</li>
-        <li><strong>Reporting &amp; Review:</strong> Users can report concerning content or file formal complaints via <a href="/grievance">Grievance Redressal</a>.</li>
+        <li><strong>Respect &amp; Anti-Harassment:</strong> Hate speech, caste or religious slurs, bullying, threats, doxxing, and targeted harassment are strictly prohibited.</li>
+        <li><strong>Copyright &amp; Originality:</strong> Only upload videos, audio tracks, images, and thumbnails that you created or hold valid rights to distribute.</li>
+        <li><strong>Zero Tolerance for Harmful Content:</strong> Child exploitation, graphic violence, self-harm promotion, and illegal activities result in immediate removal and permanent account bans.</li>
+        <li><strong>No Spam, Scams, or Fake Engagement:</strong> Deceptive metadata, phishing links, impersonation, and artificial view/follower manipulation are not permitted.</li>
       </ul>
+      <h2>Reporting &amp; Enforcement</h2>
+      <p>Use the report option on any video, comment, or profile, or file a formal complaint via <a href="/grievance">Grievance Redressal</a>. Also review our <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.</p>
     `
   },
   {
@@ -469,14 +499,15 @@ const pages = [
     },
     heading: 'SocialIndia Help Center & Guides',
     content: `
-      <p>Everything you need to know about using SocialIndia: uploading videos and Clips, sharing community posts, troubleshooting playback, updating your channel profile, and managing monetization.</p>
+      <p>Welcome to the SocialIndia Help Center. Find step-by-step guidance for uploading videos and Clips, customizing your channel, saving offline downloads, earning reward points, and enabling creator monetization.</p>
       <h2>Popular Help Topics</h2>
       <ul>
-        <li><strong>Uploading Videos &amp; Clips:</strong> Supported formats, thumbnails, titles, and hashtags in <a href="/studio">Creator Studio</a>.</li>
-        <li><strong>Monetization &amp; Points:</strong> Track your follower and view milestones in our <a href="/faq">FAQ</a>.</li>
-        <li><strong>Account &amp; Privacy:</strong> Learn how your data is protected in our <a href="/privacy">Privacy Policy</a>.</li>
-        <li><strong>Direct Assistance:</strong> Reach out via <a href="/contact">Contact Us</a> or <a href="/grievance">Grievance Redressal</a>.</li>
+        <li><strong>Uploading Videos &amp; Clips:</strong> Upload MP4 or WebM videos, set custom thumbnails, write clear titles and descriptions, and publish from <a href="/studio">Creator Studio</a>.</li>
+        <li><strong>Monetization &amp; Reward Points:</strong> Learn how views, likes, comments, and follower milestones unlock wallet conversion and UPI payouts in our <a href="/faq">FAQ</a>.</li>
+        <li><strong>Channel Verification (Blue Tick):</strong> Submit your creator details from account settings to request official channel verification.</li>
+        <li><strong>Account Safety &amp; Privacy:</strong> Understand how your account credentials and personal data are protected in our <a href="/privacy">Privacy Policy</a>.</li>
       </ul>
+      <p>Still need help? Reach out directly via <a href="/contact">Contact Us</a> or file a formal ticket through <a href="/grievance">Grievance Redressal</a>.</p>
     `
   },
   {
@@ -490,11 +521,15 @@ const pages = [
     },
     heading: 'SocialIndia Privacy Policy',
     content: `
-      <p>This Privacy Policy explains what information SocialIndia collects, how it is used to run video streaming, Clips, community features, messaging, and creator accounts, and how you can manage your privacy requests.</p>
+      <p>This Privacy Policy explains what information SocialIndia collects, how it is used to operate video streaming, Clips, community discussions, messaging, and creator accounts, and how you can control your personal data.</p>
       <h2>Information We Process</h2>
-      <p>The application uses Firebase Authentication, Cloud Firestore, Firebase Storage, and Cloudinary for media uploads. Account profile information (display name, handle, email) and uploaded content (videos, photos, thumbnails, comments, community posts) are processed to deliver platform features.</p>
-      <h2>Your Rights &amp; Privacy Support</h2>
-      <p>You may contact SocialIndia at socialindia.ib@gmail.com to request access, correction, or account deletion assistance. Formal complaints can also be submitted via <a href="/grievance">Grievance Redressal</a>.</p>
+      <ul>
+        <li><strong>Account &amp; Profile Details:</strong> Display name, handle, email address, profile photo, and channel preferences stored securely via Firebase Authentication and Cloud Firestore.</li>
+        <li><strong>Creator Content &amp; Interactions:</strong> Videos, Clips, thumbnails, community posts, comments, likes, and subscriptions published on the platform.</li>
+        <li><strong>Device &amp; Offline Storage:</strong> Offline downloads and playback preferences saved locally in your browser so features work reliably on slow or offline connections.</li>
+      </ul>
+      <h2>Data Security &amp; Your Rights</h2>
+      <p>We never sell personal data to third-party brokers. You can manage profile details from your settings or contact <a href="mailto:socialindia.ib@gmail.com">socialindia.ib@gmail.com</a> for data access, correction, or account deletion requests. Formal privacy complaints may also be raised through <a href="/grievance">Grievance Redressal</a>.</p>
     `
   },
   {
@@ -508,13 +543,15 @@ const pages = [
     },
     heading: 'SocialIndia Refund & Cancellation Policy',
     content: `
-      <p>This policy outlines how refunds, cancellations, and billing disputes are handled for <a href="/gopro">SocialIndia Pro</a> memberships, paid video unlocks, wallet transactions, and <a href="/advertising">advertising campaigns</a>.</p>
-      <h2>Eligibility &amp; Support</h2>
+      <p>This Refund &amp; Cancellation Policy outlines how billing, cancellations, and refund requests are handled across <a href="/gopro">SocialIndia Pro</a> memberships, paid video unlocks, wallet deposits, and <a href="/advertising">SocialIndia Advertising</a> campaigns.</p>
+      <h2>Refund Eligibility &amp; Review Process</h2>
       <ul>
-        <li>Duplicate charges or failed digital unlocks are reviewed promptly upon contacting support with your transaction details.</li>
-        <li>You can cancel recurring preferences from your account settings prior to the next billing period.</li>
-        <li>Contact <a href="mailto:socialindia.ib@gmail.com">socialindia.ib@gmail.com</a> or visit <a href="/contact">Contact Us</a> for billing help.</li>
+        <li><strong>Duplicate or Failed Charges:</strong> If your UPI or payment method was debited multiple times or an unlock failed to activate, we verify the transaction ID and issue a prompt refund.</li>
+        <li><strong>Subscription Cancellations:</strong> Users can cancel recurring <a href="/gopro">SocialIndia Pro</a> preferences before the next billing cycle from their account settings without penalty.</li>
+        <li><strong>Advertising Balance:</strong> Unspent balances for paused or unapproved ad campaigns are reviewed in accordance with campaign terms.</li>
       </ul>
+      <h2>How to Request Billing Help</h2>
+      <p>Send your registered email, username, and payment reference ID to <a href="mailto:socialindia.ib@gmail.com">socialindia.ib@gmail.com</a> or visit <a href="/contact">Contact Us</a>. Policy disputes can also be logged in <a href="/grievance">Grievance Redressal</a>.</p>
     `
   },
   {
@@ -528,11 +565,16 @@ const pages = [
     },
     heading: 'SocialIndia Terms of Service',
     content: `
-      <p>By accessing or using SocialIndia, you agree to these Terms of Service, our <a href="/privacy">Privacy Policy</a>, and our <a href="/guidelines">Community Guidelines</a>.</p>
-      <h2>User Content &amp; Responsibilities</h2>
-      <p>You retain ownership of original videos, photos, and posts you upload, while granting SocialIndia the license required to host, transcode, and display your content on the platform. You must not upload unlawful, infringing, or harmful material.</p>
-      <h2>Account Safety &amp; Enforcement</h2>
-      <p>Accounts violating platform safety rules or copyright laws may have content removed or access restricted. Appeals and formal grievances can be filed through <a href="/grievance">Grievance Redressal</a>.</p>
+      <p>Welcome to SocialIndia. By creating an account or accessing our website and mobile application, you agree to these Terms of Service alongside our <a href="/privacy">Privacy Policy</a> and <a href="/guidelines">Community Guidelines</a>.</p>
+      <h2>User Content &amp; Intellectual Property</h2>
+      <p>You retain full ownership of the original videos, Clips, photos, captions, and posts you upload to SocialIndia. By publishing content publicly, you grant SocialIndia a non-exclusive license to host, stream, format thumbnails, and display your content to viewers across the platform.</p>
+      <h2>Creator Accounts, Monetization &amp; Conduct</h2>
+      <ul>
+        <li>You are responsible for safeguarding your login credentials and ensuring uploaded content complies with applicable Indian laws and copyright rules.</li>
+        <li>Monetization rewards and UPI payouts require authentic engagement; artificial clicks, bot traffic, or spam violate these terms.</li>
+        <li>SocialIndia reserves the right to remove policy-violating content or restrict accounts involved in abuse or fraud.</li>
+      </ul>
+      <p>Appeals and formal notices can be filed through <a href="/grievance">Grievance Redressal</a> or by emailing <a href="mailto:socialindia.ib@gmail.com">socialindia.ib@gmail.com</a>.</p>
     `
   },
   {
@@ -567,13 +609,15 @@ const pages = [
     },
     heading: 'SocialIndia Creator Studio',
     content: `
-      <p>SocialIndia Creator Studio is the dedicated workspace for Indian creators to upload videos and Clips, review audience analytics, manage comments, and track monetization milestones.</p>
-      <h2>Creator Studio Capabilities</h2>
+      <p>SocialIndia Creator Studio is the dedicated publishing and analytics workspace for Indian creators to upload long-form videos and vertical Clips, manage comments, grow followers, and track monetization milestones.</p>
+      <h2>What You Can Manage in Creator Studio</h2>
       <ul>
-        <li>Upload long-form videos and vertical Clips with custom thumbnails, descriptions, and tags.</li>
-        <li>Monitor views, watch engagement, follower growth, and reward points.</li>
-        <li>Unlock monetization once you reach 500 followers and 1,000 views on any single video. See our <a href="/faq">FAQ</a> for details.</li>
+        <li><strong>Video &amp; Clips Publishing:</strong> Upload high-definition videos and vertical Clips with custom thumbnails, SEO-friendly titles, descriptions, categories, and tags.</li>
+        <li><strong>Audience &amp; Engagement Analytics:</strong> Monitor video views, likes, comments, shares, and follower growth in real time.</li>
+        <li><strong>Monetization &amp; Payouts:</strong> Track progress toward the 500-follower and 1,000-view monetization milestone and manage UPI withdrawal requests.</li>
+        <li><strong>Captions &amp; Sound Library:</strong> Enhance accessibility and creativity with subtitles and curated background audio tracks.</li>
       </ul>
+      <p>Need tips on getting started? Read our <a href="/faq">FAQ</a>, browse the <a href="/help">Help Center</a>, or explore <a href="/gopro">SocialIndia Pro</a>.</p>
     `
   }
 ];
@@ -758,6 +802,7 @@ for (const v of seedVideos) {
     ogType: 'video.other',
     image: thumbUrl,
     imageAlt: cleanTitle,
+    robots: isQualitySeedVideo(v) ? undefined : 'noindex, nofollow',
     jsonLdObject,
     heading: cleanTitle,
     content: `

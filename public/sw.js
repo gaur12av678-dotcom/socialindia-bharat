@@ -1,5 +1,5 @@
 // SocialIndia Real Offline Service Worker
-const VERSION = '1.0.4';
+const VERSION = '1.0.5';
 const CACHE_NAME = `socialindia-shell-v${VERSION}`;
 
 const STATIC_ASSETS = [
@@ -38,6 +38,12 @@ self.addEventListener('fetch', (event) => {
   // CRITICAL: Cache only same-origin static assets
   const isSameOrigin = url.origin === self.location.origin;
 
+  // Never intercept sitemaps, robots.txt, or search verification files
+  const isCrawlerOrVerificationFile =
+    url.pathname.endsWith('.xml') ||
+    url.pathname === '/robots.txt' ||
+    /^\/google[a-z0-9]+\.html$/i.test(url.pathname);
+
   // CRITICAL: Never cache requests whose URL contains '/users/' responses, firebase auth, or auth state
   const isProtectedPath = url.pathname.includes('/users/') || 
                           url.origin.includes('firestore.googleapis.com') ||
@@ -45,7 +51,7 @@ self.addEventListener('fetch', (event) => {
                           url.origin.includes('firebaseio.com') ||
                           url.pathname.includes('/api/auth');
 
-  if (!isSameOrigin || isProtectedPath) {
+  if (!isSameOrigin || isCrawlerOrVerificationFile || isProtectedPath) {
     return;
   }
 

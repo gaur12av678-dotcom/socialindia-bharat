@@ -19,6 +19,19 @@ function cleanText(str) {
   return String(str || '').replace(/\s+/g, ' ').trim();
 }
 
+function truncateAndEscapeXml(raw, maxEscapedLen) {
+  const text = cleanText(raw);
+  if (!text) return '';
+  let out = '';
+  for (const ch of text) {
+    const escapedChar = escapeXml(ch);
+    if (!escapedChar) continue;
+    if (out.length + escapedChar.length > maxEscapedLen) break;
+    out += escapedChar;
+  }
+  return out;
+}
+
 function cleanIsoDate(dateStr) {
   if (!dateStr) return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   try {
@@ -28,6 +41,15 @@ function cleanIsoDate(dateStr) {
     }
   } catch (_) {}
   return new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+function isIndexableVideo(v) {
+  if (!v || !v.videoId) return false;
+  const title = cleanText(v.title);
+  if (!title || title.length < 6) return false;
+  if (/^(check|test|testing|demo|sample)$/i.test(title)) return false;
+  if (/64ce2ae8e3535d266be88a/i.test(title)) return false;
+  return true;
 }
 
 const todayDate = new Date().toISOString().split('T')[0];
@@ -55,21 +77,23 @@ const staticPages = [
   { path: 'guidelines', changefreq: 'yearly', priority: '0.4' }
 ];
 
-let videos = [];
+let rawVideos = [];
 const seedPath = path.join(__dirname, 'videos_seed.json');
 if (fs.existsSync(seedPath)) {
   try {
-    videos = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+    rawVideos = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
   } catch (e) {
     console.warn('Could not read seed videos:', e);
   }
 } else if (fs.existsSync('/tmp/real_videos.json')) {
   try {
-    videos = JSON.parse(fs.readFileSync('/tmp/real_videos.json', 'utf8'));
+    rawVideos = JSON.parse(fs.readFileSync('/tmp/real_videos.json', 'utf8'));
   } catch (e) {
     console.warn('Could not read /tmp/real_videos.json:', e);
   }
 }
+
+const videos = rawVideos.filter(isIndexableVideo);
 
 // 1. Generate Clean Page Sitemap (sitemap.xml)
 let pageSitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -89,7 +113,6 @@ for (const page of staticPages) {
 
 // Add canonical watch URLs for all public videos to standard sitemap for page discovery
 for (const v of videos) {
-  if (!v.videoId) continue;
   const watchUrl = v.isShort ? `https://socialindia.web.app/shorts/${v.videoId}` : `https://socialindia.web.app/watch/${v.videoId}`;
   const videoDate = v.createdAt ? cleanIsoDate(v.createdAt).split('T')[0] : todayDate;
   pageSitemapXml += `  <url>
@@ -113,11 +136,17 @@ let videoSitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
 for (const v of videos) {
   if (!v.videoId || !v.videoUrl) continue;
   const watchUrl = v.isShort ? `https://socialindia.web.app/shorts/${v.videoId}` : `https://socialindia.web.app/watch/${v.videoId}`;
-  const title = escapeXml((cleanText(v.title) || 'SocialIndia Video').slice(0, 100));
-  const desc = escapeXml((cleanText(v.description) || 'Watch videos and explore Clips on SocialIndia, India’s own social media platform.').slice(0, 2040));
+  const title = truncateAndEscapeXml(v.title || 'SocialIndia Video', 100) || 'SocialIndia Video';
+  const descFallback = `Watch "${cleanText(v.title) || 'this video'}" on SocialIndia, India’s own social media and video platform.`;
+  const desc = truncateAndEscapeXml(
+    cleanText(v.description) && !/^watch on socialindia\.?$/i.test(cleanText(v.description))
+      ? v.description
+      : descFallback,
+    2040
+  ) || 'Watch videos and explore Clips on SocialIndia.';
   const thumb = escapeXml(v.thumbnailUrl || 'https://socialindia.web.app/socialindia-logo.png');
   const contentLoc = escapeXml(v.videoUrl);
-  const duration = Math.min(Math.max(Number(v.duration) || 30, 1), 28800);
+  const duration = Math.min(Math.max(Math.round(Number(v.duration) || 30), 1), 28800);
   const pubDate = cleanIsoDate(v.createdAt);
 
   videoSitemapXml += `  <url>

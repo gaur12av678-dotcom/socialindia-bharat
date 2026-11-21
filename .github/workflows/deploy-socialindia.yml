@@ -144,7 +144,7 @@ jobs:
                   ]
                 },
                 {
-                  "source": "@(sitemap.xml|video-sitemap.xml|sitemap_index.xml|*.xml)",
+                  "source": "/**/*.xml",
                   "headers": [
                     { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
@@ -152,7 +152,7 @@ jobs:
                   ]
                 },
                 {
-                  "source": "**/sitemap.xml",
+                  "source": "/sitemap.xml",
                   "headers": [
                     { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
@@ -160,7 +160,7 @@ jobs:
                   ]
                 },
                 {
-                  "source": "**/video-sitemap.xml",
+                  "source": "/video-sitemap.xml",
                   "headers": [
                     { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
@@ -168,7 +168,7 @@ jobs:
                   ]
                 },
                 {
-                  "source": "**/sitemap_index.xml",
+                  "source": "/sitemap_index.xml",
                   "headers": [
                     { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
@@ -176,7 +176,7 @@ jobs:
                   ]
                 },
                 {
-                  "source": "**/robots.txt",
+                  "source": "/robots.txt",
                   "headers": [
                     { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
                     { "key": "X-Robots-Tag", "value": "all" },
@@ -276,16 +276,18 @@ jobs:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Verify Live Sitemap URLs
-        continue-on-error: true
+        continue-on-error: false
         run: |
           set -e
           for file in sitemap.xml video-sitemap.xml sitemap_index.xml robots.txt; do
             url="https://socialindia.web.app/$file"
             echo "Checking $url"
-            curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$url" -o "/tmp/$file"
+            ctype=$(curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL -D /tmp/hdrs.txt "$url" -o "/tmp/$file" && grep -i '^content-type:' /tmp/hdrs.txt | tr -d '\r')
+            echo "  $ctype"
             if [ "$file" = "robots.txt" ]; then
-              grep -q "Sitemap: https://socialindia.web.app/sitemap.xml" "/tmp/$file"
+              grep -q "Sitemap: https://socialindia.web.app/sitemap_index.xml" "/tmp/$file"
             else
+              echo "$ctype" | grep -qi "xml"
               grep -q "http://www.sitemaps.org/schemas/sitemap/0.9" "/tmp/$file"
             fi
             echo "OK: $url"
