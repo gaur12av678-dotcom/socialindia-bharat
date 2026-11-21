@@ -1499,7 +1499,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     e.stopPropagation();
                     navigate('creator', video.creatorUsername);
                   }}
-                  className="text-[10px] sm:text-[11px] text-white/75 font-bold hover:text-white hover:underline cursor-pointer truncate"
+                  style={{ color: '#d1d5db' }}
+                  className="text-[10px] sm:text-[11px] text-gray-300 font-bold hover:underline drop-shadow-sm cursor-pointer truncate"
                 >
                   {video.creatorDisplayName} (@{video.creatorUsername})
                   {isCreatorVerified && (
