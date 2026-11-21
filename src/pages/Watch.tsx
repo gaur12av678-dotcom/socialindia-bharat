@@ -433,13 +433,32 @@ export const Watch: React.FC = () => {
 
   const commentDropdownRef = useRef<Record<string, boolean>>({});
   const lastSavedProgressRef = useRef<number>(0);
+  const offlineBlobUrlsRef = useRef<string[]>([]);
   const [, forceUpdate] = useState({});
+
+  const revokeOfflineBlobUrls = () => {
+    offlineBlobUrlsRef.current.forEach(url => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        // Ignore cleanup errors
+      }
+    });
+    offlineBlobUrlsRef.current = [];
+  };
+
+  useEffect(() => {
+    return () => {
+      revokeOfflineBlobUrls();
+    };
+  }, []);
 
   useEffect(() => {
     if (!videoId) return;
 
     let isMounted = true;
     lastSavedProgressRef.current = 0;
+    revokeOfflineBlobUrls();
 
     const loadVideoDetails = async () => {
       const cached = videoService.getCachedVideo(videoId);
@@ -465,12 +484,73 @@ export const Watch: React.FC = () => {
         setCreator(null);
         setLoading(true);
       }
+
+      let offlineVideoUrl: string | null = null;
+      let offlineThumbUrl: string | undefined = undefined;
+      let offlineVideoFallback: Video | null = null;
+
+      try {
+        const offlineRecord = await downloadService.getDownloadedVideo(videoId);
+        if (!isMounted) return;
+
+        if (offlineRecord) {
+          if (offlineRecord.isShort) {
+            navigate('shorts', videoId);
+            return;
+          }
+
+          if (offlineRecord.videoBlob) {
+            offlineVideoUrl = URL.createObjectURL(offlineRecord.videoBlob);
+            offlineBlobUrlsRef.current.push(offlineVideoUrl);
+          }
+          if (offlineRecord.thumbnailBlob) {
+            offlineThumbUrl = URL.createObjectURL(offlineRecord.thumbnailBlob);
+            offlineBlobUrlsRef.current.push(offlineThumbUrl);
+          } else {
+            offlineThumbUrl = offlineRecord.thumbnailUrl;
+          }
+
+          offlineVideoFallback = {
+            ...(cached || {}),
+            videoId: offlineRecord.videoId,
+            title: offlineRecord.title,
+            description: offlineRecord.description || cached?.description || '',
+            videoUrl: offlineVideoUrl || offlineRecord.videoUrl || cached?.videoUrl || '',
+            thumbnailUrl: offlineThumbUrl || cached?.thumbnailUrl || '',
+            duration: Number.isFinite(offlineRecord.duration) ? offlineRecord.duration : (cached?.duration || 0),
+            creatorId: offlineRecord.creatorId,
+            creatorUsername: offlineRecord.creatorUsername,
+            creatorDisplayName: offlineRecord.creatorDisplayName,
+            creatorPhotoURL: offlineRecord.creatorPhotoURL,
+            category: offlineRecord.category || cached?.category || 'General',
+            tags: cached?.tags || [],
+            visibility: cached?.visibility || 'public',
+            viewsCount: cached?.viewsCount || 0,
+            likesCount: cached?.likesCount || 0,
+            commentsCount: cached?.commentsCount || 0,
+            sharesCount: cached?.sharesCount || 0,
+            isShort: false,
+            status: 'published',
+            createdAt: cached?.createdAt || offlineRecord.downloadedAt,
+            updatedAt: cached?.updatedAt || offlineRecord.downloadedAt
+          };
+
+          setVideo(offlineVideoFallback);
+          setLoading(false);
+          setIsDownloaded(true);
+          setIsUnlocked(true);
+          setCheckingUnlock(false);
+        }
+      } catch (offlineErr) {
+        console.warn('Offline video lookup failed:', offlineErr);
+      }
+
       try {
         const vid = await videoService.getVideo(videoId);
         if (!isMounted) return;
 
         if (!vid) {
-          if (!cached) setVideo(null);
+          if (!cached && !offlineVideoFallback) setVideo(null);
           setLoading(false);
           return;
         }
@@ -481,14 +561,22 @@ export const Watch: React.FC = () => {
           return;
         }
 
+        const mergedVideo: Video = offlineVideoUrl
+          ? {
+              ...vid,
+              videoUrl: offlineVideoUrl,
+              thumbnailUrl: offlineThumbUrl || vid.thumbnailUrl
+            }
+          : vid;
+
         // Set video object and close page loading IMMEDIATELY!
-        setVideo(vid);
+        setVideo(mergedVideo);
         setLoading(false);
-        if (vid.commentsMode === 'disabled') {
+        if (mergedVideo.commentsMode === 'disabled') {
           setComments([]);
         } else {
-          const isOwner = currentUser?.uid === vid.creatorId;
-          commentService.getComments(videoId, isOwner, vid.commentsMode === 'hold').then(commList => {
+          const isOwner = currentUser?.uid === mergedVideo.creatorId;
+          commentService.getComments(videoId, isOwner, mergedVideo.commentsMode === 'hold').then(commList => {
             if (!isMounted) return;
             setComments(prev => {
               const unsynced = prev.filter(c =>
@@ -505,12 +593,12 @@ export const Watch: React.FC = () => {
         }
 
         // Check Paid Video Access
-        if (vid.isPaid && (vid.price || 0) > 0) {
-          if (currentUser?.uid === vid.creatorId || currentUserProfile?.role === 'admin') {
+        if (mergedVideo.isPaid && (mergedVideo.price || 0) > 0 && !offlineVideoFallback) {
+          if (currentUser?.uid === mergedVideo.creatorId || currentUserProfile?.role === 'admin') {
             setIsUnlocked(true);
             setCheckingUnlock(false);
           } else if (currentUser) {
-            paidVideoService.hasUserPurchasedVideo(currentUser.uid, vid.videoId).then(unlocked => {
+            paidVideoService.hasUserPurchasedVideo(currentUser.uid, mergedVideo.videoId).then(unlocked => {
               if (isMounted) {
                 setIsUnlocked(unlocked);
                 setCheckingUnlock(false);
@@ -533,28 +621,26 @@ export const Watch: React.FC = () => {
         
         // Resume is only for the last 3 watched regular videos opened on their own.
         // Never seek old progress for live broadcasts, playlist playback, or older videos outside the last 3.
-        const isLiveVideo = Boolean(vid.isLive);
+        const isLiveVideo = Boolean(mergedVideo.isLive);
         if (!isPlaylistPlayback && !isLiveVideo) {
-          const localProgress = playbackProgressService.getProgress(videoId, vid.duration);
+          const localProgress = playbackProgressService.getProgress(videoId, mergedVideo.duration);
           setSeekToTime(localProgress > 5 ? localProgress : undefined);
         } else {
           setSeekToTime(undefined);
-          // Clear only stale progress for the live broadcast itself.
-          // Keep normal video progress intact when it is merely played from a playlist.
           if (isLiveVideo) {
             playbackProgressService.clearProgress(videoId, currentUser?.uid);
           }
         }
 
-        userService.getUserProfile(vid.creatorId, true).then(crProfile => {
+        userService.getUserProfile(mergedVideo.creatorId, true).then(crProfile => {
           if (isMounted && crProfile) {
             setCreator(crProfile);
             
             // NEW: Lazy migration - Sync video metadata if it's outdated
-            if (vid.creatorPhotoURL !== crProfile.photoURL || 
-                vid.creatorDisplayName !== crProfile.displayName || 
-                vid.creatorUsername !== crProfile.username) {
-              videoService.editVideo(vid.videoId, {
+            if (mergedVideo.creatorPhotoURL !== crProfile.photoURL || 
+                mergedVideo.creatorDisplayName !== crProfile.displayName || 
+                mergedVideo.creatorUsername !== crProfile.username) {
+              videoService.editVideo(mergedVideo.videoId, {
                 creatorPhotoURL: crProfile.photoURL,
                 creatorDisplayName: crProfile.displayName,
                 creatorUsername: crProfile.username
@@ -565,7 +651,7 @@ export const Watch: React.FC = () => {
 
         // Check offline downloaded status
         downloadService.isDownloaded(videoId).then(isD => {
-          if (isMounted) setIsDownloaded(isD);
+          if (isMounted) setIsDownloaded(isD || Boolean(offlineVideoFallback));
         }).catch(console.error);
 
         // Fetch full library of public videos for sidebar recommendation algorithm

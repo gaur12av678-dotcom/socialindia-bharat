@@ -315,12 +315,12 @@ html.light .text-white:is(
   [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
   [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
   [class*="bg-transparent"]
-),
+):not([class*="-700"]):not([class*="-800"]):not([class*="-900"]):not([class*="-950"]),
 html:not(.dark) .text-white:is(
   [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
   [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
   [class*="bg-transparent"]
-) {
+):not([class*="-700"]):not([class*="-800"]):not([class*="-900"]):not([class*="-950"]) {
   color: #1f2937 !important;
   -webkit-text-fill-color: #1f2937 !important;
 }
@@ -332,12 +332,12 @@ html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-whi
   [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
   [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
   [class*="bg-transparent"]
-),
+):not([class*="-700"]):not([class*="-800"]):not([class*="-900"]):not([class*="-950"]),
 html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]).text-white:is(
   [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
   [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
   [class*="bg-transparent"]
-) {
+):not([class*="-700"]):not([class*="-800"]):not([class*="-900"]):not([class*="-950"]) {
   color: #1f2937 !important;
   -webkit-text-fill-color: #1f2937 !important;
 }
@@ -348,12 +348,12 @@ html.light :is(button,a,[role="button"],[role="tab"],[role="menuitem"]):is(
   [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
   [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
   [class*="bg-transparent"]
-) :is(.text-white,[class*="text-white/"]) ,
+):not([class*="-700"]):not([class*="-800"]):not([class*="-900"]):not([class*="-950"]) :is(.text-white,[class*="text-white/"]) ,
 html:not(.dark) :is(button,a,[role="button"],[role="tab"],[role="menuitem"]):is(
   [class*="bg-white"],[class*="bg-slate-"],[class*="bg-gray-"],
   [class*="bg-zinc-"],[class*="bg-neutral-"],[class*="bg-stone-"],
   [class*="bg-transparent"]
-) :is(.text-white,[class*="text-white/"]) {
+):not([class*="-700"]):not([class*="-800"]):not([class*="-900"]):not([class*="-950"]) :is(.text-white,[class*="text-white/"]) {
   color: #1f2937 !important;
   -webkit-text-fill-color: #1f2937 !important;
 }

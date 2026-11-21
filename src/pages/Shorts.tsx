@@ -497,6 +497,20 @@ export const Shorts: React.FC = () => {
   const initialCachedShorts = videoService.getCachedVideos({ isShort: true });
   const allShortsPoolRef = useRef<Video[]>(initialCachedShorts);
   const isExpandingRef = useRef(false);
+  const offlineBlobUrlsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    return () => {
+      offlineBlobUrlsRef.current.forEach(url => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // Ignore cleanup errors
+        }
+      });
+      offlineBlobUrlsRef.current = [];
+    };
+  }, []);
 
   const [shorts, setShorts] = useState<Video[]>(() => {
     if (initialCachedShort) {
@@ -602,32 +616,99 @@ export const Shorts: React.FC = () => {
     if (!hasInitialShorts) {
       setLoading(true);
     }
+
+    const offlineShortMap = new Map<string, Video>();
+    try {
+      const allDownloads = await downloadService.getAllDownloads();
+      for (const d of allDownloads) {
+        if (!d.isShort && d.videoId !== targetShortId) continue;
+        const blobVideoUrl = d.videoBlob ? URL.createObjectURL(d.videoBlob) : (d.videoUrl || '');
+        if (d.videoBlob) offlineBlobUrlsRef.current.push(blobVideoUrl);
+        let blobThumbUrl = d.thumbnailUrl || '';
+        if (d.thumbnailBlob) {
+          blobThumbUrl = URL.createObjectURL(d.thumbnailBlob);
+          offlineBlobUrlsRef.current.push(blobThumbUrl);
+        }
+        offlineShortMap.set(d.videoId, {
+          videoId: d.videoId,
+          title: d.title,
+          description: d.description || '',
+          videoUrl: blobVideoUrl,
+          thumbnailUrl: blobThumbUrl,
+          duration: Number.isFinite(d.duration) ? d.duration : 0,
+          creatorId: d.creatorId,
+          creatorUsername: d.creatorUsername,
+          creatorDisplayName: d.creatorDisplayName,
+          creatorPhotoURL: d.creatorPhotoURL,
+          category: d.category || 'General',
+          tags: [],
+          visibility: 'public',
+          viewsCount: 0,
+          likesCount: 0,
+          commentsCount: 0,
+          sharesCount: 0,
+          isShort: true,
+          status: 'published',
+          createdAt: d.downloadedAt,
+          updatedAt: d.downloadedAt
+        });
+      }
+
+      if (targetShortId && offlineShortMap.has(targetShortId)) {
+        const offlineTarget = offlineShortMap.get(targetShortId)!;
+        const otherOffline = Array.from(offlineShortMap.values()).filter(s => s.videoId !== targetShortId);
+        setShorts(prev => {
+          const existingOthers = prev.filter(s => s.videoId !== targetShortId);
+          return [offlineTarget, ...(existingOthers.length > 0 ? existingOthers : otherOffline)];
+        });
+        setCurrentIndex(0);
+        setLoading(false);
+      }
+    } catch (offlineErr) {
+      console.warn('Could not load offline shorts:', offlineErr);
+    }
+
+    const applyOfflineMedia = (item: Video): Video => {
+      const offline = offlineShortMap.get(item.videoId);
+      if (!offline) return item;
+      return {
+        ...item,
+        videoUrl: offline.videoUrl || item.videoUrl,
+        thumbnailUrl: offline.thumbnailUrl || item.thumbnailUrl
+      };
+    };
+
     try {
       // Chunked fetch (limit: 25) prevents UI lag and network choking
       const data = await videoService.getVideos({ isShort: true, limit: 25 });
-      allShortsPoolRef.current = data;
+      const hydratedData = data.map(applyOfflineMedia);
+      allShortsPoolRef.current = hydratedData;
 
-      if (data.length > 0) {
+      if (hydratedData.length > 0) {
         const ranked = recommendationService.getShortsRecommendations({
-          allShorts: data,
+          allShorts: hydratedData,
           currentShortId: targetShortId,
           userUid: currentUser?.uid
         });
 
-        // If a short is already playing from instant cache, keep it uninterrupted and only append unseen items after it
-        if (hasInitialShorts) {
+        // If a short is already playing from instant cache or offline storage, keep it uninterrupted and append unseen items
+        if (hasInitialShorts || (targetShortId && offlineShortMap.has(targetShortId))) {
           setShorts(prev => {
             if (prev.length === 0) return ranked.slice(0, 8);
-            const existingIds = new Set(prev.map(s => s.videoId));
+            const mergedPrev = prev.map(item => {
+              const live = hydratedData.find(h => h.videoId === item.videoId);
+              return live ? applyOfflineMedia(live) : item;
+            });
+            const existingIds = new Set(mergedPrev.map(s => s.videoId));
             const newTail = ranked.filter(s => !existingIds.has(s.videoId)).slice(0, 8);
-            return newTail.length > 0 ? [...prev, ...newTail] : prev;
+            return newTail.length > 0 ? [...mergedPrev, ...newTail] : mergedPrev;
           });
           return;
         }
 
         // If route specifies a short ID, put it first
         if (targetShortId) {
-          const target = data.find(s => s.videoId === targetShortId);
+          const target = hydratedData.find(s => s.videoId === targetShortId) || offlineShortMap.get(targetShortId);
           if (target) {
             const others = ranked.filter(s => s.videoId !== targetShortId).slice(0, 8);
             setShorts([target, ...others]);
@@ -636,7 +717,7 @@ export const Shorts: React.FC = () => {
             const singleShort = await videoService.getVideo(targetShortId);
             if (singleShort && singleShort.isShort) {
               const others = ranked.filter(s => s.videoId !== singleShort.videoId).slice(0, 8);
-              setShorts([singleShort, ...others]);
+              setShorts([applyOfflineMedia(singleShort), ...others]);
               setCurrentIndex(0);
             } else {
               setShorts(ranked.slice(0, 8));
@@ -647,13 +728,31 @@ export const Shorts: React.FC = () => {
           setShorts(ranked.slice(0, 8));
           setCurrentIndex(0);
         }
+      } else if (offlineShortMap.size > 0) {
+        const offlineList = Array.from(offlineShortMap.values());
+        if (targetShortId && offlineShortMap.has(targetShortId)) {
+          const target = offlineShortMap.get(targetShortId)!;
+          setShorts([target, ...offlineList.filter(s => s.videoId !== targetShortId)]);
+        } else {
+          setShorts(offlineList);
+        }
+        setCurrentIndex(0);
       } else if (!hasInitialShorts) {
         setShorts([]);
         setCurrentIndex(0);
       }
     } catch (err) {
       console.error(err);
-      if (shorts.length === 0) {
+      if (offlineShortMap.size > 0) {
+        const offlineList = Array.from(offlineShortMap.values());
+        if (targetShortId && offlineShortMap.has(targetShortId)) {
+          const target = offlineShortMap.get(targetShortId)!;
+          setShorts([target, ...offlineList.filter(s => s.videoId !== targetShortId)]);
+        } else if (shorts.length === 0) {
+          setShorts(offlineList);
+        }
+        setCurrentIndex(0);
+      } else if (shorts.length === 0) {
         setShorts([]);
         setCurrentIndex(0);
       }
