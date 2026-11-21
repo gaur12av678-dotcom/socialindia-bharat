@@ -4,6 +4,7 @@ import { User, Video, Report } from '../types';
 import { userService } from './userService';
 import { getCloudinaryConfig, setCloudinaryConfig } from './videoService';
 import { trashService } from './trashService';
+import { parseDateMs } from '../utils/videoUtils';
 
 export const adminService = {
   // Get Global Storage / Cloudinary Configuration
@@ -48,11 +49,24 @@ export const adminService = {
     }
   },
 
-  // Fetch all users for administrative overview
+  // Fetch all users for administrative overview (sorted newest first)
   async getAllUsers(): Promise<User[]> {
     try {
       const snap = await getDocs(collection(db, 'users'));
-      return snap.docs.map(d => d.data() as User);
+      const usersList = snap.docs.map(d => {
+        const data = d.data() as User;
+        return {
+          ...data,
+          uid: data.uid || d.id,
+        };
+      });
+      return usersList.sort((a, b) => {
+        const createdDiff = parseDateMs(b.createdAt) - parseDateMs(a.createdAt);
+        if (createdDiff !== 0) return createdDiff;
+        const updatedDiff = parseDateMs(b.updatedAt) - parseDateMs(a.updatedAt);
+        if (updatedDiff !== 0) return updatedDiff;
+        return (a.username || '').localeCompare(b.username || '');
+      });
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, 'users');
       return [];

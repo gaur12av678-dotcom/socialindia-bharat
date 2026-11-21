@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, ge
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, PrivateUserInfo, Subscription } from '../types';
 import { compressAvatar, compressBanner } from '../utils/imageUtils';
+import { parseDateMs } from '../utils/videoUtils';
 
 // Ultra-fast in-memory and session caches for YouTube-like instant profile & subscriber rendering
 const userProfileMemoryCache = new Map<string, { data: User; timestamp: number }>();
@@ -621,12 +622,25 @@ export const userService = {
     }
   },
 
-  // Get all registered users
+  // Get all registered users (sorted newest first)
   async getAllUsers(): Promise<User[]> {
     const q = query(collection(db, 'users'));
     try {
       const snap = await getDocs(q);
-      return snap.docs.map(d => d.data() as User);
+      const usersList = snap.docs.map(d => {
+        const data = d.data() as User;
+        return {
+          ...data,
+          uid: data.uid || d.id,
+        };
+      });
+      return usersList.sort((a, b) => {
+        const createdDiff = parseDateMs(b.createdAt) - parseDateMs(a.createdAt);
+        if (createdDiff !== 0) return createdDiff;
+        const updatedDiff = parseDateMs(b.updatedAt) - parseDateMs(a.updatedAt);
+        if (updatedDiff !== 0) return updatedDiff;
+        return (a.username || '').localeCompare(b.username || '');
+      });
     } catch (err) {
       console.error('Failed to fetch all users:', err);
       return [];

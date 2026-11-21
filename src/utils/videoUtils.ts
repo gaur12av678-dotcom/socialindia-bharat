@@ -305,12 +305,59 @@ export function formatDuration(seconds: number): string {
   return `${mins}:${formattedSecs}`;
 }
 
+export function parseDateMs(input: unknown): number {
+  if (input === null || input === undefined || input === '') return 0;
+  if (typeof input === 'number') {
+    if (!Number.isFinite(input) || input <= 0) return 0;
+    return input < 1e12 ? input * 1000 : input;
+  }
+  if (input instanceof Date) {
+    const ms = input.getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  }
+  if (typeof input === 'string') {
+    const ms = Date.parse(input);
+    return Number.isFinite(ms) ? ms : 0;
+  }
+  if (typeof input === 'object') {
+    const obj = input as {
+      toMillis?: () => number;
+      toDate?: () => Date;
+      seconds?: number;
+      nanoseconds?: number;
+      _seconds?: number;
+      _nanoseconds?: number;
+    };
+    if (typeof obj.toMillis === 'function') {
+      const ms = obj.toMillis();
+      return Number.isFinite(ms) ? ms : 0;
+    }
+    if (typeof obj.toDate === 'function') {
+      const ms = obj.toDate().getTime();
+      return Number.isFinite(ms) ? ms : 0;
+    }
+    const secs = typeof obj.seconds === 'number' ? obj.seconds : obj._seconds;
+    if (typeof secs === 'number' && Number.isFinite(secs)) {
+      const nanos = typeof obj.nanoseconds === 'number'
+        ? obj.nanoseconds
+        : (typeof obj._nanoseconds === 'number' ? obj._nanoseconds : 0);
+      return secs * 1000 + Math.floor(nanos / 1e6);
+    }
+  }
+  return 0;
+}
+
+export function formatShortDate(input: unknown): string {
+  const ms = parseDateMs(input);
+  if (!ms) return 'Unknown';
+  return new Date(ms).toLocaleDateString();
+}
+
 // Relative time format e.g. "2 hours ago"
-export function formatTimeAgo(dateString: string): string {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  const now = new Date();
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+export function formatTimeAgo(dateInput: unknown): string {
+  const ms = parseDateMs(dateInput);
+  if (!ms) return '';
+  const seconds = Math.floor((Date.now() - ms) / 1000);
 
   if (seconds < 60) return 'Just now';
 

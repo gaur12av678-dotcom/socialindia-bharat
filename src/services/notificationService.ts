@@ -4,13 +4,12 @@ import {
   setDoc, 
   updateDoc, 
   collection, 
-  query, 
-  where, 
-  limit, 
+  onSnapshot,
   writeBatch 
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { Notification, User } from '../types';
+import { parseDateMs } from '../utils/videoUtils';
 
 export const notificationService = {
   // Create an event-based notification (safe: skips if actor is recipient)
@@ -20,11 +19,15 @@ export const notificationService = {
     type: 'like' | 'comment' | 'follow' | 'upload',
     details: { videoId?: string; videoTitle?: string; commentId?: string; message?: string }
   ): Promise<void> {
-    if (recipientId === actor.uid) return; // Never notify user about their own actions
+    if (!recipientId || !actor?.uid || recipientId === actor.uid) return; // Never notify user about their own actions
 
-    const actorIsAdmin = actor.role === 'admin';
-    const actorDisplayName = actorIsAdmin ? 'Team SocialIndia' : actor.displayName;
-    const actorUsername = actorIsAdmin ? 'team_socialindia' : actor.username;
+    const actorIsAdminSystem = actor.role === 'admin' && type !== 'follow';
+    const actorDisplayName = actorIsAdminSystem
+      ? 'Team SocialIndia'
+      : (actor.displayName || actor.username || 'Someone');
+    const actorUsername = actorIsAdminSystem
+      ? 'team_socialindia'
+      : (actor.username || '');
     const notificationId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     const now = new Date().toISOString();
 
@@ -37,7 +40,7 @@ export const notificationService = {
         message = `${actorDisplayName} commented on your video: "${details.message || ''}"`;
         break;
       case 'follow':
-        message = `${actorDisplayName} started following your channel`;
+        message = `${actorDisplayName} followed your channel`;
         break;
       case 'upload':
         message = `${actorDisplayName} published a new video: "${details.videoTitle || 'Untitled'}"`;
@@ -100,11 +103,31 @@ export const notificationService = {
     try {
       const snap = await getDocs(colRef);
       const notifications = snap.docs.map((d: any) => d.data() as Notification);
-      return notifications.sort((a: Notification, b: Notification) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return notifications.sort((a: Notification, b: Notification) => parseDateMs(b.createdAt) - parseDateMs(a.createdAt));
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, `users/${recipientId}/notifications`);
       return [];
     }
+  },
+
+  // Real-time notifications listener so users receive subscribe/other notifications immediately
+  subscribeToNotifications(
+    recipientId: string,
+    onUpdate: (notifications: Notification[]) => void
+  ): () => void {
+    if (!recipientId) return () => {};
+    const colRef = collection(db, 'users', recipientId, 'notifications');
+    return onSnapshot(
+      colRef,
+      (snap) => {
+        const notifications = snap.docs.map((d: any) => d.data() as Notification);
+        notifications.sort((a: Notification, b: Notification) => parseDateMs(b.createdAt) - parseDateMs(a.createdAt));
+        onUpdate(notifications);
+      },
+      (err) => {
+        console.warn('Notification listener warning:', err);
+      }
+    );
   },
 
   // Mark notification as read

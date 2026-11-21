@@ -317,7 +317,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       liveBroadcastService.ensureLiveIndiaSeeded().catch(() => {});
     });
 
+    let notifUnsubscribe: (() => void) | null = null;
+
     const unsubscribe = authService.onAuthStateChanged(async (user) => {
+      if (notifUnsubscribe) {
+        notifUnsubscribe();
+        notifUnsubscribe = null;
+      }
       const requestSequence = ++authStateSequenceRef.current;
       const isCurrentRequest = () =>
         requestSequence === authStateSequenceRef.current &&
@@ -401,14 +407,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           console.warn('Private info fetch warning:', err);
         }
 
-        // Fetch notifications
+        // Listen to notifications in real time (plus fallback fetch)
         try {
-          const list = await notificationService.getNotifications(user.uid);
-          if (!isCurrentRequest()) return;
-          setNotifications(list);
-          setUnreadCount(list.filter((n) => !n.read).length);
+          notifUnsubscribe = notificationService.subscribeToNotifications(user.uid, (list) => {
+            if (!isCurrentRequest()) return;
+            setNotifications(list);
+            setUnreadCount(list.filter((n) => !n.read).length);
+          });
         } catch (err) {
-          console.warn('Notification fetch warning:', err);
+          console.warn('Notification listener warning, falling back to one-time fetch:', err);
+          try {
+            const list = await notificationService.getNotifications(user.uid);
+            if (!isCurrentRequest()) return;
+            setNotifications(list);
+            setUnreadCount(list.filter((n) => !n.read).length);
+          } catch (fetchErr) {
+            console.warn('Notification fetch warning:', fetchErr);
+          }
         }
       } else {
         setCurrentUser(null);
@@ -432,6 +447,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     return () => {
       unsubscribe();
+      if (notifUnsubscribe) {
+        notifUnsubscribe();
+        notifUnsubscribe = null;
+      }
       systemThemeMediaQuery.removeEventListener('change', handleSystemThemeChange);
     };
   }, [applyTheme]);

@@ -61,7 +61,7 @@ import {
   Loader2,
   Smartphone
 } from 'lucide-react';
-import { getInitials } from '../utils/videoUtils';
+import { getInitials, formatTimeAgo, formatShortDate } from '../utils/videoUtils';
 import { authService } from '../services/authService';
 import { accountService, SavedAccount } from '../services/accountService';
 import { UserAvatar } from './UserAvatar';
@@ -868,7 +868,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                               key={n.notificationId} 
                               onClick={() => {
                                 setNotifDropdownOpen(false);
-                                if (n.videoId) navigate('watch', n.videoId);
+                                if (n.videoId) {
+                                  navigate('watch', n.videoId);
+                                } else if (n.type === 'follow' && n.actorUsername && n.actorUsername !== 'team_socialindia') {
+                                  navigate('creator', n.actorUsername);
+                                }
                               }}
                               className={`p-3.5 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] transition-colors cursor-pointer flex gap-3 items-start ${!n.read ? 'bg-[#eff6ff] dark:bg-blue-950/20' : ''}`}
                             >
@@ -886,7 +890,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                                   <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mt-0.5">{n.title || n.actorDisplayName}</p>
                                 )}
                                 <p className="text-xs text-slate-700 dark:text-slate-200 font-medium leading-normal mt-0.5 break-words">{n.message}</p>
-                                <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1">{new Date(n.createdAt).toLocaleDateString()}</span>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1">{formatTimeAgo(n.createdAt) || formatShortDate(n.createdAt)}</span>
                               </div>
                             </div>
                           ))

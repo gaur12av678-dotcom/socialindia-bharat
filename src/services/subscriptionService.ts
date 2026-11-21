@@ -8,9 +8,13 @@ import {
   collection,
   increment
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { Subscription, User } from '../types';
 import { userService } from './userService';
+import { notificationService } from './notificationService';
+
+const recentFollowNotificationAt = new Map<string, number>();
+const FOLLOW_NOTIF_COOLDOWN_MS = 60_000;
 
 const OFFICIAL_SOCIALINDIA_UID = 'RTUVtjrw5sPWaiq10OIMiloF8HQ2';
 const memorySubSet = new Map<string, Set<string>>(); // subscriberId -> Set of creatorIds
@@ -481,6 +485,37 @@ export const subscriptionService = {
         if (!currentlySubbed) {
           updateDoc(doc(db, 'users', subscriberId), { followingCount: increment(1) }).catch(() => {});
           updateDoc(doc(db, 'users', resolvedCreatorId), { followersCount: increment(1) }).catch(() => {});
+
+          const notifKey = `${subscriberId}:${resolvedCreatorId}`;
+          const lastSentAt = recentFollowNotificationAt.get(notifKey) || 0;
+          if (Date.now() - lastSentAt >= FOLLOW_NOTIF_COOLDOWN_MS) {
+            recentFollowNotificationAt.set(notifKey, Date.now());
+            void (async () => {
+              try {
+                let subscriberProfile = userService.getCachedUserProfile(subscriberId);
+                if (!subscriberProfile) {
+                  subscriberProfile = await userService.getUserProfile(subscriberId, true).catch(() => null);
+                }
+                const fbUser = auth.currentUser;
+                const actor: User = subscriberProfile || {
+                  uid: subscriberId,
+                  username: (fbUser?.email?.split('@')[0] || 'user').toLowerCase(),
+                  displayName: fbUser?.displayName || fbUser?.email?.split('@')[0] || 'Someone',
+                  photoURL: fbUser?.photoURL || '',
+                  followersCount: 0,
+                  followingCount: 0,
+                  videosCount: 0,
+                  role: 'user',
+                  status: 'active',
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                };
+                await notificationService.createNotification(resolvedCreatorId, actor, 'follow', {});
+              } catch (notifErr) {
+                console.warn('Could not send follow notification:', notifErr);
+              }
+            })();
+          }
         }
       }
     } catch (err) {

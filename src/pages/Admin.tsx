@@ -76,7 +76,7 @@ import {
   Map as MapIcon,
   Subtitles
 } from 'lucide-react';
-import { formatViews, formatTimeAgo, getInitials } from '../utils/videoUtils';
+import { formatViews, formatTimeAgo, getInitials, parseDateMs, formatShortDate } from '../utils/videoUtils';
 import { AdminExtraTabs } from '../components/AdminExtraTabs';
 import { AdminQuickTools } from '../components/AdminQuickTools';
 import { CaptionEditorModal } from '../components/CaptionEditorModal';
@@ -953,8 +953,20 @@ export const AdminPanel: React.FC = () => {
     }, 600);
   };
 
+  const sortedUsers = React.useMemo(() => {
+    return [...users].sort((a, b) => {
+      const createdDiff = parseDateMs(b.createdAt) - parseDateMs(a.createdAt);
+      if (createdDiff !== 0) return createdDiff;
+      const updatedDiff = parseDateMs(b.updatedAt) - parseDateMs(a.updatedAt);
+      if (updatedDiff !== 0) return updatedDiff;
+      return (a.username || '').localeCompare(b.username || '');
+    });
+  }, [users]);
+
+  const newestCreators = React.useMemo(() => sortedUsers.slice(0, 10), [sortedUsers]);
+
   const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-  const filteredUsers = users.filter(u =>
+  const filteredUsers = sortedUsers.filter(u =>
     `${u.username || ''} ${u.displayName || ''}`.toLowerCase().includes(normalizedSearchTerm)
   );
 
@@ -1625,27 +1637,37 @@ export const AdminPanel: React.FC = () => {
                         <span>Newest Creators</span>
                       </h3>
                       <button onClick={() => setActiveSection('users')} className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
-                        View All
+                        View All ({sortedUsers.length})
                       </button>
                     </div>
 
-                    <div className="divide-y divide-slate-100 dark:divide-[#1f1f24]">
-                      {users.slice(0, 5).map(u => (
-                        <div key={u.uid} className="py-3 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-[#18181c] px-2 rounded-2xl transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 overflow-hidden shadow-xs">
-                              {u.photoURL ? <img src={u.photoURL} className="w-full h-full object-cover" /> : getInitials(u.displayName)}
+                    <div className="divide-y divide-slate-100 dark:divide-[#1f1f24] max-h-[380px] overflow-y-auto pr-1">
+                      {newestCreators.map(u => {
+                        const joinedLabel = formatTimeAgo(u.createdAt) || (parseDateMs(u.createdAt) ? formatShortDate(u.createdAt) : '');
+                        return (
+                          <div key={u.uid} className="py-3 flex items-center justify-between gap-2 group hover:bg-slate-50 dark:hover:bg-[#18181c] px-2 rounded-2xl transition-colors">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 overflow-hidden shadow-xs">
+                                {u.photoURL ? <img src={u.photoURL} className="w-full h-full object-cover" /> : getInitials(u.displayName)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{u.displayName || u.username}</p>
+                                <p className="text-[10px] text-slate-500 truncate">
+                                  @{u.username}{joinedLabel ? ` • ${joinedLabel}` : ''}
+                                </p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{u.displayName || u.username}</p>
-                              <p className="text-[10px] text-slate-500 truncate">@{u.username}</p>
-                            </div>
+                            <button onClick={() => navigate('creator', u.username)} className="p-2 hover:bg-slate-200 dark:hover:bg-[#272727] text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-xl transition-all cursor-pointer shrink-0">
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
                           </div>
-                          <button onClick={() => navigate('creator', u.username)} className="p-2 hover:bg-slate-200 dark:hover:bg-[#272727] text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-xl transition-all cursor-pointer">
-                            <ChevronRight className="w-4 h-4" />
-                          </button>
+                        );
+                      })}
+                      {newestCreators.length === 0 && (
+                        <div className="py-10 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                          No registered creators found yet.
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
 
@@ -1770,7 +1792,7 @@ export const AdminPanel: React.FC = () => {
                                 : 'No recent password change'}
                             </span>
                             <span className="text-[10px] text-slate-400 block">
-                              Joined {new Date(u.createdAt).toLocaleDateString()}
+                              Joined {formatShortDate(u.createdAt)}
                             </span>
                           </td>
                           <td className="px-4 py-2.5">
