@@ -100,6 +100,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const isShortsPage = route.path === 'shorts';
   const isWatchPage = route.path === 'watch';
   const isSettingsPage = route.path === 'settings';
+  const isChatPage = route.path === 'chat' || route.path === 'messages';
   const isProfilePage = route.path === 'creator' || route.path === 'channel' || route.path === 'profile-menu';
 
   // Mobile bottom bar & tools hidden on:
@@ -120,7 +121,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     route.path === 'ad' ||
     route.path === 'gopro' ||
     route.path === 'pro' ||
-    route.path === 'chat' ||
+    isChatPage ||
     route.path === 'admin';
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -440,11 +441,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
       {/* HEADER / NAVIGATION BAR */}
       <header className={`px-2.5 sm:px-4 h-14 items-center justify-between gap-2 max-w-full relative overflow-visible transition-all duration-300 z-40 safe-bottom ${
-            isProfilePage || isWatchPage || isSettingsPage
-              ? 'hidden md:flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
-              : isShortsPage 
-                ? 'hidden md:flex md:sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800 shadow-none' 
-                : 'flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
+            isChatPage
+              ? 'hidden'
+              : isProfilePage || isWatchPage || isSettingsPage
+                ? 'hidden md:flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
+                : isShortsPage 
+                  ? 'hidden md:flex md:sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800 shadow-none' 
+                  : 'flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
           }`}>
             
             {mobileSearchOpen ? (
@@ -894,6 +897,23 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 </div>
               )}
 
+              {/* Quick Chat Access Button right next to Notifications (only when signed in) */}
+              {activeUid && (
+                <button
+                  type="button"
+                  onClick={() => navigate('chat')}
+                  className={`p-2 rounded-xl transition-colors cursor-pointer relative ${
+                    isShortsPage
+                      ? 'hover:bg-white/10 text-white'
+                      : 'hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] text-slate-700 dark:text-slate-300'
+                  }`}
+                  aria-label={isHindi ? 'मैसेज और चैट' : 'Messages & Chat'}
+                  title={isHindi ? 'चैट खोलें' : 'Chat'}
+                >
+                  <MessageCircle className="w-5 h-5" />
+                </button>
+              )}
+
           {/* User Account / Profile Area (Hidden on mobile top bar, accessible via YouTube-style 'You' bottom tab) */}
           {activeUid ? (
             <div ref={profileRef} className="hidden md:block relative">
@@ -988,10 +1008,12 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                                     setProfileDropdownOpen(false);
                                     setProfileDropdownView('main');
                                     addToast(isHindi ? `${acc.displayName || acc.username} में स्विच किया गया` : `Switched to ${acc.displayName || acc.username}`, 'success');
-                                  } else {
+                                  } else if (res.requiresPassword) {
                                     setProfileDropdownOpen(false);
                                     setProfileDropdownView('main');
                                     openSwitchAccount();
+                                  } else if (res.error) {
+                                    addToast(res.error, 'error');
                                   }
                                 }}
                                 className="w-full px-2.5 py-2 rounded-xl hover:bg-slate-100/80 dark:hover:bg-[#25262c] flex items-center justify-between gap-2.5 transition-colors duration-150 cursor-pointer group text-left"
@@ -1336,7 +1358,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           className={
             isWatchPage
               ? `fixed inset-y-0 left-0 h-screen w-64 bg-white dark:bg-[#0f0f0f] border-r-0 z-[1000] transition-transform duration-200 select-none shadow-[2px_0_12px_rgba(0,0,0,0.15)] flex flex-col ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`
-              : `hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${route.path === 'chat' ? 'w-[76px]' : sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`
+              : `hidden md:block shrink-0 bg-white/95 dark:bg-[#0e0f12] border-r border-slate-200/80 dark:border-slate-800/80 transition-all duration-200 z-30 select-none ${isChatPage ? 'w-[76px]' : sidebarOpen ? 'w-64' : 'w-0 overflow-hidden border-r-0'}`
           }
         >
           {isWatchPage && (
@@ -1353,7 +1375,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </button>
             </div>
           )}
-          <div className={`${isWatchPage ? 'flex-1 min-h-0 overflow-y-auto' : 'sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto'} px-3.5 py-4 space-y-5 scrollbar-none ${route.path === 'chat' ? '[&_span]:hidden [&_button]:!justify-center [&_button]:!px-2 [&_button>div]:!justify-center [&_button>div]:!gap-0 [&_button>div]:w-full' : ''}`}>
+          <div className={`${isWatchPage ? 'flex-1 min-h-0 overflow-y-auto' : isChatPage ? 'sticky top-0 h-screen overflow-y-auto' : 'sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto'} px-3.5 py-4 space-y-5 scrollbar-none ${isChatPage ? '[&_span]:hidden [&_button]:!justify-center [&_button]:!px-2 [&_button>div]:!justify-center [&_button>div]:!gap-0 [&_button>div]:w-full' : ''}`}>
             
             {/* 1. Feeds & Discover Section */}
             <div className="space-y-1">
@@ -1631,7 +1653,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </aside>
 
         {/* CONTENT VIEWPORT */}
-        <main className={`flex-1 min-w-0 ${isShortsPage ? 'pb-0 md:pb-8 overflow-hidden md:overflow-y-auto' : shouldHideBottomNav ? 'pb-0 md:pb-8 overflow-y-auto' : 'pb-20 md:pb-8 overflow-y-auto'}`}>
+        <main className={`flex-1 min-w-0 ${isChatPage ? 'pb-0 overflow-hidden' : isShortsPage ? 'pb-0 md:pb-8 overflow-hidden md:overflow-y-auto' : shouldHideBottomNav ? 'pb-0 md:pb-8 overflow-y-auto' : 'pb-20 md:pb-8 overflow-y-auto'}`}>
           {children}
         </main>
       </div>

@@ -14,7 +14,7 @@ import {
   writeBatch,
   Timestamp 
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { ChatMessage, ChatSession, User } from '../types';
 import { userService } from './userService';
 import { isUserVerified } from '../utils/userUtils';
@@ -398,38 +398,103 @@ export const chatService = {
   },
 
   listenToPocketMessages(userId: string, callback: (messages: ChatMessage[]) => void) {
+    const pocketKey = `pocket_${userId}`;
+    const privatePocketRef = doc(db, 'users', userId, 'private', 'pocket');
+    let unsubscribed = false;
+    let activeUnsubscribe: (() => void) | null = null;
+    let fallbackMessages: ChatMessage[] = [];
+    let subcollectionMessages: ChatMessage[] = [];
+
+    const normalizeStoredPocketMsg = (raw: any): ChatMessage => ({
+      id: String(raw?.id || `pocket_${Date.now()}`),
+      senderId: userId,
+      receiverId: userId,
+      text: raw?.text || '',
+      mediaUrl: raw?.mediaUrl || undefined,
+      mediaType: raw?.mediaType || undefined,
+      replyTo: raw?.replyTo || undefined,
+      createdAt: raw?.createdAt?.toDate
+        ? raw.createdAt.toDate().toISOString()
+        : raw?.createdAt || new Date().toISOString(),
+      editedAt: raw?.editedAt?.toDate
+        ? raw.editedAt.toDate().toISOString()
+        : raw?.editedAt || undefined,
+      ...(raw?.clientTempId ? { clientTempId: String(raw.clientTempId) } : {}),
+      read: true
+    });
+
+    const publishMerged = (fromSubcollection: boolean) => {
+      if (unsubscribed) return;
+      const mergedMap = new Map<string, ChatMessage>();
+      for (const msg of fallbackMessages) mergedMap.set(msg.id, msg);
+      if (fromSubcollection) {
+        for (const msg of subcollectionMessages) mergedMap.set(msg.id, msg);
+      }
+      const merged = [...mergedMap.values()].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+      this.setCachedMessages(userId, pocketKey, merged);
+      callback(merged);
+    };
+
+    const startPrivateDocListener = () => {
+      if (unsubscribed) return;
+      activeUnsubscribe = onSnapshot(
+        privatePocketRef,
+        snapshot => {
+          const rawList = snapshot.exists() && Array.isArray(snapshot.data()?.messages)
+            ? snapshot.data().messages
+            : [];
+          fallbackMessages = rawList.map(normalizeStoredPocketMsg);
+          publishMerged(false);
+        },
+        err => {
+          console.error('Pocket fallback listener failed:', err);
+          if (!unsubscribed) {
+            callback(this.getCachedMessages(userId, pocketKey));
+          }
+        }
+      );
+    };
+
+    // Preload any messages stored in the private pocket doc so they stay visible across rule states
+    getDoc(privatePocketRef)
+      .then(snap => {
+        if (unsubscribed) return;
+        if (snap.exists() && Array.isArray(snap.data()?.messages)) {
+          fallbackMessages = snap.data().messages.map(normalizeStoredPocketMsg);
+          if (fallbackMessages.length > 0 && subcollectionMessages.length === 0) {
+            publishMerged(false);
+          }
+        }
+      })
+      .catch(() => {});
+
     const messagesQuery = query(
       collection(db, 'users', userId, 'pocketMessages'),
       orderBy('createdAt', 'asc')
     );
-    return onSnapshot(
+    const subUnsub = onSnapshot(
       messagesQuery,
       snapshot => {
-        callback(snapshot.docs.map(messageDoc => {
+        subcollectionMessages = snapshot.docs.map(messageDoc => {
           const data = messageDoc.data();
-          return {
-            id: messageDoc.id,
-            senderId: userId,
-            receiverId: userId,
-            text: data.text || '',
-            mediaUrl: data.mediaUrl || undefined,
-            mediaType: data.mediaType || undefined,
-            replyTo: data.replyTo || undefined,
-            createdAt: data.createdAt?.toDate
-              ? data.createdAt.toDate().toISOString()
-              : data.createdAt || new Date().toISOString(),
-            editedAt: data.editedAt?.toDate
-              ? data.editedAt.toDate().toISOString()
-              : data.editedAt || undefined,
-            read: true
-          } as ChatMessage;
-        }));
+          return normalizeStoredPocketMsg({ id: messageDoc.id, ...data });
+        });
+        publishMerged(true);
       },
       error => {
-        console.error('Pocket message listener failed:', error);
-        callback(this.getCachedMessages(userId, `pocket_${userId}`));
+        console.warn('Pocket subcollection listener failed, using private pocket storage:', error);
+        subUnsub();
+        startPrivateDocListener();
       }
     );
+    activeUnsubscribe = subUnsub;
+
+    return () => {
+      unsubscribed = true;
+      if (activeUnsubscribe) activeUnsubscribe();
+    };
   },
 
   async sendPocketMessage(
@@ -437,20 +502,85 @@ export const chatService = {
     text: string,
     mediaUrl?: string,
     mediaType?: 'image' | 'video',
-    replyTo?: ChatMessage['replyTo']
+    replyTo?: ChatMessage['replyTo'],
+    clientTempId?: string
   ): Promise<string> {
     const trimmedText = text.trim();
     if (!trimmedText && !mediaUrl) return '';
+    if (auth.currentUser && auth.currentUser.uid !== userId) {
+      throw new Error('Authenticated user mismatch for My Pocket.');
+    }
+
+    const pocketKey = `pocket_${userId}`;
+    const cleanReplyTo: ChatMessage['replyTo'] | undefined = replyTo
+      ? {
+          messageId: replyTo.messageId,
+          senderId: replyTo.senderId,
+          text: replyTo.text ?? '',
+          ...(replyTo.mediaType !== undefined ? { mediaType: replyTo.mediaType } : {})
+        }
+      : undefined;
+
     const payload: Record<string, unknown> = {
       text: trimmedText,
       createdAt: Timestamp.now()
     };
     if (mediaUrl) payload.mediaUrl = mediaUrl;
     if (mediaType) payload.mediaType = mediaType;
-    if (replyTo) payload.replyTo = replyTo;
+    if (cleanReplyTo) payload.replyTo = cleanReplyTo;
+    if (clientTempId) payload.clientTempId = clientTempId;
 
-    const messageRef = await addDoc(collection(db, 'users', userId, 'pocketMessages'), payload);
-    return messageRef.id;
+    const nowIso = new Date().toISOString();
+    const buildPocketMsg = (id: string): ChatMessage => ({
+      id,
+      senderId: userId,
+      receiverId: userId,
+      text: trimmedText,
+      ...(mediaUrl ? { mediaUrl } : {}),
+      ...(mediaType ? { mediaType } : {}),
+      ...(cleanReplyTo ? { replyTo: cleanReplyTo } : {}),
+      ...(clientTempId ? { clientTempId } : {}),
+      createdAt: nowIso,
+      read: true
+    });
+
+    try {
+      const messageRef = await addDoc(collection(db, 'users', userId, 'pocketMessages'), payload);
+      const existing = this.getCachedMessages(userId, pocketKey).filter(m => !m.id.startsWith('temp_'));
+      if (!existing.some(m => m.id === messageRef.id)) {
+        this.setCachedMessages(userId, pocketKey, [...existing, buildPocketMsg(messageRef.id)]);
+      }
+      return messageRef.id;
+    } catch (subErr) {
+      console.warn('Pocket subcollection write failed, saving to private pocket doc:', subErr);
+      const privatePocketRef = doc(db, 'users', userId, 'private', 'pocket');
+      let existingMessages: ChatMessage[] = [];
+      try {
+        const snap = await getDoc(privatePocketRef);
+        if (snap.exists() && Array.isArray(snap.data()?.messages)) {
+          existingMessages = snap.data().messages;
+        } else {
+          existingMessages = this.getCachedMessages(userId, pocketKey).filter(m => !m.id.startsWith('temp_'));
+        }
+      } catch {
+        existingMessages = this.getCachedMessages(userId, pocketKey).filter(m => !m.id.startsWith('temp_'));
+      }
+
+      const newId = `pocket_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const newMsg = buildPocketMsg(newId);
+      const nextMessages = [...existingMessages, newMsg].slice(-500);
+
+      await setDoc(
+        privatePocketRef,
+        {
+          messages: nextMessages,
+          updatedAt: Timestamp.now()
+        },
+        { merge: true }
+      );
+      this.setCachedMessages(userId, pocketKey, nextMessages);
+      return newId;
+    }
   },
 
   async editGroupMessage(groupId: string, messageId: string, senderId: string, text: string): Promise<string> {
@@ -479,23 +609,77 @@ export const chatService = {
     const trimmedText = text.trim();
     if (!trimmedText) throw new Error('Message text cannot be empty.');
     const editedAt = Timestamp.now();
-    await updateDoc(doc(db, 'users', userId, 'pocketMessages', messageId), {
-      text: trimmedText,
-      editedAt
-    });
-    return editedAt.toDate().toISOString();
+    const editedAtIso = editedAt.toDate().toISOString();
+    const pocketKey = `pocket_${userId}`;
+
+    if (!messageId.startsWith('pocket_')) {
+      try {
+        await updateDoc(doc(db, 'users', userId, 'pocketMessages', messageId), {
+          text: trimmedText,
+          editedAt
+        });
+        const cached = this.getCachedMessages(userId, pocketKey).map(m =>
+          m.id === messageId ? { ...m, text: trimmedText, editedAt: editedAtIso } : m
+        );
+        this.setCachedMessages(userId, pocketKey, cached);
+        return editedAtIso;
+      } catch (err) {
+        console.warn('Pocket subcollection edit failed, trying private pocket doc:', err);
+      }
+    }
+
+    const privatePocketRef = doc(db, 'users', userId, 'private', 'pocket');
+    const snap = await getDoc(privatePocketRef);
+    const currentList: ChatMessage[] = snap.exists() && Array.isArray(snap.data()?.messages)
+      ? snap.data().messages
+      : this.getCachedMessages(userId, pocketKey);
+    const nextList = currentList.map(m =>
+      m.id === messageId ? { ...m, text: trimmedText, editedAt: editedAtIso } : m
+    );
+    await setDoc(privatePocketRef, { messages: nextList, updatedAt: editedAt }, { merge: true });
+    this.setCachedMessages(userId, pocketKey, nextList);
+    return editedAtIso;
   },
 
   async deletePocketMessage(userId: string, messageId: string): Promise<void> {
-    await deleteDoc(doc(db, 'users', userId, 'pocketMessages', messageId));
+    const pocketKey = `pocket_${userId}`;
+    if (!messageId.startsWith('pocket_')) {
+      try {
+        await deleteDoc(doc(db, 'users', userId, 'pocketMessages', messageId));
+        const cached = this.getCachedMessages(userId, pocketKey).filter(m => m.id !== messageId);
+        this.setCachedMessages(userId, pocketKey, cached);
+        return;
+      } catch (err) {
+        console.warn('Pocket subcollection delete failed, trying private pocket doc:', err);
+      }
+    }
+
+    const privatePocketRef = doc(db, 'users', userId, 'private', 'pocket');
+    const snap = await getDoc(privatePocketRef);
+    const currentList: ChatMessage[] = snap.exists() && Array.isArray(snap.data()?.messages)
+      ? snap.data().messages
+      : this.getCachedMessages(userId, pocketKey);
+    const nextList = currentList.filter(m => m.id !== messageId);
+    await setDoc(privatePocketRef, { messages: nextList, updatedAt: Timestamp.now() }, { merge: true });
+    this.setCachedMessages(userId, pocketKey, nextList);
   },
 
   async clearPocket(userId: string): Promise<void> {
-    const snapshot = await getDocs(collection(db, 'users', userId, 'pocketMessages'));
-    for (let i = 0; i < snapshot.docs.length; i += 450) {
-      const batch = writeBatch(db);
-      snapshot.docs.slice(i, i + 450).forEach(messageDoc => batch.delete(messageDoc.ref));
-      await batch.commit();
+    try {
+      const snapshot = await getDocs(collection(db, 'users', userId, 'pocketMessages'));
+      for (let i = 0; i < snapshot.docs.length; i += 450) {
+        const batch = writeBatch(db);
+        snapshot.docs.slice(i, i + 450).forEach(messageDoc => batch.delete(messageDoc.ref));
+        await batch.commit();
+      }
+    } catch (err) {
+      console.warn('Pocket subcollection clear skipped:', err);
+    }
+    try {
+      const privatePocketRef = doc(db, 'users', userId, 'private', 'pocket');
+      await setDoc(privatePocketRef, { messages: [], updatedAt: Timestamp.now() }, { merge: true });
+    } catch (err) {
+      console.warn('Private pocket doc clear skipped:', err);
     }
     this.setCachedMessages(userId, `pocket_${userId}`, []);
   },

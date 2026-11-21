@@ -400,6 +400,7 @@ export interface ChatMessage {
   };
   deliveryStatus?: 'uploading' | 'sending';
   uploadProgress?: number;
+  clientTempId?: string;
   createdAt: any;
   editedAt?: string;
   read: boolean;

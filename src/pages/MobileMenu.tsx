@@ -20,7 +20,6 @@ import {
   HelpCircle,
   MessageSquare,
   Search,
-  MessageCircle,
   ExternalLink,
   Play,
   Share2,
@@ -518,30 +517,6 @@ export const MobileMenu: React.FC = () => {
               <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-white group-hover:translate-x-0.5 transition-all" />
             </div>
           </button>
-
-          {/* Quick Creator Navigation Menu Items */}
-          <div className="bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl p-2 space-y-1 shadow-xs">
-            {/* Chat & Messages */}
-            <button
-              onClick={() => navigate('chat')}
-              className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                  <MessageCircle className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-black text-slate-800 dark:text-slate-100">
-                    {isHindi ? 'मैसेज व बातचीत' : 'Messages & Chat'}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                    {isHindi ? 'क्रिएटर्स और दर्शकों से सीधे जुड़ें' : 'Direct inbox with creators & viewers'}
-                  </p>
-                </div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-          </div>
         </div>
 
         {/* 6. ADMIN HUB (Specifically Requested: "admin hub missing hai") */}

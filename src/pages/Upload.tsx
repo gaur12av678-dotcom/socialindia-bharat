@@ -761,7 +761,7 @@ export const UploadPage: React.FC = () => {
                     <span className="text-slate-300 dark:text-slate-600">|</span>
                     <span className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300">
                       <CloudUpload className="w-3.5 h-3.5 text-[#065fd4]" />
-                      {isHindi ? 'अधिकतम फ़ाइल आकार:' : 'Max file size:'} <strong className="text-slate-800 dark:text-white">10 GB</strong>
+                      {isHindi ? 'अधिकतम फ़ाइल आकार:' : 'Max file size:'} <strong className="text-slate-800 dark:text-white">100 MB</strong>
                     </span>
                   </div>
 

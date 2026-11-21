@@ -406,8 +406,8 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
         setShowAccountChooser(false);
         setIdentifier(acc.username || acc.email);
         setServerError(isHindi ? `कृपया @${acc.username} का पासवर्ड दर्ज करें:` : `Please enter password for @${acc.username}:`);
-      } else {
-        setServerError(res.error || 'Failed to switch account.');
+      } else if (res.error) {
+        setServerError(res.error);
       }
     } catch (e: any) {
       setServerError(e.message || 'Error switching account.');

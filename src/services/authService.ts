@@ -428,7 +428,7 @@ export const authService = {
   },
 
   // Sign in / Sign up with Google OAuth
-  async signInWithGoogle(): Promise<{ userProfile: User; emailVerified: boolean }> {
+  async signInWithGoogle(loginHint?: string): Promise<{ userProfile: User; emailVerified: boolean }> {
     const androidBridge =
       typeof window !== 'undefined' ? (window as any).SocialIndiaAndroid : null;
 
@@ -490,7 +490,11 @@ export const authService = {
     }
 
     const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
+    const customParams: Record<string, string> = { prompt: 'select_account' };
+    if (loginHint && loginHint.includes('@') && !loginHint.endsWith('@socialindia.com')) {
+      customParams.login_hint = loginHint;
+    }
+    provider.setCustomParameters(customParams);
     try {
       const result = await signInWithPopup(auth, provider);
       return await this.syncGoogleUserProfile(result.user);

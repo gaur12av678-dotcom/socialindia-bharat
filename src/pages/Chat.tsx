@@ -28,20 +28,11 @@ import {
   Share2,
   UsersRound,
   Plus,
-  Image as ImageIcon,
-  Move,
   HardDrive
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { EmojiPicker } from '../components/chat/EmojiPicker';
 import { UserAvatar } from '../components/UserAvatar';
-
-const chatBackgrounds = [
-  { id: 'default', label: 'Classic', image: '' },
-  { id: 'india-gate', label: 'India Gate', image: 'https://en.wikipedia.org/wiki/Special:FilePath/India_Gate,_New_Delhi.jpg?width=1400' },
-  { id: 'taj-mahal', label: 'Taj Mahal', image: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=1400&q=80' },
-  { id: 'qutub-minar', label: 'Qutub Minar', image: 'https://en.wikipedia.org/wiki/Special:FilePath/Qutb_Minar,_Delhi.jpg?width=1400' }
-];
 
 export const ChatPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -68,10 +59,6 @@ export const ChatPage: React.FC = () => {
   const [groupResults, setGroupResults] = useState<User[]>([]);
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<User[]>([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [showBackgroundPicker, setShowBackgroundPicker] = useState(false);
-  const [chatBackgroundId, setChatBackgroundId] = useState('default');
-  const [motionEnabled, setMotionEnabled] = useState(false);
-  const [motionOffset, setMotionOffset] = useState({ x: 0, y: 0 });
   
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,6 +87,8 @@ export const ChatPage: React.FC = () => {
   const textInputRef = useRef<HTMLInputElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const messageLongPressTimerRef = useRef<number | null>(null);
+  const pendingSendTempIdsRef = useRef<Set<string>>(new Set());
+  const lastAppliedRouteParamRef = useRef<string | undefined>(undefined);
   const isPocket = Boolean(selectedUser?.isPocket);
   const isGroup = Boolean(selectedUser?.isGroup);
 
@@ -135,79 +124,6 @@ export const ChatPage: React.FC = () => {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [showCreateGroup, groupSearch, currentUser?.uid]);
-
-  useEffect(() => {
-    if (!selectedUserId) {
-      setChatBackgroundId('default');
-      return;
-    }
-    try {
-      setChatBackgroundId(
-        localStorage.getItem(`socialindia_chat_bg_${currentUser?.uid}_${selectedUserId}`) || 'default'
-      );
-    } catch (error) {
-      console.warn('Could not load chat background preference:', error);
-      setChatBackgroundId('default');
-    }
-  }, [currentUser?.uid, selectedUserId]);
-
-  useEffect(() => {
-    if (!motionEnabled) return;
-    const handleMotion = (event: DeviceMotionEvent) => {
-      const x = event.accelerationIncludingGravity?.x || 0;
-      const y = event.accelerationIncludingGravity?.y || 0;
-      setMotionOffset({
-        x: Math.max(-12, Math.min(12, x * 1.5)),
-        y: Math.max(-12, Math.min(12, y * 1.5))
-      });
-    };
-    window.addEventListener('devicemotion', handleMotion);
-    return () => window.removeEventListener('devicemotion', handleMotion);
-  }, [motionEnabled]);
-
-  const toggleMotionDetection = async () => {
-    if (motionEnabled) {
-      setMotionEnabled(false);
-      setMotionOffset({ x: 0, y: 0 });
-      return;
-    }
-    if (typeof DeviceMotionEvent === 'undefined') {
-      addToast(isHindi ? 'इस डिवाइस पर मोशन सेंसर उपलब्ध नहीं है।' : 'Motion sensors are not available on this device.', 'info');
-      return;
-    }
-    const MotionEventConstructor = DeviceMotionEvent as typeof DeviceMotionEvent & {
-      requestPermission?: () => Promise<'granted' | 'denied'>;
-    };
-    if (MotionEventConstructor.requestPermission) {
-      try {
-        const permission = await MotionEventConstructor.requestPermission();
-        if (permission !== 'granted') {
-          addToast(isHindi ? 'मोशन सेंसर की अनुमति नहीं मिली।' : 'Motion sensor permission was not granted.', 'error');
-          return;
-        }
-      } catch (error) {
-        console.error('Motion sensor permission request failed:', error);
-        addToast(isHindi ? 'मोशन सेंसर शुरू नहीं हो सका।' : 'Could not start motion sensing.', 'error');
-        return;
-      }
-    }
-    setMotionEnabled(true);
-  };
-
-  const selectChatBackground = (backgroundId: string) => {
-    if (!currentUser || !selectedUserId) return;
-    setChatBackgroundId(backgroundId);
-    setShowBackgroundPicker(false);
-    try {
-      localStorage.setItem(
-        `socialindia_chat_bg_${currentUser.uid}_${selectedUserId}`,
-        backgroundId
-      );
-    } catch (error) {
-      console.warn('Could not save chat background preference:', error);
-      addToast(isHindi ? 'बैकग्राउंड सेव नहीं हो सका।' : 'Could not save this background.', 'error');
-    }
-  };
 
   // Voice recording toggle handler
   const toggleVoiceRecording = () => {
@@ -314,16 +230,26 @@ export const ChatPage: React.FC = () => {
 
   // Handle selected user parameter route mapping
   useEffect(() => {
-    if (!route.param) return;
-    
+    if (!route.param) {
+      lastAppliedRouteParamRef.current = undefined;
+      return;
+    }
+
     const targetId = route.param;
-    setSelectedUserId(targetId);
+    const isNewRouteParam = lastAppliedRouteParamRef.current !== targetId;
+    if (isNewRouteParam) {
+      lastAppliedRouteParamRef.current = targetId;
+      setSelectedUserId(targetId);
+    } else if (selectedUserId !== targetId) {
+      // User manually selected a different conversation (e.g. My Pocket) in the sidebar
+      return;
+    }
 
     // Try finding the user details in already loaded sessions
     const target = sessions.find(s => s.userId === targetId);
     if (target) {
       setSelectedUser(target);
-    } else {
+    } else if (isNewRouteParam || !selectedUser || selectedUser.userId !== targetId) {
       // Fetch profile dynamically from database to start chat
       const fetchTarget = async () => {
         try {
@@ -343,7 +269,7 @@ export const ChatPage: React.FC = () => {
       };
       fetchTarget();
     }
-  }, [route.param, sessions]);
+  }, [route.param, sessions, selectedUserId, selectedUser]);
 
   // Real-time listener for current selected chat with instant cache preload
   useEffect(() => {
@@ -353,44 +279,62 @@ export const ChatPage: React.FC = () => {
       return;
     }
 
+    const uid = currentUser.uid;
+    const mergeIncomingWithPending = (incomingMsgs: ChatMessage[], persistCache: boolean) => {
+      setMessages(prev => {
+        const pending = prev.filter(m => {
+          if (!pendingSendTempIdsRef.current.has(m.id)) return false;
+          const alreadyInIncoming = incomingMsgs.some(
+            inc => inc.id === m.id || inc.clientTempId === m.id
+          );
+          if (alreadyInIncoming) {
+            pendingSendTempIdsRef.current.delete(m.id);
+            return false;
+          }
+          return true;
+        });
+        const merged = [...incomingMsgs, ...pending];
+        if (persistCache) {
+          chatService.setCachedMessages(uid, selectedUserId, merged);
+        }
+        return merged;
+      });
+      setLoadingMessages(false);
+    };
+
     // 1. Immediately hydrate cached conversation messages (0ms instant display!)
-    const cachedMsgs = chatService.getCachedMessages(currentUser.uid, selectedUserId);
+    const cachedMsgs = chatService.getCachedMessages(uid, selectedUserId);
     setMessages(cachedMsgs);
     setLoadingMessages(cachedMsgs.length === 0);
 
     if (selectedUser?.isPocket) {
-      const unsubscribe = chatService.listenToPocketMessages(currentUser.uid, incomingMsgs => {
-        setMessages(incomingMsgs);
-        setLoadingMessages(false);
-        chatService.setCachedMessages(currentUser.uid, selectedUserId, incomingMsgs);
+      const unsubscribe = chatService.listenToPocketMessages(uid, incomingMsgs => {
+        mergeIncomingWithPending(incomingMsgs, true);
       });
       return () => unsubscribe();
     }
 
     if (selectedUser?.isGroup) {
       const unsubscribe = chatService.listenToGroupMessages(selectedUserId, incomingMsgs => {
-        setMessages(incomingMsgs);
-        setLoadingMessages(false);
-        chatService.setCachedMessages(currentUser.uid, selectedUserId, incomingMsgs);
-      }, currentUser.uid);
+        mergeIncomingWithPending(incomingMsgs, true);
+      }, uid);
       return () => unsubscribe();
     }
 
-    chatService.ensureConversation(currentUser.uid, selectedUserId)
+    chatService.ensureConversation(uid, selectedUserId)
       .catch(err => console.error('Failed to ensure conversation:', err));
 
     const unsubscribe = chatService.listenToMessages(
-      currentUser.uid,
+      uid,
       selectedUserId,
       incomingMsgs => {
-        setMessages(incomingMsgs);
-        setLoadingMessages(false);
-        chatService.markAsRead(currentUser.uid, selectedUserId);
+        mergeIncomingWithPending(incomingMsgs, false);
+        chatService.markAsRead(uid, selectedUserId);
       }
     );
 
     return () => unsubscribe();
-  }, [currentUser, isCurrentSession, selectedUser?.isGroup, selectedUser?.isPocket, selectedUserId]);
+  }, [currentUser?.uid, isCurrentSession, selectedUser?.isGroup, selectedUser?.isPocket, selectedUserId]);
 
   // Auto scroll to bottom when messages list updates
   useEffect(() => {
@@ -540,6 +484,7 @@ export const ChatPage: React.FC = () => {
 
     // Instant optimistic message rendering
     const tempId = `temp_${Date.now()}`;
+    pendingSendTempIdsRef.current.add(tempId);
     const reply = replyTo
       ? { messageId: replyTo.id, senderId: replyTo.senderId, text: replyTo.text, mediaType: replyTo.mediaType }
       : undefined;
@@ -608,7 +553,7 @@ export const ChatPage: React.FC = () => {
       }
 
       const sentMessageId = selectedUser?.isPocket
-        ? await chatService.sendPocketMessage(currentUser.uid, content, finalMediaUrl, finalMediaType, reply)
+        ? await chatService.sendPocketMessage(currentUser.uid, content, finalMediaUrl, finalMediaType, reply, tempId)
         : selectedUser?.isGroup
           ? await chatService.sendGroupMessage(
             selectedUserId,
@@ -627,19 +572,28 @@ export const ChatPage: React.FC = () => {
             finalMediaType,
             reply
           );
+
+      pendingSendTempIdsRef.current.delete(tempId);
       setMessages(prev => {
-        const updated = prev.map(message =>
-          message.id === tempId
-            ? { ...message, id: sentMessageId, deliveryStatus: undefined, uploadProgress: undefined }
-            : message
+        const alreadySynced = Boolean(
+          sentMessageId &&
+          prev.some(message => message.id === sentMessageId || message.clientTempId === tempId)
         );
+        const updated = alreadySynced
+          ? prev.filter(message => message.id !== tempId)
+          : prev.map(message =>
+              message.id === tempId
+                ? { ...message, id: sentMessageId || message.id, deliveryStatus: undefined, uploadProgress: undefined }
+                : message
+            );
         chatService.setCachedMessages(currentUser.uid, selectedUserId, updated);
         return updated;
       });
     } catch (err) {
       console.error('Failed to deliver message:', err);
+      pendingSendTempIdsRef.current.delete(tempId);
 
-      // Remove the optimistic message because Firestore did not confirm delivery.
+      // Remove the optimistic message because delivery did not succeed.
       setMessages(prev => {
         const updated = prev.filter(message => message.id !== tempId);
         chatService.setCachedMessages(currentUser.uid, selectedUserId, updated);
@@ -843,12 +797,19 @@ export const ChatPage: React.FC = () => {
     s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const pocketPreviewMessages = currentUser
+    ? (selectedUser?.isPocket ? messages : chatService.getCachedMessages(currentUser.uid, `pocket_${currentUser.uid}`))
+    : [];
+  const lastPocketMsg = pocketPreviewMessages[pocketPreviewMessages.length - 1];
   const pocketSession: ChatSession = currentUser ? {
     userId: `pocket_${currentUser.uid}`,
     displayName: isHindi ? 'मेरा Pocket' : 'My Pocket',
     username: isHindi ? 'आपकी निजी जगह' : 'Personal storage',
     isPocket: true,
-    lastMessage: isHindi ? 'सिर्फ़ आपके लिए सेव किया गया' : 'Saved just for you',
+    lastMessage: lastPocketMsg
+      ? (lastPocketMsg.text || (lastPocketMsg.mediaType === 'image' ? '📷 Photo' : lastPocketMsg.mediaType === 'video' ? '🎥 Video' : (isHindi ? 'सिर्फ़ आपके लिए सेव किया गया' : 'Saved just for you')))
+      : (isHindi ? 'सिर्फ़ आपके लिए सेव किया गया' : 'Saved just for you'),
+    lastMessageTime: lastPocketMsg?.createdAt,
     unreadCount: 0
   } : {
     userId: '',
@@ -887,7 +848,7 @@ export const ChatPage: React.FC = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] flex bg-white dark:bg-[#0f0f0f] text-slate-900 dark:text-slate-100 overflow-hidden select-none">
+    <div className="h-[100dvh] flex bg-white dark:bg-[#0f0f0f] text-slate-900 dark:text-slate-100 overflow-hidden select-none">
       
       {/* Hidden File Input for Media Upload */}
       <input
@@ -956,6 +917,7 @@ export const ChatPage: React.FC = () => {
                 <button
                   key={s.userId}
                   onClick={() => {
+                    if (route.param) lastAppliedRouteParamRef.current = route.param;
                     setSelectedUserId(s.userId);
                     setSelectedUser(s);
                   }}
@@ -1069,24 +1031,6 @@ export const ChatPage: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setShowBackgroundPicker(value => !value)}
-                  className={`rounded-xl p-2 transition-colors ${showBackgroundPicker ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1e1e1e]'}`}
-                  title={isHindi ? 'भारतीय चैट बैकग्राउंड' : 'Chat backgrounds'}
-                  aria-label={isHindi ? 'भारतीय चैट बैकग्राउंड' : 'Chat backgrounds'}
-                >
-                  <ImageIcon className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void toggleMotionDetection()}
-                  className={`rounded-xl p-2 transition-colors ${motionEnabled ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-[#1e1e1e]'}`}
-                  title={isHindi ? 'मोशन इफेक्ट' : 'Motion effect'}
-                  aria-label={isHindi ? 'मोशन इफेक्ट' : 'Motion effect'}
-                >
-                  <Move className="h-4 w-4" />
-                </button>
                 {!selectedUser.isGroup && (
                   <button
                     onClick={() => void handleDeleteConversation()}
@@ -1100,36 +1044,7 @@ export const ChatPage: React.FC = () => {
             </div>
 
             {/* Scrollable messages bubble board */}
-            {showBackgroundPicker && (
-              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 dark:border-[#222] dark:bg-[#0f0f0f]">
-                <span className="mr-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
-                  {isHindi ? 'भारतीय बैकग्राउंड' : 'Indian backgrounds'}
-                </span>
-                {chatBackgrounds.map(background => (
-                  <button
-                    key={background.id}
-                    type="button"
-                    onClick={() => selectChatBackground(background.id)}
-                    className={`rounded-full border px-3 py-1.5 text-[10px] font-bold transition-colors ${
-                      chatBackgroundId === background.id
-                        ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    {background.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div
-              className="dm-message-board flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scrollbar-none bg-[#efeae2] dark:bg-[#0b141a]"
-              style={chatBackgroundId !== 'default' ? {
-                backgroundImage: `linear-gradient(rgb(10 15 20 / 38%), rgb(10 15 20 / 38%)), url("${chatBackgrounds.find(background => background.id === chatBackgroundId)?.image}")`,
-                backgroundSize: 'cover',
-                backgroundPosition: `${50 + motionOffset.x}% ${50 + motionOffset.y}%`,
-                backgroundAttachment: 'local'
-              } : undefined}
-            >
+            <div className="dm-message-board flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scrollbar-none bg-[#efeae2] dark:bg-[#0b141a]">
               {loadingMessages && messages.length === 0 ? (
                 <div className="dm-loading-state max-w-sm mx-auto space-y-3 py-8" aria-label="Loading messages">
                   <div className="h-12 w-3/4 rounded-xl bg-white/70 dark:bg-white/10 animate-pulse" />

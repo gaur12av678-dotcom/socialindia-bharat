@@ -1,5 +1,5 @@
 import { authService } from './authService';
-import { userService } from './userService';
+import { auth } from '../firebase';
 import { User } from '../types';
 
 export interface SavedAccount {
@@ -56,7 +56,7 @@ class AccountService {
   /**
    * Record or update an account in the saved list
    */
-  saveAccount(userProfile: User, password?: string, provider: 'password' | 'google' = 'password'): void {
+  saveAccount(userProfile: User, password?: string, provider?: 'password' | 'google'): void {
     if (!userProfile || !userProfile.uid) return;
 
     // CRITICAL: Unverified accounts must NEVER be saved to local saved accounts
@@ -66,6 +66,17 @@ class AccountService {
 
     const accounts = this.getSavedAccounts();
     const existingIndex = accounts.findIndex((a) => a.uid === userProfile.uid);
+    const existingProvider = existingIndex >= 0 ? accounts[existingIndex].authProvider : undefined;
+
+    const isFirebaseGoogleUser = Boolean(
+      auth.currentUser?.uid === userProfile.uid &&
+      auth.currentUser.providerData?.some((p) => p.providerId === 'google.com')
+    );
+
+    const resolvedProvider: 'password' | 'google' =
+      provider ||
+      (isFirebaseGoogleUser ? 'google' : undefined) ||
+      (existingProvider === 'google' ? 'google' : 'password');
 
     let savedPassToken = existingIndex >= 0 ? accounts[existingIndex].savedPassToken : undefined;
     if (password) {
@@ -83,7 +94,7 @@ class AccountService {
       walletBalance: userProfile.walletBalance || 0,
       role: userProfile.role || 'user',
       lastActiveAt: Date.now(),
-      authProvider: provider,
+      authProvider: resolvedProvider,
       savedPassToken,
     };
 
@@ -108,11 +119,16 @@ class AccountService {
     if (userProfile.email && !userProfile.email.endsWith('@socialindia.com') && !userProfile.emailVerified) {
       return;
     }
-    this.saveAccount(userProfile);
+    const isFirebaseGoogleUser = Boolean(
+      auth.currentUser?.uid === userProfile.uid &&
+      auth.currentUser.providerData?.some((p) => p.providerId === 'google.com')
+    );
+    this.saveAccount(userProfile, undefined, isFirebaseGoogleUser ? 'google' : undefined);
   }
 
   /**
    * Switch to a saved account.
+   * If Google account, triggers Google OAuth directly without asking for a password.
    * If saved credentials exist, authenticates immediately.
    * If credentials are required, returns { requiresPassword: true }.
    */
@@ -120,17 +136,29 @@ class AccountService {
     targetAccount: SavedAccount,
     passwordOverride?: string
   ): Promise<{ success: boolean; error?: string; requiresPassword?: boolean }> {
+    const isGoogleAccount =
+      targetAccount.authProvider === 'google' ||
+      Boolean(
+        auth.currentUser?.uid === targetAccount.uid &&
+        auth.currentUser.providerData?.some((p) => p.providerId === 'google.com')
+      );
+
+    if (isGoogleAccount && !passwordOverride) {
+      try {
+        const { userProfile } = await authService.signInWithGoogle(targetAccount.email);
+        this.saveAccount(userProfile, undefined, 'google');
+        return { success: true };
+      } catch (err: any) {
+        if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+          return { success: false, error: '' };
+        }
+        return { success: false, error: err.message || 'Google sign-in failed' };
+      }
+    }
+
     const password = passwordOverride || (targetAccount.savedPassToken ? deobfuscate(targetAccount.savedPassToken) : '');
 
     if (!password) {
-      if (targetAccount.authProvider === 'google') {
-        try {
-          await authService.signInWithGoogle();
-          return { success: true };
-        } catch (err: any) {
-          return { success: false, error: err.message || 'Google sign-in failed' };
-        }
-      }
       return { success: false, requiresPassword: true };
     }
 

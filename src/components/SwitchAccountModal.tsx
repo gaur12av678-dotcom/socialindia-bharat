@@ -57,6 +57,9 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
   // Ensure current user is in saved accounts list if logged in
   const currentUid = currentUser?.uid;
   const accountsList = [...savedAccounts];
+  const isCurrentGoogleUser = Boolean(
+    currentUser?.providerData?.some((p) => p.providerId === 'google.com')
+  );
   if (currentUserProfile && !accountsList.some(a => a.uid === currentUserProfile.uid)) {
     accountsList.unshift({
       uid: currentUserProfile.uid,
@@ -69,7 +72,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
       walletBalance: currentUserProfile.walletBalance || 0,
       role: currentUserProfile.role || 'user',
       lastActiveAt: Date.now(),
-      authProvider: 'password'
+      authProvider: isCurrentGoogleUser ? 'google' : 'password'
     });
   }
 
@@ -100,8 +103,8 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
         setPasswordPromptAccount(account);
         setPromptPassword('');
         setPromptError(res.error || '');
-      } else {
-        setPromptError(res.error || 'Could not switch to this account.');
+      } else if (res.error) {
+        addToast(res.error, 'error');
       }
     } catch (err: any) {
       setPromptError(err.message || 'Failed to switch account.');
@@ -403,6 +406,36 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
                               {isHindi ? 'रद्द करें' : 'Cancel'}
                             </button>
                           </div>
+
+                          <button
+                            type="button"
+                            disabled={promptLoading}
+                            onClick={async () => {
+                              setPromptLoading(true);
+                              setPromptError('');
+                              try {
+                                const { userProfile } = await authService.signInWithGoogle(account.email);
+                                accountService.saveAccount(userProfile, undefined, 'google');
+                                await refreshProfile();
+                                addToast(
+                                  isHindi
+                                    ? `${userProfile.displayName || userProfile.username} के खाते में स्विच किया गया`
+                                    : `Switched to ${userProfile.displayName || userProfile.username}`,
+                                  'success'
+                                );
+                                onClose();
+                              } catch (err: any) {
+                                if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
+                                  setPromptError(err?.message || 'Google sign-in failed.');
+                                }
+                              } finally {
+                                setPromptLoading(false);
+                              }
+                            }}
+                            className="w-full py-1.5 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                            <span>{isHindi ? 'Google से स्विच करें' : 'Continue with Google'}</span>
+                          </button>
                         </form>
                       )}
                     </div>

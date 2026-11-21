@@ -210,6 +210,20 @@
       },
       "required": ["senderId", "receiverId", "createdAt"]
     },
+    "PocketMessage": {
+      "title": "PocketMessage",
+      "description": "Personal saved message or note in a user's My Pocket workspace",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string", "maxLength": 2000 },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
+        "replyTo": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "editedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["text", "createdAt"]
+    },
     "CommunityPost": {
       "title": "CommunityPost",
       "description": "Community post, photo, or poll shared by creators and users",
@@ -301,6 +315,10 @@
     "chats/{messageId}": {
       "schema": "ChatMessage",
       "description": "Direct chat messages between users"
+    },
+    "users/{uid}/pocketMessages/{messageId}": {
+      "schema": "PocketMessage",
+      "description": "Private saved messages and media in a user's My Pocket chat"
     },
     "posts/{postId}": {
       "schema": "CommunityPost",
