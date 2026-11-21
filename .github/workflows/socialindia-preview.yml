@@ -1,0 +1,102 @@
+name: SocialIndia Preview
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: socialindia-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-preview:
+    name: Build and deploy isolated preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci || npm install --legacy-peer-deps
+          else
+            npm install --legacy-peer-deps
+          fi
+
+      - name: Build app
+        run: npm run build
+        env:
+          CI: false
+          NODE_ENV: production
+
+      - name: Verify build output
+        run: |
+          set -e
+          test -d dist
+          test -f dist/index.html
+          for file in sitemap.xml video-sitemap.xml sitemap_index.xml robots.txt; do
+            test -f "public/$file"
+            cp "public/$file" "dist/$file"
+          done
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          for name in ("sitemap.xml", "video-sitemap.xml", "sitemap_index.xml"):
+              ET.parse(Path("dist") / name)
+              print(f"Validated {name}")
+          PY
+
+      - name: Deploy temporary Firebase preview
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT secret is missing."
+            exit 1
+          fi
+
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+
+          PROJECT_ID=$(node -e "const fs=require('fs');const sa=JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,'utf8'));if(!sa.project_id)process.exit(1);console.log(sa.project_id)")
+          npm install --global firebase-tools@13.30.0
+
+          # Match the repository's existing production Hosting site configuration,
+          # but deploy only to an expiring preview channel.
+          printf '{"projects":{"default":"%s"},"targets":{"%s":{"hosting":{"socialindia":["socialindia"]}}}}\\n' "$PROJECT_ID" "$PROJECT_ID" > .firebaserc
+          cat > firebase.json <<'JSON'
+          {
+            "hosting": {
+              "site": "socialindia",
+              "public": "dist",
+              "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+              "rewrites": [
+                { "source": "**", "destination": "/index.html" }
+              ]
+            }
+          }
+          JSON
+          firebase hosting:channel:deploy "pr-$PR_NUMBER" --project "$PROJECT_ID" --expires 7d --non-interactive
+
+      - name: Publish preview details
+        if: success()
+        run: |
+          echo "## SocialIndia preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "The temporary Firebase preview for PR #${{ github.event.pull_request.number }} was deployed." >> "$GITHUB_STEP_SUMMARY"
+          echo "Open this job's logs to find the generated preview URL." >> "$GITHUB_STEP_SUMMARY"
