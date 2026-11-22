@@ -485,6 +485,12 @@ export const postService = {
             if (post.videoThumbnailUrl) {
               firestorePayload.videoThumbnailUrl = post.videoThumbnailUrl;
             }
+            if (post.linkUrl) {
+              firestorePayload.linkUrl = post.linkUrl;
+            }
+            if (post.linkTitle) {
+              firestorePayload.linkTitle = post.linkTitle;
+            }
             if (post.poll) {
               firestorePayload.poll = post.poll;
             }
@@ -651,10 +657,14 @@ export const postService = {
     images?: string[];
     videoUrl?: string;
     videoThumbnailUrl?: string;
+    linkUrl?: string;
+    linkTitle?: string;
     pollOptions?: string[];
   }): Promise<CommunityPost> {
     const postId = this.generateId();
     const now = new Date().toISOString();
+    const cleanLinkUrl = data.linkUrl?.trim() || undefined;
+    const cleanLinkTitle = cleanLinkUrl && data.linkTitle?.trim() ? data.linkTitle.trim() : undefined;
 
     let pollObj: PostPoll | undefined = undefined;
     if (data.postType === 'poll' && data.pollOptions && data.pollOptions.length >= 2) {
@@ -698,6 +708,8 @@ export const postService = {
       images: sanitizedImages.length > 0 ? sanitizedImages : undefined,
       videoUrl: data.videoUrl || undefined,
       videoThumbnailUrl: data.videoThumbnailUrl || undefined,
+      linkUrl: cleanLinkUrl,
+      linkTitle: cleanLinkTitle,
       poll: pollObj,
       likesCount: 0,
       dislikesCount: 0,
@@ -735,6 +747,13 @@ export const postService = {
       firestoreData.videoUrl = data.videoUrl;
       if (data.videoThumbnailUrl) {
         firestoreData.videoThumbnailUrl = data.videoThumbnailUrl;
+      }
+    }
+
+    if (cleanLinkUrl) {
+      firestoreData.linkUrl = cleanLinkUrl;
+      if (cleanLinkTitle) {
+        firestoreData.linkTitle = cleanLinkTitle;
       }
     }
 

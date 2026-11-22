@@ -106,8 +106,32 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     (uidLower && currentUsernameLower && currentUsernameLower === uidLower)
   );
 
+  const resolvedOwnerKey = uid || (fallbackDisplayName ? `name:${fallbackDisplayName.trim().toLowerCase()}` : 'anon');
+
+  // Guarded access to currentUserProfile: ONLY use it when it strictly belongs to this UserAvatar's uid/target
+  const profileMatchesTarget = Boolean(
+    currentUserProfile && (
+      (uid && currentUserProfile.uid === uid) ||
+      (!uid && isCurrentLoggedInUser) ||
+      (uidLower && currentUsernameLower && currentUsernameLower === uidLower)
+    )
+  );
+  const matchedProfile = profileMatchesTarget ? currentUserProfile : null;
+
   const resolveInitialPhoto = () => {
-    if (isCurrentLoggedInUser) return (currentUserProfile?.photoURL || '').trim();
+    if (isCurrentLoggedInUser) {
+      if (matchedProfile && typeof matchedProfile.photoURL === 'string') {
+        return matchedProfile.photoURL.trim();
+      }
+      if (fallbackPhotoURL && fallbackPhotoURL.trim()) return fallbackPhotoURL.trim();
+      if (uid) {
+        const u = userService.getCachedUserProfile(uid);
+        if (u && typeof u.photoURL === 'string') return u.photoURL.trim();
+        const persisted = getPersistedAvatar(uid);
+        if (persisted?.photoURL) return persisted.photoURL;
+      }
+      return '';
+    }
     if (fallbackPhotoURL && fallbackPhotoURL.trim()) return fallbackPhotoURL.trim();
     if (uid) {
       const u = userService.getCachedUserProfile(uid);
@@ -119,8 +143,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   };
 
   const resolveInitialName = () => {
-    if (isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username)) {
-      return currentUserProfile.displayName || currentUserProfile.username;
+    if (isCurrentLoggedInUser && matchedProfile && (matchedProfile.displayName || matchedProfile.username)) {
+      return matchedProfile.displayName || matchedProfile.username;
     }
     if (fallbackDisplayName && fallbackDisplayName.trim()) return fallbackDisplayName.trim();
     if (uid) {
@@ -133,13 +157,25 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   };
 
   const initialPhoto = resolveInitialPhoto();
+  const initialName = resolveInitialName();
 
-  const [livePhoto, setLivePhoto] = useState<string>(initialPhoto);
-  const [liveDisplayName, setLiveDisplayName] = useState<string>(resolveInitialName);
+  const [liveState, setLiveState] = useState<{
+    ownerKey: string;
+    photoURL: string;
+    displayName: string;
+  }>(() => ({
+    ownerKey: resolvedOwnerKey,
+    photoURL: initialPhoto,
+    displayName: initialName,
+  }));
 
   const [imgError, setImgError] = useState(false);
   // Default to true if we already have a photo URL, eliminating avatar flicker/delay!
   const [isImgLoaded, setIsImgLoaded] = useState<boolean>(() => Boolean(initialPhoto));
+
+  // Only read liveState when it belongs to this exact resolvedOwnerKey
+  const scopedLivePhoto = liveState.ownerKey === resolvedOwnerKey ? liveState.photoURL : initialPhoto;
+  const scopedLiveDisplayName = liveState.ownerKey === resolvedOwnerKey ? liveState.displayName : initialName;
 
   // Pre-seed cache if valid fallback photo is passed
   useEffect(() => {
@@ -148,41 +184,43 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     }
   }, [uid, fallbackPhotoURL, fallbackDisplayName]);
 
-  // Synchronize when current user profile updates
+  // Synchronize when current user profile updates (strictly matching active uid)
   useEffect(() => {
-    if (isCurrentLoggedInUser && currentUserProfile) {
-      if (currentUserProfile.photoURL) {
-        setLivePhoto(currentUserProfile.photoURL);
-        setImgError(false);
-        setIsImgLoaded(true);
-        if (currentUser?.uid) {
-          updateUserAvatarCache(
-            currentUser.uid,
-            currentUserProfile.photoURL,
-            currentUserProfile.displayName || currentUserProfile.username || ''
-          );
-        }
-      } else {
-        setLivePhoto('');
-        setIsImgLoaded(false);
-      }
-      if (currentUserProfile.displayName || currentUserProfile.username) {
-        setLiveDisplayName(currentUserProfile.displayName || currentUserProfile.username);
+    if (isCurrentLoggedInUser && matchedProfile) {
+      const cleanPhoto = (matchedProfile.photoURL || '').trim();
+      const cleanName = (matchedProfile.displayName || matchedProfile.username || '').trim();
+      setLiveState({
+        ownerKey: resolvedOwnerKey,
+        photoURL: cleanPhoto,
+        displayName: cleanName,
+      });
+      setImgError(false);
+      setIsImgLoaded(Boolean(cleanPhoto));
+      if (matchedProfile.uid && cleanPhoto) {
+        updateUserAvatarCache(matchedProfile.uid, cleanPhoto, cleanName);
       }
     }
-  }, [isCurrentLoggedInUser, currentUser?.uid, currentUserProfile?.photoURL, currentUserProfile?.displayName, currentUserProfile?.username]);
+  }, [
+    isCurrentLoggedInUser,
+    resolvedOwnerKey,
+    matchedProfile?.uid,
+    matchedProfile?.photoURL,
+    matchedProfile?.displayName,
+    matchedProfile?.username,
+  ]);
 
   // Reset and synchronize whenever uid or fallback props change so another user's avatar never leaks through
   useEffect(() => {
-    if (!isCurrentLoggedInUser) {
-      const nextPhoto = resolveInitialPhoto();
-      const nextName = resolveInitialName();
-      setLivePhoto(nextPhoto);
-      setLiveDisplayName(nextName);
-      setImgError(false);
-      setIsImgLoaded(Boolean(nextPhoto));
-    }
-  }, [uid, fallbackPhotoURL, fallbackDisplayName, isCurrentLoggedInUser]);
+    const nextPhoto = resolveInitialPhoto();
+    const nextName = resolveInitialName();
+    setLiveState({
+      ownerKey: resolvedOwnerKey,
+      photoURL: nextPhoto,
+      displayName: nextName,
+    });
+    setImgError(false);
+    setIsImgLoaded(Boolean(nextPhoto));
+  }, [resolvedOwnerKey, uid, fallbackPhotoURL, fallbackDisplayName, isCurrentLoggedInUser]);
 
   // Listen for global user avatar updates
   useEffect(() => {
@@ -190,13 +228,14 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     const handleAvatarUpdate = (e: any) => {
       const detail = e.detail;
       if (detail && detail.uid === uid) {
+        setLiveState((prev) => ({
+          ownerKey: resolvedOwnerKey,
+          photoURL: typeof detail.photoURL === 'string' ? detail.photoURL : (prev.ownerKey === resolvedOwnerKey ? prev.photoURL : ''),
+          displayName: detail.displayName || (prev.ownerKey === resolvedOwnerKey ? prev.displayName : ''),
+        }));
         if (detail.photoURL) {
-          setLivePhoto(detail.photoURL);
           setImgError(false);
           setIsImgLoaded(true);
-        }
-        if (detail.displayName) {
-          setLiveDisplayName(detail.displayName);
         }
       }
     };
@@ -205,7 +244,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     return () => {
       window.removeEventListener('si_user_avatar_updated', handleAvatarUpdate);
     };
-  }, [uid]);
+  }, [uid, resolvedOwnerKey]);
 
   // Background fetch for remote profiles only if no photo or name is available
   useEffect(() => {
@@ -218,12 +257,20 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       const persisted = getPersistedAvatar(uid);
 
       if (!fallbackPhotoURL && !cachedHasExplicitPhoto && persisted?.photoURL) {
-        setLivePhoto(persisted.photoURL);
+        setLiveState((prev) => ({
+          ownerKey: resolvedOwnerKey,
+          photoURL: persisted.photoURL,
+          displayName: prev.ownerKey === resolvedOwnerKey && prev.displayName ? prev.displayName : (persisted.displayName || ''),
+        }));
         setImgError(false);
         setIsImgLoaded(true);
       }
       if (!fallbackDisplayName && persisted?.displayName) {
-        setLiveDisplayName(persisted.displayName);
+        setLiveState((prev) => ({
+          ownerKey: resolvedOwnerKey,
+          photoURL: prev.ownerKey === resolvedOwnerKey ? prev.photoURL : initialPhoto,
+          displayName: persisted.displayName,
+        }));
       }
 
       // Fetch from Firestore once per session if not already cached in userService memory cache
@@ -233,27 +280,31 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
           const cleanPhoto = (profile.photoURL || '').trim();
           const cleanName = profile.displayName || profile.username || '';
           updateUserAvatarCache(uid, cleanPhoto, cleanName);
-          setLivePhoto(cleanPhoto);
+          setLiveState({
+            ownerKey: resolvedOwnerKey,
+            photoURL: cleanPhoto,
+            displayName: cleanName,
+          });
           setImgError(false);
           setIsImgLoaded(Boolean(cleanPhoto));
-          if (cleanName) {
-            setLiveDisplayName(cleanName);
-          }
         }).catch(() => {});
       }
     } else if (fallbackDisplayName && !fallbackPhotoURL) {
       userService.getUserByUsername(fallbackDisplayName).then(uProfile => {
         if (!active || !uProfile) return;
-        if (uProfile.photoURL) {
-          if (uProfile.uid) {
-            updateUserAvatarCache(uProfile.uid, uProfile.photoURL, uProfile.displayName || uProfile.username || '');
-          }
-          setLivePhoto(uProfile.photoURL);
+        const cleanPhoto = (uProfile.photoURL || '').trim();
+        const cleanName = uProfile.displayName || uProfile.username || '';
+        if (cleanPhoto && uProfile.uid) {
+          updateUserAvatarCache(uProfile.uid, cleanPhoto, cleanName);
+        }
+        setLiveState((prev) => ({
+          ownerKey: resolvedOwnerKey,
+          photoURL: cleanPhoto || (prev.ownerKey === resolvedOwnerKey ? prev.photoURL : ''),
+          displayName: cleanName || (prev.ownerKey === resolvedOwnerKey ? prev.displayName : ''),
+        }));
+        if (cleanPhoto) {
           setImgError(false);
           setIsImgLoaded(true);
-        }
-        if (uProfile.displayName || uProfile.username) {
-          setLiveDisplayName(uProfile.displayName || uProfile.username);
         }
       }).catch(() => {});
     }
@@ -261,38 +312,41 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     return () => {
       active = false;
     };
-  }, [uid, fallbackDisplayName, fallbackPhotoURL, isCurrentLoggedInUser]);
+  }, [uid, resolvedOwnerKey, fallbackDisplayName, fallbackPhotoURL, isCurrentLoggedInUser]);
 
   // Compute final effective photo & name
   const effectivePhoto = useMemo(() => {
     if (isCurrentLoggedInUser) {
-      return (currentUserProfile?.photoURL || livePhoto || fallbackPhotoURL || '').trim();
+      if (matchedProfile && typeof matchedProfile.photoURL === 'string') {
+        return matchedProfile.photoURL.trim();
+      }
+      return (scopedLivePhoto || fallbackPhotoURL || '').trim();
     }
     const cachedUser = uid ? userService.getCachedUserProfile(uid) : null;
     if (fallbackPhotoURL && fallbackPhotoURL.trim()) {
       return fallbackPhotoURL.trim();
     }
     if (cachedUser && typeof cachedUser.photoURL === 'string') {
-      return (livePhoto || cachedUser.photoURL).trim();
+      return (scopedLivePhoto || cachedUser.photoURL).trim();
     }
     const raw =
-      livePhoto ||
+      scopedLivePhoto ||
       (uid ? (profileCache[uid]?.photoURL || getPersistedAvatar(uid)?.photoURL || '') : '') ||
       '';
 
     return raw.trim();
-  }, [isCurrentLoggedInUser, currentUserProfile?.photoURL, livePhoto, uid, fallbackPhotoURL]);
+  }, [isCurrentLoggedInUser, matchedProfile?.photoURL, scopedLivePhoto, uid, fallbackPhotoURL]);
 
   const effectiveDisplayName = useMemo(() => {
     return (
-      (isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username)
-        ? (currentUserProfile.displayName || currentUserProfile.username)
+      (isCurrentLoggedInUser && matchedProfile && (matchedProfile.displayName || matchedProfile.username)
+        ? (matchedProfile.displayName || matchedProfile.username)
         : '') ||
-      liveDisplayName ||
+      scopedLiveDisplayName ||
       fallbackDisplayName ||
       'User'
     ).trim();
-  }, [isCurrentLoggedInUser, currentUserProfile?.displayName, currentUserProfile?.username, liveDisplayName, fallbackDisplayName]);
+  }, [isCurrentLoggedInUser, matchedProfile?.displayName, matchedProfile?.username, scopedLiveDisplayName, fallbackDisplayName]);
 
   // Check image readiness upon source changes
   useEffect(() => {
@@ -307,7 +361,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
     } else {
       setIsImgLoaded(false);
     }
-  }, [effectivePhoto]);
+  }, [effectivePhoto, resolvedOwnerKey]);
 
   const hasPhoto = Boolean(effectivePhoto && !imgError);
   const initial = getYouTubeInitial(effectiveDisplayName);
@@ -361,6 +415,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
       {/* Real Image Layer: Smoothly layered on top with no-referrer for reliable CDN/Google photo loading */}
       {hasPhoto && (
         <img 
+          key={`${resolvedOwnerKey}:${effectivePhoto}`}
           ref={imgRef}
           src={effectivePhoto} 
           alt={effectiveDisplayName} 

@@ -965,6 +965,30 @@ export const AdminPanel: React.FC = () => {
 
   const newestCreators = React.useMemo(() => sortedUsers.slice(0, 10), [sortedUsers]);
 
+  const sortedStandardVideos = React.useMemo(() => {
+    return [...videos]
+      .filter(v => !v.isShort)
+      .sort((a, b) => {
+        const createdDiff = parseDateMs(b.createdAt) - parseDateMs(a.createdAt);
+        if (createdDiff !== 0) return createdDiff;
+        return parseDateMs(b.updatedAt) - parseDateMs(a.updatedAt);
+      });
+  }, [videos]);
+
+  const newestVideos = React.useMemo(() => sortedStandardVideos.slice(0, 10), [sortedStandardVideos]);
+
+  const sortedClips = React.useMemo(() => {
+    return [...videos]
+      .filter(v => Boolean(v.isShort))
+      .sort((a, b) => {
+        const createdDiff = parseDateMs(b.createdAt) - parseDateMs(a.createdAt);
+        if (createdDiff !== 0) return createdDiff;
+        return parseDateMs(b.updatedAt) - parseDateMs(a.updatedAt);
+      });
+  }, [videos]);
+
+  const newestClips = React.useMemo(() => sortedClips.slice(0, 10), [sortedClips]);
+
   const normalizedSearchTerm = searchTerm.trim().toLowerCase();
   const filteredUsers = sortedUsers.filter(u =>
     `${u.username || ''} ${u.displayName || ''}`.toLowerCase().includes(normalizedSearchTerm)
@@ -1700,6 +1724,153 @@ export const AdminPanel: React.FC = () => {
                         <div className="py-10 text-center">
                           <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-60 animate-bounce" />
                           <p className="text-xs font-bold text-slate-500 dark:text-slate-400">All caught up! No pending reports.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Newest Videos & Newest Clips on Dashboard */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Newest Videos */}
+                  <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-6 shadow-xs overflow-hidden">
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-[#1f1f24] mb-2">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <VideoIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span>Newest Videos</span>
+                      </h3>
+                      <button onClick={() => setActiveSection('videos')} className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
+                        View All ({sortedStandardVideos.length})
+                      </button>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 dark:divide-[#1f1f24] max-h-[380px] overflow-y-auto pr-1">
+                      {newestVideos.map(v => {
+                        const uploadedLabel = formatTimeAgo(v.createdAt) || (parseDateMs(v.createdAt) ? formatShortDate(v.createdAt) : '');
+                        return (
+                          <div
+                            key={v.videoId}
+                            onClick={() => navigate('watch', v.videoId)}
+                            className="py-3 flex items-center justify-between gap-3 group hover:bg-slate-50 dark:hover:bg-[#18181c] px-2 rounded-2xl transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="relative w-20 h-11 rounded-xl bg-slate-200 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200/60 dark:border-slate-700/60">
+                                {v.thumbnailUrl ? (
+                                  <img src={v.thumbnailUrl} alt={v.title} className="w-full h-full object-cover" loading="lazy" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                    <Play className="w-4 h-4" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                  {v.title || 'Untitled Video'}
+                                </p>
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 truncate mt-0.5">
+                                  <span className="truncate">@{v.creatorUsername || 'creator'}</span>
+                                  {uploadedLabel && <span>• {uploadedLabel}</span>}
+                                  <span>• {formatViews(v.viewsCount || 0)} views</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                v.status === 'published'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                              }`}>
+                                {v.status}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate('watch', v.videoId);
+                                }}
+                                className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#272727] text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-xl transition-all cursor-pointer"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {newestVideos.length === 0 && (
+                        <div className="py-10 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                          No videos uploaded yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Newest Clips */}
+                  <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-6 shadow-xs overflow-hidden">
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-[#1f1f24] mb-2">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <Film className="w-4 h-4 text-rose-500" />
+                        <span>Newest Clips</span>
+                      </h3>
+                      <button onClick={() => setActiveSection('videos')} className="text-[10px] font-black text-rose-600 dark:text-rose-400 hover:underline cursor-pointer">
+                        View All ({sortedClips.length})
+                      </button>
+                    </div>
+
+                    <div className="divide-y divide-slate-100 dark:divide-[#1f1f24] max-h-[380px] overflow-y-auto pr-1">
+                      {newestClips.map(clip => {
+                        const uploadedLabel = formatTimeAgo(clip.createdAt) || (parseDateMs(clip.createdAt) ? formatShortDate(clip.createdAt) : '');
+                        return (
+                          <div
+                            key={clip.videoId}
+                            onClick={() => navigate('shorts', clip.videoId)}
+                            className="py-3 flex items-center justify-between gap-3 group hover:bg-slate-50 dark:hover:bg-[#18181c] px-2 rounded-2xl transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="relative w-10 h-14 rounded-xl bg-slate-200 dark:bg-slate-800 overflow-hidden shrink-0 border border-slate-200/60 dark:border-slate-700/60">
+                                {clip.thumbnailUrl ? (
+                                  <img src={clip.thumbnailUrl} alt={clip.title} className="w-full h-full object-cover" loading="lazy" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                    <Film className="w-4 h-4" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-rose-600 dark:group-hover:text-rose-400">
+                                  {clip.title || 'Untitled Clip'}
+                                </p>
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 truncate mt-0.5">
+                                  <span className="truncate">@{clip.creatorUsername || 'creator'}</span>
+                                  {uploadedLabel && <span>• {uploadedLabel}</span>}
+                                  <span>• {formatViews(clip.viewsCount || 0)} views</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                clip.status === 'published'
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                              }`}>
+                                {clip.status}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate('shorts', clip.videoId);
+                                }}
+                                className="p-1.5 hover:bg-slate-200 dark:hover:bg-[#272727] text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-xl transition-all cursor-pointer"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {newestClips.length === 0 && (
+                        <div className="py-10 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                          No clips uploaded yet.
                         </div>
                       )}
                     </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { authService } from './../services/authService';
@@ -34,6 +34,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
 
   const [view, setView] = useState<'list' | 'add_account'>('list');
   const [switchingUid, setSwitchingUid] = useState<string | null>(null);
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>(() => accountService.getSavedAccounts());
   
   // Password prompt state for accounts without saved password
   const [passwordPromptAccount, setPasswordPromptAccount] = useState<SavedAccount | null>(null);
@@ -50,10 +51,33 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
   const [addAccountGoogleLoading, setAddAccountGoogleLoading] = useState(false);
   const [addAccountError, setAddAccountError] = useState('');
 
+  // Keep saved accounts synced and reset modal state when opened
+  useEffect(() => {
+    const syncList = () => setSavedAccounts(accountService.getSavedAccounts());
+    window.addEventListener('si_saved_accounts_changed', syncList);
+    window.addEventListener('storage', syncList);
+    return () => {
+      window.removeEventListener('si_saved_accounts_changed', syncList);
+      window.removeEventListener('storage', syncList);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setView('list');
+    setPasswordPromptAccount(null);
+    setPromptPassword('');
+    setPromptError('');
+    setAddAccountError('');
+    setSwitchingUid(null);
+    if (currentUser || currentUserProfile) {
+      accountService.syncCurrentProfile(currentUserProfile);
+    }
+    setSavedAccounts(accountService.getSavedAccounts());
+  }, [isOpen, currentUser?.uid, currentUserProfile]);
+
   if (!isOpen) return null;
 
-  const savedAccounts = accountService.getSavedAccounts();
-  
   // Ensure current user is in saved accounts list if logged in
   const currentUid = currentUser?.uid;
   const accountsList = [...savedAccounts];
@@ -76,6 +100,12 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
     });
   }
 
+  const preserveOutgoingAccount = () => {
+    if (currentUser || currentUserProfile) {
+      accountService.syncCurrentProfile(currentUserProfile);
+    }
+  };
+
   // Handle 1-click or quick switch
   const handleSelectAccount = async (account: SavedAccount) => {
     if (account.uid === currentUid) {
@@ -83,6 +113,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
       return;
     }
 
+    preserveOutgoingAccount();
     setSwitchingUid(account.uid);
     setPasswordPromptAccount(null);
     setPromptError('');
@@ -91,6 +122,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
       const res = await accountService.switchToAccount(account);
       if (res.success) {
         await refreshProfile();
+        setSavedAccounts(accountService.getSavedAccounts());
         addToast(
           isHindi 
             ? `${account.displayName || account.username} के खाते में स्विच किया गया` 
@@ -105,6 +137,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
         setPromptError(res.error || '');
       } else if (res.error) {
         addToast(res.error, 'error');
+        setPromptError(res.error);
       }
     } catch (err: any) {
       setPromptError(err.message || 'Failed to switch account.');
@@ -118,6 +151,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
     e.preventDefault();
     if (!passwordPromptAccount || !promptPassword.trim()) return;
 
+    preserveOutgoingAccount();
     setPromptLoading(true);
     setPromptError('');
 
@@ -125,6 +159,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
       const res = await accountService.switchToAccount(passwordPromptAccount, promptPassword.trim());
       if (res.success) {
         await refreshProfile();
+        setSavedAccounts(accountService.getSavedAccounts());
         addToast(
           isHindi 
             ? `${passwordPromptAccount.displayName || passwordPromptAccount.username} के खाते में स्विच किया गया` 
@@ -146,6 +181,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
   const handleRemoveAccount = (e: React.MouseEvent, uid: string) => {
     e.stopPropagation();
     accountService.removeAccount(uid);
+    setSavedAccounts(accountService.getSavedAccounts());
     if (passwordPromptAccount?.uid === uid) {
       setPasswordPromptAccount(null);
     }
@@ -164,6 +200,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
       return;
     }
 
+    preserveOutgoingAccount();
     setAddAccountLoading(true);
     setAddAccountError('');
 
@@ -171,6 +208,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
       const { userProfile } = await authService.login(cleanId, newPassword);
       accountService.saveAccount(userProfile, newPassword, 'password');
       await refreshProfile();
+      setSavedAccounts(accountService.getSavedAccounts());
       addToast(
         isHindi 
           ? `नया खाता जोड़ा गया: ${userProfile.displayName || userProfile.username}` 
@@ -193,12 +231,14 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
 
   // Handle Google Sign In to add an account
   const handleAddAccountGoogle = async () => {
+    preserveOutgoingAccount();
     setAddAccountGoogleLoading(true);
     setAddAccountError('');
     try {
       const { userProfile } = await authService.signInWithGoogle();
       accountService.saveAccount(userProfile, undefined, 'google');
       await refreshProfile();
+      setSavedAccounts(accountService.getSavedAccounts());
       addToast(
         isHindi 
           ? `Google खाता जोड़ा गया: ${userProfile.displayName || userProfile.username}` 
@@ -289,9 +329,20 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
                           : 'bg-slate-50/80 dark:bg-slate-900/40 border-slate-200/70 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-800'
                       }`}
                     >
-                      <button
-                        onClick={() => handleSelectAccount(account)}
-                        disabled={isSwitching || promptLoading}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (!isSwitching && !promptLoading) {
+                            void handleSelectAccount(account);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if ((e.key === 'Enter' || e.key === ' ') && !isSwitching && !promptLoading) {
+                            e.preventDefault();
+                            void handleSelectAccount(account);
+                          }
+                        }}
                         className="w-full p-3 flex items-center justify-between gap-3 text-left cursor-pointer transition-colors group"
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -342,15 +393,16 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
                             </div>
                           ) : (
                             <button
+                              type="button"
                               onClick={(e) => handleRemoveAccount(e, account.uid)}
-                              className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-all cursor-pointer"
+                              className="opacity-70 sm:opacity-0 sm:group-hover:opacity-100 p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-all cursor-pointer"
                               title={isHindi ? 'खाता हटाएं' : 'Remove from list'}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           )}
                         </div>
-                      </button>
+                      </div>
 
                       {/* Inline password prompt if this account requires password */}
                       {isPrompting && (
@@ -411,12 +463,14 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
                             type="button"
                             disabled={promptLoading}
                             onClick={async () => {
+                              preserveOutgoingAccount();
                               setPromptLoading(true);
                               setPromptError('');
                               try {
                                 const { userProfile } = await authService.signInWithGoogle(account.email);
                                 accountService.saveAccount(userProfile, undefined, 'google');
                                 await refreshProfile();
+                                setSavedAccounts(accountService.getSavedAccounts());
                                 addToast(
                                   isHindi
                                     ? `${userProfile.displayName || userProfile.username} के खाते में स्विच किया गया`

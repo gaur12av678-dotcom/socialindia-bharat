@@ -28,13 +28,58 @@ import {
   Share2,
   UsersRound,
   Plus,
-  HardDrive
+  HardDrive,
+  Camera,
+  Shield,
+  UserPlus,
+  UserMinus,
+  LogOut,
+  Info,
+  CheckCircle2,
+  AlertCircle,
+  Link2,
+  ExternalLink,
+  Globe
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { EmojiPicker } from '../components/chat/EmojiPicker';
 import { EmojiText } from '../components/EmojiGraphic';
 import { UserAvatar } from '../components/UserAvatar';
 import { formatWhatsAppPresence, isOfficialSocialIndiaAccount, isUserCurrentlyOnline } from '../utils/userUtils';
+import { tokenizeTextWithUrls, extractUrlsFromText, normalizeLinkUrl, formatLinkHost } from '../utils/linkUtils';
+
+const ChatMessageText: React.FC<{ text: string; isMine: boolean }> = ({ text, isMine }) => {
+  if (!text) return null;
+  return (
+    <>
+      {text.split(/\n/).map((line, lineIdx) => (
+        <React.Fragment key={lineIdx}>
+          {lineIdx > 0 && <br />}
+          {tokenizeTextWithUrls(line).map((token, idx) =>
+            token.type === 'url' && token.href ? (
+              <a
+                key={`u_${idx}`}
+                href={token.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className={`underline font-bold break-all cursor-pointer transition-colors ${
+                  isMine
+                    ? 'text-[#027eb5] dark:text-[#53bdeb] hover:opacity-80'
+                    : 'text-[#027eb5] dark:text-[#53bdeb] hover:opacity-80'
+                }`}
+              >
+                {token.value}
+              </a>
+            ) : (
+              <EmojiText key={`t_${idx}`} text={token.value} />
+            )
+          )}
+        </React.Fragment>
+      ))}
+    </>
+  );
+};
 
 export const ChatPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -57,6 +102,9 @@ export const ChatPage: React.FC = () => {
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [groupName, setGroupName] = useState('');
+  const [groupDescription, setGroupDescription] = useState('');
+  const [groupAvatarFile, setGroupAvatarFile] = useState<File | null>(null);
+  const [groupAvatarPreview, setGroupAvatarPreview] = useState<string | null>(null);
   const [groupSearch, setGroupSearch] = useState('');
   const [groupResults, setGroupResults] = useState<User[]>([]);
   const [suggestedGroupContacts, setSuggestedGroupContacts] = useState<User[]>([]);
@@ -64,6 +112,30 @@ export const ChatPage: React.FC = () => {
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<User[]>([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [groupError, setGroupError] = useState<string | null>(null);
+
+  // WhatsApp-style Group Info & Admin Management Modal state
+  const [showGroupInfoModal, setShowGroupInfoModal] = useState(false);
+  const [groupMembersDetails, setGroupMembersDetails] = useState<User[]>([]);
+  const [loadingGroupInfo, setLoadingGroupInfo] = useState(false);
+  const [editingGroupInfo, setEditingGroupInfo] = useState(false);
+  const [editGroupNameInput, setEditGroupNameInput] = useState('');
+  const [editGroupDescInput, setEditGroupDescInput] = useState('');
+  const [savingGroupInfo, setSavingGroupInfo] = useState(false);
+  const [uploadingGroupAvatar, setUploadingGroupAvatar] = useState(false);
+  const [showAddMembersPicker, setShowAddMembersPicker] = useState(false);
+  const [addMemberSearch, setAddMemberSearch] = useState('');
+  const [addMemberPool, setAddMemberPool] = useState<User[]>([]);
+  const [loadingAddPool, setLoadingAddPool] = useState(false);
+  const [selectedNewMemberIds, setSelectedNewMemberIds] = useState<string[]>([]);
+  const [addingMembers, setAddingMembers] = useState(false);
+  const [memberActionUid, setMemberActionUid] = useState<string | null>(null);
+  const [confirmLeaveGroup, setConfirmLeaveGroup] = useState(false);
+  const [leavingGroup, setLeavingGroup] = useState(false);
+  const [groupInfoError, setGroupInfoError] = useState<string | null>(null);
+  const [groupInfoNotice, setGroupInfoNotice] = useState<string | null>(null);
+  const createGroupAvatarInputRef = useRef<HTMLInputElement>(null);
+  const editGroupAvatarInputRef = useRef<HTMLInputElement>(null);
+
   const [presenceMap, setPresenceMap] = useState<Record<string, { isOnline?: boolean; lastSeen?: string }>>({});
   const [, setPresenceTick] = useState(0);
   
@@ -76,8 +148,11 @@ export const ChatPage: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const isCurrentSession = Boolean(currentUser && chatStateUid === currentUser.uid);
 
-  // Media attachment & Emoji states
+  // Media attachment, Link & Emoji states
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [chatLinkInput, setChatLinkInput] = useState('');
+  const [chatLinkError, setChatLinkError] = useState<string | null>(null);
   const [selectedMediaFile, setSelectedMediaFile] = useState<File | null>(null);
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
@@ -318,6 +393,15 @@ export const ChatPage: React.FC = () => {
     return () => unsubscribe();
   }, [currentUser?.uid]);
 
+  // Keep selectedUser synced with live session updates (group avatar/name/description/admins/members)
+  useEffect(() => {
+    if (!selectedUserId) return;
+    const match = sessions.find(s => s.userId === selectedUserId);
+    if (match) {
+      setSelectedUser(match);
+    }
+  }, [sessions, selectedUserId]);
+
   // Handle selected user parameter route mapping
   useEffect(() => {
     if (!route.param) {
@@ -537,6 +621,25 @@ export const ChatPage: React.FC = () => {
     } else {
       setMessageText(prev => prev + emoji);
     }
+  };
+
+  // Insert a validated link into the chat message composer
+  const handleInsertChatLink = () => {
+    const normalized = normalizeLinkUrl(chatLinkInput);
+    if (!normalized) {
+      setChatLinkError(isHindi ? 'कृपया सही लिंक दर्ज करें (उदा. https://example.com)' : 'Please enter a valid link (e.g. https://example.com)');
+      return;
+    }
+    setMessageText((prev) => {
+      const trimmed = prev.trimEnd();
+      return trimmed ? `${trimmed} ${normalized}` : normalized;
+    });
+    setChatLinkInput('');
+    setChatLinkError(null);
+    setShowLinkInput(false);
+    setTimeout(() => {
+      textInputRef.current?.focus();
+    }, 10);
   };
 
   // Send Message with optional Media
@@ -769,10 +872,16 @@ export const ChatPage: React.FC = () => {
     setGroupError(null);
     setIsCreatingGroup(true);
     try {
+      let uploadedAvatarUrl = '';
+      if (groupAvatarFile) {
+        uploadedAvatarUrl = await chatService.uploadGroupAvatar(groupAvatarFile);
+      }
       const group = await chatService.createGroup(
         currentUser.uid,
         groupName,
-        selectedGroupMembers.map(member => member.uid)
+        selectedGroupMembers.map(member => member.uid),
+        groupDescription,
+        uploadedAvatarUrl
       );
       setSessions(previous => {
         const updated = [group, ...previous.filter(session => session.userId !== group.userId)];
@@ -782,6 +891,10 @@ export const ChatPage: React.FC = () => {
       setSelectedUserId(group.userId);
       setSelectedUser(group);
       setGroupName('');
+      setGroupDescription('');
+      if (groupAvatarPreview?.startsWith('blob:')) URL.revokeObjectURL(groupAvatarPreview);
+      setGroupAvatarFile(null);
+      setGroupAvatarPreview(null);
       setGroupSearch('');
       setSelectedGroupMembers([]);
       setGroupError(null);
@@ -803,6 +916,230 @@ export const ChatPage: React.FC = () => {
     setSelectedGroupMembers(previous => previous.some(item => item.uid === member.uid)
       ? previous.filter(item => item.uid !== member.uid)
       : [...previous, member]);
+  };
+
+  const syncGroupSessionPatch = (groupId: string, patch: Partial<ChatSession>) => {
+    setSelectedUser(prev => (prev && prev.userId === groupId ? { ...prev, ...patch } : prev));
+    setSessions(prev => {
+      const updated = prev.map(s => (s.userId === groupId ? { ...s, ...patch } : s));
+      if (currentUser?.uid) chatService.setCachedSessions(currentUser.uid, updated);
+      return updated;
+    });
+  };
+
+  const openGroupInfoModal = async () => {
+    if (!selectedUser?.isGroup || !selectedUserId) return;
+    setShowGroupInfoModal(true);
+    setEditingGroupInfo(false);
+    setShowAddMembersPicker(false);
+    setSelectedNewMemberIds([]);
+    setAddMemberSearch('');
+    setConfirmLeaveGroup(false);
+    setGroupInfoError(null);
+    setGroupInfoNotice(null);
+    setEditGroupNameInput(selectedUser.displayName || '');
+    setEditGroupDescInput(selectedUser.description || '');
+    setLoadingGroupInfo(true);
+    try {
+      const details = await chatService.getGroupDetails(selectedUserId);
+      syncGroupSessionPatch(selectedUserId, details.group);
+      setEditGroupNameInput(details.group.displayName || '');
+      setEditGroupDescInput(details.group.description || '');
+      setGroupMembersDetails(details.members);
+    } catch (err: any) {
+      setGroupInfoError(err?.message || (isHindi ? 'ग्रुप जानकारी लोड नहीं हो सकी।' : 'Could not load group details.'));
+    } finally {
+      setLoadingGroupInfo(false);
+    }
+  };
+
+  const isCurrentUserGroupAdmin = Boolean(
+    currentUser?.uid &&
+    selectedUser?.isGroup &&
+    (
+      selectedUser.createdBy === currentUser.uid ||
+      selectedUser.adminIds?.includes(currentUser.uid)
+    )
+  );
+
+  const handleGroupAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser?.uid || !selectedUserId) return;
+    if (!file.type.startsWith('image/')) {
+      setGroupInfoError(isHindi ? 'कृपया एक इमेज फ़ाइल चुनें।' : 'Please choose an image file.');
+      return;
+    }
+    setUploadingGroupAvatar(true);
+    setGroupInfoError(null);
+    setGroupInfoNotice(null);
+    try {
+      const url = await chatService.uploadGroupAvatar(file);
+      const patch = await chatService.updateGroupInfo(selectedUserId, currentUser.uid, { photoURL: url });
+      syncGroupSessionPatch(selectedUserId, patch);
+      setGroupInfoNotice(isHindi ? 'ग्रुप अवतार अपडेट हो गया।' : 'Group avatar updated.');
+    } catch (err: any) {
+      setGroupInfoError(err?.message || (isHindi ? 'अवतार अपडेट नहीं हो सका।' : 'Could not update group avatar.'));
+    } finally {
+      setUploadingGroupAvatar(false);
+      if (editGroupAvatarInputRef.current) editGroupAvatarInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveGroupAvatar = async () => {
+    if (!currentUser?.uid || !selectedUserId) return;
+    setUploadingGroupAvatar(true);
+    setGroupInfoError(null);
+    setGroupInfoNotice(null);
+    try {
+      const patch = await chatService.updateGroupInfo(selectedUserId, currentUser.uid, { photoURL: '' });
+      syncGroupSessionPatch(selectedUserId, patch);
+      setGroupInfoNotice(isHindi ? 'ग्रुप अवतार हटाया गया।' : 'Group avatar removed.');
+    } catch (err: any) {
+      setGroupInfoError(err?.message || 'Could not remove avatar.');
+    } finally {
+      setUploadingGroupAvatar(false);
+    }
+  };
+
+  const handleSaveGroupDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser?.uid || !selectedUserId) return;
+    if (!editGroupNameInput.trim()) {
+      setGroupInfoError(isHindi ? 'ग्रुप का नाम खाली नहीं हो सकता।' : 'Group name cannot be empty.');
+      return;
+    }
+    setSavingGroupInfo(true);
+    setGroupInfoError(null);
+    setGroupInfoNotice(null);
+    try {
+      const patch = await chatService.updateGroupInfo(selectedUserId, currentUser.uid, {
+        name: editGroupNameInput,
+        description: editGroupDescInput
+      });
+      syncGroupSessionPatch(selectedUserId, patch);
+      setEditingGroupInfo(false);
+      setGroupInfoNotice(isHindi ? 'ग्रुप विवरण सेव हो गया।' : 'Group info updated.');
+    } catch (err: any) {
+      setGroupInfoError(err?.message || (isHindi ? 'ग्रुप अपडेट करने में त्रुटि।' : 'Could not update group info.'));
+    } finally {
+      setSavingGroupInfo(false);
+    }
+  };
+
+  const handleOpenAddMembers = async () => {
+    const nextOpen = !showAddMembersPicker;
+    setShowAddMembersPicker(nextOpen);
+    setSelectedNewMemberIds([]);
+    setAddMemberSearch('');
+    if (!nextOpen) return;
+    setLoadingAddPool(true);
+    try {
+      const all = await userService.getAllUsers();
+      const existing = new Set(selectedUser?.participantIds || []);
+      setAddMemberPool(all.filter(u => u.uid && !existing.has(u.uid)));
+    } catch {
+      setAddMemberPool([]);
+    } finally {
+      setLoadingAddPool(false);
+    }
+  };
+
+  const handleConfirmAddMembers = async () => {
+    if (!currentUser?.uid || !selectedUserId || selectedNewMemberIds.length === 0) return;
+    setAddingMembers(true);
+    setGroupInfoError(null);
+    setGroupInfoNotice(null);
+    try {
+      const nextParticipants = await chatService.addGroupMembers(selectedUserId, currentUser.uid, selectedNewMemberIds);
+      syncGroupSessionPatch(selectedUserId, { participantIds: nextParticipants });
+      const details = await chatService.getGroupDetails(selectedUserId);
+      setGroupMembersDetails(details.members);
+      setShowAddMembersPicker(false);
+      setSelectedNewMemberIds([]);
+      setGroupInfoNotice(isHindi ? 'नए सदस्य जोड़े गए।' : 'Members added to group.');
+    } catch (err: any) {
+      setGroupInfoError(err?.message || (isHindi ? 'सदस्य जोड़ने में त्रुटि।' : 'Could not add members.'));
+    } finally {
+      setAddingMembers(false);
+    }
+  };
+
+  const handleRemoveGroupMember = async (targetUid: string) => {
+    if (!currentUser?.uid || !selectedUserId) return;
+    setMemberActionUid(targetUid);
+    setGroupInfoError(null);
+    setGroupInfoNotice(null);
+    try {
+      const res = await chatService.removeGroupMember(selectedUserId, currentUser.uid, targetUid);
+      syncGroupSessionPatch(selectedUserId, res);
+      setGroupMembersDetails(prev => prev.filter(m => m.uid !== targetUid));
+      setGroupInfoNotice(isHindi ? 'सदस्य को ग्रुप से हटाया गया।' : 'Member removed from group.');
+    } catch (err: any) {
+      setGroupInfoError(err?.message || (isHindi ? 'सदस्य को हटाने में त्रुटि।' : 'Could not remove member.'));
+    } finally {
+      setMemberActionUid(null);
+    }
+  };
+
+  const handleToggleGroupMemberAdmin = async (targetUid: string, makeAdmin: boolean) => {
+    if (!currentUser?.uid || !selectedUserId) return;
+    setMemberActionUid(targetUid);
+    setGroupInfoError(null);
+    setGroupInfoNotice(null);
+    try {
+      const nextAdmins = await chatService.setGroupMemberAdmin(selectedUserId, currentUser.uid, targetUid, makeAdmin);
+      syncGroupSessionPatch(selectedUserId, { adminIds: nextAdmins });
+      setGroupInfoNotice(
+        makeAdmin
+          ? (isHindi ? 'सदस्य को ग्रुप एडमिन बनाया गया।' : 'Member is now a group admin.')
+          : (isHindi ? 'एडमिन भूमिका हटाई गई।' : 'Admin role removed.')
+      );
+    } catch (err: any) {
+      setGroupInfoError(err?.message || (isHindi ? 'एडमिन बदलने में त्रुटि।' : 'Could not update admin role.'));
+    } finally {
+      setMemberActionUid(null);
+    }
+  };
+
+  const handleTransferGroupAdmin = async (targetUid: string) => {
+    if (!currentUser?.uid || !selectedUserId) return;
+    setMemberActionUid(targetUid);
+    setGroupInfoError(null);
+    setGroupInfoNotice(null);
+    try {
+      const nextAdmins = await chatService.transferGroupAdmin(selectedUserId, currentUser.uid, targetUid);
+      syncGroupSessionPatch(selectedUserId, { adminIds: nextAdmins });
+      setGroupInfoNotice(isHindi ? 'ग्रुप एडमिन सफलतापूर्वक ट्रांसफर किया गया।' : 'Admin role transferred to selected member.');
+    } catch (err: any) {
+      setGroupInfoError(err?.message || (isHindi ? 'एडमिन ट्रांसफर नहीं हो सका।' : 'Could not transfer admin role.'));
+    } finally {
+      setMemberActionUid(null);
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    if (!currentUser?.uid || !selectedUserId) return;
+    setLeavingGroup(true);
+    setGroupInfoError(null);
+    try {
+      await chatService.leaveGroup(selectedUserId, currentUser.uid);
+      const leftGroupId = selectedUserId;
+      setShowGroupInfoModal(false);
+      setConfirmLeaveGroup(false);
+      setSelectedUserId(null);
+      setSelectedUser(null);
+      setMessages([]);
+      setSessions(prev => {
+        const updated = prev.filter(s => s.userId !== leftGroupId);
+        chatService.setCachedSessions(currentUser.uid, updated);
+        return updated;
+      });
+      addToast(isHindi ? 'आप ग्रुप से बाहर आ गए हैं।' : 'You left the group.', 'info');
+    } catch (err: any) {
+      setGroupInfoError(err?.message || (isHindi ? 'ग्रुप छोड़ने में त्रुटि।' : 'Could not leave group.'));
+    } finally {
+      setLeavingGroup(false);
+    }
   };
 
   const handleReplyToMessage = (message: ChatMessage) => {
@@ -1064,13 +1401,21 @@ export const ChatPage: React.FC = () => {
                 >
                   <div className="relative shrink-0">
                     {s.isPocket || s.isGroup ? (
-                      <div className={`flex h-11 w-11 items-center justify-center rounded-full ${
-                        s.isPocket
-                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
-                          : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
-                      }`}>
-                        {s.isPocket ? <HardDrive className="h-5 w-5" /> : <UsersRound className="h-5 w-5" />}
-                      </div>
+                      s.isGroup && s.photoURL ? (
+                        <img
+                          src={s.photoURL}
+                          alt={s.displayName}
+                          className="h-11 w-11 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                        />
+                      ) : (
+                        <div className={`flex h-11 w-11 items-center justify-center rounded-full ${
+                          s.isPocket
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
+                        }`}>
+                          {s.isPocket ? <HardDrive className="h-5 w-5" /> : <UsersRound className="h-5 w-5" />}
+                        </div>
+                      )
                     ) : (
                       <>
                         <UserAvatar
@@ -1143,85 +1488,112 @@ export const ChatPage: React.FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                 </button>
 
-                {selectedUser.isGroup || selectedUser.isPocket ? (
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                    selectedUser.isPocket
-                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
-                      : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
-                  }`}>
-                    {selectedUser.isPocket ? <HardDrive className="h-4 w-4" /> : <UsersRound className="h-4 w-4" />}
-                  </div>
-                ) : (
-                  <div className="relative shrink-0">
-                    <UserAvatar
-                      key={selectedUser.userId}
-                      uid={selectedUser.userId}
-                      fallbackPhotoURL={selectedUser.photoURL}
-                      fallbackDisplayName={selectedUser.displayName || selectedUser.username}
-                      size="sm"
-                      className="w-9 h-9"
-                    />
-                    {!isOfficialSocialIndiaAccount(selectedUser) && (() => {
+                <div
+                  onClick={() => {
+                    if (selectedUser.isGroup) void openGroupInfoModal();
+                  }}
+                  className={`flex items-center gap-3 min-w-0 flex-1 ${selectedUser.isGroup ? 'cursor-pointer group/hdr' : ''}`}
+                  title={selectedUser.isGroup ? (isHindi ? 'ग्रुप जानकारी देखें' : 'Tap for group info') : undefined}
+                >
+                  {selectedUser.isGroup || selectedUser.isPocket ? (
+                    selectedUser.isGroup && selectedUser.photoURL ? (
+                      <img
+                        src={selectedUser.photoURL}
+                        alt={selectedUser.displayName}
+                        className="h-9 w-9 shrink-0 rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                      />
+                    ) : (
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                        selectedUser.isPocket
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'
+                          : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
+                      }`}>
+                        {selectedUser.isPocket ? <HardDrive className="h-4 w-4" /> : <UsersRound className="h-4 w-4" />}
+                      </div>
+                    )
+                  ) : (
+                    <div className="relative shrink-0">
+                      <UserAvatar
+                        key={selectedUser.userId}
+                        uid={selectedUser.userId}
+                        fallbackPhotoURL={selectedUser.photoURL}
+                        fallbackDisplayName={selectedUser.displayName || selectedUser.username}
+                        size="sm"
+                        className="w-9 h-9"
+                      />
+                      {!isOfficialSocialIndiaAccount(selectedUser) && (() => {
+                        const p = presenceMap[selectedUser.userId];
+                        const online = isUserCurrentlyOnline(
+                          p?.isOnline ?? selectedUser.isOnline,
+                          p?.lastSeen ?? selectedUser.lastSeen
+                        );
+                        return (
+                          <span
+                            className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#0f0f0f] ${
+                              online ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'
+                            }`}
+                          />
+                        );
+                      })()}
+                    </div>
+                  )}
+
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1 text-xs font-black text-slate-900 dark:text-white group-hover/hdr:text-blue-600 dark:group-hover/hdr:text-blue-400 transition-colors">
+                      <span className="truncate">{selectedUser.displayName}</span>
+                      {selectedUser.isVerified && (
+                        <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white" title="Verified account" aria-label="Verified account">
+                          <Check className="h-2.5 w-2.5 stroke-[4]" />
+                        </span>
+                      )}
+                    </p>
+                    {selectedUser.isPocket ? (
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {isHindi ? 'आपकी निजी जगह' : 'Only you can see these messages'}
+                      </p>
+                    ) : selectedUser.isGroup ? (
+                      <p className="text-[10px] text-slate-500 truncate">
+                        {`${selectedUser.participantIds?.length || 0} ${isHindi ? 'सदस्य' : 'members'}`}
+                        {selectedUser.description ? ` · ${selectedUser.description}` : ` · ${isHindi ? 'ग्रुप जानकारी के लिए टैप करें' : 'Tap for group info'}`}
+                      </p>
+                    ) : isOfficialSocialIndiaAccount(selectedUser) ? (
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate font-semibold">
+                        @{selectedUser.username || 'socialindia'}
+                      </p>
+                    ) : (() => {
                       const p = presenceMap[selectedUser.userId];
-                      const online = isUserCurrentlyOnline(
+                      const status = formatWhatsAppPresence(
                         p?.isOnline ?? selectedUser.isOnline,
-                        p?.lastSeen ?? selectedUser.lastSeen
+                        p?.lastSeen ?? selectedUser.lastSeen,
+                        isHindi
                       );
                       return (
-                        <span
-                          className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#0f0f0f] ${
-                            online ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'
-                          }`}
-                        />
+                        <p className={`text-[10px] truncate flex items-center gap-1.5 font-semibold ${
+                          status.online ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
+                        }`}>
+                          <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
+                            status.online ? 'bg-emerald-500' : 'bg-slate-400'
+                          }`} />
+                          <span className="truncate">{status.label}</span>
+                        </p>
                       );
                     })()}
                   </div>
-                )}
-
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1 text-xs font-black text-slate-900 dark:text-white">
-                    <span className="truncate">{selectedUser.displayName}</span>
-                    {selectedUser.isVerified && (
-                      <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white" title="Verified account" aria-label="Verified account">
-                        <Check className="h-2.5 w-2.5 stroke-[4]" />
-                      </span>
-                    )}
-                  </p>
-                  {selectedUser.isPocket ? (
-                    <p className="text-[10px] text-slate-500 truncate">
-                      {isHindi ? 'आपकी निजी जगह' : 'Only you can see these messages'}
-                    </p>
-                  ) : selectedUser.isGroup ? (
-                    <p className="text-[10px] text-slate-500 truncate">
-                      {`${selectedUser.participantIds?.length || 0} ${isHindi ? 'सदस्य' : 'members'}`}
-                    </p>
-                  ) : isOfficialSocialIndiaAccount(selectedUser) ? (
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate font-semibold">
-                      @{selectedUser.username || 'socialindia'}
-                    </p>
-                  ) : (() => {
-                    const p = presenceMap[selectedUser.userId];
-                    const status = formatWhatsAppPresence(
-                      p?.isOnline ?? selectedUser.isOnline,
-                      p?.lastSeen ?? selectedUser.lastSeen,
-                      isHindi
-                    );
-                    return (
-                      <p className={`text-[10px] truncate flex items-center gap-1.5 font-semibold ${
-                        status.online ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
-                      }`}>
-                        <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
-                          status.online ? 'bg-emerald-500' : 'bg-slate-400'
-                        }`} />
-                        <span className="truncate">{status.label}</span>
-                      </p>
-                    );
-                  })()}
                 </div>
               </div>
 
               <div className="flex items-center gap-1">
-                {!selectedUser.isGroup && (
+                {selectedUser.isGroup ? (
+                  <button
+                    type="button"
+                    onClick={() => void openGroupInfoModal()}
+                    className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-[#1c1c20] hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                    title={isHindi ? 'ग्रुप जानकारी और एडमिन सेटिंग्स' : 'Group Info & Settings'}
+                  >
+                    <Info className="h-4 w-4" />
+                    <span className="hidden sm:inline">{isHindi ? 'ग्रुप जानकारी' : 'Group Info'}</span>
+                  </button>
+                ) : (
                   <button
                     onClick={() => void handleDeleteConversation()}
                     className="rounded-xl p-2 text-rose-500 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/30"
@@ -1374,31 +1746,86 @@ export const ChatPage: React.FC = () => {
                               </div>
                             )}
 
-                            {/* Text message */}
-                            {m.text && (
-                              <p className="break-words whitespace-pre-wrap emoji-font">
-                                <EmojiText text={m.text} />
-                              </p>
-                            )}
+                            {/* Text message with WhatsApp-style clickable links */}
+                            {m.text && (() => {
+                              const detectedUrls = extractUrlsFromText(m.text);
+                              const primaryLink = detectedUrls[0];
+                              return (
+                                <>
+                                  <p className="break-words whitespace-pre-wrap emoji-font select-text">
+                                    <ChatMessageText text={m.text} isMine={isMine} />
+                                  </p>
+                                  {primaryLink && (
+                                    <a
+                                      href={primaryLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={`mt-2 flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 border transition-colors cursor-pointer ${
+                                        isMine
+                                          ? 'bg-black/5 dark:bg-black/25 border-emerald-700/15 dark:border-white/15 hover:bg-black/10 dark:hover:bg-black/35'
+                                          : 'bg-slate-50 dark:bg-[#182229] border-slate-200 dark:border-[#2a3942] hover:bg-slate-100 dark:hover:bg-[#1f2c34]'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <div className="w-7 h-7 rounded-lg bg-[#027eb5]/12 dark:bg-[#53bdeb]/15 text-[#027eb5] dark:text-[#53bdeb] flex items-center justify-center shrink-0">
+                                          <Globe className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="text-[11px] font-bold truncate">
+                                            {formatLinkHost(primaryLink)}
+                                          </p>
+                                          <p className="text-[10px] text-[#027eb5] dark:text-[#53bdeb] truncate">
+                                            {primaryLink}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <ExternalLink className="w-3.5 h-3.5 text-[#027eb5] dark:text-[#53bdeb] shrink-0" />
+                                    </a>
+                                  )}
+                                </>
+                              );
+                            })()}
+
+                            {/* WhatsApp-style bottom-right bubble metadata: Edited label + Time + Ticks */}
+                            <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] leading-none select-none ${
+                              isMine
+                                ? 'text-[#55666e] dark:text-[#a6c8bf]'
+                                : 'text-slate-400 dark:text-slate-400'
+                            }`}>
+                              {m.editedAt && (
+                                <span
+                                  className="italic font-medium opacity-85"
+                                  title={formatMsgTime(String(m.editedAt))}
+                                >
+                                  {isHindi ? 'संशोधित' : 'edited'}
+                                </span>
+                              )}
+                              <span className="font-semibold">{formatMsgTime(m.createdAt)}</span>
+                              {isMine && (
+                                m.deliveryStatus ? (
+                                  <Loader2 className="inline h-2.5 w-2.5 animate-spin" />
+                                ) : (
+                                  <span className={m.read && !isGroup && !isPocket ? 'text-[#2563eb] dark:text-[#53bdeb] font-extrabold' : 'font-bold'}>
+                                    {m.read && !isGroup && !isPocket ? '✓✓' : '✓'}
+                                  </span>
+                                )
+                              )}
+                            </div>
                           </div>
 
-                          <span className={`text-[9px] text-slate-400 font-bold block ${isMine ? 'text-right' : 'text-left'}`}>
-                            {formatMsgTime(m.createdAt)}
-                            {m.editedAt ? (isHindi ? ' · संशोधित' : ' · edited') : null}
-                            {isMine && m.deliveryStatus ? (
-                              <Loader2 className="ml-1 inline h-2.5 w-2.5 animate-spin" />
-                            ) : isMine ? (m.read && !isGroup && !isPocket ? ' ✓✓' : ' ✓') : null}
-                            {!m.id.startsWith('temp_') && (
+                          {!m.id.startsWith('temp_') && (
+                            <div className={`flex items-center ${isMine ? 'justify-end' : 'justify-start'}`}>
                               <button
                                 type="button"
                                 onClick={() => setMessageActionId(current => current === m.id ? null : m.id)}
-                                className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-500 hover:bg-black/10 dark:hover:bg-white/10"
+                                className="inline-flex h-5 w-6 items-center justify-center rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer"
                                 aria-label={isHindi ? 'संदेश विकल्प' : 'Message options'}
                               >
                                 <MoreHorizontal className="h-3.5 w-3.5" />
                               </button>
-                            )}
-                          </span>
+                            </div>
+                          )}
                           {messageActionId === m.id && (
                             <div className={`absolute bottom-full z-30 mb-1 flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-[#202c33] ${isMine ? 'right-0' : 'left-0'}`}>
                               <button
@@ -1532,7 +1959,55 @@ export const ChatPage: React.FC = () => {
                 </div>
               )}
 
-              <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+              {/* Add Link Quick Bar (WhatsApp style) */}
+              {showLinkInput && (
+                <div className="mb-2.5 p-2.5 bg-slate-50 dark:bg-[#1a1a1e] rounded-2xl border border-slate-200 dark:border-[#2a2a2e] space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="w-4 h-4 text-[#027eb5] dark:text-[#53bdeb] shrink-0 ml-1" />
+                    <input
+                      type="text"
+                      value={chatLinkInput}
+                      onChange={(e) => {
+                        setChatLinkInput(e.target.value);
+                        if (chatLinkError) setChatLinkError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleInsertChatLink();
+                        }
+                      }}
+                      placeholder={isHindi ? 'https://example.com या कोई भी लिंक पेस्ट करें' : 'Paste or type a URL (e.g. https://example.com)'}
+                      className="flex-1 min-w-0 bg-white dark:bg-[#121215] border border-slate-200 dark:border-[#2f3136] rounded-xl px-3 py-1.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleInsertChatLink}
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold cursor-pointer shrink-0"
+                    >
+                      {isHindi ? 'जोड़ें' : 'Add'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLinkInput(false);
+                        setChatLinkInput('');
+                        setChatLinkError(null);
+                      }}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-slate-200/70 dark:hover:bg-[#252528] cursor-pointer shrink-0"
+                      aria-label={isHindi ? 'बंद करें' : 'Close'}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  {chatLinkError && (
+                    <p className="text-[10px] font-bold text-rose-500 px-1">{chatLinkError}</p>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleSendMessage} className="flex items-center gap-1.5 sm:gap-2">
                 {/* Media Button */}
                 <button
                   type="button"
@@ -1548,11 +2023,33 @@ export const ChatPage: React.FC = () => {
                   <Paperclip className="w-4 h-4" />
                 </button>
 
+                {/* Add Link Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLinkInput(prev => !prev);
+                    setShowEmojiPicker(false);
+                    setChatLinkError(null);
+                  }}
+                  className={`p-2.5 rounded-xl cursor-pointer transition-colors ${
+                    showLinkInput
+                      ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 border border-blue-200 dark:border-blue-900'
+                      : 'hover:bg-slate-100 dark:hover:bg-[#1e1e1e] text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                  title={isHindi ? 'लिंक जोड़ें' : 'Add Link'}
+                  aria-label={isHindi ? 'लिंक जोड़ें' : 'Add Link'}
+                >
+                  <Link2 className="w-4 h-4" />
+                </button>
+
                 {/* Emoji Button */}
                 <button
                   ref={emojiButtonRef}
                   type="button"
-                  onClick={() => setShowEmojiPicker(prev => !prev)}
+                  onClick={() => {
+                    setShowEmojiPicker(prev => !prev);
+                    setShowLinkInput(false);
+                  }}
                   className={`p-2.5 rounded-xl cursor-pointer transition-colors ${
                     showEmojiPicker
                       ? 'bg-blue-600 text-white shadow-xs'
@@ -1643,16 +2140,52 @@ export const ChatPage: React.FC = () => {
                   {groupError}
                 </div>
               )}
-              <input
-                value={groupName}
-                onChange={event => {
-                  setGroupName(event.target.value);
-                  if (groupError) setGroupError(null);
-                }}
-                maxLength={80}
-                placeholder={isHindi ? 'ग्रुप का नाम' : 'Group name'}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-[#0f1216] dark:text-white"
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  ref={createGroupAvatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (!f || !f.type.startsWith('image/')) return;
+                    if (groupAvatarPreview?.startsWith('blob:')) URL.revokeObjectURL(groupAvatarPreview);
+                    setGroupAvatarFile(f);
+                    setGroupAvatarPreview(URL.createObjectURL(f));
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => createGroupAvatarInputRef.current?.click()}
+                  className="relative h-12 w-12 shrink-0 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-dashed border-blue-300 dark:border-blue-800 flex items-center justify-center overflow-hidden text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors cursor-pointer"
+                  title={isHindi ? 'ग्रुप अवतार चुनें (वैकल्पिक)' : 'Set group avatar (optional)'}
+                >
+                  {groupAvatarPreview ? (
+                    <img src={groupAvatarPreview} alt="Group avatar preview" className="h-full w-full object-cover" />
+                  ) : (
+                    <Camera className="h-5 w-5" />
+                  )}
+                </button>
+                <div className="flex-1 space-y-2 min-w-0">
+                  <input
+                    value={groupName}
+                    onChange={event => {
+                      setGroupName(event.target.value);
+                      if (groupError) setGroupError(null);
+                    }}
+                    maxLength={80}
+                    placeholder={isHindi ? 'ग्रुप का नाम' : 'Group name'}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-[#0f1216] dark:text-white"
+                  />
+                  <input
+                    value={groupDescription}
+                    onChange={event => setGroupDescription(event.target.value)}
+                    maxLength={300}
+                    placeholder={isHindi ? 'ग्रुप विवरण (वैकल्पिक)' : 'Group description (optional)'}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-[#0f1216] dark:text-white"
+                  />
+                </div>
+              </div>
               <input
                 value={groupSearch}
                 onChange={event => setGroupSearch(event.target.value)}
@@ -1751,6 +2284,426 @@ export const ChatPage: React.FC = () => {
                 {isHindi ? 'ग्रुप बनाएं' : 'Create group'}
               </button>
             </footer>
+          </section>
+        </div>
+      )}
+
+      {/* WhatsApp-style Group Info, Admin Controls & Leave Group Modal */}
+      {showGroupInfoModal && selectedUser?.isGroup && (
+        <div
+          className="fixed inset-0 z-[125] flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm"
+          onClick={() => setShowGroupInfoModal(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="group-info-modal-title"
+            className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-[#15191e]"
+            onClick={event => event.stopPropagation()}
+          >
+            <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <UsersRound className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <h2 id="group-info-modal-title" className="text-sm font-black text-slate-900 dark:text-white">
+                  {isHindi ? 'ग्रुप जानकारी' : 'Group Info'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGroupInfoModal(false)}
+                className="rounded-xl p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10 cursor-pointer"
+                aria-label={isHindi ? 'बंद करें' : 'Close'}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+              {groupInfoError && (
+                <div className="flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-bold text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{groupInfoError}</span>
+                </div>
+              )}
+              {groupInfoNotice && (
+                <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>{groupInfoNotice}</span>
+                </div>
+              )}
+
+              {/* Group Avatar + Name + Description Card */}
+              <div className="flex flex-col items-center text-center space-y-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-[#101418] p-5">
+                <div className="relative">
+                  <input
+                    ref={editGroupAvatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => void handleGroupAvatarChange(e)}
+                  />
+                  <div className="h-24 w-24 rounded-full overflow-hidden bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center ring-4 ring-white dark:ring-[#15191e] shadow-md">
+                    {uploadingGroupAvatar ? (
+                      <Loader2 className="h-7 w-7 animate-spin" />
+                    ) : selectedUser.photoURL ? (
+                      <img
+                        src={selectedUser.photoURL}
+                        alt={selectedUser.displayName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <UsersRound className="h-10 w-10" />
+                    )}
+                  </div>
+                  {isCurrentUserGroupAdmin && (
+                    <button
+                      type="button"
+                      disabled={uploadingGroupAvatar}
+                      onClick={() => editGroupAvatarInputRef.current?.click()}
+                      className="absolute bottom-0 right-0 h-8 w-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md ring-2 ring-white dark:ring-[#15191e] cursor-pointer disabled:opacity-50"
+                      title={isHindi ? 'ग्रुप अवतार बदलें' : 'Change group avatar'}
+                    >
+                      <Camera className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+
+                {isCurrentUserGroupAdmin && selectedUser.photoURL && !uploadingGroupAvatar && (
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveGroupAvatar()}
+                    className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer"
+                  >
+                    {isHindi ? 'अवतार हटाएं' : 'Remove avatar'}
+                  </button>
+                )}
+
+                {!editingGroupInfo ? (
+                  <div className="w-full space-y-1.5">
+                    <div className="flex items-center justify-center gap-2">
+                      <h3 className="text-base font-black text-slate-900 dark:text-white break-words">
+                        {selectedUser.displayName}
+                      </h3>
+                      {isCurrentUserGroupAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditGroupNameInput(selectedUser.displayName || '');
+                            setEditGroupDescInput(selectedUser.description || '');
+                            setEditingGroupInfo(true);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                          title={isHindi ? 'नाम और विवरण बदलें' : 'Edit name & description'}
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 break-words max-w-sm mx-auto">
+                      {selectedUser.description
+                        ? selectedUser.description
+                        : (isCurrentUserGroupAdmin
+                            ? (isHindi ? 'ग्रुप विवरण जोड़ने के लिए एडिट बटन दबाएं' : 'Tap edit to add a group description')
+                            : (isHindi ? 'कोई ग्रुप विवरण नहीं' : 'No group description'))}
+                    </p>
+                    <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                      {isHindi ? 'ग्रुप' : 'Group'} · {groupMembersDetails.length || selectedUser.participantIds?.length || 0} {isHindi ? 'सदस्य' : 'members'}
+                    </p>
+                  </div>
+                ) : (
+                  <form onSubmit={e => void handleSaveGroupDetails(e)} className="w-full space-y-2.5 text-left">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                        {isHindi ? 'ग्रुप का नाम' : 'Group Name'}
+                      </label>
+                      <input
+                        value={editGroupNameInput}
+                        onChange={e => setEditGroupNameInput(e.target.value)}
+                        maxLength={80}
+                        required
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#15191e] px-3 py-2 text-xs font-bold text-slate-900 dark:text-white outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                        {isHindi ? 'ग्रुप विवरण' : 'Group Description'}
+                      </label>
+                      <textarea
+                        value={editGroupDescInput}
+                        onChange={e => setEditGroupDescInput(e.target.value)}
+                        maxLength={300}
+                        rows={2}
+                        placeholder={isHindi ? 'ग्रुप के बारे में लिखें...' : 'Write about this group...'}
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#15191e] px-3 py-2 text-xs font-medium text-slate-900 dark:text-white outline-none focus:border-blue-500 resize-none"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingGroupInfo(false)}
+                        className="rounded-xl px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-white/10 cursor-pointer"
+                      >
+                        {isHindi ? 'रद्द करें' : 'Cancel'}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingGroupInfo}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-3.5 py-1.5 text-xs font-black text-white disabled:opacity-50 cursor-pointer"
+                      >
+                        {savingGroupInfo && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        {isHindi ? 'सेव करें' : 'Save'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* Members Header + Add Members button for Admins */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    {groupMembersDetails.length || selectedUser.participantIds?.length || 0} {isHindi ? 'सदस्य' : 'Participants'}
+                  </h4>
+                  {isCurrentUserGroupAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenAddMembers()}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 px-3 py-1.5 text-[11px] font-black text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-950/70 transition-colors cursor-pointer"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      <span>{isHindi ? 'सदस्य जोड़ें' : 'Add members'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Add Members Picker */}
+                {showAddMembersPicker && isCurrentUserGroupAdmin && (
+                  <div className="rounded-2xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20 p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black text-blue-700 dark:text-blue-300">
+                        {isHindi ? 'ग्रुप में जोड़ने के लिए यूज़र चुनें' : 'Select users to add to group'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddMembersPicker(false)}
+                        className="text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+                      >
+                        {isHindi ? 'बंद करें' : 'Close'}
+                      </button>
+                    </div>
+                    <input
+                      value={addMemberSearch}
+                      onChange={e => setAddMemberSearch(e.target.value)}
+                      placeholder={isHindi ? 'नाम या @यूज़रनेम खोजें...' : 'Search by name or @username...'}
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#15191e] px-3 py-2 text-xs font-semibold outline-none focus:border-blue-500"
+                    />
+                    <div className="max-h-44 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-[#15191e]">
+                      {loadingAddPool ? (
+                        <div className="p-4 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>{isHindi ? 'लोड हो रहा है...' : 'Loading users...'}</span>
+                        </div>
+                      ) : (() => {
+                        const q = addMemberSearch.trim().toLowerCase().replace(/^@/, '');
+                        const pool = q
+                          ? addMemberPool.filter(u =>
+                              (u.displayName || '').toLowerCase().includes(q) ||
+                              (u.username || '').toLowerCase().includes(q)
+                            )
+                          : addMemberPool;
+                        if (pool.length === 0) {
+                          return (
+                            <p className="p-4 text-center text-[11px] text-slate-400">
+                              {isHindi ? 'जोड़ने के लिए कोई अन्य यूज़र नहीं मिला।' : 'No more users found to add.'}
+                            </p>
+                          );
+                        }
+                        return pool.slice(0, 30).map(u => {
+                          const checked = selectedNewMemberIds.includes(u.uid);
+                          return (
+                            <button
+                              key={u.uid}
+                              type="button"
+                              onClick={() =>
+                                setSelectedNewMemberIds(prev =>
+                                  prev.includes(u.uid) ? prev.filter(id => id !== u.uid) : [...prev, u.uid]
+                                )
+                              }
+                              className="flex w-full items-center gap-3 p-2.5 text-left hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer"
+                            >
+                              <UserAvatar
+                                uid={u.uid}
+                                fallbackPhotoURL={u.photoURL}
+                                fallbackDisplayName={u.displayName || u.username}
+                                size="xs"
+                                className="h-8 w-8"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-bold text-slate-900 dark:text-white">{u.displayName || u.username}</p>
+                                <p className="truncate text-[10px] text-slate-500">@{u.username}</p>
+                              </div>
+                              <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-black ${
+                                checked ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 text-transparent dark:border-slate-600'
+                              }`}>
+                                ✓
+                              </span>
+                            </button>
+                          );
+                        });
+                      })()}
+                    </div>
+                    {selectedNewMemberIds.length > 0 && (
+                      <button
+                        type="button"
+                        disabled={addingMembers}
+                        onClick={() => void handleConfirmAddMembers()}
+                        className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      >
+                        {addingMembers && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        <span>
+                          {isHindi
+                            ? `${selectedNewMemberIds.length} सदस्य जोड़ें`
+                            : `Add ${selectedNewMemberIds.length} member${selectedNewMemberIds.length > 1 ? 's' : ''}`}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Member List */}
+                <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                  {loadingGroupInfo && groupMembersDetails.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                      <span>{isHindi ? 'सदस्य लोड हो रहे हैं...' : 'Loading members...'}</span>
+                    </div>
+                  ) : (
+                    groupMembersDetails.map(member => {
+                      const isSelf = member.uid === currentUser.uid;
+                      const isCreator = selectedUser.createdBy === member.uid;
+                      const isMemberAdmin = isCreator || Boolean(selectedUser.adminIds?.includes(member.uid));
+                      const isBusy = memberActionUid === member.uid;
+
+                      return (
+                        <div
+                          key={member.uid}
+                          className="p-3 bg-white dark:bg-[#15191e] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <UserAvatar
+                              uid={member.uid}
+                              fallbackPhotoURL={member.photoURL}
+                              fallbackDisplayName={member.displayName || member.username}
+                              size="sm"
+                              className="h-9 w-9 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-xs font-black text-slate-900 dark:text-white truncate">
+                                  {member.displayName || member.username}
+                                  {isSelf ? (isHindi ? ' (आप)' : ' (You)') : ''}
+                                </p>
+                                {isCreator && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[9px] font-black uppercase">
+                                    {isHindi ? 'निर्माता' : 'Creator'}
+                                  </span>
+                                )}
+                                {isMemberAdmin && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[9px] font-black uppercase">
+                                    <Shield className="h-2.5 w-2.5" />
+                                    {isHindi ? 'एडमिन' : 'Admin'}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 truncate">@{member.username}</p>
+                            </div>
+                          </div>
+
+                          {isCurrentUserGroupAdmin && !isSelf && (
+                            <div className="flex items-center gap-1.5 flex-wrap shrink-0 pl-12 sm:pl-0">
+                              {isBusy ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleToggleGroupMemberAdmin(member.uid, !isMemberAdmin)}
+                                    className="px-2 py-1 rounded-lg text-[10px] font-bold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                    title={isMemberAdmin ? 'Dismiss as Admin' : 'Make Admin'}
+                                  >
+                                    {isMemberAdmin
+                                      ? (isHindi ? 'एडमिन हटाएं' : 'Dismiss Admin')
+                                      : (isHindi ? 'एडमिन बनाएं' : 'Make Admin')}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleTransferGroupAdmin(member.uid)}
+                                    className="px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-950/70 cursor-pointer"
+                                    title={isHindi ? 'अपना एडमिन अधिकार इन्हें दें' : 'Transfer admin to this member'}
+                                  >
+                                    {isHindi ? 'एडमिन दें' : 'Transfer Admin'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleRemoveGroupMember(member.uid)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/70 cursor-pointer"
+                                    title={isHindi ? 'ग्रुप से हटाएं' : 'Remove from group'}
+                                  >
+                                    <UserMinus className="h-3 w-3" />
+                                    <span>{isHindi ? 'हटाएं' : 'Remove'}</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* WhatsApp-style Leave Group Action */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                {!confirmLeaveGroup ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmLeaveGroup(true)}
+                    className="w-full py-3 px-4 rounded-2xl bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-rose-600 dark:text-rose-400 text-xs font-black flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>{isHindi ? 'ग्रुप छोड़ें (Leave Group)' : 'Leave Group'}</span>
+                  </button>
+                ) : (
+                  <div className="rounded-2xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 p-3.5 space-y-2.5">
+                    <p className="text-xs font-bold text-rose-700 dark:text-rose-300 text-center">
+                      {isHindi
+                        ? `क्या आप "${selectedUser.displayName}" ग्रुप छोड़ना चाहते हैं?`
+                        : `Leave "${selectedUser.displayName}" group?`}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={leavingGroup}
+                        onClick={() => setConfirmLeaveGroup(false)}
+                        className="flex-1 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
+                      >
+                        {isHindi ? 'रद्द करें' : 'Cancel'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={leavingGroup}
+                        onClick={() => void handleLeaveGroup()}
+                        className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                      >
+                        {leavingGroup && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        <span>{isHindi ? 'हाँ, छोड़ें' : 'Leave'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </section>
         </div>
       )}

@@ -473,6 +473,8 @@ export interface CommunityPost {
   images?: string[];
   videoUrl?: string;
   videoThumbnailUrl?: string;
+  linkUrl?: string;
+  linkTitle?: string;
   poll?: PostPoll;
   likesCount: number;
   dislikesCount: number;

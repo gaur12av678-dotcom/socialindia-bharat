@@ -72,13 +72,23 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
     }
   }, [route.path]);
 
-  // Initial load of saved accounts
+  // Initial load & live sync of saved accounts
   useEffect(() => {
-    const accounts = accountService.getSavedAccounts();
-    setSavedAccounts(accounts);
+    const sync = () => {
+      const accounts = accountService.getSavedAccounts();
+      setSavedAccounts(accounts);
+      return accounts;
+    };
+    const accounts = sync();
     if (accounts.length > 0 && mode === 'login' && !currentUser) {
       setShowAccountChooser(true);
     }
+    window.addEventListener('si_saved_accounts_changed', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('si_saved_accounts_changed', sync);
+      window.removeEventListener('storage', sync);
+    };
   }, []);
 
   // Form input fields

@@ -4,11 +4,15 @@ import { useRouter } from '../../hooks/useRouter';
 import { postService } from '../../services/postService';
 import { videoService } from '../../services/videoService';
 import { compressImage } from '../../utils/imageUtils';
+import { normalizeLinkUrl, formatLinkHost } from '../../utils/linkUtils';
 import { useTranslation } from '../../i18n';
 import { 
   ImagePlus,
   Video,
   Smile,
+  Link2,
+  ExternalLink,
+  Globe,
   X, 
   Loader2, 
   ArrowRight,
@@ -38,6 +42,11 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
   const [content, setContent] = useState('');
   const [selectedFeeling, setSelectedFeeling] = useState<string | null>(null);
   const [showFeelingPicker, setShowFeelingPicker] = useState(false);
+
+  // Link attachment
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkTitle, setLinkTitle] = useState('');
   
   // Image attachments
   const [images, setImages] = useState<string[]>([]);
@@ -184,9 +193,19 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
     const feelingPrefix = selectedFeeling ? `${selectedFeeling} ` : '';
     const finalContent = trimmedBase ? `${feelingPrefix}${trimmedBase}`.trim() : selectedFeeling || '';
 
-    if (!finalContent && images.length === 0 && !selectedVideoFile) {
+    const rawLink = linkUrl.trim();
+    const normalizedLink = rawLink ? normalizeLinkUrl(rawLink) : '';
+    if (rawLink && !normalizedLink) {
       setStatusMsg({
-        text: isHindi ? 'कृपया पोस्ट में कुछ लिखें, फ़ोटो जोड़ें या वीडियो चुनें।' : 'Please write something, add a photo, or choose a video to post.',
+        text: isHindi ? 'कृपया एक मान्य वेब लिंक (उदा. https://example.com) दर्ज करें।' : 'Please enter a valid web link (e.g. https://example.com).',
+        type: 'error'
+      });
+      return;
+    }
+
+    if (!finalContent && images.length === 0 && !selectedVideoFile && !normalizedLink) {
+      setStatusMsg({
+        text: isHindi ? 'कृपया पोस्ट में कुछ लिखें, फ़ोटो/वीडियो जोड़ें या लिंक डालें।' : 'Please write something, attach a photo/video, or add a link to post.',
         type: 'error'
       });
       return;
@@ -244,6 +263,8 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
         postType: effectiveType,
         images: effectiveType === 'image' && uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
         videoUrl: effectiveType === 'video' ? uploadedVideoUrl : undefined,
+        linkUrl: normalizedLink || undefined,
+        linkTitle: normalizedLink && linkTitle.trim() ? linkTitle.trim() : undefined,
       });
 
       setStatusMsg({
@@ -258,6 +279,9 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
       handleRemoveVideo();
       setSelectedFeeling(null);
       setShowFeelingPicker(false);
+      setLinkUrl('');
+      setLinkTitle('');
+      setShowLinkInput(false);
 
       onPostCreated?.();
     } catch (err: any) {
@@ -310,7 +334,7 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
         value={content}
         onChange={(e) => setContent(e.target.value)}
         disabled={isPosting}
-        placeholder={isHindi ? 'फोटो या वीडियो शेयर करें' : 'Share a photo or video'}
+        placeholder={isHindi ? 'फोटो, वीडियो या लिंक शेयर करें' : 'Share a photo, video or link'}
         className="w-full rounded-full bg-[#F1F3F6] dark:bg-[#1b1b20] px-5 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 border border-transparent focus:outline-none focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-white/15 transition-all"
       />
 
@@ -355,6 +379,72 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Link Attachment Input & Preview */}
+      {showLinkInput && (
+        <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-[#18181d] border border-slate-200/80 dark:border-slate-800 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+              <Link2 className="w-3.5 h-3.5 text-blue-600" />
+              {isHindi ? 'क्लिकेबल लिंक जोड़ें' : 'Attach clickable link'}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setShowLinkInput(false);
+                setLinkUrl('');
+                setLinkTitle('');
+              }}
+              className="p-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer"
+              title={isHindi ? 'लिंक हटाएं' : 'Remove link'}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <input
+            type="text"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            disabled={isPosting}
+            placeholder={isHindi ? 'https://example.com या कोई भी लिंक पेस्ट करें' : 'Paste URL (e.g. https://example.com)'}
+            className="w-full rounded-lg bg-white dark:bg-[#121215] border border-slate-200 dark:border-slate-700/80 px-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+
+          <input
+            type="text"
+            value={linkTitle}
+            onChange={(e) => setLinkTitle(e.target.value)}
+            disabled={isPosting}
+            placeholder={isHindi ? 'लिंक का शीर्षक (वैकल्पिक)' : 'Link title / label (optional)'}
+            className="w-full rounded-lg bg-white dark:bg-[#121215] border border-slate-200 dark:border-slate-700/80 px-3 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+
+          {(() => {
+            const previewHref = normalizeLinkUrl(linkUrl);
+            if (!previewHref) return null;
+            return (
+              <a
+                href={previewHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-800/50 text-xs hover:bg-blue-100/60 dark:hover:bg-blue-950/50 transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-900 dark:text-white truncate">
+                      {linkTitle.trim() || formatLinkHost(previewHref)}
+                    </p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 truncate">{previewHref}</p>
+                  </div>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+              </a>
+            );
+          })()}
         </div>
       )}
 
@@ -462,6 +552,20 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
           >
             <Smile className="w-[18px] h-[18px] text-[#f59e0b] shrink-0" />
             <span className="text-slate-700 dark:text-slate-200">{isHindi ? 'फीलिंग' : 'Feeling'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowLinkInput(prev => !prev)}
+            disabled={isPosting}
+            className={`flex items-center gap-2 text-sm font-medium transition-colors cursor-pointer py-1 disabled:opacity-50 ${
+              showLinkInput || linkUrl.trim()
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Link2 className="w-[18px] h-[18px] text-[#2563eb] shrink-0" />
+            <span>{isHindi ? 'लिंक' : 'Link'}</span>
           </button>
         </div>
 

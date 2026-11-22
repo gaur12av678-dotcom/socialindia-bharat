@@ -51,16 +51,47 @@ const readCachedProfile = (uid: string | null): User | null => {
   try {
     const raw = localStorage.getItem(getProfileCacheKey(uid))
       || localStorage.getItem('socialindia_cached_profile');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as User;
-    if (parsed?.uid !== uid) return null;
-    if (parsed.email && !parsed.email.endsWith('@socialindia.com') && !parsed.emailVerified) {
-      return null;
+    if (raw) {
+      const parsed = JSON.parse(raw) as User;
+      if (parsed?.uid === uid) {
+        if (!parsed.email || parsed.email.endsWith('@socialindia.com') || parsed.emailVerified) {
+          return parsed;
+        }
+      }
     }
-    return parsed;
-  } catch {
-    return null;
-  }
+  } catch {}
+
+  try {
+    const cached = userService.getCachedUserProfile(uid);
+    if (cached && cached.uid === uid) {
+      return cached;
+    }
+  } catch {}
+
+  try {
+    const saved = accountService.getSavedAccounts().find((a) => a.uid === uid);
+    if (saved) {
+      return {
+        uid: saved.uid,
+        email: saved.email || '',
+        emailVerified: true,
+        username: saved.username || '',
+        displayName: saved.displayName || saved.username || 'User',
+        photoURL: saved.photoURL || '',
+        followersCount: saved.subscribersCount || 0,
+        followingCount: 0,
+        videosCount: 0,
+        role: (saved.role as User['role']) || 'user',
+        status: 'active',
+        points: saved.points || 0,
+        walletBalance: saved.walletBalance || 0,
+        createdAt: '',
+        updatedAt: ''
+      };
+    }
+  } catch {}
+
+  return null;
 };
 
 const readThemePreference = (uid: string | null): 'light' | 'dark' | 'system' => {
@@ -345,7 +376,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       setLoading(true);
       setCurrentUser(user);
-      setCurrentUserProfile(readCachedProfile(user?.uid || null));
+      const cachedProfile = readCachedProfile(user?.uid || null);
+      setCurrentUserProfile(cachedProfile);
       const activeUid = user?.uid || null;
       const preferredTheme = readThemePreference(activeUid);
       try {
@@ -369,13 +401,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if (!isCurrentRequest()) return;
             setCurrentUser(null);
             setCurrentUserProfile(null);
-            localStorage.removeItem('socialindia_cached_profile');
-            localStorage.removeItem('socialindia_active_uid');
-            accountService.removeAccount(user.uid);
+            try {
+              localStorage.removeItem('socialindia_cached_profile');
+              localStorage.removeItem('socialindia_active_uid');
+            } catch {}
             setLoading(false);
             return;
           }
         }
+
+        // Sync cached or Firebase Auth fallback immediately so outgoing switches never drop the account
+        try {
+          accountService.syncCurrentProfile(cachedProfile);
+        } catch {}
 
         // Immediately publish authenticated user so UI & Follow/Like states never reset on reload
         setLoading(false);
@@ -392,8 +430,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               emailVerified: Boolean(profile.emailVerified || user.emailVerified)
             };
             setCurrentUserProfile(enrichedProfile);
-            cacheProfile(enrichedProfile);
-            accountService.syncCurrentProfile(enrichedProfile);
+            try {
+              cacheProfile(enrichedProfile);
+            } catch {}
+            try {
+              accountService.syncCurrentProfile(enrichedProfile);
+            } catch {}
             userService.ensureDefaultSubscription(user.uid).catch(() => {});
           }
         } catch (err) {
@@ -528,11 +570,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [currentUser?.uid, isOfficialAccount]);
 
+  const safeCurrentUserProfile = currentUser?.uid
+    ? (currentUserProfile?.uid === currentUser.uid ? currentUserProfile : readCachedProfile(currentUser.uid))
+    : null;
+
   return (
     <AppContext.Provider
       value={{
         currentUser,
-        currentUserProfile,
+        currentUserProfile: safeCurrentUserProfile,
         loading,
         theme,
         setTheme,

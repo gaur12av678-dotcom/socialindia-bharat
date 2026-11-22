@@ -376,42 +376,21 @@ export const chatService = {
       updatedAt: Timestamp.now()
     };
 
-    try {
-      const groupRef = doc(collection(db, 'groupChats'));
-      await setDoc(groupRef, payload);
-      return {
-        userId: groupRef.id,
-        displayName: cleanName,
-        username: 'group',
-        photoURL: cleanPhoto || undefined,
-        description: cleanDesc,
-        createdBy: activeUid,
-        adminIds: [activeUid],
-        isGroup: true,
-        participantIds: participants,
-        lastMessageTime: new Date().toISOString(),
-        unreadCount: 0
-      };
-    } catch (err) {
-      if (!isPermissionDeniedError(err)) {
-        throw err;
-      }
-      const fallbackGroupId = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      await setDoc(doc(db, 'conversations', fallbackGroupId), payload);
-      return {
-        userId: fallbackGroupId,
-        displayName: cleanName,
-        username: 'group',
-        photoURL: cleanPhoto || undefined,
-        description: cleanDesc,
-        createdBy: activeUid,
-        adminIds: [activeUid],
-        isGroup: true,
-        participantIds: participants,
-        lastMessageTime: new Date().toISOString(),
-        unreadCount: 0
-      };
-    }
+    const groupId = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await setDoc(doc(db, 'conversations', groupId), payload);
+    return {
+      userId: groupId,
+      displayName: cleanName,
+      username: 'group',
+      photoURL: cleanPhoto || undefined,
+      description: cleanDesc,
+      createdBy: activeUid,
+      adminIds: [activeUid],
+      isGroup: true,
+      participantIds: participants,
+      lastMessageTime: new Date().toISOString(),
+      unreadCount: 0
+    };
   },
 
   async resolveGroupDoc(groupId: string): Promise<{ colName: 'conversations' | 'groupChats'; ref: any; data: Record<string, any> }> {
@@ -657,6 +636,37 @@ export const chatService = {
       throw new Error('Group must have at least one admin.');
     }
 
+    await updateDoc(ref, {
+      adminIds: nextAdmins,
+      updatedAt: Timestamp.now()
+    });
+    return nextAdmins;
+  },
+
+  async transferGroupAdmin(
+    groupId: string,
+    actorUid: string,
+    targetUid: string
+  ): Promise<string[]> {
+    const { ref, data } = await this.resolveGroupDoc(groupId);
+    const participants: string[] = Array.isArray(data.participants) ? data.participants : [];
+    const createdBy = typeof data.createdBy === 'string' ? data.createdBy : '';
+    const adminIds: string[] = Array.isArray(data.adminIds) && data.adminIds.length > 0
+      ? data.adminIds
+      : (createdBy ? [createdBy] : (participants[0] ? [participants[0]] : []));
+
+    if (!adminIds.includes(actorUid) && createdBy !== actorUid) {
+      throw new Error('Only group admins can transfer admin rights.');
+    }
+    if (!participants.includes(targetUid)) {
+      throw new Error('Selected user is not a member of this group.');
+    }
+    if (targetUid === actorUid) {
+      return adminIds;
+    }
+
+    // Give admin to targetUid and step down actorUid so target becomes admin
+    const nextAdmins = [...new Set([...adminIds.filter(id => id !== actorUid), targetUid])];
     await updateDoc(ref, {
       adminIds: nextAdmins,
       updatedAt: Timestamp.now()

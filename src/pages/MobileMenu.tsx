@@ -263,6 +263,7 @@ export const MobileMenu: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="relative shrink-0">
               <UserAvatar 
+                key={currentUserProfile.uid}
                 uid={currentUserProfile.uid}
                 fallbackPhotoURL={currentUserProfile.photoURL}
                 fallbackDisplayName={currentUserProfile.displayName || currentUserProfile.username}

@@ -18,6 +18,7 @@ export interface SavedAccount {
 }
 
 const STORAGE_KEY = 'socialindia_saved_accounts';
+const BACKUP_STORAGE_KEY = 'socialindia_saved_accounts_backup';
 
 // Simple obfuscation helper to avoid storing plain text in localStorage
 function obfuscate(text: string): string {
@@ -36,18 +37,60 @@ function deobfuscate(text: string): string {
   }
 }
 
+function sanitizeStoredPhoto(photoURL?: string): string | undefined {
+  if (!photoURL) return undefined;
+  // Avoid blowing up localStorage quota with huge base64 avatars (UserAvatar fetches by uid anyway)
+  if (photoURL.startsWith('data:') && photoURL.length > 8192) {
+    return undefined;
+  }
+  return photoURL;
+}
+
 class AccountService {
+  private writeSavedAccounts(accounts: SavedAccount[]): void {
+    const serialized = JSON.stringify(accounts);
+    const tryWrite = () => {
+      localStorage.setItem(STORAGE_KEY, serialized);
+      try {
+        localStorage.setItem(BACKUP_STORAGE_KEY, serialized);
+      } catch {}
+    };
+
+    try {
+      tryWrite();
+    } catch (e) {
+      // Prune disposable caches if localStorage quota is full, never drop saved accounts
+      try {
+        const disposablePrefixes = ['socialindia_chat_', 'socialindia_cached_profile_', 'si_u_'];
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && disposablePrefixes.some((prefix) => k.startsWith(prefix))) {
+            localStorage.removeItem(k);
+          }
+        }
+        tryWrite();
+      } catch (retryErr) {
+        console.warn('Could not persist saved accounts:', retryErr || e);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('si_saved_accounts_changed'));
+    }
+  }
+
   /**
    * Get all registered/saved accounts on this device
    */
   getSavedAccounts(): SavedAccount[] {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(BACKUP_STORAGE_KEY);
       if (!raw) return [];
       const list: SavedAccount[] = JSON.parse(raw);
       if (!Array.isArray(list)) return [];
+      const valid = list.filter((item) => item && typeof item.uid === 'string' && item.uid.length > 0);
       // Sort by last active descending (most recently used first)
-      return list.sort((a, b) => (b.lastActiveAt || 0) - (a.lastActiveAt || 0));
+      return valid.sort((a, b) => (b.lastActiveAt || 0) - (a.lastActiveAt || 0));
     } catch {
       return [];
     }
@@ -59,28 +102,34 @@ class AccountService {
   saveAccount(userProfile: User, password?: string, provider?: 'password' | 'google'): void {
     if (!userProfile || !userProfile.uid) return;
 
+    const accounts = this.getSavedAccounts();
+    const existingIndex = accounts.findIndex((a) => a.uid === userProfile.uid);
+    const existing = existingIndex >= 0 ? accounts[existingIndex] : undefined;
+
     const fbUser = auth.currentUser?.uid === userProfile.uid ? auth.currentUser : null;
-    const effectiveEmail = (userProfile.email || fbUser?.email || '').trim();
+    const effectiveEmail = (userProfile.email || fbUser?.email || existing?.email || '').trim();
+    const isFirebaseGoogleUser = Boolean(
+      provider === 'google' ||
+      existing?.authProvider === 'google' ||
+      fbUser?.providerData?.some((p) => p.providerId === 'google.com')
+    );
+
     const isEffectiveVerified = Boolean(
       userProfile.emailVerified ||
       fbUser?.emailVerified ||
+      fbUser !== null ||
+      existing !== undefined ||
+      isFirebaseGoogleUser ||
       !effectiveEmail ||
       effectiveEmail.endsWith('@socialindia.com')
     );
 
-    // Unverified real-email accounts must NOT be saved
+    // Unverified real-email accounts that have never completed sign-in must NOT be saved
     if (!isEffectiveVerified) {
       return;
     }
 
-    const accounts = this.getSavedAccounts();
-    const existingIndex = accounts.findIndex((a) => a.uid === userProfile.uid);
-    const existing = existingIndex >= 0 ? accounts[existingIndex] : undefined;
     const existingProvider = existing?.authProvider;
-
-    const isFirebaseGoogleUser = Boolean(
-      fbUser?.providerData?.some((p) => p.providerId === 'google.com')
-    );
 
     const resolvedProvider: 'password' | 'google' =
       provider ||
@@ -92,12 +141,14 @@ class AccountService {
       savedPassToken = obfuscate(password);
     }
 
+    const safePhoto = sanitizeStoredPhoto(userProfile.photoURL) ?? sanitizeStoredPhoto(existing?.photoURL);
+
     const updatedAccount: SavedAccount = {
       uid: userProfile.uid,
-      email: effectiveEmail || existing?.email || '',
+      email: effectiveEmail || '',
       username: userProfile.username || existing?.username || '',
       displayName: userProfile.displayName || userProfile.username || existing?.displayName || 'User',
-      photoURL: userProfile.photoURL ?? existing?.photoURL,
+      photoURL: safePhoto,
       subscribersCount: userProfile.followersCount ?? existing?.subscribersCount ?? 0,
       points: userProfile.points ?? existing?.points ?? 0,
       walletBalance: userProfile.walletBalance ?? existing?.walletBalance ?? 0,
@@ -113,14 +164,7 @@ class AccountService {
       accounts.push(updatedAccount);
     }
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('si_saved_accounts_changed'));
-      }
-    } catch (e) {
-      console.warn('Could not persist saved accounts:', e);
-    }
+    this.writeSavedAccounts(accounts);
   }
 
   /**
@@ -131,16 +175,16 @@ class AccountService {
     if (!userProfile) {
       if (!fbUser) return;
       const fallbackEmail = fbUser.email || '';
-      if (fallbackEmail && !fallbackEmail.endsWith('@socialindia.com') && !fbUser.emailVerified) {
-        return;
-      }
       const existing = this.getSavedAccounts().find((a) => a.uid === fbUser.uid);
       const isGoogle = Boolean(fbUser.providerData?.some((p) => p.providerId === 'google.com'));
+      if (fallbackEmail && !fallbackEmail.endsWith('@socialindia.com') && !fbUser.emailVerified && !isGoogle && !existing) {
+        return;
+      }
       this.saveAccount(
         {
           uid: fbUser.uid,
           email: fallbackEmail || existing?.email || '',
-          emailVerified: fbUser.emailVerified || fallbackEmail.endsWith('@socialindia.com'),
+          emailVerified: fbUser.emailVerified || isGoogle || fallbackEmail.endsWith('@socialindia.com') || Boolean(existing),
           username: existing?.username || (fallbackEmail ? fallbackEmail.split('@')[0] : 'user'),
           displayName: fbUser.displayName || existing?.displayName || 'User',
           photoURL: fbUser.photoURL || existing?.photoURL,
@@ -164,7 +208,10 @@ class AccountService {
     this.saveAccount(
       {
         ...userProfile,
-        emailVerified: Boolean(userProfile.emailVerified || (fbUser?.uid === userProfile.uid && fbUser.emailVerified))
+        emailVerified: Boolean(
+          userProfile.emailVerified ||
+          (fbUser?.uid === userProfile.uid && (fbUser.emailVerified || isFirebaseGoogleUser))
+        )
       },
       undefined,
       isFirebaseGoogleUser ? 'google' : undefined
@@ -232,9 +279,7 @@ class AccountService {
     const idx = accounts.findIndex((a) => a.uid === uid);
     if (idx >= 0) {
       delete accounts[idx].savedPassToken;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-      } catch {}
+      this.writeSavedAccounts(accounts);
     }
   }
 
@@ -243,12 +288,7 @@ class AccountService {
    */
   removeAccount(uid: string): void {
     const accounts = this.getSavedAccounts().filter((a) => a.uid !== uid);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('si_saved_accounts_changed'));
-      }
-    } catch {}
+    this.writeSavedAccounts(accounts);
   }
 
   /**

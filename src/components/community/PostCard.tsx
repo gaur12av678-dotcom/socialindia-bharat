@@ -9,6 +9,7 @@ import { userService } from '../../services/userService';
 import { InstagramVideoPlayer } from './InstagramVideoPlayer';
 import { RichText } from '../RichText';
 import { formatTimeAgo, formatViews } from '../../utils/videoUtils';
+import { formatLinkHost, normalizeLinkUrl } from '../../utils/linkUtils';
 import { isUserVerified } from '../../utils/userUtils';
 import { useTranslation } from '../../i18n';
 import { 
@@ -22,6 +23,8 @@ import {
   Send, 
   Check, 
   ExternalLink,
+  Link2,
+  Globe,
   X,
   Loader2
 } from 'lucide-react';
@@ -593,9 +596,42 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
       )}
 
       {/* 2. Post Content Text */}
-      <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-normal whitespace-pre-wrap break-words mb-3">
-        <RichText text={post.content} />
-      </div>
+      {post.content && (
+        <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-normal whitespace-pre-wrap break-words mb-3">
+          <RichText text={post.content} />
+        </div>
+      )}
+
+      {/* 2b. Attached Clickable Link Card */}
+      {post.linkUrl && (() => {
+        const href = normalizeLinkUrl(post.linkUrl);
+        if (!href) return null;
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="mb-3.5 flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-[#17171c] border border-slate-200/90 dark:border-slate-800 hover:border-blue-400/80 dark:hover:border-blue-600/70 hover:bg-blue-50/40 dark:hover:bg-blue-950/20 transition-all group/link cursor-pointer"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200/60 dark:border-blue-900/50">
+                <Globe className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white group-hover/link:text-blue-600 dark:group-hover/link:text-blue-400 transition-colors truncate">
+                  {post.linkTitle || formatLinkHost(href)}
+                </p>
+                <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium truncate flex items-center gap-1">
+                  <Link2 className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{href}</span>
+                </p>
+              </div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-slate-400 group-hover/link:text-blue-600 dark:group-hover/link:text-blue-400 shrink-0 transition-colors" />
+          </a>
+        );
+      })()}
 
       {/* 3. Media: Images (Grid/List) */}
       {post.postType === 'image' && post.images && post.images.length > 0 && (
@@ -808,7 +844,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
                         </button>
                       )}
                     </div>
-                    <p className="text-xs text-slate-700 dark:text-slate-300 mt-0.5 whitespace-pre-wrap break-words">{c.text}</p>
+                    <p className="text-xs text-slate-700 dark:text-slate-300 mt-0.5 whitespace-pre-wrap break-words">
+                      <RichText text={c.text} />
+                    </p>
                   </div>
                 </div>
               ))

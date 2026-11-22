@@ -928,6 +928,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 aria-expanded={profileDropdownOpen}
               >
                 <UserAvatar 
+                  key={activeUid}
                   uid={activeUid}
                   fallbackPhotoURL={currentUserProfile?.photoURL}
                   fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
@@ -964,6 +965,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <div className="relative shrink-0">
                               <UserAvatar 
+                                key={`cur_${activeUid}`}
                                 uid={activeUid}
                                 fallbackPhotoURL={currentUserProfile?.photoURL}
                                 fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
@@ -1004,6 +1006,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                                 key={acc.uid}
                                 disabled={switchingUid !== null}
                                 onClick={async () => {
+                                  if (currentUser || currentUserProfile) {
+                                    accountService.syncCurrentProfile(currentUserProfile);
+                                  }
                                   setSwitchingUid(acc.uid);
                                   const res = await accountService.switchToAccount(acc);
                                   setSwitchingUid(null);
@@ -1024,6 +1029,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                               >
                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                   <UserAvatar 
+                                    key={acc.uid}
                                     uid={acc.uid}
                                     fallbackPhotoURL={acc.photoURL}
                                     fallbackDisplayName={acc.displayName || acc.username}
@@ -1099,6 +1105,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                       >
                         <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-slate-200/80 dark:border-zinc-700 shadow-xs">
                           <UserAvatar 
+                            key={`hdr_${activeUid}`}
                             uid={activeUid}
                             fallbackPhotoURL={currentUserProfile?.photoURL}
                             fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
@@ -1767,6 +1774,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   : 'ring-1 ring-slate-300 dark:ring-slate-700'
               }`}>
                 <UserAvatar
+                  key={`bot_${activeUid}`}
                   uid={activeUid}
                   fallbackPhotoURL={currentUserProfile?.photoURL}
                   fallbackDisplayName={currentUserProfile?.displayName || currentUserProfile?.username}
