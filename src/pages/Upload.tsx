@@ -95,6 +95,7 @@ export const UploadPage: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStageText, setUploadStageText] = useState('');
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
@@ -159,6 +160,7 @@ export const UploadPage: React.FC = () => {
       return;
     }
 
+    setPublishError(null);
     setSelectedVideoFile(file);
     setVideoFileName(file.name);
     setDuration(0);
@@ -265,20 +267,38 @@ export const UploadPage: React.FC = () => {
     if (currentStep !== 4) {
       return;
     }
+    setPublishError(null);
+
     if (!currentUser || !currentUserProfile) {
-      addToast('Please sign in to publish video.', 'error');
+      const msg = isHindi ? 'वीडियो प्रकाशित करने के लिए कृपया साइन इन करें।' : 'Please sign in to publish video.';
+      setPublishError(msg);
+      addToast(msg, 'error');
       return;
     }
 
     if (!title.trim() || title.length < 3 || title.length > 100) {
-      addToast('Title must be between 3 and 100 characters.', 'error');
+      const msg = isHindi ? 'शीर्षक 3 से 100 अक्षरों के बीच होना चाहिए।' : 'Title must be between 3 and 100 characters.';
+      setPublishError(msg);
+      addToast(msg, 'error');
       setCurrentStep(2);
       return;
     }
 
     if (!selectedVideoFile) {
-      addToast(isHindi ? 'कृपया पहले अपनी डिवाइस से एक वीडियो फ़ाइल चुनें।' : 'Please select a video file from your device first.', 'error');
+      const msg = isHindi ? 'कृपया पहले अपनी डिवाइस से एक वीडियो फ़ाइल चुनें।' : 'Please select a video file from your device first.';
+      setPublishError(msg);
+      addToast(msg, 'error');
       setCurrentStep(1);
+      return;
+    }
+
+    const MAX_VIDEO_SIZE_BYTES = 104857600; // 100MB
+    if (selectedVideoFile.size > MAX_VIDEO_SIZE_BYTES) {
+      const msg = isHindi
+        ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।'
+        : 'Please upload a video lower than 100MB.';
+      setPublishError(msg);
+      addToast(msg, 'error');
       return;
     }
 
@@ -375,9 +395,13 @@ export const UploadPage: React.FC = () => {
     } catch (err: any) {
       console.error('Publish error:', err);
       if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
-        addToast('Cloud Storage is not configured yet. Please contact Admin in Admin Panel.', 'error');
+        const msg = isHindi ? 'क्लाउड स्टोरेज अभी सेटअप नहीं है।' : 'Cloud Storage is not configured yet. Please contact Admin in Admin Panel.';
+        setPublishError(msg);
+        addToast(msg, 'error');
       } else {
-        addToast(err.message || 'Failed to upload and publish video.', 'error');
+        const msg = err.message || (isHindi ? 'वीडियो अपलोड और प्रकाशित करने में विफल।' : 'Failed to upload and publish video.');
+        setPublishError(msg);
+        addToast(msg, 'error');
       }
     } finally {
       setIsPublishing(false);
@@ -1269,6 +1293,27 @@ export const UploadPage: React.FC = () => {
                 </div>
               )}
 
+            </div>
+          )}
+
+          {/* Publish Validation / Upload Error Banner */}
+          {publishError && (
+            <div
+              role="alert"
+              className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center justify-between gap-3 animate-in fade-in"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Info className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span>{publishError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPublishError(null)}
+                className="p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/40 shrink-0 cursor-pointer"
+                aria-label="Dismiss error"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
 

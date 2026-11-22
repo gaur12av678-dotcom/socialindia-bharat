@@ -169,6 +169,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   const [isPublishing, setIsPublishing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStage, setUploadStage] = useState('');
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   // ------------------------------------------
   // Initialize Camera Stream with Progressive Fallback
@@ -538,6 +539,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
   // Load video into preview and extract initial thumbnail
   const handleLoadedVideo = (blob: Blob, file: File, recordedDuration?: number) => {
+    setPublishError(null);
     const url = URL.createObjectURL(blob);
     setPreviewUrl(url);
 
@@ -738,6 +740,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   // PUBLISH CLIP (Full Real Upload)
   // ------------------------------------------
   const handlePublishShort = async () => {
+    setPublishError(null);
     if (!currentUser || !currentUserProfile) {
       addToast('Please sign in to publish Clips.', 'error');
       navigate('login');
@@ -745,7 +748,18 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
     }
 
     if (!videoFile) {
-      addToast('No video file to publish.', 'error');
+      const msg = isHindi ? 'प्रकाशित करने के लिए कोई वीडियो फ़ाइल नहीं है।' : 'No video file to publish.';
+      setPublishError(msg);
+      addToast(msg, 'error');
+      return;
+    }
+
+    if (videoFile.size > 104857600) {
+      const msg = isHindi
+        ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।'
+        : 'Please upload a video lower than 100MB.';
+      setPublishError(msg);
+      addToast(msg, 'error');
       return;
     }
 
@@ -824,7 +838,9 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
     } catch (err: any) {
       console.error('Failed to publish Clip:', err);
-      addToast(err.message || 'Failed to upload and publish Clip. Please try again.', 'error');
+      const msg = err.message || (isHindi ? 'क्लिप अपलोड और प्रकाशित करने में विफल। कृपया पुनः प्रयास करें।' : 'Failed to upload and publish Clip. Please try again.');
+      setPublishError(msg);
+      addToast(msg, 'error');
     } finally {
       setIsPublishing(false);
     }
@@ -1968,6 +1984,25 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
           {/* PUBLISH BOTTOM ACTION BAR */}
           <div className="fixed bottom-0 left-0 right-0 z-30 pb-safe px-4 py-3.5 bg-white/95 dark:bg-[#121215]/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-xl">
+            {publishError && !isPublishing && (
+              <div
+                role="alert"
+                className="max-w-lg mx-auto mb-2.5 px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                  <span>{publishError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPublishError(null)}
+                  className="p-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-900/40 shrink-0 cursor-pointer"
+                  aria-label="Dismiss error"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
             {isPublishing ? (
               <div className="space-y-2 max-w-lg mx-auto">
                 <div className="flex items-center justify-between text-xs font-bold">

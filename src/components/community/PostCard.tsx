@@ -52,10 +52,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
   const { t, isHindi } = useTranslation();
 
   // Reaction states
-  const [likesCount, setLikesCount] = useState(post.likesCount || 0);
-  const [dislikesCount, setDislikesCount] = useState(post.dislikesCount || 0);
+  const [likesCount, setLikesCount] = useState(Math.max(0, Number(post.likesCount) || 0));
+  const [dislikesCount, setDislikesCount] = useState(Math.max(0, Number(post.dislikesCount) || 0));
   const [isLiked, setIsLiked] = useState(false);
   const [isDisliked, setIsDisliked] = useState(false);
+  const reactionInFlightRef = React.useRef(false);
 
   // Poll state
   const [poll, setPoll] = useState(post.poll);
@@ -176,23 +177,46 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!reactionInFlightRef.current) {
+      setLikesCount(Math.max(0, Number(post.likesCount) || 0));
+      setDislikesCount(Math.max(0, Number(post.dislikesCount) || 0));
+      setCommentsCount(Math.max(0, Number(post.commentsCount) || 0));
+    }
+  }, [post.postId, post.likesCount, post.dislikesCount, post.commentsCount]);
+
   // Synchronize user reactions & poll votes
   useEffect(() => {
-    if (currentUser?.uid) {
-      const { likedPostIds, dislikedPostIds, pollVotes } = postService.getUserReactions(currentUser.uid);
+    const uid = activeUid;
+    if (!uid) {
+      setIsLiked(false);
+      setIsDisliked(false);
+      setUserVotedOptionId(null);
+      return;
+    }
+
+    let cancelled = false;
+    const applyLocalReactions = () => {
+      if (cancelled || reactionInFlightRef.current) return;
+      const { likedPostIds, dislikedPostIds, pollVotes } = postService.getUserReactions(uid);
       setIsLiked(likedPostIds.has(post.postId));
       setIsDisliked(dislikedPostIds.has(post.postId));
       if (pollVotes[post.postId]) {
         setUserVotedOptionId(pollVotes[post.postId]);
-      } else if (post.poll?.voters && post.poll.voters[currentUser.uid]) {
-        setUserVotedOptionId(post.poll.voters[currentUser.uid]);
+      } else if (post.poll?.voters && post.poll.voters[uid]) {
+        setUserVotedOptionId(post.poll.voters[uid]);
       }
-    } else {
-      setIsLiked(false);
-      setIsDisliked(false);
-      setUserVotedOptionId(null);
-    }
-  }, [currentUser?.uid, post.postId, post.poll]);
+    };
+
+    applyLocalReactions();
+    postService.syncUserReactionsFromCloud(uid).then(() => {
+      applyLocalReactions();
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeUid, post.postId, post.poll]);
 
   // Load comments when drawer is opened
   useEffect(() => {
@@ -212,22 +236,34 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
       navigate('login');
       return;
     }
+    if (reactionInFlightRef.current) return;
 
     const prevLiked = isLiked;
-    const prevCount = likesCount;
+    const prevDisliked = isDisliked;
+    const prevLikesCount = Math.max(0, likesCount);
+    const prevDislikesCount = Math.max(0, dislikesCount);
 
-    // Instant optimistic update (0ms YouTube style)
+    reactionInFlightRef.current = true;
+    // Instant optimistic update (never drops below 0)
     setIsLiked(!prevLiked);
-    if (isDisliked) setIsDisliked(false);
-    setLikesCount(prev => prev + (!prevLiked ? 1 : -1));
+    if (prevDisliked) {
+      setIsDisliked(false);
+      setDislikesCount(prev => Math.max(0, prev - 1));
+    }
+    setLikesCount(prev => Math.max(0, prev + (!prevLiked ? 1 : -1)));
 
     try {
       const res = await postService.toggleLike(post.postId, currentUser.uid);
       setIsLiked(res.liked);
-      setLikesCount(res.likesCount);
+      setLikesCount(Math.max(0, res.likesCount));
+      setDislikesCount(Math.max(0, res.dislikesCount));
     } catch {
       setIsLiked(prevLiked);
-      setLikesCount(prevCount);
+      setIsDisliked(prevDisliked);
+      setLikesCount(prevLikesCount);
+      setDislikesCount(prevDislikesCount);
+    } finally {
+      reactionInFlightRef.current = false;
     }
   };
 
@@ -237,10 +273,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
       navigate('login');
       return;
     }
+    if (reactionInFlightRef.current) return;
 
     const prevDisliked = isDisliked;
+    const prevLiked = isLiked;
+    const prevLikesCount = Math.max(0, likesCount);
+    const prevDislikesCount = Math.max(0, dislikesCount);
+
+    reactionInFlightRef.current = true;
     setIsDisliked(!prevDisliked);
-    if (isLiked) {
+    setDislikesCount(prev => Math.max(0, prev + (!prevDisliked ? 1 : -1)));
+    if (prevLiked) {
       setIsLiked(false);
       setLikesCount(prev => Math.max(0, prev - 1));
     }
@@ -248,8 +291,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
     try {
       const res = await postService.toggleDislike(post.postId, currentUser.uid);
       setIsDisliked(res.disliked);
+      setLikesCount(Math.max(0, res.likesCount));
+      setDislikesCount(Math.max(0, res.dislikesCount));
     } catch {
       setIsDisliked(prevDisliked);
+      setIsLiked(prevLiked);
+      setLikesCount(prevLikesCount);
+      setDislikesCount(prevDislikesCount);
+    } finally {
+      reactionInFlightRef.current = false;
     }
   };
 
@@ -655,7 +705,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
             title="Like"
           >
             <ThumbsUp className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-            <span className="text-xs font-semibold">{formatViews(likesCount).replace(/views/i, '').trim() || 0}</span>
+            <span className="text-xs font-semibold">{formatViews(Math.max(0, likesCount)).replace(/views/i, '').trim() || 0}</span>
           </button>
 
           {/* Dislike Button */}

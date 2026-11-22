@@ -98,37 +98,44 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 
   const activeLoggedUid = currentUser?.uid || currentUserProfile?.uid;
   const isCurrentLoggedInUser = Boolean(
-    (uid && activeLoggedUid && activeLoggedUid === uid) || 
-    (fallbackNameLower && currentUsernameLower && currentUsernameLower === fallbackNameLower) ||
-    (fallbackNameLower && currentDisplayNameLower && currentDisplayNameLower === fallbackNameLower) ||
+    (uid && activeLoggedUid && activeLoggedUid === uid) ||
+    (!uid && (
+      (fallbackNameLower && currentUsernameLower && currentUsernameLower === fallbackNameLower) ||
+      (fallbackNameLower && currentDisplayNameLower && currentDisplayNameLower === fallbackNameLower)
+    )) ||
     (uidLower && currentUsernameLower && currentUsernameLower === uidLower)
   );
 
-  const initialPhoto = (() => {
-    if (isCurrentLoggedInUser && currentUserProfile?.photoURL) return currentUserProfile.photoURL;
+  const resolveInitialPhoto = () => {
+    if (isCurrentLoggedInUser) return (currentUserProfile?.photoURL || '').trim();
+    if (fallbackPhotoURL && fallbackPhotoURL.trim()) return fallbackPhotoURL.trim();
     if (uid) {
+      const u = userService.getCachedUserProfile(uid);
+      if (u && typeof u.photoURL === 'string') return u.photoURL.trim();
       const persisted = getPersistedAvatar(uid);
       if (persisted?.photoURL) return persisted.photoURL;
-      const u = userService.getCachedUserProfile(uid);
-      if (u?.photoURL) return u.photoURL;
     }
-    return (fallbackPhotoURL || '').trim();
-  })();
+    return '';
+  };
 
-  const [livePhoto, setLivePhoto] = useState<string>(initialPhoto);
-
-  const [liveDisplayName, setLiveDisplayName] = useState<string>(() => {
+  const resolveInitialName = () => {
     if (isCurrentLoggedInUser && (currentUserProfile?.displayName || currentUserProfile?.username)) {
       return currentUserProfile.displayName || currentUserProfile.username;
     }
+    if (fallbackDisplayName && fallbackDisplayName.trim()) return fallbackDisplayName.trim();
     if (uid) {
-      const persisted = getPersistedAvatar(uid);
-      if (persisted?.displayName) return persisted.displayName;
       const u = userService.getCachedUserProfile(uid);
       if (u) return u.displayName || u.username;
+      const persisted = getPersistedAvatar(uid);
+      if (persisted?.displayName) return persisted.displayName;
     }
-    return (fallbackDisplayName || '').trim();
-  });
+    return '';
+  };
+
+  const initialPhoto = resolveInitialPhoto();
+
+  const [livePhoto, setLivePhoto] = useState<string>(initialPhoto);
+  const [liveDisplayName, setLiveDisplayName] = useState<string>(resolveInitialName);
 
   const [imgError, setImgError] = useState(false);
   // Default to true if we already have a photo URL, eliminating avatar flicker/delay!
@@ -155,26 +162,27 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
             currentUserProfile.displayName || currentUserProfile.username || ''
           );
         }
+      } else {
+        setLivePhoto('');
+        setIsImgLoaded(false);
       }
       if (currentUserProfile.displayName || currentUserProfile.username) {
         setLiveDisplayName(currentUserProfile.displayName || currentUserProfile.username);
       }
     }
-  }, [isCurrentLoggedInUser, currentUserProfile?.photoURL, currentUserProfile?.displayName, currentUserProfile?.username]);
+  }, [isCurrentLoggedInUser, currentUser?.uid, currentUserProfile?.photoURL, currentUserProfile?.displayName, currentUserProfile?.username]);
 
-  // Synchronize when fallback props change
+  // Reset and synchronize whenever uid or fallback props change so another user's avatar never leaks through
   useEffect(() => {
     if (!isCurrentLoggedInUser) {
-      if (fallbackPhotoURL && fallbackPhotoURL.trim()) {
-        setLivePhoto(fallbackPhotoURL.trim());
-        setImgError(false);
-        setIsImgLoaded(true);
-      }
-      if (fallbackDisplayName && fallbackDisplayName.trim()) {
-        setLiveDisplayName(fallbackDisplayName.trim());
-      }
+      const nextPhoto = resolveInitialPhoto();
+      const nextName = resolveInitialName();
+      setLivePhoto(nextPhoto);
+      setLiveDisplayName(nextName);
+      setImgError(false);
+      setIsImgLoaded(Boolean(nextPhoto));
     }
-  }, [fallbackPhotoURL, fallbackDisplayName, isCurrentLoggedInUser]);
+  }, [uid, fallbackPhotoURL, fallbackDisplayName, isCurrentLoggedInUser]);
 
   // Listen for global user avatar updates
   useEffect(() => {
@@ -202,61 +210,77 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   // Background fetch for remote profiles only if no photo or name is available
   useEffect(() => {
     if (isCurrentLoggedInUser) return;
+    let active = true;
 
     if (uid) {
+      const cachedProfile = userService.getCachedUserProfile(uid);
+      const cachedHasExplicitPhoto = Boolean(cachedProfile && typeof cachedProfile.photoURL === 'string');
       const persisted = getPersistedAvatar(uid);
-      if (persisted?.photoURL) {
+
+      if (!fallbackPhotoURL && !cachedHasExplicitPhoto && persisted?.photoURL) {
         setLivePhoto(persisted.photoURL);
+        setImgError(false);
         setIsImgLoaded(true);
       }
-      if (persisted?.displayName) setLiveDisplayName(persisted.displayName);
+      if (!fallbackDisplayName && persisted?.displayName) {
+        setLiveDisplayName(persisted.displayName);
+      }
 
-      // If we already have a valid photo from props or persisted cache, DO NOT flood Firestore!
-      if (!persisted?.photoURL && !fallbackPhotoURL) {
+      // Fetch from Firestore once per session if not already cached in userService memory cache
+      if (!fallbackPhotoURL && !cachedHasExplicitPhoto) {
         userService.getUserProfile(uid).then(profile => {
-          if (profile) {
-            if (profile.photoURL) {
-              updateUserAvatarCache(uid, profile.photoURL, profile.displayName || profile.username || '');
-              setLivePhoto(profile.photoURL);
-              setImgError(false);
-              setIsImgLoaded(true);
-            }
-            if (profile.displayName || profile.username) {
-              setLiveDisplayName(profile.displayName || profile.username);
-            }
+          if (!active || !profile) return;
+          const cleanPhoto = (profile.photoURL || '').trim();
+          const cleanName = profile.displayName || profile.username || '';
+          updateUserAvatarCache(uid, cleanPhoto, cleanName);
+          setLivePhoto(cleanPhoto);
+          setImgError(false);
+          setIsImgLoaded(Boolean(cleanPhoto));
+          if (cleanName) {
+            setLiveDisplayName(cleanName);
           }
         }).catch(() => {});
       }
     } else if (fallbackDisplayName && !fallbackPhotoURL) {
       userService.getUserByUsername(fallbackDisplayName).then(uProfile => {
-        if (uProfile) {
-          if (uProfile.photoURL) {
-            if (uProfile.uid) {
-              updateUserAvatarCache(uProfile.uid, uProfile.photoURL, uProfile.displayName || uProfile.username || '');
-            }
-            setLivePhoto(uProfile.photoURL);
-            setImgError(false);
-            setIsImgLoaded(true);
+        if (!active || !uProfile) return;
+        if (uProfile.photoURL) {
+          if (uProfile.uid) {
+            updateUserAvatarCache(uProfile.uid, uProfile.photoURL, uProfile.displayName || uProfile.username || '');
           }
-          if (uProfile.displayName || uProfile.username) {
-            setLiveDisplayName(uProfile.displayName || uProfile.username);
-          }
+          setLivePhoto(uProfile.photoURL);
+          setImgError(false);
+          setIsImgLoaded(true);
+        }
+        if (uProfile.displayName || uProfile.username) {
+          setLiveDisplayName(uProfile.displayName || uProfile.username);
         }
       }).catch(() => {});
     }
+
+    return () => {
+      active = false;
+    };
   }, [uid, fallbackDisplayName, fallbackPhotoURL, isCurrentLoggedInUser]);
 
   // Compute final effective photo & name
   const effectivePhoto = useMemo(() => {
-    const raw = (
-      (isCurrentLoggedInUser && currentUserProfile?.photoURL ? currentUserProfile.photoURL : '') ||
+    if (isCurrentLoggedInUser) {
+      return (currentUserProfile?.photoURL || livePhoto || fallbackPhotoURL || '').trim();
+    }
+    const cachedUser = uid ? userService.getCachedUserProfile(uid) : null;
+    if (fallbackPhotoURL && fallbackPhotoURL.trim()) {
+      return fallbackPhotoURL.trim();
+    }
+    if (cachedUser && typeof cachedUser.photoURL === 'string') {
+      return (livePhoto || cachedUser.photoURL).trim();
+    }
+    const raw =
       livePhoto ||
       (uid ? (profileCache[uid]?.photoURL || getPersistedAvatar(uid)?.photoURL || '') : '') ||
-      fallbackPhotoURL ||
-      ''
-    ).trim();
+      '';
 
-    return raw;
+    return raw.trim();
   }, [isCurrentLoggedInUser, currentUserProfile?.photoURL, livePhoto, uid, fallbackPhotoURL]);
 
   const effectiveDisplayName = useMemo(() => {

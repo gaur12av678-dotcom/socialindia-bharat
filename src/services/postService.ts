@@ -13,7 +13,8 @@ import {
   startAfter,
   QueryDocumentSnapshot,
   DocumentData,
-  increment 
+  increment,
+  runTransaction
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
@@ -89,6 +90,64 @@ export const DEFAULT_COMMUNITY_POSTS: CommunityPost[] = [
 // In-memory cache for instant transitions
 let memoryPostsCache: CommunityPost[] | null = null;
 const memoryCommentsCache = new Map<string, PostComment[]>();
+const memoryReactionSyncPromises = new Map<string, Promise<void>>();
+
+const REACTION_DIRTY_KEY = (uid: string) => `si_post_reactions_dirty_${uid}`;
+const COUNT_OVERRIDES_KEY = 'si_post_count_overrides';
+
+function getLocalCountOverrides(): Record<string, { likesCount: number; dislikesCount: number; updatedAt: number }> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(COUNT_OVERRIDES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    const now = Date.now();
+    const fresh: Record<string, { likesCount: number; dislikesCount: number; updatedAt: number }> = {};
+    for (const [postId, entry] of Object.entries<any>(parsed)) {
+      if (entry && typeof entry.updatedAt === 'number' && now - entry.updatedAt < 24 * 60 * 60 * 1000) {
+        fresh[postId] = {
+          likesCount: Math.max(0, Number(entry.likesCount) || 0),
+          dislikesCount: Math.max(0, Number(entry.dislikesCount) || 0),
+          updatedAt: entry.updatedAt,
+        };
+      }
+    }
+    return fresh;
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalCountOverride(postId: string, likesCount: number, dislikesCount: number) {
+  if (typeof window === 'undefined' || !postId) return;
+  try {
+    const current = getLocalCountOverrides();
+    current[postId] = {
+      likesCount: Math.max(0, Number(likesCount) || 0),
+      dislikesCount: Math.max(0, Number(dislikesCount) || 0),
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem(COUNT_OVERRIDES_KEY, JSON.stringify(current));
+  } catch {}
+}
+
+function isUserReactionsDirty(uid: string): boolean {
+  if (typeof window === 'undefined' || !uid) return false;
+  try {
+    return localStorage.getItem(REACTION_DIRTY_KEY(uid)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function setUserReactionsDirty(uid: string, dirty: boolean) {
+  if (typeof window === 'undefined' || !uid) return;
+  try {
+    if (dirty) localStorage.setItem(REACTION_DIRTY_KEY(uid), '1');
+    else localStorage.removeItem(REACTION_DIRTY_KEY(uid));
+  } catch {}
+}
 
 function getLocalLikedPosts(uid: string): Set<string> {
   if (typeof window === 'undefined' || !uid) return new Set();
@@ -160,26 +219,52 @@ function addDeletedPostId(postId: string) {
   } catch {}
 }
 
+function sanitizePostCounts(p: CommunityPost): CommunityPost {
+  return {
+    ...p,
+    likesCount: Math.max(0, Number(p.likesCount) || 0),
+    dislikesCount: Math.max(0, Number(p.dislikesCount) || 0),
+    commentsCount: Math.max(0, Number(p.commentsCount) || 0),
+    sharesCount: Math.max(0, Number(p.sharesCount) || 0),
+  };
+}
+
 function getLocalPosts(): CommunityPost[] {
   const deletedIds = getDeletedPostIds();
-  if (typeof window === 'undefined') return DEFAULT_COMMUNITY_POSTS.filter(p => !deletedIds.has(p.postId));
+  if (typeof window === 'undefined') return DEFAULT_COMMUNITY_POSTS.filter(p => !deletedIds.has(p.postId)).map(sanitizePostCounts);
   try {
     const raw = localStorage.getItem('si_community_posts');
     if (raw) {
       const parsed = JSON.parse(raw) as CommunityPost[];
       if (Array.isArray(parsed)) {
-        return parsed.filter(p => !deletedIds.has(p.postId));
+        return parsed.filter(p => p && !deletedIds.has(p.postId)).map(sanitizePostCounts);
       }
     }
   } catch {}
-  return DEFAULT_COMMUNITY_POSTS.filter(p => !deletedIds.has(p.postId));
+  return DEFAULT_COMMUNITY_POSTS.filter(p => !deletedIds.has(p.postId)).map(sanitizePostCounts);
 }
 
 function saveLocalPosts(posts: CommunityPost[]) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem('si_community_posts', JSON.stringify(posts));
+    localStorage.setItem('si_community_posts', JSON.stringify(posts.map(sanitizePostCounts)));
   } catch {}
+}
+
+function upsertCachedPosts(posts: CommunityPost[]) {
+  if (!posts || posts.length === 0) return;
+  const map = new Map<string, CommunityPost>();
+  for (const existing of memoryPostsCache || getLocalPosts()) {
+    if (existing?.postId) map.set(existing.postId, sanitizePostCounts(existing));
+  }
+  for (const incoming of posts) {
+    if (incoming?.postId) map.set(incoming.postId, sanitizePostCounts(incoming));
+  }
+  const merged = Array.from(map.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  memoryPostsCache = merged;
+  saveLocalPosts(merged);
 }
 
 export function dataURLtoBlob(dataurl: string): Blob {
@@ -322,7 +407,7 @@ export const postService = {
       if (snap.exists()) {
         const data = snap.data();
         if (Array.isArray(data.posts)) {
-          return data.posts;
+          return data.posts.map(sanitizePostCounts);
         }
       }
     } catch (err) {
@@ -423,6 +508,135 @@ export const postService = {
       dislikedPostIds: getLocalDislikedPosts(uid),
       pollVotes: getLocalVotedPolls(uid)
     };
+  },
+
+  async persistUserReactionsToCloud(uid: string): Promise<void> {
+    if (!uid) return;
+    try {
+      await setDoc(
+        doc(db, 'users', uid, 'private', 'postReactions'),
+        {
+          likedPostIds: Array.from(getLocalLikedPosts(uid)),
+          dislikedPostIds: Array.from(getLocalDislikedPosts(uid)),
+          pollVotes: getLocalVotedPolls(uid),
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+      setUserReactionsDirty(uid, false);
+    } catch (err) {
+      console.warn('Could not persist user post reactions to cloud:', err);
+    }
+  },
+
+  async syncUserReactionsFromCloud(uid: string): Promise<{ likedPostIds: Set<string>; dislikedPostIds: Set<string>; pollVotes: Record<string, string> }> {
+    if (!uid) {
+      return { likedPostIds: new Set(), dislikedPostIds: new Set(), pollVotes: {} };
+    }
+
+    const pending = memoryReactionSyncPromises.get(uid);
+    if (pending) {
+      await pending;
+      return this.getUserReactions(uid);
+    }
+
+    const syncTask = (async () => {
+      if (isUserReactionsDirty(uid)) {
+        await this.persistUserReactionsToCloud(uid);
+        return;
+      }
+
+      try {
+        const snap = await getDoc(doc(db, 'users', uid, 'private', 'postReactions'));
+        if (snap.exists() && !isUserReactionsDirty(uid)) {
+          const data = snap.data() || {};
+          const cloudLikes = Array.isArray(data.likedPostIds) ? data.likedPostIds.filter((id: unknown): id is string => typeof id === 'string') : [];
+          const cloudDislikes = Array.isArray(data.dislikedPostIds) ? data.dislikedPostIds.filter((id: unknown): id is string => typeof id === 'string') : [];
+          const cloudPolls = data.pollVotes && typeof data.pollVotes === 'object' ? (data.pollVotes as Record<string, string>) : {};
+
+          const localLikes = getLocalLikedPosts(uid);
+          const localDislikes = getLocalDislikedPosts(uid);
+          const mergedLikes = new Set<string>(localLikes);
+          const mergedDislikes = new Set<string>(localDislikes);
+          cloudLikes.forEach(id => {
+            if (!localDislikes.has(id)) mergedLikes.add(id);
+          });
+          cloudDislikes.forEach(id => {
+            if (!localLikes.has(id)) mergedDislikes.add(id);
+          });
+          const mergedPolls = { ...cloudPolls, ...getLocalVotedPolls(uid) };
+
+          saveLocalLikedPosts(uid, mergedLikes);
+          saveLocalDislikedPosts(uid, mergedDislikes);
+          saveLocalVotedPolls(uid, mergedPolls);
+        }
+      } catch (err) {
+        console.warn('Could not sync user post reactions from cloud:', err);
+      }
+    })().finally(() => {
+      memoryReactionSyncPromises.delete(uid);
+    });
+
+    memoryReactionSyncPromises.set(uid, syncTask);
+    await syncTask;
+    return this.getUserReactions(uid);
+  },
+
+  async getCloudReactionCounts(): Promise<Record<string, { likesCount: number; dislikesCount: number; updatedAt?: number }>> {
+    try {
+      const snap = await getDoc(doc(db, 'adminSettings', 'community_post_counts'));
+      if (snap.exists()) {
+        const counts = snap.data()?.counts;
+        if (counts && typeof counts === 'object') {
+          return counts as Record<string, { likesCount: number; dislikesCount: number; updatedAt?: number }>;
+        }
+      }
+    } catch {}
+    return {};
+  },
+
+  async saveCloudReactionCounts(postId: string, likesCount: number, dislikesCount: number): Promise<void> {
+    if (!postId) return;
+    const cleanLikes = Math.max(0, Number(likesCount) || 0);
+    const cleanDislikes = Math.max(0, Number(dislikesCount) || 0);
+    try {
+      await setDoc(
+        doc(db, 'adminSettings', 'community_post_counts'),
+        {
+          counts: {
+            [postId]: {
+              likesCount: cleanLikes,
+              dislikesCount: cleanDislikes,
+              updatedAt: Date.now()
+            }
+          }
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Could not sync post counts to cloud counts doc:', err);
+    }
+
+    try {
+      const feedRef = doc(db, 'adminSettings', 'community_feed');
+      const snap = await getDoc(feedRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.posts)) {
+          let changed = false;
+          const updated = data.posts.map((p: CommunityPost) => {
+            if (p.postId === postId) {
+              changed = true;
+              return { ...p, likesCount: cleanLikes, dislikesCount: cleanDislikes };
+            }
+            return p;
+          });
+          if (changed) {
+            await setDoc(feedRef, { posts: updated, updatedAt: new Date().toISOString() }, { merge: true });
+          }
+        }
+      }
+    } catch {}
   },
 
   // Create a new community post
@@ -570,7 +784,7 @@ export const postService = {
       if (!snap.empty) {
         snap.docs.forEach(d => {
           const data = d.data() as CommunityPost;
-          const p = { ...data, postId: data.postId || d.id };
+          const p = sanitizePostCounts({ ...data, postId: data.postId || d.id });
           if (!deletedIds.has(p.postId)) {
             postMap.set(p.postId, p);
           }
@@ -585,7 +799,7 @@ export const postService = {
       const sharedFeed = await this.getFromSharedCloudFeed();
       for (const p of sharedFeed) {
         if (!deletedIds.has(p.postId) && !postMap.has(p.postId)) {
-          postMap.set(p.postId, p);
+          postMap.set(p.postId, sanitizePostCounts(p));
         }
       }
     } catch (err) {
@@ -596,18 +810,29 @@ export const postService = {
     const local = getLocalPosts();
     for (const lp of local) {
       if (!deletedIds.has(lp.postId) && !postMap.has(lp.postId)) {
-        postMap.set(lp.postId, lp);
+        postMap.set(lp.postId, sanitizePostCounts(lp));
       }
     }
 
     // 4. Fallback to curated default posts if feed is brand new
     for (const def of DEFAULT_COMMUNITY_POSTS) {
       if (!deletedIds.has(def.postId) && !postMap.has(def.postId)) {
-        postMap.set(def.postId, def);
+        postMap.set(def.postId, sanitizePostCounts(def));
       }
     }
 
-    allPosts = Array.from(postMap.values());
+    const [cloudCounts, localOverrides] = [await this.getCloudReactionCounts(), getLocalCountOverrides()];
+    allPosts = Array.from(postMap.values()).map(p => {
+      const override = localOverrides[p.postId];
+      const cloudCount = cloudCounts[p.postId];
+      if (override && (!cloudCount || override.updatedAt >= (Number(cloudCount.updatedAt) || 0))) {
+        return sanitizePostCounts({ ...p, likesCount: override.likesCount, dislikesCount: override.dislikesCount });
+      }
+      if (cloudCount) {
+        return sanitizePostCounts({ ...p, likesCount: cloudCount.likesCount, dislikesCount: cloudCount.dislikesCount });
+      }
+      return sanitizePostCounts(p);
+    });
     saveLocalPosts(allPosts);
     memoryPostsCache = allPosts;
 
@@ -691,7 +916,7 @@ export const postService = {
         const batch = snap.docs
           .map(d => {
             const data = d.data() as CommunityPost;
-            return { ...data, postId: data.postId || d.id };
+            return sanitizePostCounts({ ...data, postId: data.postId || d.id });
           })
           .filter(p => !deletedIds.has(p.postId));
 
@@ -712,20 +937,40 @@ export const postService = {
       }
 
       if (anySnapshotFound && collected.length > 0) {
+        const [cloudCounts, sharedFeed] = await Promise.all([
+          this.getCloudReactionCounts(),
+          this.getFromSharedCloudFeed()
+        ]);
+        const sharedById = new Map<string, CommunityPost>(sharedFeed.map(p => [p.postId, p]));
+        const localById = new Map<string, CommunityPost>(getLocalPosts().map(p => [p.postId, p]));
+        const localOverrides = getLocalCountOverrides();
+
         // When we reach the end of Firestore posts, append any missing curated defaults on the final page
-        if (firestoreExhausted) {
+        if (firestoreExhausted && !options?.cursor) {
           const deletedIds = getDeletedPostIds();
           const seen = new Set(collected.map(p => p.postId));
           const matchingDefaults = DEFAULT_COMMUNITY_POSTS.filter(
             def => !deletedIds.has(def.postId) && !seen.has(def.postId) && (postType === 'all' || def.postType === postType)
-          );
-          if (!options?.cursor) {
-            collected.push(...matchingDefaults);
-          }
+          ).map(def => sanitizePostCounts(sharedById.get(def.postId) || localById.get(def.postId) || def));
+          collected.push(...matchingDefaults);
         }
 
+        const hydrated = collected.map(p => {
+          const override = localOverrides[p.postId];
+          const cloudCount = cloudCounts[p.postId];
+          if (override && (!cloudCount || override.updatedAt >= (Number(cloudCount.updatedAt) || 0))) {
+            return sanitizePostCounts({ ...p, likesCount: override.likesCount, dislikesCount: override.dislikesCount });
+          }
+          if (cloudCount) {
+            return sanitizePostCounts({ ...p, likesCount: cloudCount.likesCount, dislikesCount: cloudCount.dislikesCount });
+          }
+          return sanitizePostCounts(p);
+        });
+
+        upsertCachedPosts(hydrated);
+
         return {
-          posts: collected,
+          posts: hydrated,
           cursor: currentCursor,
           hasMore: !firestoreExhausted,
           source: 'firestore',
@@ -738,7 +983,11 @@ export const postService = {
 
     // Shared cloud feed + Local cache fallback (guarantees cross-device sync between Mobile and Web)
     const deletedIds = getDeletedPostIds();
-    const sharedFeed = await this.getFromSharedCloudFeed();
+    const [sharedFeed, cloudCounts] = await Promise.all([
+      this.getFromSharedCloudFeed(),
+      this.getCloudReactionCounts()
+    ]);
+    const localOverrides = getLocalCountOverrides();
     const localMap = new Map<string, CommunityPost>();
     for (const p of sharedFeed) {
       if (!deletedIds.has(p.postId)) localMap.set(p.postId, p);
@@ -749,9 +998,19 @@ export const postService = {
     for (const p of DEFAULT_COMMUNITY_POSTS) {
       if (!deletedIds.has(p.postId) && !localMap.has(p.postId)) localMap.set(p.postId, p);
     }
-    const localAll = Array.from(localMap.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const localAll = Array.from(localMap.values())
+      .map(p => {
+        const override = localOverrides[p.postId];
+        const cloudCount = cloudCounts[p.postId];
+        if (override && (!cloudCount || override.updatedAt >= (Number(cloudCount.updatedAt) || 0))) {
+          return sanitizePostCounts({ ...p, likesCount: override.likesCount, dislikesCount: override.dislikesCount });
+        }
+        if (cloudCount) {
+          return sanitizePostCounts({ ...p, likesCount: cloudCount.likesCount, dislikesCount: cloudCount.dislikesCount });
+        }
+        return sanitizePostCounts(p);
+      })
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const filteredLocal = postType === 'all'
       ? localAll
       : localAll.filter(p => p.postType === postType);
@@ -800,10 +1059,11 @@ export const postService = {
   },
 
   // Toggle Like on a post (YouTube Thumbs Up)
-  async toggleLike(postId: string, uid: string): Promise<{ liked: boolean; likesCount: number }> {
+  async toggleLike(postId: string, uid: string): Promise<{ liked: boolean; likesCount: number; dislikesCount: number }> {
     const likedSet = getLocalLikedPosts(uid);
     const dislikedSet = getLocalDislikedPosts(uid);
     const isCurrentlyLiked = likedSet.has(postId);
+    const wasDisliked = dislikedSet.has(postId);
     const nextLiked = !isCurrentlyLiked;
 
     if (nextLiked) {
@@ -815,48 +1075,98 @@ export const postService = {
 
     saveLocalLikedPosts(uid, likedSet);
     saveLocalDislikedPosts(uid, dislikedSet);
+    setUserReactionsDirty(uid, true);
 
-    // Update in memory & local storage
-    const local = getLocalPosts();
-    let updatedLikesCount = 0;
-    const updated = local.map(p => {
-      if (p.postId === postId) {
-        const diff = nextLiked ? 1 : -1;
-        const newLikes = Math.max(0, p.likesCount + diff);
-        updatedLikesCount = newLikes;
-        return {
-          ...p,
-          likesCount: newLikes,
-          dislikesCount: nextLiked && dislikedSet.has(postId) ? Math.max(0, p.dislikesCount - 1) : p.dislikesCount
-        };
-      }
-      return p;
-    });
-    saveLocalPosts(updated);
-    memoryPostsCache = updated;
+    const baseList = memoryPostsCache && memoryPostsCache.length > 0 ? memoryPostsCache : getLocalPosts();
+    const knownPost = baseList.find(p => p.postId === postId) || DEFAULT_COMMUNITY_POSTS.find(p => p.postId === postId);
+
+    const baseLikes = Math.max(0, Number(knownPost?.likesCount) || 0);
+    const baseDislikes = Math.max(0, Number(knownPost?.dislikesCount) || 0);
+    let finalLikesCount = Math.max(0, baseLikes + (nextLiked ? 1 : -1));
+    let finalDislikesCount = (nextLiked && wasDisliked) ? Math.max(0, baseDislikes - 1) : baseDislikes;
+
+    // Immediately save optimistic counts & cache so fast reloads never lose them
+    saveLocalCountOverride(postId, finalLikesCount, finalDislikesCount);
+    const optimisticList = baseList.some(p => p.postId === postId)
+      ? baseList.map(p =>
+          p.postId === postId
+            ? { ...p, likesCount: finalLikesCount, dislikesCount: finalDislikesCount }
+            : sanitizePostCounts(p)
+        )
+      : knownPost
+        ? [sanitizePostCounts({ ...knownPost, likesCount: finalLikesCount, dislikesCount: finalDislikesCount }), ...baseList]
+        : baseList;
+    saveLocalPosts(optimisticList);
+    memoryPostsCache = optimisticList;
 
     try {
       const postRef = doc(db, 'posts', postId);
-      await updateDoc(postRef, {
-        likesCount: increment(nextLiked ? 1 : -1)
+      const txResult = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(postRef);
+        if (!snap.exists()) {
+          if (!knownPost) return null;
+          tx.set(postRef, {
+            ...sanitizePostCounts(knownPost),
+            likesCount: finalLikesCount,
+            dislikesCount: finalDislikesCount,
+            updatedAt: new Date().toISOString()
+          });
+          return { likesCount: finalLikesCount, dislikesCount: finalDislikesCount };
+        }
+        const data = snap.data();
+        const currLikes = Math.max(0, Number(data?.likesCount) || 0);
+        const currDislikes = Math.max(0, Number(data?.dislikesCount) || 0);
+        const nextLikes = Math.max(0, currLikes + (nextLiked ? 1 : -1));
+        const nextDislikes = (nextLiked && wasDisliked) ? Math.max(0, currDislikes - 1) : currDislikes;
+        tx.update(postRef, {
+          likesCount: nextLikes,
+          dislikesCount: nextDislikes,
+          updatedAt: new Date().toISOString()
+        });
+        return { likesCount: nextLikes, dislikesCount: nextDislikes };
       });
+      if (txResult) {
+        finalLikesCount = txResult.likesCount;
+        finalDislikesCount = txResult.dislikesCount;
+      }
     } catch (err) {
-      console.warn('Firestore like sync failed:', err);
+      console.warn('Firestore like transaction fallback:', err);
+      try {
+        await updateDoc(doc(db, 'posts', postId), {
+          likesCount: finalLikesCount,
+          dislikesCount: finalDislikesCount
+        });
+      } catch {}
     }
 
-    return { liked: nextLiked, likesCount: updatedLikesCount };
+    saveLocalCountOverride(postId, finalLikesCount, finalDislikesCount);
+    const updated = optimisticList.map(p =>
+      p.postId === postId
+        ? { ...p, likesCount: finalLikesCount, dislikesCount: finalDislikesCount }
+        : sanitizePostCounts(p)
+    );
+    saveLocalPosts(updated);
+    memoryPostsCache = updated;
+
+    await Promise.all([
+      this.persistUserReactionsToCloud(uid),
+      this.saveCloudReactionCounts(postId, finalLikesCount, finalDislikesCount)
+    ]);
+
+    return { liked: nextLiked, likesCount: finalLikesCount, dislikesCount: finalDislikesCount };
   },
 
   // Toggle Dislike on a post (YouTube Thumbs Down)
-  async toggleDislike(postId: string, uid: string): Promise<{ disliked: boolean }> {
+  async toggleDislike(postId: string, uid: string): Promise<{ disliked: boolean; likesCount: number; dislikesCount: number }> {
     const dislikedSet = getLocalDislikedPosts(uid);
     const likedSet = getLocalLikedPosts(uid);
     const isCurrentlyDisliked = dislikedSet.has(postId);
+    const wasLiked = likedSet.has(postId);
     const nextDisliked = !isCurrentlyDisliked;
 
     if (nextDisliked) {
       dislikedSet.add(postId);
-      if (likedSet.has(postId)) {
+      if (wasLiked) {
         likedSet.delete(postId);
       }
     } else {
@@ -865,31 +1175,84 @@ export const postService = {
 
     saveLocalDislikedPosts(uid, dislikedSet);
     saveLocalLikedPosts(uid, likedSet);
+    setUserReactionsDirty(uid, true);
 
-    const local = getLocalPosts();
-    const updated = local.map(p => {
-      if (p.postId === postId) {
-        return {
-          ...p,
-          dislikesCount: Math.max(0, p.dislikesCount + (nextDisliked ? 1 : -1)),
-          likesCount: nextDisliked && likedSet.has(postId) ? Math.max(0, p.likesCount - 1) : p.likesCount
-        };
-      }
-      return p;
-    });
-    saveLocalPosts(updated);
-    memoryPostsCache = updated;
+    const baseList = memoryPostsCache && memoryPostsCache.length > 0 ? memoryPostsCache : getLocalPosts();
+    const knownPost = baseList.find(p => p.postId === postId) || DEFAULT_COMMUNITY_POSTS.find(p => p.postId === postId);
+
+    const baseLikes = Math.max(0, Number(knownPost?.likesCount) || 0);
+    const baseDislikes = Math.max(0, Number(knownPost?.dislikesCount) || 0);
+    let finalDislikesCount = Math.max(0, baseDislikes + (nextDisliked ? 1 : -1));
+    let finalLikesCount = (nextDisliked && wasLiked) ? Math.max(0, baseLikes - 1) : baseLikes;
+
+    saveLocalCountOverride(postId, finalLikesCount, finalDislikesCount);
+    const optimisticList = baseList.some(p => p.postId === postId)
+      ? baseList.map(p =>
+          p.postId === postId
+            ? { ...p, likesCount: finalLikesCount, dislikesCount: finalDislikesCount }
+            : sanitizePostCounts(p)
+        )
+      : knownPost
+        ? [sanitizePostCounts({ ...knownPost, likesCount: finalLikesCount, dislikesCount: finalDislikesCount }), ...baseList]
+        : baseList;
+    saveLocalPosts(optimisticList);
+    memoryPostsCache = optimisticList;
 
     try {
       const postRef = doc(db, 'posts', postId);
-      await updateDoc(postRef, {
-        dislikesCount: increment(nextDisliked ? 1 : -1)
+      const txResult = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(postRef);
+        if (!snap.exists()) {
+          if (!knownPost) return null;
+          tx.set(postRef, {
+            ...sanitizePostCounts(knownPost),
+            likesCount: finalLikesCount,
+            dislikesCount: finalDislikesCount,
+            updatedAt: new Date().toISOString()
+          });
+          return { likesCount: finalLikesCount, dislikesCount: finalDislikesCount };
+        }
+        const data = snap.data();
+        const currLikes = Math.max(0, Number(data?.likesCount) || 0);
+        const currDislikes = Math.max(0, Number(data?.dislikesCount) || 0);
+        const nextDislikes = Math.max(0, currDislikes + (nextDisliked ? 1 : -1));
+        const nextLikes = (nextDisliked && wasLiked) ? Math.max(0, currLikes - 1) : currLikes;
+        tx.update(postRef, {
+          likesCount: nextLikes,
+          dislikesCount: nextDislikes,
+          updatedAt: new Date().toISOString()
+        });
+        return { likesCount: nextLikes, dislikesCount: nextDislikes };
       });
+      if (txResult) {
+        finalLikesCount = txResult.likesCount;
+        finalDislikesCount = txResult.dislikesCount;
+      }
     } catch (err) {
-      console.warn('Firestore dislike sync failed:', err);
+      console.warn('Firestore dislike transaction fallback:', err);
+      try {
+        await updateDoc(doc(db, 'posts', postId), {
+          likesCount: finalLikesCount,
+          dislikesCount: finalDislikesCount
+        });
+      } catch {}
     }
 
-    return { disliked: nextDisliked };
+    saveLocalCountOverride(postId, finalLikesCount, finalDislikesCount);
+    const updated = optimisticList.map(p =>
+      p.postId === postId
+        ? { ...p, likesCount: finalLikesCount, dislikesCount: finalDislikesCount }
+        : sanitizePostCounts(p)
+    );
+    saveLocalPosts(updated);
+    memoryPostsCache = updated;
+
+    await Promise.all([
+      this.persistUserReactionsToCloud(uid),
+      this.saveCloudReactionCounts(postId, finalLikesCount, finalDislikesCount)
+    ]);
+
+    return { disliked: nextDisliked, likesCount: finalLikesCount, dislikesCount: finalDislikesCount };
   },
 
   // Cast or change vote on a community poll

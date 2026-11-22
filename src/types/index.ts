@@ -34,6 +34,8 @@ export interface User {
   verificationRequestedAt?: string;
   verificationRequestId?: string;
   lastPasswordChangedAt?: string;
+  isOnline?: boolean;
+  lastSeen?: string;
 
   socialLinks?: {
     instagram?: string;
@@ -411,7 +413,12 @@ export interface ChatSession {
   displayName: string;
   username: string;
   photoURL?: string;
+  description?: string;
+  createdBy?: string;
+  adminIds?: string[];
   isVerified?: boolean;
+  isOnline?: boolean;
+  lastSeen?: string;
   isGroup?: boolean;
   isPocket?: boolean;
   participantIds?: string[];

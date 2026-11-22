@@ -278,16 +278,15 @@ export const videoService = {
     file: File, 
     onProgress?: (progress: number, stage?: string) => void
   ): Promise<{ videoUrl: string; duration?: number }> {
+    const MAX_VIDEO_SIZE_BYTES = 104857600; // 100MB
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      throw new Error('Please upload a video lower than 100MB.');
+    }
+
     try {
       const { cloudName, preset } = await getCloudinaryConfigAsync();
       
       if (cloudName && preset) {
-        // Cloudinary Free Account strictly limits video files to 100MB (104,857,600 bytes)
-        if (file.size > 104857600) {
-          const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-          throw new Error(`File size too large (${sizeMB}MB). Video files are limited to 100MB.`);
-        }
-
         console.log(`Starting high-speed video upload to Cloudinary (${cloudName}): ${file.name} (${file.size} bytes)`);
 
         // 25MB chunks for high-speed streaming with minimal HTTP roundtrips
@@ -301,7 +300,7 @@ export const videoService = {
       }
     } catch (cldErr: any) {
       console.warn('Cloudinary upload unavailable or failed, falling back to Firebase Storage:', cldErr);
-      if (cldErr.message?.includes('File size too large')) {
+      if (cldErr.message?.includes('100MB') || cldErr.message?.includes('File size too large')) {
         throw cldErr;
       }
     }

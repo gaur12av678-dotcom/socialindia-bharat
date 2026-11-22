@@ -1,8 +1,9 @@
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, limit, increment } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, limit, increment, onSnapshot } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, PrivateUserInfo, Subscription } from '../types';
 import { compressAvatar, compressBanner } from '../utils/imageUtils';
 import { parseDateMs } from '../utils/videoUtils';
+import { isOfficialSocialIndiaAccount } from '../utils/userUtils';
 
 // Ultra-fast in-memory and session caches for YouTube-like instant profile & subscriber rendering
 const userProfileMemoryCache = new Map<string, { data: User; timestamp: number }>();
@@ -223,7 +224,8 @@ export const userService = {
         const docRef = doc(db, 'users', uid);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
-          const freshData = snap.data() as User;
+          const raw = snap.data() as User;
+          const freshData = { ...raw, uid: raw.uid || snap.id };
           saveToLocalUserCache(freshData);
           return freshData;
         }
@@ -399,6 +401,48 @@ export const userService = {
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
     }
+  },
+
+  async updatePresence(uid: string, isOnline: boolean): Promise<void> {
+    if (!uid) return;
+    const cached = getFromLocalUserCache(uid);
+    if (isOfficialSocialIndiaAccount({ uid, username: cached?.username })) {
+      return;
+    }
+    const now = new Date().toISOString();
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        isOnline,
+        lastSeen: now,
+        updatedAt: now
+      });
+      saveToLocalUserCache({ uid, isOnline, lastSeen: now });
+    } catch (err) {
+      console.warn('Presence update skipped:', err);
+    }
+  },
+
+  subscribeToUserPresence(
+    uid: string,
+    callback: (presence: { isOnline?: boolean; lastSeen?: string }) => void
+  ): () => void {
+    if (!uid) return () => {};
+    return onSnapshot(
+      doc(db, 'users', uid),
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data() as Partial<User>;
+        const lastSeen = typeof (data.lastSeen as any)?.toDate === 'function'
+          ? (data.lastSeen as any).toDate().toISOString()
+          : (data.lastSeen || undefined);
+        const isOnline = typeof data.isOnline === 'boolean' ? data.isOnline : undefined;
+        saveToLocalUserCache({ uid, ...data, isOnline, lastSeen });
+        callback({ isOnline, lastSeen });
+      },
+      (err) => {
+        console.warn(`Presence subscription error for ${uid}:`, err);
+      }
+    );
   },
 
   // Increment video count
@@ -598,7 +642,10 @@ export const userService = {
     const q = query(collection(db, 'users'));
     try {
       const snap = await getDocs(q);
-      const allUsers = snap.docs.map(d => d.data() as User);
+      const allUsers = snap.docs.map(d => {
+        const data = d.data() as User;
+        return { ...data, uid: data.uid || d.id };
+      });
       const matches = allUsers.filter(u => {
         const uName = (u.username || '').toLowerCase();
         const dName = (u.displayName || '').toLowerCase();

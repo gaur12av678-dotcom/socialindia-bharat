@@ -189,6 +189,7 @@ export const CreatorStudio: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStageText, setUploadStageText] = useState('');
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
@@ -443,6 +444,7 @@ export const CreatorStudio: React.FC = () => {
       return;
     }
 
+    setPublishError(null);
     setSelectedVideoFile(file);
     setVideoFileName(file.name);
 
@@ -513,14 +515,26 @@ export const CreatorStudio: React.FC = () => {
     if (currentStep !== 4) return;
     if (!currentUser || !currentUserProfile) return;
 
+    setPublishError(null);
     if (!title.trim() || title.length < 3 || title.length > 100) {
-      addToast('Title must be between 3 and 100 characters.', 'error');
+      const msg = isHindi ? 'शीर्षक 3 से 100 अक्षरों के बीच होना चाहिए।' : 'Title must be between 3 and 100 characters.';
+      setPublishError(msg);
+      addToast(msg, 'error');
       return;
     }
 
     // Validation: Require either an existing video URL or a newly selected video file
     if (!videoUrl && !selectedVideoFile) {
-      addToast('Please select a video file from your device first.', 'error');
+      const msg = isHindi ? 'कृपया पहले अपनी डिवाइस से एक वीडियो फ़ाइल चुनें।' : 'Please select a video file from your device first.';
+      setPublishError(msg);
+      addToast(msg, 'error');
+      return;
+    }
+
+    if (selectedVideoFile && selectedVideoFile.size > 104857600) {
+      const msg = isHindi ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।' : 'Please upload a video lower than 100MB.';
+      setPublishError(msg);
+      addToast(msg, 'error');
       return;
     }
 
@@ -632,9 +646,13 @@ export const CreatorStudio: React.FC = () => {
     } catch (err: any) {
       console.error('Publish error:', err);
       if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
-        addToast('Cloud Storage is not configured yet. Please contact the platform Admin to setup storage in Admin Panel.', 'error');
+        const msg = 'Cloud Storage is not configured yet. Please contact the platform Admin to setup storage in Admin Panel.';
+        setPublishError(msg);
+        addToast(msg, 'error');
       } else {
-        addToast(err.message || 'Failed to upload and publish video.', 'error');
+        const msg = err.message || 'Failed to upload and publish video.';
+        setPublishError(msg);
+        addToast(msg, 'error');
       }
     } finally {
       setIsPublishing(false);
@@ -717,6 +735,7 @@ export const CreatorStudio: React.FC = () => {
     setIsPublishing(false);
     setUploadProgress(0);
     setUploadStageText('');
+    setPublishError(null);
   };
 
   // Auto-open upload modal when navigating from header/homepage upload buttons or sound usage
@@ -2928,6 +2947,26 @@ export const CreatorStudio: React.FC = () => {
                 )}
 
               </div>
+
+              {publishError && (
+                <div
+                  role="alert"
+                  className="mx-6 mb-3 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center justify-between gap-2 shrink-0"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                    <span>{publishError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPublishError(null)}
+                    className="p-1 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/40 cursor-pointer shrink-0"
+                    aria-label="Dismiss error"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
               {/* Bottom Navigation Footer Bar (Back, Next, Publish) */}
               <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#111827] flex items-center justify-between gap-3 shrink-0">

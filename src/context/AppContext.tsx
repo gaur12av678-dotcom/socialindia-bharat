@@ -9,6 +9,7 @@ import { translations, LanguageCode, Translations } from '../i18n/translations';
 
 import { accountService } from '../services/accountService';
 import { SwitchAccountModal } from '../components/SwitchAccountModal';
+import { isOfficialSocialIndiaAccount } from '../utils/userUtils';
 
 export interface Toast {
   id: string;
@@ -235,10 +236,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (uid) {
       let profile = await userService.getUserProfile(uid, true);
       if (profile && authService.getCurrentUserUid() === uid) {
-        setCurrentUserProfile(profile);
+        const enrichedProfile = {
+          ...profile,
+          emailVerified: Boolean(profile.emailVerified || auth.currentUser?.emailVerified)
+        };
+        setCurrentUserProfile(enrichedProfile);
         try {
-          cacheProfile(profile);
-          accountService.syncCurrentProfile(profile);
+          cacheProfile(enrichedProfile);
+          accountService.syncCurrentProfile(enrichedProfile);
         } catch {}
       }
     } else if (!authService.getCurrentUserUid()) {
@@ -289,6 +294,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const logout = useCallback(async () => {
     setLoading(true);
+    const uid = authService.getCurrentUserUid();
+    if (uid) {
+      await userService.updatePresence(uid, false).catch(() => {});
+    }
     try {
       await authService.logout();
     } catch (e) {
@@ -378,9 +387,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             profile = await userService.recoverOrCreateProfile(user);
           }
           if (profile && isCurrentRequest()) {
-            setCurrentUserProfile(profile);
-            cacheProfile(profile);
-            accountService.syncCurrentProfile(profile);
+            const enrichedProfile = {
+              ...profile,
+              emailVerified: Boolean(profile.emailVerified || user.emailVerified)
+            };
+            setCurrentUserProfile(enrichedProfile);
+            cacheProfile(enrichedProfile);
+            accountService.syncCurrentProfile(enrichedProfile);
             userService.ensureDefaultSubscription(user.uid).catch(() => {});
           }
         } catch (err) {
@@ -454,6 +467,66 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       systemThemeMediaQuery.removeEventListener('change', handleSystemThemeChange);
     };
   }, [applyTheme]);
+
+  // Real-time online / offline presence tracking for Chat
+  const isOfficialAccount = isOfficialSocialIndiaAccount({
+    uid: currentUser?.uid,
+    username: currentUserProfile?.username
+  });
+  useEffect(() => {
+    const uid = currentUser?.uid;
+    if (!uid || isOfficialAccount) return;
+
+    const markOnline = () => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        userService.updatePresence(uid, false).catch(() => {});
+        return;
+      }
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      userService.updatePresence(uid, true).catch(() => {});
+    };
+
+    const markOffline = () => {
+      userService.updatePresence(uid, false).catch(() => {});
+    };
+
+    markOnline();
+    const heartbeat = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        userService.updatePresence(uid, true).catch(() => {});
+      }
+    }, 45_000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        markOnline();
+      } else {
+        markOffline();
+      }
+    };
+
+    window.addEventListener('online', markOnline);
+    window.addEventListener('offline', markOffline);
+    window.addEventListener('focus', markOnline);
+    window.addEventListener('pagehide', markOffline);
+    window.addEventListener('beforeunload', markOffline);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(heartbeat);
+      window.removeEventListener('online', markOnline);
+      window.removeEventListener('offline', markOffline);
+      window.removeEventListener('focus', markOnline);
+      window.removeEventListener('pagehide', markOffline);
+      window.removeEventListener('beforeunload', markOffline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (authService.getCurrentUserUid() === uid) {
+        markOffline();
+      }
+    };
+  }, [currentUser?.uid, isOfficialAccount]);
 
   return (
     <AppContext.Provider

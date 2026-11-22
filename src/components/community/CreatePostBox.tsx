@@ -134,11 +134,10 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
     }
 
     if (file.size > 104857600) {
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
       setStatusMsg({
         text: isHindi
-          ? `वीडियो का आकार (${sizeMB}MB) 100MB की सीमा से अधिक है।`
-          : `Video size (${sizeMB}MB) exceeds the 100MB limit for quick feed posts.`,
+          ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।'
+          : 'Please upload a video lower than 100MB.',
         type: 'error'
       });
       return;
@@ -170,6 +169,16 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (isPosting) return;
+
+    if (selectedVideoFile && selectedVideoFile.size > 104857600) {
+      setStatusMsg({
+        text: isHindi
+          ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।'
+          : 'Please upload a video lower than 100MB.',
+        type: 'error'
+      });
+      return;
+    }
 
     const trimmedBase = content.trim();
     const feelingPrefix = selectedFeeling ? `${selectedFeeling} ` : '';

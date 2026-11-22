@@ -34,6 +34,7 @@ import { useTranslation } from '../i18n';
 import { EmojiPicker } from '../components/chat/EmojiPicker';
 import { EmojiText } from '../components/EmojiGraphic';
 import { UserAvatar } from '../components/UserAvatar';
+import { formatWhatsAppPresence, isOfficialSocialIndiaAccount, isUserCurrentlyOnline } from '../utils/userUtils';
 
 export const ChatPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -58,8 +59,13 @@ export const ChatPage: React.FC = () => {
   const [groupName, setGroupName] = useState('');
   const [groupSearch, setGroupSearch] = useState('');
   const [groupResults, setGroupResults] = useState<User[]>([]);
+  const [suggestedGroupContacts, setSuggestedGroupContacts] = useState<User[]>([]);
+  const [loadingGroupContacts, setLoadingGroupContacts] = useState(false);
   const [selectedGroupMembers, setSelectedGroupMembers] = useState<User[]>([]);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [presenceMap, setPresenceMap] = useState<Record<string, { isOnline?: boolean; lastSeen?: string }>>({});
+  const [, setPresenceTick] = useState(0);
   
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,6 +118,49 @@ export const ChatPage: React.FC = () => {
 
   useEffect(() => () => cancelMessageLongPress(), []);
 
+  // Load suggested contacts when Create Group modal opens
+  useEffect(() => {
+    if (!showCreateGroup) return;
+    setGroupError(null);
+    let active = true;
+    const fromSessions: User[] = sessions
+      .filter(s => !s.isGroup && !s.isPocket && s.userId && s.userId !== currentUser?.uid)
+      .map(s => ({
+        uid: s.userId,
+        username: s.username,
+        displayName: s.displayName,
+        photoURL: s.photoURL,
+        followersCount: 0,
+        followingCount: 0,
+        videosCount: 0,
+        role: 'user',
+        status: 'active',
+        createdAt: '',
+        updatedAt: ''
+      }));
+    setSuggestedGroupContacts(fromSessions);
+    setLoadingGroupContacts(true);
+    userService.getAllUsers()
+      .then(all => {
+        if (!active) return;
+        const map = new Map<string, User>();
+        fromSessions.forEach(u => map.set(u.uid, u));
+        all.forEach(u => {
+          if (u.uid && u.uid !== currentUser?.uid && !map.has(u.uid)) {
+            map.set(u.uid, u);
+          }
+        });
+        setSuggestedGroupContacts(Array.from(map.values()).slice(0, 25));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setLoadingGroupContacts(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [showCreateGroup, sessions, currentUser?.uid]);
+
   useEffect(() => {
     if (!showCreateGroup || groupSearch.trim().length < 2) {
       setGroupResults([]);
@@ -120,11 +169,51 @@ export const ChatPage: React.FC = () => {
 
     const timer = window.setTimeout(() => {
       userService.searchUsers(groupSearch).then(results => {
-        setGroupResults(results.filter(user => user.uid !== currentUser?.uid));
+        setGroupResults(results.filter(user => user.uid && user.uid !== currentUser?.uid));
       });
     }, 250);
     return () => window.clearTimeout(timer);
   }, [showCreateGroup, groupSearch, currentUser?.uid]);
+
+  // Real-time WhatsApp-style presence subscriptions for selected user & DM contact list
+  useEffect(() => {
+    if (!currentUser) return;
+    const dmUserIds = new Set<string>();
+    if (
+      selectedUserId &&
+      !selectedUser?.isGroup &&
+      !selectedUser?.isPocket &&
+      !isOfficialSocialIndiaAccount(selectedUser || { uid: selectedUserId })
+    ) {
+      dmUserIds.add(selectedUserId);
+    }
+    sessions.forEach(s => {
+      if (
+        !s.isGroup &&
+        !s.isPocket &&
+        s.userId &&
+        !isOfficialSocialIndiaAccount(s) &&
+        dmUserIds.size < 30
+      ) {
+        dmUserIds.add(s.userId);
+      }
+    });
+
+    const unsubs = Array.from(dmUserIds).map(uid =>
+      userService.subscribeToUserPresence(uid, presence => {
+        setPresenceMap(prev => ({ ...prev, [uid]: presence }));
+      })
+    );
+
+    const refreshTicker = window.setInterval(() => {
+      setPresenceTick(v => v + 1);
+    }, 30_000);
+
+    return () => {
+      unsubs.forEach(unsub => unsub());
+      window.clearInterval(refreshTicker);
+    };
+  }, [currentUser?.uid, selectedUserId, selectedUser?.isGroup, selectedUser?.isPocket, sessions]);
 
   // Voice recording toggle handler
   const toggleVoiceRecording = () => {
@@ -281,12 +370,29 @@ export const ChatPage: React.FC = () => {
     }
 
     const uid = currentUser.uid;
+    const deduplicateMessages = (list: ChatMessage[]): ChatMessage[] => {
+      const seenIds = new Set<string>();
+      const seenTempIds = new Set<string>();
+      const result: ChatMessage[] = [];
+      for (const msg of list) {
+        if (!msg?.id || seenIds.has(msg.id)) continue;
+        if (msg.clientTempId && seenTempIds.has(msg.clientTempId)) continue;
+        seenIds.add(msg.id);
+        if (msg.clientTempId) seenTempIds.add(msg.clientTempId);
+        result.push(msg);
+      }
+      return result;
+    };
+
     const mergeIncomingWithPending = (incomingMsgs: ChatMessage[], persistCache: boolean) => {
       setMessages(prev => {
         const pending = prev.filter(m => {
           if (!pendingSendTempIdsRef.current.has(m.id)) return false;
           const alreadyInIncoming = incomingMsgs.some(
-            inc => inc.id === m.id || inc.clientTempId === m.id
+            inc =>
+              inc.id === m.id ||
+              inc.clientTempId === m.id ||
+              (m.clientTempId && inc.clientTempId === m.clientTempId)
           );
           if (alreadyInIncoming) {
             pendingSendTempIdsRef.current.delete(m.id);
@@ -294,7 +400,7 @@ export const ChatPage: React.FC = () => {
           }
           return true;
         });
-        const merged = [...incomingMsgs, ...pending];
+        const merged = deduplicateMessages([...incomingMsgs, ...pending]);
         if (persistCache) {
           chatService.setCachedMessages(uid, selectedUserId, merged);
         }
@@ -484,13 +590,14 @@ export const ChatPage: React.FC = () => {
     handleClearMedia(false);
 
     // Instant optimistic message rendering
-    const tempId = `temp_${Date.now()}`;
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     pendingSendTempIdsRef.current.add(tempId);
     const reply = replyTo
       ? { messageId: replyTo.id, senderId: replyTo.senderId, text: replyTo.text, mediaType: replyTo.mediaType }
       : undefined;
     const optimisticMessage: ChatMessage = {
       id: tempId,
+      clientTempId: tempId,
       senderId: currentUser.uid,
       receiverId: selectedUser?.isPocket ? currentUser.uid : selectedUserId,
       groupId: selectedUser?.isGroup ? selectedUserId : undefined,
@@ -563,7 +670,8 @@ export const ChatPage: React.FC = () => {
             content,
             finalMediaUrl,
             finalMediaType,
-            reply
+            reply,
+            tempId
           )
           : await chatService.sendMessage(
             currentUser.uid,
@@ -571,14 +679,19 @@ export const ChatPage: React.FC = () => {
             content,
             finalMediaUrl,
             finalMediaType,
-            reply
+            reply,
+            tempId
           );
 
       pendingSendTempIdsRef.current.delete(tempId);
       setMessages(prev => {
         const alreadySynced = Boolean(
           sentMessageId &&
-          prev.some(message => message.id === sentMessageId || message.clientTempId === tempId)
+          prev.some(
+            message =>
+              message.id === sentMessageId ||
+              (message.id !== tempId && message.clientTempId === tempId)
+          )
         );
         const updated = alreadySynced
           ? prev.filter(message => message.id !== tempId)
@@ -644,7 +757,16 @@ export const ChatPage: React.FC = () => {
   };
 
   const handleCreateGroup = async () => {
-    if (!currentUser || !groupName.trim() || selectedGroupMembers.length === 0) return;
+    if (!currentUser) return;
+    if (!groupName.trim()) {
+      setGroupError(isHindi ? 'कृपया ग्रुप का नाम लिखें।' : 'Please enter a group name.');
+      return;
+    }
+    if (selectedGroupMembers.length === 0) {
+      setGroupError(isHindi ? 'कृपया कम से कम 1 सदस्य चुनें।' : 'Please select at least 1 member to add.');
+      return;
+    }
+    setGroupError(null);
     setIsCreatingGroup(true);
     try {
       const group = await chatService.createGroup(
@@ -662,17 +784,22 @@ export const ChatPage: React.FC = () => {
       setGroupName('');
       setGroupSearch('');
       setSelectedGroupMembers([]);
+      setGroupError(null);
       setShowCreateGroup(false);
       addToast(isHindi ? 'ग्रुप बन गया।' : 'Group created.', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create group chat:', error);
-      addToast(isHindi ? 'ग्रुप नहीं बन सका। फिर से कोशिश करें।' : 'Could not create the group. Please try again.', 'error');
+      const msg = error?.message || (isHindi ? 'ग्रुप नहीं बन सका। फिर से कोशिश करें।' : 'Could not create the group. Please try again.');
+      setGroupError(msg);
+      addToast(msg, 'error');
     } finally {
       setIsCreatingGroup(false);
     }
   };
 
   const toggleGroupMember = (member: User) => {
+    if (!member?.uid) return;
+    setGroupError(null);
     setSelectedGroupMembers(previous => previous.some(item => item.uid === member.uid)
       ? previous.filter(item => item.uid !== member.uid)
       : [...previous, member]);
@@ -919,6 +1046,13 @@ export const ChatPage: React.FC = () => {
                   key={s.userId}
                   onClick={() => {
                     if (route.param) lastAppliedRouteParamRef.current = route.param;
+                    if (selectedUserId !== s.userId) {
+                      setMessages([]);
+                      setLoadingMessages(true);
+                      setReplyTo(null);
+                      setEditingMessageId(null);
+                      setMessageActionId(null);
+                    }
                     setSelectedUserId(s.userId);
                     setSelectedUser(s);
                   }}
@@ -938,16 +1072,31 @@ export const ChatPage: React.FC = () => {
                         {s.isPocket ? <HardDrive className="h-5 w-5" /> : <UsersRound className="h-5 w-5" />}
                       </div>
                     ) : (
-                      <UserAvatar
-                        uid={s.userId}
-                        fallbackPhotoURL={s.photoURL}
-                        fallbackDisplayName={s.displayName || s.username}
-                        size="sm"
-                        className="w-11 h-11"
-                      />
+                      <>
+                        <UserAvatar
+                          key={s.userId}
+                          uid={s.userId}
+                          fallbackPhotoURL={s.photoURL}
+                          fallbackDisplayName={s.displayName || s.username}
+                          size="sm"
+                          className="w-11 h-11"
+                        />
+                        {!isOfficialSocialIndiaAccount(s) && (() => {
+                          const p = presenceMap[s.userId];
+                          const online = isUserCurrentlyOnline(p?.isOnline ?? s.isOnline, p?.lastSeen ?? s.lastSeen);
+                          return (
+                            <span
+                              title={online ? (isHindi ? 'ऑनलाइन' : 'Online') : (isHindi ? 'ऑफलाइन' : 'Offline')}
+                              className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-[#0f0f0f] ${
+                                online ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'
+                              }`}
+                            />
+                          );
+                        })()}
+                      </>
                     )}
                     {s.unreadCount > 0 && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-blue-600 border border-white dark:border-[#0f0f0f] rounded-full flex items-center justify-center text-[8px] text-white font-black">
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-blue-600 border border-white dark:border-[#0f0f0f] rounded-full flex items-center justify-center text-[8px] text-white font-black">
                         {s.unreadCount}
                       </span>
                     )}
@@ -1003,13 +1152,30 @@ export const ChatPage: React.FC = () => {
                     {selectedUser.isPocket ? <HardDrive className="h-4 w-4" /> : <UsersRound className="h-4 w-4" />}
                   </div>
                 ) : (
-                  <UserAvatar
-                    uid={selectedUser.userId}
-                    fallbackPhotoURL={selectedUser.photoURL}
-                    fallbackDisplayName={selectedUser.displayName || selectedUser.username}
-                    size="sm"
-                    className="w-9 h-9"
-                  />
+                  <div className="relative shrink-0">
+                    <UserAvatar
+                      key={selectedUser.userId}
+                      uid={selectedUser.userId}
+                      fallbackPhotoURL={selectedUser.photoURL}
+                      fallbackDisplayName={selectedUser.displayName || selectedUser.username}
+                      size="sm"
+                      className="w-9 h-9"
+                    />
+                    {!isOfficialSocialIndiaAccount(selectedUser) && (() => {
+                      const p = presenceMap[selectedUser.userId];
+                      const online = isUserCurrentlyOnline(
+                        p?.isOnline ?? selectedUser.isOnline,
+                        p?.lastSeen ?? selectedUser.lastSeen
+                      );
+                      return (
+                        <span
+                          className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-[#0f0f0f] ${
+                            online ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'
+                          }`}
+                        />
+                      );
+                    })()}
+                  </div>
                 )}
 
                 <div className="min-w-0">
@@ -1021,13 +1187,36 @@ export const ChatPage: React.FC = () => {
                       </span>
                     )}
                   </p>
-                  <p className="text-[10px] text-slate-500 truncate">
-                    {selectedUser.isPocket
-                      ? (isHindi ? 'आपकी निजी जगह' : 'Only you can see these messages')
-                      : selectedUser.isGroup
-                        ? `${selectedUser.participantIds?.length || 0} ${isHindi ? 'सदस्य' : 'members'}`
-                        : `@${selectedUser.username}`}
-                  </p>
+                  {selectedUser.isPocket ? (
+                    <p className="text-[10px] text-slate-500 truncate">
+                      {isHindi ? 'आपकी निजी जगह' : 'Only you can see these messages'}
+                    </p>
+                  ) : selectedUser.isGroup ? (
+                    <p className="text-[10px] text-slate-500 truncate">
+                      {`${selectedUser.participantIds?.length || 0} ${isHindi ? 'सदस्य' : 'members'}`}
+                    </p>
+                  ) : isOfficialSocialIndiaAccount(selectedUser) ? (
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate font-semibold">
+                      @{selectedUser.username || 'socialindia'}
+                    </p>
+                  ) : (() => {
+                    const p = presenceMap[selectedUser.userId];
+                    const status = formatWhatsAppPresence(
+                      p?.isOnline ?? selectedUser.isOnline,
+                      p?.lastSeen ?? selectedUser.lastSeen,
+                      isHindi
+                    );
+                    return (
+                      <p className={`text-[10px] truncate flex items-center gap-1.5 font-semibold ${
+                        status.online ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'
+                      }`}>
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${
+                          status.online ? 'bg-emerald-500' : 'bg-slate-400'
+                        }`} />
+                        <span className="truncate">{status.label}</span>
+                      </p>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1079,9 +1268,18 @@ export const ChatPage: React.FC = () => {
 
                       <div className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
                         <UserAvatar
+                          key={`${m.id}_${m.senderId}`}
                           uid={m.senderId}
-                          fallbackPhotoURL={isMine ? currentUserProfile?.photoURL : (selectedUser.isGroup ? undefined : selectedUser.photoURL)}
-                          fallbackDisplayName={isMine ? (currentUserProfile?.displayName || 'Me') : (m.senderDisplayName || selectedUser.displayName)}
+                          fallbackPhotoURL={
+                            isMine
+                              ? currentUserProfile?.photoURL
+                              : (!selectedUser.isGroup && m.senderId === selectedUser.userId ? selectedUser.photoURL : undefined)
+                          }
+                          fallbackDisplayName={
+                            isMine
+                              ? (currentUserProfile?.displayName || 'Me')
+                              : (m.senderDisplayName || (m.senderId === selectedUser.userId ? selectedUser.displayName : 'User'))
+                          }
                           size="xs"
                           className={`w-7 h-7 ${isMine ? 'order-2' : 'order-1'}`}
                         />
@@ -1437,9 +1635,20 @@ export const ChatPage: React.FC = () => {
               </button>
             </header>
             <div className="space-y-3 overflow-y-auto p-4">
+              {groupError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                >
+                  {groupError}
+                </div>
+              )}
               <input
                 value={groupName}
-                onChange={event => setGroupName(event.target.value)}
+                onChange={event => {
+                  setGroupName(event.target.value);
+                  if (groupError) setGroupError(null);
+                }}
                 maxLength={80}
                 placeholder={isHindi ? 'ग्रुप का नाम' : 'Group name'}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-semibold outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-[#0f1216] dark:text-white"
@@ -1466,55 +1675,77 @@ export const ChatPage: React.FC = () => {
                 </div>
               )}
               <div className="max-h-56 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-100 dark:divide-slate-800 dark:border-slate-800">
-                {groupSearch.trim().length < 2 ? (
-                  <p className="p-4 text-center text-[11px] text-slate-500">
-                    {isHindi ? 'खोजने के लिए कम से कम 2 अक्षर लिखें।' : 'Type at least 2 characters to search.'}
-                  </p>
-                ) : groupResults.length === 0 ? (
-                  <p className="p-4 text-center text-[11px] text-slate-500">
-                    {isHindi ? 'कोई यूज़र नहीं मिला।' : 'No people found.'}
-                  </p>
-                ) : groupResults.map(member => {
-                  const isSelected = selectedGroupMembers.some(item => item.uid === member.uid);
-                  return (
-                    <button
-                      key={member.uid}
-                      type="button"
-                      onClick={() => toggleGroupMember(member)}
-                      className="flex w-full items-center gap-3 p-3 text-left hover:bg-slate-50 dark:hover:bg-white/5"
-                    >
-                      <UserAvatar
-                        uid={member.uid}
-                        fallbackPhotoURL={member.photoURL}
-                        fallbackDisplayName={member.displayName || member.username}
-                        size="xs"
-                        className="h-8 w-8"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-xs font-bold text-slate-900 dark:text-white">{member.displayName || member.username}</span>
-                        <span className="block truncate text-[10px] text-slate-500">@{member.username}</span>
-                      </span>
-                      <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-black ${isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 text-transparent dark:border-slate-600'}`}>
-                        ✓
-                      </span>
-                    </button>
-                  );
-                })}
+                {(() => {
+                  const trimmedQuery = groupSearch.trim().toLowerCase().replace(/^@/, '');
+                  const listToShow = trimmedQuery.length >= 2
+                    ? groupResults
+                    : trimmedQuery.length === 1
+                      ? suggestedGroupContacts.filter(u =>
+                          (u.displayName || '').toLowerCase().includes(trimmedQuery) ||
+                          (u.username || '').toLowerCase().includes(trimmedQuery)
+                        )
+                      : suggestedGroupContacts;
+
+                  if (loadingGroupContacts && listToShow.length === 0) {
+                    return (
+                      <p className="p-4 text-center text-[11px] text-slate-500">
+                        {isHindi ? 'सदस्य लोड हो रहे हैं...' : 'Loading people...'}
+                      </p>
+                    );
+                  }
+                  if (listToShow.length === 0) {
+                    return (
+                      <p className="p-4 text-center text-[11px] text-slate-500">
+                        {isHindi ? 'कोई यूज़र नहीं मिला।' : 'No people found.'}
+                      </p>
+                    );
+                  }
+                  return listToShow.map(member => {
+                    const isSelected = selectedGroupMembers.some(item => item.uid === member.uid);
+                    return (
+                      <button
+                        key={member.uid}
+                        type="button"
+                        onClick={() => toggleGroupMember(member)}
+                        className="flex w-full items-center gap-3 p-3 text-left hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer"
+                      >
+                        <UserAvatar
+                          key={member.uid}
+                          uid={member.uid}
+                          fallbackPhotoURL={member.photoURL}
+                          fallbackDisplayName={member.displayName || member.username}
+                          size="xs"
+                          className="h-8 w-8"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-bold text-slate-900 dark:text-white">{member.displayName || member.username}</span>
+                          <span className="block truncate text-[10px] text-slate-500">@{member.username}</span>
+                        </span>
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-black ${isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 text-transparent dark:border-slate-600'}`}>
+                          ✓
+                        </span>
+                      </button>
+                    );
+                  });
+                })()}
               </div>
             </div>
             <footer className="flex justify-end gap-2 border-t border-slate-100 p-4 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setShowCreateGroup(false)}
-                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+                onClick={() => {
+                  setGroupError(null);
+                  setShowCreateGroup(false);
+                }}
+                className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10 cursor-pointer"
               >
                 {isHindi ? 'रद्द करें' : 'Cancel'}
               </button>
               <button
                 type="button"
                 onClick={() => void handleCreateGroup()}
-                disabled={!groupName.trim() || selectedGroupMembers.length === 0 || isCreatingGroup}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isCreatingGroup}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
               >
                 {isCreatingGroup && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {isHindi ? 'ग्रुप बनाएं' : 'Create group'}
