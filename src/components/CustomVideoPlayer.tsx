@@ -796,6 +796,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
   const toggleMute = () => {
     const nextMuted = !isMuted;
+    const restoredVol = !nextMuted && volume === 0 ? 1 : volume;
+    if (!nextMuted && volume === 0) {
+      setVolume(1);
+    }
     setIsMuted(nextMuted);
 
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
@@ -803,9 +807,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         ytPlayerRef.current.mute();
       } else {
         ytPlayerRef.current.unMute();
+        ytPlayerRef.current.setVolume(restoredVol * 100);
       }
     } else if (videoRef.current) {
       videoRef.current.muted = nextMuted;
+      if (!nextMuted) {
+        videoRef.current.volume = restoredVol;
+      }
     }
   };
 
@@ -820,6 +828,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       else ytPlayerRef.current.unMute();
     } else if (videoRef.current) {
       videoRef.current.volume = newVol;
+      videoRef.current.muted = newVol === 0;
     }
   };
 
@@ -1702,16 +1711,6 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   <SkipForward className="w-4 h-4 fill-current text-white opacity-100" />
                 </button>
 
-                {/* Volume Button - Desktop */}
-                <div className="hidden sm:flex items-center group/vol">
-                  <button
-                    onClick={toggleMute}
-                    className="p-1.5 bg-black/65 hover:bg-black/90 rounded-lg transition-colors cursor-pointer text-white opacity-100 shadow-md"
-                  >
-                    {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-white opacity-100" /> : <Volume2 className="w-4 h-4 text-white opacity-100" />}
-                  </button>
-                </div>
-
                 {/* Timeline Time Display */}
                 {isLiveStream ? (
                   <button
@@ -1732,15 +1731,24 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     <span>LIVE</span>
                   </button>
                 ) : (
-                  <div className="text-[11px] font-bold tracking-wider text-slate-200">
+                  <div className="text-[11px] font-bold tracking-wider text-slate-200 whitespace-nowrap">
                     <span>{formatDuration(currentTime)}</span>
                     <span className="mx-1 text-slate-400">/</span>
                     <span className="text-slate-400">{formatDuration(duration)}</span>
                   </div>
                 )}
 
-                {/* Volume Slider - Desktop */}
-                <div className="hidden sm:flex items-center group/vol">
+                {/* Volume Button & Slider - Grouped on the right side of video duration */}
+                <div className="hidden sm:flex items-center gap-2 bg-black/55 hover:bg-black/80 px-2 py-1 rounded-lg transition-colors group/vol shadow-md">
+                  <button
+                    type="button"
+                    onClick={toggleMute}
+                    className="p-0.5 text-white opacity-100 cursor-pointer flex items-center justify-center shrink-0"
+                    title={isMuted || volume === 0 ? "Unmute (m)" : "Mute (m)"}
+                    aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}
+                  >
+                    {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-white opacity-100" /> : <Volume2 className="w-4 h-4 text-white opacity-100" />}
+                  </button>
                   <input
                     type="range"
                     min={0}
@@ -1748,8 +1756,15 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     step={0.05}
                     value={isMuted ? 0 : volume}
                     onChange={handleVolumeChange}
-                    className="w-14 sm:w-16 h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-white [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-0 [&::-webkit-slider-thumb]:h-0 [&::-moz-range-thumb]:w-0 [&::-moz-range-thumb]:h-0 [&::-moz-range-thumb]:border-0"
+                    aria-label="Volume"
+                    style={{
+                      background: `linear-gradient(to right, #3ea6ff 0%, #3ea6ff ${Math.round((isMuted ? 0 : volume) * 100)}%, rgba(255, 255, 255, 0.28) ${Math.round((isMuted ? 0 : volume) * 100)}%, rgba(255, 255, 255, 0.28) 100%)`
+                    }}
+                    className="w-20 h-1.5 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-[0_0_4px_rgba(0,0,0,0.8)] [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:transition-transform hover:[&::-webkit-slider-thumb]:scale-110 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:shadow-[0_0_4px_rgba(0,0,0,0.8)]"
                   />
+                  <span className="text-[10px] font-bold text-slate-200 tabular-nums min-w-[2.1rem] text-right select-none">
+                    {Math.round((isMuted ? 0 : volume) * 100)}%
+                  </span>
                 </div>
 
               </div>
