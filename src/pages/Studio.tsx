@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { videoService, getCloudinaryConfig, setCloudinaryConfig } from '../services/videoService';
 import { Video, SoundTrack, VideoPurchase } from '../types';
-import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, formatTimeAgo, captureFrameFromVideoFile } from '../utils/videoUtils';
+import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, formatTimeAgo, captureFrameFromVideoFile, parseDateMs } from '../utils/videoUtils';
 import { categoriesList } from './Home';
 import { soundService } from '../services/soundService';
 import { paidVideoService } from '../services/paidVideoService';
@@ -117,7 +117,7 @@ export const AshokaChakraLogo: React.FC<{ className?: string; size?: 'sm' | 'md'
 export const LionAnalyticsLogo = AshokaChakraLogo;
 
 export const CreatorStudio: React.FC = () => {
-  const { currentUser, currentUserProfile, addToast } = useApp();
+  const { currentUser, currentUserProfile, notifications, addToast } = useApp();
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
@@ -265,6 +265,133 @@ export const CreatorStudio: React.FC = () => {
 
     return () => unsubscribe();
   }, [currentUser, currentUserProfile?.followersCount]);
+
+  // Persist a 28-day baseline snapshot once real creator stats finish loading
+  const studioBaseline = useMemo(() => {
+    if (!currentUser || loading) return null;
+    const storageKey = `si_studio_growth_baseline_${currentUser.uid}`;
+    const WINDOW_MS = 28 * 86400000;
+    const now = Date.now();
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as {
+          savedAt: number;
+          videos: number;
+          views: number;
+          likes: number;
+          followers: number;
+        };
+        if (parsed && typeof parsed.savedAt === 'number' && now - parsed.savedAt < WINDOW_MS) {
+          return parsed;
+        }
+      }
+      const snapshot = {
+        savedAt: now,
+        videos: stats.totalVideos,
+        views: stats.totalViews,
+        likes: stats.totalLikes,
+        followers: stats.followers
+      };
+      localStorage.setItem(storageKey, JSON.stringify(snapshot));
+      return snapshot;
+    } catch {
+      return null;
+    }
+  }, [currentUser, loading, stats.totalVideos, stats.totalViews, stats.totalLikes, stats.followers]);
+
+  // Compute dynamic 28-day growth percentages for Dashboard cards & Recent Performance
+  const dashboardGrowth = useMemo(() => {
+    const WINDOW_MS = 28 * 86400000;
+    const now = Date.now();
+    const recentStart = now - WINDOW_MS;
+    const prevStart = now - 2 * WINDOW_MS;
+
+    const calcPct = (recent: number, previous: number, total: number, baselineVal?: number, recentActivityVal = 0): number => {
+      if (previous > 0) {
+        return Math.round(((recent - previous) / previous) * 100);
+      }
+      if (recent > 0) {
+        return 100;
+      }
+      if (typeof baselineVal === 'number' && total !== baselineVal) {
+        if (baselineVal > 0) {
+          return Math.round(((total - baselineVal) / baselineVal) * 100);
+        }
+        return total > 0 ? 100 : 0;
+      }
+      if (recentActivityVal > 0) {
+        return 100;
+      }
+      return 0;
+    };
+
+    let recentVideos = 0;
+    let prevVideos = 0;
+    let recentViews = 0;
+    let prevViews = 0;
+    let recentUpdatedViews = 0;
+    let recentLikes = 0;
+    let prevLikes = 0;
+    let recentUpdatedLikes = 0;
+
+    videos.forEach((v) => {
+      const createdMs = parseDateMs(v.createdAt);
+      const updatedMs = parseDateMs(v.updatedAt);
+      const vViews = v.viewsCount || 0;
+      const vLikes = v.likesCount || 0;
+
+      if (createdMs >= recentStart) {
+        recentVideos += 1;
+        recentViews += vViews;
+        recentLikes += vLikes;
+      } else if (createdMs >= prevStart && createdMs < recentStart) {
+        prevVideos += 1;
+        prevViews += vViews;
+        prevLikes += vLikes;
+      } else if (updatedMs >= recentStart) {
+        recentUpdatedViews += vViews;
+        recentUpdatedLikes += vLikes;
+      }
+    });
+
+    let recentFollows = 0;
+    let prevFollows = 0;
+    notifications.forEach((n) => {
+      if (n.type !== 'follow') return;
+      const nMs = parseDateMs(n.createdAt);
+      if (nMs >= recentStart) {
+        recentFollows += 1;
+      } else if (nMs >= prevStart && nMs < recentStart) {
+        prevFollows += 1;
+      }
+    });
+
+    const profileCreatedMs = parseDateMs(currentUserProfile?.createdAt);
+    const channelCreatedRecentlyWithFollowers =
+      recentFollows === 0 && prevFollows === 0 && stats.followers > 0 && profileCreatedMs >= recentStart
+        ? stats.followers
+        : 0;
+
+    const formatBadge = (pct: number) => {
+      if (pct > 0) {
+        return { text: `↑ ${pct}%`, colorClass: 'text-emerald-500' };
+      }
+      if (pct < 0) {
+        return { text: `↓ ${Math.abs(pct)}%`, colorClass: 'text-rose-500' };
+      }
+      return { text: '0%', colorClass: 'text-slate-400 dark:text-slate-500' };
+    };
+
+    return {
+      videos: formatBadge(calcPct(recentVideos, prevVideos, stats.totalVideos, studioBaseline?.videos)),
+      views: formatBadge(calcPct(recentViews, prevViews, stats.totalViews, studioBaseline?.views, recentUpdatedViews)),
+      likes: formatBadge(calcPct(recentLikes, prevLikes, stats.totalLikes, studioBaseline?.likes, recentUpdatedLikes)),
+      followers: formatBadge(
+        calcPct(recentFollows, prevFollows, stats.followers, studioBaseline?.followers, channelCreatedRecentlyWithFollowers)
+      )
+    };
+  }, [videos, notifications, stats, currentUserProfile?.createdAt, studioBaseline]);
 
   // Load Creator Video Purchases when viewing Earn Tab
   useEffect(() => {
@@ -932,7 +1059,7 @@ export const CreatorStudio: React.FC = () => {
                       <div className="w-10 h-10 rounded-full bg-blue-100/90 dark:bg-blue-950/70 text-[#2563eb] flex items-center justify-center">
                         <Play className="w-4 h-4 fill-[#2563eb]" />
                       </div>
-                      <span className="text-xs font-bold text-emerald-500 flex items-center">↑ 0%</span>
+                      <span className={`text-xs font-bold flex items-center ${dashboardGrowth.videos.colorClass}`}>{dashboardGrowth.videos.text}</span>
                     </div>
                     <div>
                       <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Videos</span>
@@ -949,7 +1076,7 @@ export const CreatorStudio: React.FC = () => {
                       <div className="w-10 h-10 rounded-full bg-purple-100/90 dark:bg-purple-950/70 text-[#7c3aed] flex items-center justify-center">
                         <Eye className="w-4 h-4" />
                       </div>
-                      <span className="text-xs font-bold text-emerald-500 flex items-center">↑ 0%</span>
+                      <span className={`text-xs font-bold flex items-center ${dashboardGrowth.views.colorClass}`}>{dashboardGrowth.views.text}</span>
                     </div>
                     <div>
                       <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Views</span>
@@ -966,7 +1093,7 @@ export const CreatorStudio: React.FC = () => {
                       <div className="w-10 h-10 rounded-full bg-rose-100/90 dark:bg-rose-950/70 text-rose-500 flex items-center justify-center">
                         <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
                       </div>
-                      <span className="text-xs font-bold text-emerald-500 flex items-center">↑ 0%</span>
+                      <span className={`text-xs font-bold flex items-center ${dashboardGrowth.likes.colorClass}`}>{dashboardGrowth.likes.text}</span>
                     </div>
                     <div>
                       <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Likes</span>
@@ -983,7 +1110,7 @@ export const CreatorStudio: React.FC = () => {
                       <div className="w-10 h-10 rounded-full bg-emerald-100/90 dark:bg-emerald-950/70 text-emerald-600 flex items-center justify-center">
                         <Users className="w-4 h-4" />
                       </div>
-                      <span className="text-xs font-bold text-emerald-500 flex items-center">↑ 0%</span>
+                      <span className={`text-xs font-bold flex items-center ${dashboardGrowth.followers.colorClass}`}>{dashboardGrowth.followers.text}</span>
                     </div>
                     <div>
                       <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 block">Followers</span>
@@ -1020,7 +1147,7 @@ export const CreatorStudio: React.FC = () => {
                         <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
                           {stats.totalViews || (videos[0]?.viewsCount || 4)}
                         </span>
-                        <span className="text-xs font-bold text-emerald-500">↑ 0%</span>
+                        <span className={`text-xs font-bold ${dashboardGrowth.views.colorClass}`}>{dashboardGrowth.views.text}</span>
                       </div>
 
                       {/* Area & Line SVG Chart */}
