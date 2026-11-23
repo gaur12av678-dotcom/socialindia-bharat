@@ -84,11 +84,21 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const ytPlayerRef = useRef<any>(null);
+  const isMountedRef = useRef<boolean>(true);
+  const isUserPausedRef = useRef<boolean>(false);
+  const hasStartedInitialAutoplayRef = useRef<boolean>(false);
 
   // Ambient Mode (Enhanced YouTube Ambient Light)
   const ambientVideoRef = useRef<HTMLVideoElement>(null);
   const ambientCanvasRef = useRef<HTMLCanvasElement>(null);
   const ytAmbientPlayerRef = useRef<any>(null);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const [isAmbientMode, setIsAmbientMode] = useState<boolean>(() => {
     try {
@@ -98,6 +108,12 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       return false;
     }
   });
+
+  useEffect(() => {
+    try {
+      window.dispatchEvent(new CustomEvent('socialindia:ambient-mode-change', { detail: { enabled: isAmbientMode } }));
+    } catch {}
+  }, [isAmbientMode]);
 
   const [ambientIntensity, setAmbientIntensity] = useState<'subtle' | 'balanced' | 'ultra'>(() => {
     try {
@@ -175,6 +191,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   // Reset the player UI immediately when navigating to a different video.
   // This prevents the previous video's ready/playing state leaking into the next one.
   useEffect(() => {
+    isUserPausedRef.current = false;
+    hasStartedInitialAutoplayRef.current = false;
     setIsMediaReady(false);
     setIsBuffering(true);
     setIsPlaying(false);
@@ -187,6 +205,30 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     hasAppliedSeekRef.current = false;
     setShowResumeBadge(false);
   }, [video.videoId, video.videoUrl]);
+
+  // Strict media cleanup on unmount or source change so audio never leaks in background
+  useEffect(() => {
+    return () => {
+      const vid = videoRef.current;
+      if (vid) {
+        try {
+          vid.pause();
+          vid.muted = true;
+          vid.removeAttribute('src');
+          vid.load();
+        } catch (_) {}
+      }
+      const amb = ambientVideoRef.current;
+      if (amb) {
+        try {
+          amb.pause();
+          amb.muted = true;
+          amb.removeAttribute('src');
+          amb.load();
+        } catch (_) {}
+      }
+    };
+  }, [video.videoId, parsedMedia.embedUrl]);
 
   // Dynamic Live Stream Status (auto-detects when stream ends on YouTube)
   const [isLiveStream, setIsLiveStream] = useState<boolean>(() =>
@@ -271,7 +313,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           saturate: 'saturate(150%)',
           opacity: isPlaying ? 0.6 : 0.35,
           scale: 'scale(1.08)',
-          spreadClass: '-inset-3 sm:-inset-5 md:-inset-8'
+          spreadClass: '-top-12 sm:-inset-5 md:-inset-8 md:-top-16'
         };
       case 'ultra':
         return {
@@ -288,10 +330,24 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           saturate: 'saturate(180%)',
           opacity: isPlaying ? 0.8 : 0.45,
           scale: 'scale(1.15)',
-          spreadClass: '-inset-5 sm:-inset-8 md:-inset-12'
+          spreadClass: '-inset-5 -top-12 sm:-inset-8 md:-inset-12 md:-top-16'
         };
     }
   }, [ambientIntensity, isPlaying]);
+
+  // Keep ambient video element paused unless both ambient mode and primary playback are active
+  useEffect(() => {
+    const amb = ambientVideoRef.current;
+    if (!amb) return;
+    if (isPlaying && isAmbientMode && !isUserPausedRef.current) {
+      if (videoRef.current) {
+        amb.currentTime = videoRef.current.currentTime;
+      }
+      amb.play().catch(() => {});
+    } else {
+      amb.pause();
+    }
+  }, [isPlaying, isAmbientMode]);
 
   // Handle external seekToTime request (e.g. description timestamp click)
   useEffect(() => {
@@ -300,20 +356,31 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         videoRef.current.currentTime = seekToTime;
         if (ambientVideoRef.current) {
           ambientVideoRef.current.currentTime = seekToTime;
-          ambientVideoRef.current.play().catch(() => {});
+          if (!isUserPausedRef.current && isAmbientMode) {
+            ambientVideoRef.current.play().catch(() => {});
+          }
         }
         setCurrentTime(seekToTime);
-        videoRef.current.play().catch(console.error);
-        setIsPlaying(true);
+        if (!isUserPausedRef.current) {
+          videoRef.current.play().then(() => {
+            if (!isMountedRef.current || isUserPausedRef.current) {
+              videoRef.current?.pause();
+              return;
+            }
+            setIsPlaying(true);
+          }).catch(console.error);
+        }
       } else if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
         try {
           ytPlayerRef.current.seekTo(seekToTime, true);
-          ytPlayerRef.current.playVideo();
           if (ytAmbientPlayerRef.current?.seekTo) {
             ytAmbientPlayerRef.current.seekTo(seekToTime, true);
-            ytAmbientPlayerRef.current.playVideo();
           }
-          setIsPlaying(true);
+          if (!isUserPausedRef.current) {
+            ytPlayerRef.current.playVideo();
+            if (isAmbientMode) ytAmbientPlayerRef.current?.playVideo?.();
+            setIsPlaying(true);
+          }
         } catch (e) {
           console.warn('YouTube seek failed:', e);
         }
@@ -489,11 +556,14 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     if (parsedMedia.type !== 'youtube' || !parsedMedia.youtubeId) return;
 
     let isMounted = true;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const initYTPlayer = () => {
+      if (!isMounted) return;
       if (!window.YT || !window.YT.Player) {
-        // If not ready yet, wait and retry once
-        setTimeout(initYTPlayer, 100);
+        retryTimer = setTimeout(() => {
+          if (isMounted) initYTPlayer();
+        }, 100);
         return;
       }
 
@@ -516,7 +586,15 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         },
         events: {
           onReady: (event: any) => {
-            if (!isMounted) return;
+            if (!isMounted) {
+              try {
+                event.target.mute?.();
+                event.target.pauseVideo?.();
+                event.target.stopVideo?.();
+                event.target.destroy?.();
+              } catch (_) {}
+              return;
+            }
             // Force the YouTube iframe to fill the responsive 16:9 player frame.
             const playerIframe = event.target.getIframe?.();
             if (playerIframe) {
@@ -530,9 +608,6 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             const d = event.target.getDuration();
             if (d) setDuration(d);
 
-            // Do not infer LIVE completion from currentTime/duration on load.
-            // YouTube reports elapsed stream time as duration for live broadcasts.
-            
             // Resume from last watched position if seekToTime is provided
             if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
               try {
@@ -541,6 +616,15 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 hasAppliedSeekRef.current = true;
                 setShowResumeBadge(true);
               } catch (_) {}
+            }
+
+            if (isUserPausedRef.current) {
+              try {
+                event.target.pauseVideo();
+                ytAmbientPlayerRef.current?.pauseVideo();
+              } catch (_) {}
+              setIsPlaying(false);
+              return;
             }
 
             // Try standard autoplay
@@ -564,6 +648,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           onStateChange: (event: any) => {
             if (!isMounted) return;
             if (event.data === 1) { // PLAYING
+              if (isUserPausedRef.current) {
+                try {
+                  event.target.pauseVideo();
+                  ytAmbientPlayerRef.current?.pauseVideo();
+                } catch (_) {}
+                return;
+              }
               setIsMediaReady(true);
               setIsPlaying(true);
               setIsBuffering(false);
@@ -620,10 +711,20 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             },
             events: {
               onReady: (event: any) => {
-                if (!isMounted) return;
+                if (!isMounted) {
+                  try {
+                    event.target.pauseVideo?.();
+                    event.target.destroy?.();
+                  } catch (_) {}
+                  return;
+                }
                 try {
                   event.target.mute();
-                  event.target.playVideo();
+                  if (!isUserPausedRef.current) {
+                    event.target.playVideo();
+                  } else {
+                    event.target.pauseVideo();
+                  }
                 } catch (_) {}
               }
             }
@@ -640,7 +741,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       const existingCb = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
         if (typeof existingCb === 'function') existingCb();
-        initYTPlayer();
+        if (isMounted) initYTPlayer();
       };
       if (!document.querySelector('script[src*="iframe_api"]')) {
         const tag = document.createElement('script');
@@ -652,19 +753,30 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
     return () => {
       isMounted = false;
-      if (ytPlayerRef.current && ytPlayerRef.current.destroy) {
-        try {
-          ytPlayerRef.current.destroy();
-        } catch (e) {
-          console.error(e);
-        }
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
       }
-      if (ytAmbientPlayerRef.current && ytAmbientPlayerRef.current.destroy) {
+      if (ytPlayerRef.current) {
         try {
-          ytAmbientPlayerRef.current.destroy();
+          ytPlayerRef.current.mute?.();
+          ytPlayerRef.current.pauseVideo?.();
+          ytPlayerRef.current.stopVideo?.();
+          ytPlayerRef.current.destroy?.();
         } catch (e) {
           console.error(e);
         }
+        ytPlayerRef.current = null;
+      }
+      if (ytAmbientPlayerRef.current) {
+        try {
+          ytAmbientPlayerRef.current.pauseVideo?.();
+          ytAmbientPlayerRef.current.stopVideo?.();
+          ytAmbientPlayerRef.current.destroy?.();
+        } catch (e) {
+          console.error(e);
+        }
+        ytAmbientPlayerRef.current = null;
       }
     };
   }, [video.videoId, video.videoUrl]);
@@ -751,26 +863,39 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const togglePlay = () => {
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
       if (isPlaying) {
-        ytPlayerRef.current.pauseVideo();
+        isUserPausedRef.current = true;
         try {
+          ytPlayerRef.current.pauseVideo();
           ytAmbientPlayerRef.current?.pauseVideo();
         } catch (_) {}
         setIsPlaying(false);
       } else {
-        ytPlayerRef.current.playVideo();
+        isUserPausedRef.current = false;
         try {
-          ytAmbientPlayerRef.current?.playVideo();
+          ytPlayerRef.current.playVideo();
+          if (isAmbientMode) {
+            ytAmbientPlayerRef.current?.playVideo();
+          }
         } catch (_) {}
         setIsPlaying(true);
       }
     } else if (videoRef.current) {
       if (isPlaying) {
+        isUserPausedRef.current = true;
         videoRef.current.pause();
         ambientVideoRef.current?.pause();
         setIsPlaying(false);
       } else {
+        isUserPausedRef.current = false;
         videoRef.current.play().then(() => {
-          ambientVideoRef.current?.play().catch(() => {});
+          if (!isMountedRef.current || isUserPausedRef.current) {
+            videoRef.current?.pause();
+            ambientVideoRef.current?.pause();
+            return;
+          }
+          if (isAmbientMode) {
+            ambientVideoRef.current?.play().catch(() => {});
+          }
           setIsPlaying(true);
         }).catch(console.error);
       }
@@ -1139,13 +1264,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             : 'aspect-video w-full max-h-[calc(100vh-169px)] min-h-[220px] sm:min-h-[360px]'
       }`}
     >
-      {/* REAL AMBIENT LIGHT BACKDROP (Radiates into the page when not fullscreen, and fills letterbox gaps in fullscreen) */}
+      {/* REAL AMBIENT LIGHT BACKDROP (Radiates into the page and up behind the Watch header) */}
       <div 
         className={`absolute pointer-events-none select-none z-0 transition-all duration-700 ease-out ${
           isFullscreen || isTheaterMode ? 'inset-0 overflow-hidden' : `${ambientConfig.spreadClass} overflow-visible`
         } ${isAmbientMode ? 'opacity-100' : 'opacity-0'}`}
         style={{
-          opacity: isAmbientMode ? (isPlaying ? ambientConfig.opacity : ambientConfig.opacity * 0.5) : 0,
+          opacity: isAmbientMode ? ambientConfig.opacity : 0,
           filter: `${ambientConfig.blur} ${ambientConfig.saturate}`,
           transform: `${ambientConfig.scale} translateZ(0)`,
           willChange: 'filter, transform, opacity'
@@ -1162,7 +1287,6 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               src={parsedMedia.embedUrl}
               muted
               playsInline
-              autoPlay
               loop={isLooping}
               className="w-full h-full object-cover pointer-events-none"
             />
@@ -1292,14 +1416,33 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           <video
             ref={videoRef}
             src={parsedMedia.embedUrl}
-            autoPlay
             playsInline
             preload="auto"
             onWaiting={() => setIsBuffering(true)}
             onStalled={() => setIsBuffering(true)}
             onSeeking={() => setIsBuffering(true)}
             onSeeked={() => setIsBuffering(false)}
+            onPlay={() => {
+              if (!isMountedRef.current || isUserPausedRef.current) {
+                videoRef.current?.pause();
+                ambientVideoRef.current?.pause();
+                return;
+              }
+              setIsPlaying(true);
+              if (isAmbientMode) {
+                ambientVideoRef.current?.play().catch(() => {});
+              }
+            }}
+            onPause={() => {
+              setIsPlaying(false);
+              ambientVideoRef.current?.pause();
+            }}
             onPlaying={() => {
+              if (!isMountedRef.current || isUserPausedRef.current) {
+                videoRef.current?.pause();
+                ambientVideoRef.current?.pause();
+                return;
+              }
               setIsBuffering(false);
               setIsPlaying(true);
               setIsMediaReady(true);
@@ -1326,29 +1469,42 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                   setCurrentTime(seekToTime);
                   setShowResumeBadge(true);
                 }
-                videoRef.current.play().then(() => {
-                  setIsPlaying(true);
-                }).catch(() => {
-                  // If browser policy requires mute first for autoplay
-                  if (videoRef.current) {
+                if (!hasStartedInitialAutoplayRef.current && !isUserPausedRef.current && isMountedRef.current) {
+                  hasStartedInitialAutoplayRef.current = true;
+                  videoRef.current.play().then(() => {
+                    if (!isMountedRef.current || isUserPausedRef.current) {
+                      videoRef.current?.pause();
+                      return;
+                    }
+                    setIsPlaying(true);
+                  }).catch(() => {
+                    if (!isMountedRef.current || isUserPausedRef.current || !videoRef.current) return;
+                    // If browser policy requires mute first for autoplay
                     videoRef.current.muted = true;
                     setIsMuted(true);
-                    videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
-                  }
-                });
+                    videoRef.current.play().then(() => {
+                      if (!isMountedRef.current || isUserPausedRef.current) {
+                        videoRef.current?.pause();
+                        return;
+                      }
+                      setIsPlaying(true);
+                    }).catch(() => {});
+                  });
+                }
               }
             }}
             onTimeUpdate={handleDirectTimeUpdate}
             onEnded={() => {
               setIsBuffering(false);
               if (isLooping) {
-                if (videoRef.current) {
+                if (videoRef.current && !isUserPausedRef.current && isMountedRef.current) {
                   videoRef.current.currentTime = 0;
                   videoRef.current.play().catch(() => {});
                 }
                 return;
               }
               setIsPlaying(false);
+              ambientVideoRef.current?.pause();
               if (onEnded) {
                 onEnded();
               } else if (isAutoplay && hasNextVideo && onNextVideo) {

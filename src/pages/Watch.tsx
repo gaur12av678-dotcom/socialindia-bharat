@@ -89,6 +89,10 @@ export const Watch: React.FC = () => {
       ? commentService.getCachedComments(videoId, cachedInitialVid?.creatorId === currentUser?.uid)
       : []
   ));
+  const [commentsLoading, setCommentsLoading] = useState<boolean>(() => {
+    if (!videoId || cachedInitialVid?.commentsMode === 'disabled') return false;
+    return commentService.getCachedComments(videoId, cachedInitialVid?.creatorId === currentUser?.uid).length === 0;
+  });
   const [visibleCommentsCount, setVisibleCommentsCount] = useState<number>(COMMENTS_PAGE_SIZE);
   const [newCommentText, setNewCommentText] = useState('');
   const [candidateVideoPool, setCandidateVideoPool] = useState<Video[]>(() => {
@@ -469,7 +473,11 @@ export const Watch: React.FC = () => {
       );
       setVisibleCommentsCount(COMMENTS_PAGE_SIZE);
       setCommentsCollapsed(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
-      setComments(commentService.getCachedComments(videoId, cached?.creatorId === currentUser?.uid));
+      const initialCachedComments = cached?.commentsMode === 'disabled'
+        ? []
+        : commentService.getCachedComments(videoId, cached?.creatorId === currentUser?.uid);
+      setComments(initialCachedComments);
+      setCommentsLoading(cached?.commentsMode !== 'disabled' && initialCachedComments.length === 0);
 
       if (cached) {
         setVideo(cached);
@@ -552,6 +560,7 @@ export const Watch: React.FC = () => {
         if (!vid) {
           if (!cached && !offlineVideoFallback) setVideo(null);
           setLoading(false);
+          setCommentsLoading(false);
           return;
         }
 
@@ -574,8 +583,12 @@ export const Watch: React.FC = () => {
         setLoading(false);
         if (mergedVideo.commentsMode === 'disabled') {
           setComments([]);
+          setCommentsLoading(false);
         } else {
           const isOwner = currentUser?.uid === mergedVideo.creatorId;
+          if (commentService.getCachedComments(videoId, isOwner).length === 0) {
+            setCommentsLoading(true);
+          }
           commentService.getComments(videoId, isOwner, mergedVideo.commentsMode === 'hold').then(commList => {
             if (!isMounted) return;
             setComments(prev => {
@@ -589,7 +602,11 @@ export const Watch: React.FC = () => {
               ...prev,
               commentsCount: Math.max(prev.commentsCount || 0, commList.filter(c => c.status !== 'pending').length)
             } : prev);
-          }).catch(console.error);
+            setCommentsLoading(false);
+          }).catch(err => {
+            console.error(err);
+            if (isMounted) setCommentsLoading(false);
+          });
         }
 
         // Check Paid Video Access
@@ -663,7 +680,10 @@ export const Watch: React.FC = () => {
 
       } catch (err) {
         console.error('Watch loading error:', err);
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setCommentsLoading(false);
+        }
       }
     };
 
@@ -1523,27 +1543,42 @@ export const Watch: React.FC = () => {
 };
 
   return (
-    <div className={`w-full ${isTheaterMode ? 'pb-12' : 'max-w-[1750px] 2xl:max-w-[1800px] mx-auto p-0 sm:px-4 md:px-6 lg:px-8 pb-12'} transition-all`}>
-      
-      {/* THEATER MODE FULL-WIDTH VIDEO BANNER (YouTube Cinema Mode) */}
-      {isTheaterMode && (
-        <div className="w-full bg-black flex justify-center py-0 sm:py-2 mb-4 md:mb-6 shadow-2xl">
-          <div className="w-full max-w-[1750px] 2xl:max-w-[1800px] mx-auto px-0 sm:px-4 md:px-6 lg:px-8">
+    <div className="w-full pb-12 transition-all">
+      {/* UNIFIED YOUTUBE LAYOUT GRID (Single React tree for Player so Theater Mode never restarts playback) */}
+      <div
+        className={`grid grid-cols-1 lg:grid-rows-[auto_1fr] transition-all ${
+          isTheaterMode
+            ? 'lg:grid-cols-[minmax(2rem,calc((100%-1750px)/2))_minmax(0,1fr)_380px_minmax(2rem,calc((100%-1750px)/2))] xl:grid-cols-[minmax(2rem,calc((100%-1750px)/2))_minmax(0,1fr)_402px_minmax(2rem,calc((100%-1750px)/2))] 2xl:grid-cols-[minmax(2rem,calc((100%-1800px)/2))_minmax(0,1fr)_402px_minmax(2rem,calc((100%-1800px)/2))]'
+            : 'max-w-[1750px] 2xl:max-w-[1800px] mx-auto px-0 sm:px-4 md:px-6 lg:px-8 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_402px] lg:gap-x-6'
+        }`}
+      >
+        {/* VIDEO PLAYER SLOT (Always identical DOM path to preserve instance across Default/Theater switches) */}
+        <div
+          className={
+            isTheaterMode
+              ? 'col-span-full row-start-1 w-full bg-black flex justify-center py-0 sm:py-2 mb-4 md:mb-6 shadow-2xl relative z-10'
+              : 'sticky top-0 z-30 sm:relative sm:top-auto sm:z-0 lg:col-start-1 lg:row-start-1 w-full mb-4 md:mb-6 bg-transparent shadow-none'
+          }
+        >
+          <div
+            className={
+              isTheaterMode
+                ? 'w-full max-w-[1750px] 2xl:max-w-[1800px] mx-auto px-0 sm:px-4 md:px-6 lg:px-8'
+                : 'w-full'
+            }
+          >
             {renderPlayer()}
           </div>
         </div>
-      )}
 
-      {/* TWO-COLUMN YOUTUBE LAYOUT (Primary Content + Recommended Sidebar) */}
-      <div className={`flex flex-col lg:flex-row gap-6 items-start justify-center ${isTheaterMode ? 'max-w-[1750px] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8' : ''}`}>
-        
-        {/* PRIMARY COLUMN: Player (in Default View - Sticky on mobile screen like YouTube app) + Details + Comments */}
-        <div className="w-full flex-1 min-w-0 max-w-[1280px] space-y-4 md:space-y-6">
-          {!isTheaterMode && (
-            <div className="sticky top-0 z-30 sm:relative sm:top-auto sm:z-auto bg-transparent shadow-none">
-              {renderPlayer()}
-            </div>
-          )}
+        {/* PRIMARY COLUMN: Details + Comments (Elevated above Ambient Light backdrop) */}
+        <div
+          className={`w-full min-w-0 max-w-[1280px] space-y-4 md:space-y-6 relative z-20 ${
+            isTheaterMode
+              ? 'lg:col-start-2 lg:row-start-2 px-0 sm:px-4 md:px-6 lg:px-0 lg:pr-6'
+              : 'lg:col-start-1 lg:row-start-2'
+          }`}
+        >
 
         {/* MOBILE COLLAPSIBLE PLAYLIST BAR (YouTube Style) */}
         {activePlaylist && (
@@ -1997,9 +2032,30 @@ export const Watch: React.FC = () => {
             </div>
           </form>
 
-          {/* Comments List (Paginated to prevent lag) */}
+          {/* Comments List (YouTube-style Skeleton + Smooth Reveal) */}
           <div className="space-y-4">
-            {comments.length === 0 ? (
+            {commentsLoading && comments.length === 0 ? (
+              <div className="space-y-4 py-2" aria-label={isHindi ? 'टिप्पणियां लोड हो रही हैं' : 'Loading comments'}>
+                {[0, 1, 2, 3].map((skelIdx) => (
+                  <div key={skelIdx} className="flex gap-3 items-start animate-pulse">
+                    <div className="w-9 h-9 rounded-full bg-slate-200 dark:bg-[#272727] shrink-0" />
+                    <div className="flex-1 min-w-0 bg-slate-50/80 dark:bg-[#1a1a1a] p-4 rounded-2xl border border-slate-200/70 dark:border-[#2a2a2a] space-y-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 w-24 rounded-full bg-slate-200 dark:bg-[#2f2f2f]" />
+                        <div className="h-2.5 w-16 rounded-full bg-slate-200/80 dark:bg-[#272727]" />
+                      </div>
+                      <div className={`h-3 rounded-full bg-slate-200 dark:bg-[#2f2f2f] ${skelIdx % 2 === 0 ? 'w-11/12' : 'w-4/5'}`} />
+                      <div className={`h-3 rounded-full bg-slate-200/80 dark:bg-[#272727] ${skelIdx === 1 ? 'w-2/3' : 'w-1/2'}`} />
+                      <div className="flex items-center gap-4 pt-1">
+                        <div className="h-3 w-10 rounded-full bg-slate-200/80 dark:bg-[#272727]" />
+                        <div className="h-3 w-8 rounded-full bg-slate-200/80 dark:bg-[#272727]" />
+                        <div className="h-3 w-12 rounded-full bg-slate-200/80 dark:bg-[#272727]" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : comments.length === 0 ? (
               <p className="text-xs text-slate-400 dark:text-[#94A3B8] py-6 text-center font-medium">
                 {t('be_first_comment', 'No comments yet. Be the first to share your thoughts!')}
               </p>
@@ -2010,8 +2066,12 @@ export const Watch: React.FC = () => {
                 const remainingCount = topLevelComments.length - visibleTopLevelComments.length;
                 return (
                   <>
-                    {visibleTopLevelComments.map((comm) => (
-                <div key={comm.commentId} className="space-y-3">
+                    {visibleTopLevelComments.map((comm, commIdx) => (
+                <div
+                  key={comm.commentId}
+                  style={{ animationDelay: `${Math.min(commIdx, 8) * 35}ms` }}
+                  className="space-y-3 yt-card-animate"
+                >
                   <div className="flex gap-3 items-start group">
                     {/* User Avatar with real-time profile sync */}
                     <UserAvatar 
@@ -2437,8 +2497,14 @@ export const Watch: React.FC = () => {
     </div>
       </div>
 
-      {/* SECONDARY COLUMN: Recommended Sidebar (YouTube Style Fixed-Width Column) */}
-      <div className="w-full lg:w-[380px] xl:w-[402px] shrink-0 px-3.5 sm:px-0 space-y-4">
+      {/* SECONDARY COLUMN: Recommended Sidebar (Elevated above Ambient Light backdrop) */}
+      <div
+        className={`w-full lg:w-[380px] xl:w-[402px] shrink-0 space-y-4 relative z-20 mt-6 lg:mt-0 ${
+          isTheaterMode
+            ? 'lg:col-start-3 lg:row-start-2 px-3.5 sm:px-6 lg:px-0'
+            : 'lg:col-start-2 lg:row-start-1 lg:row-span-2 px-3.5 sm:px-0'
+        }`}
+      >
         
         {/* YOUTUBE-STYLE PLAYLIST QUEUE CARD (Desktop) */}
         {activePlaylist && (

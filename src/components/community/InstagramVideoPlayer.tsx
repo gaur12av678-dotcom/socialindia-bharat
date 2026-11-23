@@ -36,6 +36,16 @@ export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src,
       video.currentTime = 0;
       video.load();
     }
+    return () => {
+      if (video) {
+        try {
+          video.pause();
+          video.muted = true;
+          video.removeAttribute('src');
+          video.load();
+        } catch (_) {}
+      }
+    };
   }, [src]);
 
   useEffect(() => {

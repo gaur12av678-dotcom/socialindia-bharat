@@ -102,6 +102,28 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const isSettingsPage = route.path === 'settings';
   const isChatPage = route.path === 'chat' || route.path === 'messages';
   const isProfilePage = route.path === 'creator' || route.path === 'channel' || route.path === 'profile-menu';
+  const [isWatchAmbientActive, setIsWatchAmbientActive] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('socialindia_ambient_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const handleAmbientChange = (event: Event) => {
+      const enabled = (event as CustomEvent<{ enabled?: boolean }>).detail?.enabled;
+      if (typeof enabled === 'boolean') {
+        setIsWatchAmbientActive(enabled);
+      } else {
+        try {
+          setIsWatchAmbientActive(localStorage.getItem('socialindia_ambient_mode') === 'true');
+        } catch {}
+      }
+    };
+    window.addEventListener('socialindia:ambient-mode-change', handleAmbientChange);
+    return () => window.removeEventListener('socialindia:ambient-mode-change', handleAmbientChange);
+  }, []);
 
   // Mobile bottom bar & tools hidden on:
   // 1. Settings ('settings')
@@ -443,11 +465,13 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       <header className={`px-2.5 sm:px-4 h-14 items-center justify-between gap-2 max-w-full relative overflow-visible transition-all duration-300 z-40 safe-bottom ${
             isChatPage
               ? 'hidden'
-              : isProfilePage || isWatchPage || isSettingsPage
-                ? 'hidden md:flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
-                : isShortsPage 
-                  ? 'hidden md:flex md:sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800 shadow-none' 
-                  : 'flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
+              : isWatchPage && isWatchAmbientActive
+                ? 'hidden md:flex sticky top-0 si-watch-ambient-header backdrop-blur-xl border-b border-slate-900/5 dark:border-white/10'
+                : isProfilePage || isWatchPage || isSettingsPage
+                  ? 'hidden md:flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
+                  : isShortsPage 
+                    ? 'hidden md:flex md:sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800 shadow-none' 
+                    : 'flex sticky top-0 bg-white dark:bg-[#0f0f0f] border-b border-slate-100 dark:border-slate-800'
           }`}>
             
             {mobileSearchOpen ? (
@@ -1664,7 +1688,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
         </aside>
 
         {/* CONTENT VIEWPORT */}
-        <main className={`flex-1 min-w-0 ${isChatPage ? 'pb-0 overflow-hidden' : isShortsPage ? 'pb-0 md:pb-8 overflow-hidden md:overflow-y-auto' : shouldHideBottomNav ? 'pb-0 md:pb-8 overflow-y-auto' : 'pb-20 md:pb-8 overflow-y-auto'}`}>
+        <main className={`flex-1 min-w-0 ${isChatPage ? 'pb-0 overflow-hidden' : isShortsPage ? 'pb-0 md:pb-8 overflow-hidden md:overflow-y-auto' : isWatchPage ? 'pb-0 md:pb-8 overflow-x-clip overflow-y-visible' : shouldHideBottomNav ? 'pb-0 md:pb-8 overflow-y-auto' : 'pb-20 md:pb-8 overflow-y-auto'}`}>
           {children}
         </main>
       </div>

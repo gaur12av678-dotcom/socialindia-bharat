@@ -184,6 +184,32 @@ html.dark .yt-chip-inactive:hover {
   color: #ffffff !important;
 }
 
+/* Guaranteed dark-mode backdrop for sticky filter bars (Chromium < 111 / WebView safe) */
+.dark .si-filter-bar,
+html.dark .si-filter-bar {
+  background-color: rgba(15, 15, 15, 0.96) !important;
+  border-color: #262626 !important;
+}
+.dark .si-filter-fade-left,
+html.dark .si-filter-fade-left {
+  background-image: linear-gradient(to right, #0f0f0f, rgba(15, 15, 15, 0.95), transparent) !important;
+}
+.dark .si-filter-fade-right,
+html.dark .si-filter-fade-right {
+  background-image: linear-gradient(to left, #0f0f0f, rgba(15, 15, 15, 0.95), transparent) !important;
+}
+
+/* Frosted translucent Watch header when Ambient Mode is enabled so upward glow shines behind it */
+.si-watch-ambient-header {
+  background-color: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
+}
+.dark .si-watch-ambient-header,
+html.dark .si-watch-ambient-header {
+  background-color: rgba(15, 15, 15, 0.32) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
 @utility animate-slide-in { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 @utility animate-zoom-in { animation: zoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 @utility safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
@@ -816,6 +842,22 @@ button.si-upload-select-btn :is(span, svg, i) {
     --color-zinc-800: #27272a;
     --color-zinc-900: #18181b;
   }
+}
+
+@supports not (color: oklab(0 0 0)) {
+  .dark .dark\:bg-\[\#0f0f0f\]\/95 { background-color: rgba(15, 15, 15, 0.95) !important; }
+  .dark .dark\:bg-\[\#0f0f0f\]\/40 { background-color: rgba(15, 15, 15, 0.4) !important; }
+  .dark .dark\:bg-\[\#0e0f12\]\/95 { background-color: rgba(14, 15, 18, 0.95) !important; }
+  .dark .dark\:bg-\[\#121215\]\/95 { background-color: rgba(18, 18, 21, 0.95) !important; }
+  .dark .dark\:bg-\[\#16171a\]\/90 { background-color: rgba(22, 23, 26, 0.9) !important; }
+  .dark .dark\:bg-\[\#161616\]\/40 { background-color: rgba(22, 22, 22, 0.4) !important; }
+  .dark .dark\:bg-\[\#1E293B\]\/70 { background-color: rgba(30, 41, 59, 0.7) !important; }
+  .dark .dark\:bg-\[\#1e293b\]\/95 { background-color: rgba(30, 41, 59, 0.95) !important; }
+  .dark .dark\:bg-\[\#1E293B\]\/50 { background-color: rgba(30, 41, 59, 0.5) !important; }
+  .dark .dark\:bg-\[\#1E293B\]\/40 { background-color: rgba(30, 41, 59, 0.4) !important; }
+  .dark .dark\:bg-\[\#1E293B\]\/30 { background-color: rgba(30, 41, 59, 0.3) !important; }
+  .dark .dark\:bg-\[\#161f30\]\/60 { background-color: rgba(22, 31, 48, 0.6) !important; }
+  .dark .dark\:via-\[\#0f0f0f\]\/95 { --tw-gradient-via: rgba(15, 15, 15, 0.95) !important; }
 }
 
 @media (forced-colors: active) {

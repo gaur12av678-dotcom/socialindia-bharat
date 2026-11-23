@@ -616,11 +616,12 @@ export const Search: React.FC = () => {
               </button>
 
               <button
+                type="button"
                 onClick={() => setSearchFilter('shorts')}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                className={`px-4 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   searchFilter === 'shorts' 
-                    ? 'bg-rose-600 text-white shadow-sm' 
-                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-sm' 
+                    : 'yt-chip-inactive'
                 }`}
               >
                 <Smartphone className="w-3.5 h-3.5" />

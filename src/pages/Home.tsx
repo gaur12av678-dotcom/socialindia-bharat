@@ -1084,7 +1084,7 @@ export const Home: React.FC = () => {
       )}
 
       {/* Top Filter Bar: Mobile Instagram-style All/Following tabs | Desktop YouTube-style Category Chips */}
-      <div className="sticky top-0 z-20 bg-white/95 dark:bg-[#0f0f0f]/95 backdrop-blur-md border-b border-[#e5e5e5] dark:border-[#262626] transition-colors shadow-2xs">
+      <div className="si-filter-bar sticky top-0 z-20 bg-white/95 dark:bg-[#0f0f0f] backdrop-blur-md border-b border-[#e5e5e5] dark:border-[#262626] transition-colors shadow-2xs">
         <div className="relative max-w-7xl mx-auto px-3 sm:px-6">
           {/* Mobile Only: Instagram-style All & Following Tabs (replaces category filter chips on mobile) */}
           <div
@@ -1135,7 +1135,7 @@ export const Home: React.FC = () => {
 
           {/* Desktop Only: Left Scroll Button with Gradient Fade */}
           {canScrollLeft && (
-            <div className="hidden md:flex absolute left-0 top-0 bottom-0 z-10 items-center pr-3 pl-2 bg-gradient-to-r from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]/95">
+            <div className="si-filter-fade-left hidden md:flex absolute left-0 top-0 bottom-0 z-10 items-center pr-3 pl-2 bg-gradient-to-r from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]">
               <button
                 type="button"
                 onClick={() => scrollFilter('left')}
@@ -1178,7 +1178,7 @@ export const Home: React.FC = () => {
 
           {/* Desktop Only: Right Scroll Button with Gradient Fade */}
           {canScrollRight && (
-            <div className="hidden md:flex absolute right-0 top-0 bottom-0 z-10 items-center pl-3 pr-2 bg-gradient-to-l from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]/95">
+            <div className="si-filter-fade-right hidden md:flex absolute right-0 top-0 bottom-0 z-10 items-center pl-3 pr-2 bg-gradient-to-l from-white via-white/95 to-transparent dark:from-[#0f0f0f] dark:via-[#0f0f0f]">
               <button
                 type="button"
                 onClick={() => scrollFilter('right')}

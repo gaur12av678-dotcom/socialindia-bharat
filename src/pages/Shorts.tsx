@@ -81,6 +81,39 @@ const ShortVideoMedia: React.FC<{
   const playerRef = useRef<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const soundAudioRef = useRef<HTMLAudioElement>(null);
+  const isMountedRef = useRef(true);
+  const isPlayingRef = useRef(isPlaying);
+  const isMutedRef = useRef(isMuted);
+  const volumeRef = useRef(volume);
+
+  isPlayingRef.current = isPlaying;
+  isMutedRef.current = isMuted;
+  volumeRef.current = volume;
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      const vid = videoRef.current;
+      if (vid) {
+        try {
+          vid.pause();
+          vid.muted = true;
+          vid.removeAttribute('src');
+          vid.load();
+        } catch (_) {}
+      }
+      const aud = soundAudioRef.current;
+      if (aud) {
+        try {
+          aud.pause();
+          aud.muted = true;
+          aud.removeAttribute('src');
+          aud.load();
+        } catch (_) {}
+      }
+    };
+  }, [short.videoId, short.videoUrl]);
 
   const [isFrameReady, setIsFrameReady] = useState(false);
 
@@ -121,29 +154,44 @@ const ShortVideoMedia: React.FC<{
     }
   }, [volume, isMuted, resolvedSoundAudioUrl]);
 
-  // Sync play/pause for direct video with auto-mute fallback
+  // Sync play/pause for direct video with auto-mute fallback & async race protection
   useEffect(() => {
     const video = videoRef.current;
     if (!video || parsedMedia.type !== 'direct') return;
 
+    let cancelled = false;
     if (isPlaying) {
       const playPromise = video.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
+            if (cancelled || !isMountedRef.current || !isPlayingRef.current) {
+              video.pause();
+              return;
+            }
             setIsFrameReady(true);
           })
           .catch((err) => {
+            if (cancelled || !isMountedRef.current || !isPlayingRef.current) return;
             console.warn('Playback with audio restricted by browser policy, falling back to muted playback:', err);
             video.muted = true;
             video.play()
-              .then(() => setIsFrameReady(true))
+              .then(() => {
+                if (cancelled || !isMountedRef.current || !isPlayingRef.current) {
+                  video.pause();
+                  return;
+                }
+                setIsFrameReady(true);
+              })
               .catch(e => console.error('Muted playback retry failed:', e));
           });
       }
     } else {
       video.pause();
     }
+    return () => {
+      cancelled = true;
+    };
   }, [isPlaying, short.videoId]);
 
   // Sync volume and mute for attached sound track
@@ -197,22 +245,22 @@ const ShortVideoMedia: React.FC<{
     }
   }, [isPlaying]);
 
-  // Keep sound alive when user switches browser tabs or returns to tab
+  // Keep sound alive when user returns to browser tab ONLY if still mounted & playing
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        if (soundAudioRef.current && isPlaying && !isMuted && resolvedSoundAudioUrl) {
+      if (!document.hidden && isMountedRef.current && isPlayingRef.current) {
+        if (soundAudioRef.current && !isMutedRef.current && resolvedSoundAudioUrl) {
           soundAudioRef.current.play().catch(() => {});
         }
-        if (videoRef.current && isPlaying) {
+        if (videoRef.current) {
           videoRef.current.play().catch(() => {
-            if (videoRef.current) {
+            if (videoRef.current && isMountedRef.current && isPlayingRef.current) {
               videoRef.current.muted = true;
               videoRef.current.play().catch(() => {});
             }
           });
         }
-        if (playerRef.current && typeof playerRef.current.playVideo === 'function' && isPlaying) {
+        if (playerRef.current && typeof playerRef.current.playVideo === 'function') {
           try {
             playerRef.current.playVideo();
           } catch (_) {}
@@ -232,20 +280,26 @@ const ShortVideoMedia: React.FC<{
     let pollTimeout: any = null;
 
     const initShortPlayer = () => {
+      if (!isMounted) return;
       if (!window.YT || !window.YT.Player) return;
 
       const element = document.getElementById(containerId);
       if (!element) return;
 
       if (playerRef.current && playerRef.current.destroy) {
-        try { playerRef.current.destroy(); } catch (_) {}
+        try {
+          playerRef.current.mute?.();
+          playerRef.current.pauseVideo?.();
+          playerRef.current.stopVideo?.();
+          playerRef.current.destroy();
+        } catch (_) {}
       }
 
       playerRef.current = new window.YT.Player(containerId, {
         videoId: parsedMedia.youtubeId,
         playerVars: {
-          autoplay: 1,
-          mute: isMuted ? 1 : 0,
+          autoplay: isPlayingRef.current ? 1 : 0,
+          mute: isMutedRef.current ? 1 : 0,
           controls: 0,
           modestbranding: 1,
           rel: 0,
@@ -261,17 +315,25 @@ const ShortVideoMedia: React.FC<{
         },
         events: {
           onReady: (event: any) => {
-            if (!isMounted) return;
+            if (!isMounted) {
+              try {
+                event.target.mute?.();
+                event.target.pauseVideo?.();
+                event.target.stopVideo?.();
+                event.target.destroy?.();
+              } catch (_) {}
+              return;
+            }
             onMediaReady();
-            if (resolvedSoundAudioUrl || isMuted) {
+            if (resolvedSoundAudioUrl || isMutedRef.current) {
               try { event.target.mute(); } catch (_) {}
             } else {
               try {
-                event.target.setVolume(volume * 100);
+                event.target.setVolume(volumeRef.current * 100);
                 event.target.unMute();
               } catch (_) {}
             }
-            if (isPlaying) {
+            if (isPlayingRef.current) {
               try {
                 event.target.playVideo();
               } catch (e) {
@@ -280,21 +342,29 @@ const ShortVideoMedia: React.FC<{
                   event.target.playVideo();
                 } catch (_) {}
               }
+            } else {
+              try {
+                event.target.pauseVideo();
+              } catch (_) {}
             }
           },
           onStateChange: (event: any) => {
             if (!isMounted) return;
             if (event.data === 1) { // Playing
+              if (!isPlayingRef.current) {
+                try { event.target.pauseVideo(); } catch (_) {}
+                return;
+              }
               setIsFrameReady(true);
               onMediaReady();
               onPlaybackStateChange?.(true);
-              if (!isMuted && !resolvedSoundAudioUrl) {
+              if (!isMutedRef.current && !resolvedSoundAudioUrl) {
                 try {
                   event.target.unMute();
-                  event.target.setVolume(volume * 100);
+                  event.target.setVolume(volumeRef.current * 100);
                 } catch (_) {}
               }
-              if (soundAudioRef.current && isPlaying && !isMuted && resolvedSoundAudioUrl) {
+              if (soundAudioRef.current && !isMutedRef.current && resolvedSoundAudioUrl) {
                 soundAudioRef.current.play().catch(() => {});
               }
             } else if (event.data === 2) { // Paused
@@ -303,10 +373,12 @@ const ShortVideoMedia: React.FC<{
                 soundAudioRef.current.pause();
               }
             } else if (event.data === 0) { // Ended
-              event.target.playVideo(); // Loop
-              if (soundAudioRef.current) {
-                soundAudioRef.current.currentTime = 0;
-                soundAudioRef.current.play().catch(() => {});
+              if (isPlayingRef.current) {
+                event.target.playVideo(); // Loop
+                if (soundAudioRef.current && !isMutedRef.current) {
+                  soundAudioRef.current.currentTime = 0;
+                  soundAudioRef.current.play().catch(() => {});
+                }
               }
             }
           }
@@ -318,6 +390,11 @@ const ShortVideoMedia: React.FC<{
       initShortPlayer();
     } else {
       pollInterval = setInterval(() => {
+        if (!isMounted) {
+          clearInterval(pollInterval);
+          clearTimeout(pollTimeout);
+          return;
+        }
         if (window.YT && window.YT.Player) {
           clearInterval(pollInterval);
           clearTimeout(pollTimeout);
@@ -333,7 +410,7 @@ const ShortVideoMedia: React.FC<{
         clearInterval(pollInterval);
         clearTimeout(pollTimeout);
         if (typeof existingCb === 'function') existingCb();
-        initShortPlayer();
+        if (isMounted) initShortPlayer();
       };
       if (!document.querySelector('script[src*="iframe_api"]')) {
         const tag = document.createElement('script');
@@ -347,8 +424,14 @@ const ShortVideoMedia: React.FC<{
       isMounted = false;
       if (pollInterval) clearInterval(pollInterval);
       if (pollTimeout) clearTimeout(pollTimeout);
-      if (playerRef.current && playerRef.current.destroy) {
-        try { playerRef.current.destroy(); } catch (e) {}
+      if (playerRef.current) {
+        try {
+          playerRef.current.mute?.();
+          playerRef.current.pauseVideo?.();
+          playerRef.current.stopVideo?.();
+          playerRef.current.destroy?.();
+        } catch (e) {}
+        playerRef.current = null;
       }
       if (soundAudioRef.current) {
         soundAudioRef.current.pause();
@@ -360,16 +443,27 @@ const ShortVideoMedia: React.FC<{
     setIsFrameReady(true);
     onMediaReady();
     const video = videoRef.current;
-    if (video && isPlaying && video.paused) {
+    if (video && isMountedRef.current && isPlayingRef.current && video.paused) {
       const playPromise = video.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
+            if (!isMountedRef.current || !isPlayingRef.current) {
+              video.pause();
+              return;
+            }
             setIsFrameReady(true);
           })
           .catch(() => {
+            if (!isMountedRef.current || !isPlayingRef.current) return;
             video.muted = true;
-            video.play().then(() => setIsFrameReady(true)).catch(() => {});
+            video.play().then(() => {
+              if (!isMountedRef.current || !isPlayingRef.current) {
+                video.pause();
+                return;
+              }
+              setIsFrameReady(true);
+            }).catch(() => {});
           });
       }
     }
@@ -431,7 +525,6 @@ const ShortVideoMedia: React.FC<{
         <video
           ref={videoRef}
           src={parsedMedia.embedUrl}
-          autoPlay
           loop
           playsInline
           // @ts-ignore
@@ -444,15 +537,24 @@ const ShortVideoMedia: React.FC<{
             onMediaReady();
           }}
           onPlaying={() => {
+            if (!isMountedRef.current || !isPlayingRef.current) {
+              videoRef.current?.pause();
+              return;
+            }
             setIsFrameReady(true);
             onMediaReady();
             onPlaybackStateChange?.(true);
           }}
           onPlay={() => {
+            if (!isMountedRef.current || !isPlayingRef.current) {
+              videoRef.current?.pause();
+              soundAudioRef.current?.pause();
+              return;
+            }
             setIsFrameReady(true);
             onMediaReady();
             onPlaybackStateChange?.(true);
-            if (soundAudioRef.current && isPlaying && !isMuted && resolvedSoundAudioUrl) {
+            if (soundAudioRef.current && !isMutedRef.current && resolvedSoundAudioUrl) {
               soundAudioRef.current.play().catch(() => {});
             }
           }}
@@ -2107,9 +2209,25 @@ export const Shorts: React.FC = () => {
             {/* Scrollable Comment List */}
             <div className="flex-1 overflow-y-auto p-5 space-y-5 no-scrollbar">
               {loadingComments ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-4">
-                  <div className="w-8 h-8 rounded-full border-4 border-blue-600/20 border-t-blue-600 animate-spin" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Gathering thoughts...</span>
+                <div className="space-y-5 py-2" aria-label={isHindi ? 'टिप्पणियां लोड हो रही हैं' : 'Loading comments'}>
+                  {[0, 1, 2, 3].map((skelIdx) => (
+                    <div key={skelIdx} className="flex gap-3.5 items-start animate-pulse">
+                      <div className="w-10 h-10 rounded-2xl bg-slate-200 dark:bg-[#272727] shrink-0" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="h-3 w-24 rounded-full bg-slate-200 dark:bg-[#2f2f2f]" />
+                          <div className="h-2.5 w-12 rounded-full bg-slate-200/80 dark:bg-[#272727]" />
+                        </div>
+                        <div className={`h-3 rounded-full bg-slate-200 dark:bg-[#2f2f2f] ${skelIdx % 2 === 0 ? 'w-11/12' : 'w-4/5'}`} />
+                        <div className={`h-3 rounded-full bg-slate-200/80 dark:bg-[#272727] ${skelIdx === 1 ? 'w-3/5' : 'w-2/3'}`} />
+                        <div className="flex items-center gap-4 pt-1">
+                          <div className="h-2.5 w-9 rounded-full bg-slate-200/80 dark:bg-[#272727]" />
+                          <div className="h-2.5 w-8 rounded-full bg-slate-200/80 dark:bg-[#272727]" />
+                          <div className="h-2.5 w-10 rounded-full bg-slate-200/80 dark:bg-[#272727]" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : comments.length === 0 ? (
                 <div className="text-center py-20 px-6 space-y-3">
