@@ -100,10 +100,11 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
     });
   }
 
-  const preserveOutgoingAccount = () => {
+  const preserveOutgoingAccount = async () => {
     if (currentUser || currentUserProfile) {
       accountService.syncCurrentProfile(currentUserProfile);
     }
+    await accountService.preserveCurrentSession();
   };
 
   // Handle 1-click or quick switch
@@ -113,15 +114,14 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
       return;
     }
 
-    preserveOutgoingAccount();
     setSwitchingUid(account.uid);
     setPasswordPromptAccount(null);
     setPromptError('');
 
     try {
+      await preserveOutgoingAccount();
       const res = await accountService.switchToAccount(account);
       if (res.success) {
-        await refreshProfile();
         setSavedAccounts(accountService.getSavedAccounts());
         addToast(
           isHindi 
@@ -130,8 +130,9 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
           'success'
         );
         onClose();
+        void refreshProfile();
       } else if (res.requiresPassword) {
-        // Needs password once to authenticate
+        // Needs password once to authenticate if no session exists on device yet
         setPasswordPromptAccount(account);
         setPromptPassword('');
         setPromptError(res.error || '');
@@ -146,19 +147,18 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
     }
   };
 
-  // Submit password for prompted account
+  // Submit password for prompted account (one-time only, session is vaulted afterward)
   const handleSubmitPromptPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passwordPromptAccount || !promptPassword.trim()) return;
 
-    preserveOutgoingAccount();
     setPromptLoading(true);
     setPromptError('');
 
     try {
+      await preserveOutgoingAccount();
       const res = await accountService.switchToAccount(passwordPromptAccount, promptPassword.trim());
       if (res.success) {
-        await refreshProfile();
         setSavedAccounts(accountService.getSavedAccounts());
         addToast(
           isHindi 
@@ -167,6 +167,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
           'success'
         );
         onClose();
+        void refreshProfile();
       } else {
         setPromptError(res.error || 'Incorrect password.');
       }
@@ -200,14 +201,14 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
       return;
     }
 
-    preserveOutgoingAccount();
     setAddAccountLoading(true);
     setAddAccountError('');
 
     try {
+      await preserveOutgoingAccount();
       const { userProfile } = await authService.login(cleanId, newPassword);
-      accountService.saveAccount(userProfile, newPassword, 'password');
-      await refreshProfile();
+      accountService.saveAccount(userProfile, undefined, 'password');
+      await accountService.snapshotAuthSession();
       setSavedAccounts(accountService.getSavedAccounts());
       addToast(
         isHindi 
@@ -216,6 +217,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
         'success'
       );
       onClose();
+      void refreshProfile();
     } catch (err: any) {
       let msg = err.message || 'Login failed';
       if (msg.includes('auth/invalid-credential') || msg.includes('auth/wrong-password') || msg.includes('user-not-found')) {
@@ -231,13 +233,13 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
 
   // Handle Google Sign In to add an account
   const handleAddAccountGoogle = async () => {
-    preserveOutgoingAccount();
     setAddAccountGoogleLoading(true);
     setAddAccountError('');
     try {
+      await preserveOutgoingAccount();
       const { userProfile } = await authService.signInWithGoogle();
       accountService.saveAccount(userProfile, undefined, 'google');
-      await refreshProfile();
+      await accountService.snapshotAuthSession();
       setSavedAccounts(accountService.getSavedAccounts());
       addToast(
         isHindi 
@@ -246,6 +248,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
         'success'
       );
       onClose();
+      void refreshProfile();
     } catch (err: any) {
       if (err?.code !== 'auth/popup-closed-by-user') {
         setAddAccountError(err.message || 'Google sign-in failed.');
@@ -258,6 +261,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
   // Handle Sign out of all accounts
   const handleSignOutAll = async () => {
     try {
+      await accountService.clearAllVaultSessions();
       await logout();
       addToast(isHindi ? 'सभी खातों से साइन आउट किया गया' : 'Signed out of all accounts', 'info');
       onClose();
@@ -463,13 +467,13 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
                             type="button"
                             disabled={promptLoading}
                             onClick={async () => {
-                              preserveOutgoingAccount();
                               setPromptLoading(true);
                               setPromptError('');
                               try {
+                                await preserveOutgoingAccount();
                                 const { userProfile } = await authService.signInWithGoogle(account.email);
                                 accountService.saveAccount(userProfile, undefined, 'google');
-                                await refreshProfile();
+                                await accountService.snapshotAuthSession();
                                 setSavedAccounts(accountService.getSavedAccounts());
                                 addToast(
                                   isHindi
@@ -478,6 +482,7 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
                                   'success'
                                 );
                                 onClose();
+                                void refreshProfile();
                               } catch (err: any) {
                                 if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
                                   setPromptError(err?.message || 'Google sign-in failed.');

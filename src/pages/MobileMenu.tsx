@@ -48,13 +48,18 @@ export const MobileMenu: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      setHistoryItems([]);
+      setHistoryLoading(false);
+      return;
+    }
     let isMounted = true;
     const cached = persistentMobileHistoryByUid.get(currentUser.uid);
     if (cached && cached.length > 0) {
       setHistoryItems(cached);
       setHistoryLoading(false);
     } else {
+      setHistoryItems([]);
       setHistoryLoading(true);
     }
 

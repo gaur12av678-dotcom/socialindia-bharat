@@ -137,10 +137,11 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
 
   // Check if returning from Google OAuth redirect flow
   useEffect(() => {
-    authService.checkRedirectResult().then((res) => {
+    authService.checkRedirectResult().then(async (res) => {
       if (res?.userProfile) {
         accountService.saveAccount(res.userProfile, undefined, 'google');
-        refreshProfile();
+        await accountService.snapshotAuthSession();
+        void refreshProfile();
         addToast(`Welcome to SocialIndia, ${res.userProfile.displayName || res.userProfile.username}!`, 'success');
         navigate('home');
       }
@@ -263,12 +264,14 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
 
       setLoading(true);
       try {
+        await accountService.preserveCurrentSession();
         const cleanIdentifier = identifier.trim().toLowerCase();
         const { userProfile } = await authService.login(cleanIdentifier, password);
-        accountService.saveAccount(userProfile, password, 'password');
-        await refreshProfile();
+        accountService.saveAccount(userProfile, undefined, 'password');
+        await accountService.snapshotAuthSession();
         addToast(isHindi ? 'सोशलइंडिया में पुनः स्वागत है!' : 'Welcome back to SocialIndia!', 'success');
         navigate('home');
+        void refreshProfile();
       } catch (err: any) {
         if (err.code === 'auth/email-not-verified') {
           const userEmail = err.email || identifier.trim().toLowerCase();
@@ -365,11 +368,13 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
     setServerError('');
     setGoogleLoading(true);
     try {
+      await accountService.preserveCurrentSession();
       const { userProfile } = await authService.signInWithGoogle();
       accountService.saveAccount(userProfile, undefined, 'google');
-      await refreshProfile();
+      await accountService.snapshotAuthSession();
       addToast(`Welcome to SocialIndia, ${userProfile.displayName || userProfile.username}!`, 'success');
       navigate('home');
+      void refreshProfile();
     } catch (err: any) {
       console.warn('Google sign-in error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
@@ -408,9 +413,9 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
     try {
       const res = await accountService.switchToAccount(acc);
       if (res.success) {
-        await refreshProfile();
         addToast(isHindi ? `स्वागत है, ${acc.displayName}!` : `Welcome back, ${acc.displayName}!`, 'success');
         navigate('home');
+        void refreshProfile();
       } else if (res.requiresPassword) {
         // Pre-fill username/email and switch to password form
         setShowAccountChooser(false);
@@ -443,11 +448,13 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
     try {
       if (pendingVerifyPassword && verificationTargetEmail) {
         // Attempt login with credentials
+        await accountService.preserveCurrentSession();
         const { userProfile } = await authService.login(verificationTargetEmail, pendingVerifyPassword);
-        accountService.saveAccount(userProfile, pendingVerifyPassword, 'password');
-        await refreshProfile();
+        accountService.saveAccount(userProfile, undefined, 'password');
+        await accountService.snapshotAuthSession();
         addToast(isHindi ? 'ईमेल सफलतापूर्वक सत्यापित हुआ! सोशलइंडिया में आपका स्वागत है।' : 'Email verified successfully! Welcome to SocialIndia.', 'success');
         navigate('home');
+        void refreshProfile();
       } else {
         // Switch to login form with pre-filled identifier so user can enter password and sign in
         setIdentifier(verificationTargetEmail);

@@ -71,11 +71,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setSubmitting(true);
     try {
       if (isLogin) {
+        await accountService.preserveCurrentSession();
         const { userProfile } = await authService.login(cleanUsername, password);
-        accountService.saveAccount(userProfile, password, 'password');
-        await refreshProfile();
+        accountService.saveAccount(userProfile, undefined, 'password');
+        await accountService.snapshotAuthSession();
         addToast(isHindi ? 'सोशलइंडिया में आपका स्वागत है!' : 'Welcome back to SocialIndia!', 'success');
         onClose();
+        void refreshProfile();
         if (onSuccess) onSuccess();
       } else {
         await authService.register(
@@ -121,11 +123,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setErrorMsg('');
     setGoogleLoading(true);
     try {
+      await accountService.preserveCurrentSession();
       const { userProfile } = await authService.signInWithGoogle();
       accountService.saveAccount(userProfile, undefined, 'google');
-      await refreshProfile();
+      await accountService.snapshotAuthSession();
       addToast(isHindi ? `स्वागत है, ${userProfile.displayName || userProfile.username}!` : `Welcome to SocialIndia, ${userProfile.displayName || userProfile.username}!`, 'success');
       onClose();
+      void refreshProfile();
       if (onSuccess) onSuccess();
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user') {
@@ -142,11 +146,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     try {
       const targetIdentifier = email.trim().toLowerCase() || username.trim().toLowerCase();
       if (pendingPassword && targetIdentifier) {
+        await accountService.preserveCurrentSession();
         const { userProfile } = await authService.login(targetIdentifier, pendingPassword);
-        accountService.saveAccount(userProfile, pendingPassword, 'password');
-        await refreshProfile();
+        accountService.saveAccount(userProfile, undefined, 'password');
+        await accountService.snapshotAuthSession();
         addToast(isHindi ? 'ईमेल सफलतापूर्वक सत्यापित हुआ!' : '🎉 Email verified successfully! Welcome to SocialIndia.', 'success');
         onClose();
+        void refreshProfile();
         if (onSuccess) onSuccess();
         return;
       }

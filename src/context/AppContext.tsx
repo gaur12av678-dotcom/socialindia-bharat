@@ -275,6 +275,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         try {
           cacheProfile(enrichedProfile);
           accountService.syncCurrentProfile(enrichedProfile);
+          void accountService.snapshotAuthSession(auth.currentUser);
         } catch {}
       }
     } else if (!authService.getCurrentUserUid()) {
@@ -328,6 +329,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const uid = authService.getCurrentUserUid();
     if (uid) {
       await userService.updatePresence(uid, false).catch(() => {});
+      await accountService.clearVaultSession(uid).catch(() => {});
     }
     try {
       await authService.logout();
@@ -413,6 +415,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Sync cached or Firebase Auth fallback immediately so outgoing switches never drop the account
         try {
           accountService.syncCurrentProfile(cachedProfile);
+          void accountService.snapshotAuthSession(user);
         } catch {}
 
         // Immediately publish authenticated user so UI & Follow/Like states never reset on reload

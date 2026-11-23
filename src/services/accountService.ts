@@ -1,5 +1,6 @@
+import { signOut, updateCurrentUser, User as FirebaseUser } from 'firebase/auth';
 import { authService } from './authService';
-import { auth } from '../firebase';
+import { auth, getVaultAuth } from '../firebase';
 import { User } from '../types';
 
 export interface SavedAccount {
@@ -14,22 +15,14 @@ export interface SavedAccount {
   role?: string;
   lastActiveAt: number;
   authProvider?: 'password' | 'google' | string;
-  savedPassToken?: string; // Obfuscated session token for instant 1-click switch
+  savedPassToken?: string; // Legacy migration-only field; cleared once session is vaulted
 }
 
 const STORAGE_KEY = 'socialindia_saved_accounts';
 const BACKUP_STORAGE_KEY = 'socialindia_saved_accounts_backup';
 
-// Simple obfuscation helper to avoid storing plain text in localStorage
-function obfuscate(text: string): string {
-  try {
-    return btoa(encodeURIComponent(text));
-  } catch {
-    return text;
-  }
-}
-
-function deobfuscate(text: string): string {
+// Legacy migration-only decoder for accounts saved before session vaulting
+function deobfuscateLegacy(text: string): string {
   try {
     return decodeURIComponent(atob(text));
   } catch {
@@ -47,6 +40,19 @@ function sanitizeStoredPhoto(photoURL?: string): string | undefined {
 }
 
 class AccountService {
+  private vaultLocks = new Map<string, Promise<void>>();
+
+  private withVaultLock(uid: string, task: () => Promise<void>): Promise<void> {
+    const prev = this.vaultLocks.get(uid) || Promise.resolve();
+    const next = prev.then(task, task).finally(() => {
+      if (this.vaultLocks.get(uid) === next) {
+        this.vaultLocks.delete(uid);
+      }
+    });
+    this.vaultLocks.set(uid, next);
+    return next;
+  }
+
   private writeSavedAccounts(accounts: SavedAccount[]): void {
     const serialized = JSON.stringify(accounts);
     const tryWrite = () => {
@@ -80,6 +86,78 @@ class AccountService {
   }
 
   /**
+   * Snapshot a Firebase Auth user's live session (refresh + ID tokens) into its
+   * isolated IndexedDB-backed Firebase Auth vault so future switches are instant
+   * and never prompt for a password.
+   */
+  async snapshotAuthSession(fbUser?: FirebaseUser | null): Promise<void> {
+    const targetUser = fbUser ?? auth.currentUser;
+    if (!targetUser || !targetUser.uid) return;
+
+    const isRealEmail = Boolean(targetUser.email && !targetUser.email.endsWith('@socialindia.com'));
+    if (isRealEmail && !targetUser.emailVerified) {
+      return;
+    }
+
+    const uid = targetUser.uid;
+    return this.withVaultLock(uid, async () => {
+      try {
+        const vaultAuth = getVaultAuth(uid);
+        await vaultAuth.authStateReady();
+        const currentVaultUser = vaultAuth.currentUser;
+        if (
+          !currentVaultUser ||
+          currentVaultUser.uid !== uid ||
+          currentVaultUser.refreshToken !== targetUser.refreshToken
+        ) {
+          await updateCurrentUser(vaultAuth, targetUser);
+        }
+      } catch (err) {
+        console.warn('Could not snapshot auth session to vault:', err);
+      }
+    });
+  }
+
+  /**
+   * Preserve the currently active Firebase Auth session before logging into or
+   * switching to another account.
+   */
+  async preserveCurrentSession(): Promise<void> {
+    if (auth.currentUser) {
+      await this.snapshotAuthSession(auth.currentUser);
+    }
+  }
+
+  /**
+   * Clear the isolated vault session for a single UID.
+   */
+  async clearVaultSession(uid?: string | null): Promise<void> {
+    if (!uid) return;
+    return this.withVaultLock(uid, async () => {
+      try {
+        const vaultAuth = getVaultAuth(uid);
+        await vaultAuth.authStateReady();
+        if (vaultAuth.currentUser) {
+          await signOut(vaultAuth);
+        }
+      } catch (err) {
+        console.warn('Could not clear vault session:', err);
+      }
+    });
+  }
+
+  /**
+   * Clear all isolated vault sessions on this device.
+   */
+  async clearAllVaultSessions(): Promise<void> {
+    const uids = new Set<string>(this.getSavedAccounts().map((a) => a.uid));
+    if (auth.currentUser?.uid) {
+      uids.add(auth.currentUser.uid);
+    }
+    await Promise.all(Array.from(uids).map((uid) => this.clearVaultSession(uid)));
+  }
+
+  /**
    * Get all registered/saved accounts on this device
    */
   getSavedAccounts(): SavedAccount[] {
@@ -97,9 +175,9 @@ class AccountService {
   }
 
   /**
-   * Record or update an account in the saved list
+   * Record or update an account in the saved list (and snapshot its active session if signed in)
    */
-  saveAccount(userProfile: User, password?: string, provider?: 'password' | 'google'): void {
+  saveAccount(userProfile: User, _password?: string, provider?: 'password' | 'google'): void {
     if (!userProfile || !userProfile.uid) return;
 
     const accounts = this.getSavedAccounts();
@@ -136,13 +214,9 @@ class AccountService {
       (isFirebaseGoogleUser ? 'google' : undefined) ||
       (existingProvider === 'google' ? 'google' : 'password');
 
-    let savedPassToken = existing?.savedPassToken;
-    if (password) {
-      savedPassToken = obfuscate(password);
-    }
-
     const safePhoto = sanitizeStoredPhoto(userProfile.photoURL) ?? sanitizeStoredPhoto(existing?.photoURL);
 
+    // Never store passwords in localStorage; keep legacy token only until vault snapshot succeeds
     const updatedAccount: SavedAccount = {
       uid: userProfile.uid,
       email: effectiveEmail || '',
@@ -155,7 +229,7 @@ class AccountService {
       role: userProfile.role || existing?.role || 'user',
       lastActiveAt: Date.now(),
       authProvider: resolvedProvider,
-      savedPassToken,
+      ...(fbUser ? {} : existing?.savedPassToken ? { savedPassToken: existing.savedPassToken } : {}),
     };
 
     if (existingIndex >= 0) {
@@ -165,6 +239,23 @@ class AccountService {
     }
 
     this.writeSavedAccounts(accounts);
+
+    if (fbUser) {
+      void this.snapshotAuthSession(fbUser);
+    }
+  }
+
+  private touchAccountAndClearLegacyToken(uid: string): void {
+    const accounts = this.getSavedAccounts();
+    const idx = accounts.findIndex((a) => a.uid === uid);
+    if (idx >= 0) {
+      accounts[idx] = {
+        ...accounts[idx],
+        lastActiveAt: Date.now(),
+      };
+      delete accounts[idx].savedPassToken;
+      this.writeSavedAccounts(accounts);
+    }
   }
 
   /**
@@ -219,15 +310,68 @@ class AccountService {
   }
 
   /**
-   * Switch to a saved account.
-   * If Google account, triggers Google OAuth directly without asking for a password.
-   * If saved credentials exist, authenticates immediately.
-   * If credentials are required, returns { requiresPassword: true }.
+   * Switch to a saved account instantaneously using its vaulted Firebase Auth session.
+   * Falls back to one-time Google/credential sign-in only if no valid vault session exists yet,
+   * and immediately vaults the refreshed session so future switches never prompt again.
    */
   async switchToAccount(
     targetAccount: SavedAccount,
     passwordOverride?: string
-  ): Promise<{ success: boolean; error?: string; requiresPassword?: boolean }> {
+  ): Promise<{ success: boolean; error?: string; requiresPassword?: boolean; instant?: boolean }> {
+    // 1. If already active on this exact UID, just ensure vault + timestamp are updated
+    if (auth.currentUser?.uid === targetAccount.uid && !passwordOverride) {
+      await this.snapshotAuthSession(auth.currentUser);
+      this.touchAccountAndClearLegacyToken(targetAccount.uid);
+      return { success: true, instant: true };
+    }
+
+    // 2. Always preserve the outgoing active account's session before switching
+    await this.preserveCurrentSession();
+
+    // 3. Fast YouTube-style switch via isolated Firebase Auth session vault (0 passwords, 0 popups)
+    if (!passwordOverride) {
+      try {
+        const vaultAuth = getVaultAuth(targetAccount.uid);
+        await vaultAuth.authStateReady();
+        const vaultUser = vaultAuth.currentUser;
+
+        if (vaultUser && vaultUser.uid === targetAccount.uid) {
+          await updateCurrentUser(auth, vaultUser);
+
+          let sessionValid = true;
+          if (typeof navigator === 'undefined' || navigator.onLine) {
+            try {
+              await auth.currentUser?.getIdToken(false);
+              if (auth.currentUser && auth.currentUser.uid === targetAccount.uid) {
+                await this.snapshotAuthSession(auth.currentUser);
+              }
+            } catch (tokenErr: any) {
+              const code = tokenErr?.code || '';
+              if (
+                code === 'auth/user-token-expired' ||
+                code === 'auth/invalid-user-token' ||
+                code === 'auth/user-disabled' ||
+                code === 'auth/user-not-found'
+              ) {
+                sessionValid = false;
+                await this.clearVaultSession(targetAccount.uid);
+              } else {
+                console.warn('Token check skipped during account switch:', tokenErr);
+              }
+            }
+          }
+
+          if (sessionValid) {
+            this.touchAccountAndClearLegacyToken(targetAccount.uid);
+            return { success: true, instant: true };
+          }
+        }
+      } catch (vaultErr) {
+        console.warn('Vault session switch fallback:', vaultErr);
+      }
+    }
+
+    // 4. Fallback for accounts without a vaulted session yet (e.g. legacy or post-sign-out)
     const isGoogleAccount =
       targetAccount.authProvider === 'google' ||
       Boolean(
@@ -239,6 +383,7 @@ class AccountService {
       try {
         const { userProfile } = await authService.signInWithGoogle(targetAccount.email);
         this.saveAccount(userProfile, undefined, 'google');
+        await this.snapshotAuthSession(auth.currentUser);
         return { success: true };
       } catch (err: any) {
         if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
@@ -248,7 +393,7 @@ class AccountService {
       }
     }
 
-    const password = passwordOverride || (targetAccount.savedPassToken ? deobfuscate(targetAccount.savedPassToken) : '');
+    const password = passwordOverride || (targetAccount.savedPassToken ? deobfuscateLegacy(targetAccount.savedPassToken) : '');
 
     if (!password) {
       return { success: false, requiresPassword: true };
@@ -257,12 +402,12 @@ class AccountService {
     try {
       const identifier = targetAccount.username || targetAccount.email;
       const { userProfile } = await authService.login(identifier, password);
-      // Update saved accounts with successful credential
-      this.saveAccount(userProfile, password, 'password');
+      this.saveAccount(userProfile, undefined, 'password');
+      await this.snapshotAuthSession(auth.currentUser);
+      this.touchAccountAndClearLegacyToken(userProfile.uid);
       return { success: true };
     } catch (err: any) {
-      console.warn('Account switch failed with saved credential:', err);
-      // If credential expired or invalid, clear stored pass token
+      console.warn('Account switch failed with credential:', err);
       if (err.message && (err.message.includes('password') || err.message.includes('credential'))) {
         this.clearSavedPassword(targetAccount.uid);
         return { success: false, requiresPassword: true, error: 'Password required or changed.' };
@@ -284,20 +429,20 @@ class AccountService {
   }
 
   /**
-   * Remove an account from the saved list
+   * Remove an account from the saved list and clear its local session vault
    */
   removeAccount(uid: string): void {
     const accounts = this.getSavedAccounts().filter((a) => a.uid !== uid);
     this.writeSavedAccounts(accounts);
+    void this.clearVaultSession(uid);
   }
 
   /**
-   * Sign out of all accounts
+   * Sign out of all accounts on this device
    */
   async signOutAll(): Promise<void> {
+    await this.clearAllVaultSessions();
     await authService.logout();
-    // Keep saved accounts list so user can easily sign back in like Google/YouTube,
-    // or optionally clear passwords
   }
 }
 

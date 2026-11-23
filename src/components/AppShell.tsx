@@ -1037,9 +1037,9 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                                   const res = await accountService.switchToAccount(acc);
                                   setSwitchingUid(null);
                                   if (res.success) {
-                                    await refreshProfile();
                                     setProfileDropdownOpen(false);
                                     setProfileDropdownView('main');
+                                    void refreshProfile();
                                     addToast(isHindi ? `${acc.displayName || acc.username} में स्विच किया गया` : `Switched to ${acc.displayName || acc.username}`, 'success');
                                   } else if (res.requiresPassword) {
                                     setProfileDropdownOpen(false);
@@ -1100,10 +1100,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                         </button>
 
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             setProfileDropdownOpen(false);
                             setProfileDropdownView('main');
-                            handleSignOut();
+                            await accountService.clearAllVaultSessions();
+                            await handleSignOut();
                           }}
                           className="w-full px-3 py-2 rounded-xl hover:bg-rose-50/80 dark:hover:bg-rose-950/30 flex items-center gap-3 transition-colors duration-150 cursor-pointer group text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 text-left"
                         >

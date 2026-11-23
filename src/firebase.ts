@@ -1,5 +1,11 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
+import {
+  getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  Auth,
+} from 'firebase/auth';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -21,6 +27,37 @@ try {
 export const db = firestoreInstance;
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+const vaultAuthCache = new Map<string, Auth>();
+
+/**
+ * Returns an isolated Firebase Auth instance scoped to a specific UID.
+ * Each named app persists its own Firebase session (refresh + ID tokens)
+ * in browser IndexedDB, enabling instant YouTube-style account switching
+ * without re-entering passwords or storing credentials in localStorage.
+ */
+export function getVaultAuth(uid: string): Auth {
+  const cached = vaultAuthCache.get(uid);
+  if (cached) return cached;
+
+  const appName = `si_vault_${uid}`;
+  let vaultApp: FirebaseApp | undefined = getApps().find((a) => a.name === appName);
+  if (!vaultApp) {
+    vaultApp = initializeApp(firebaseConfig, appName);
+  }
+
+  let vaultAuth: Auth;
+  try {
+    vaultAuth = initializeAuth(vaultApp, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    });
+  } catch {
+    vaultAuth = getAuth(vaultApp);
+  }
+
+  vaultAuthCache.set(uid, vaultAuth);
+  return vaultAuth;
+}
 
 export enum OperationType {
   CREATE = 'create',
