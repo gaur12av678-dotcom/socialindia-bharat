@@ -82,10 +82,11 @@ import { AdminQuickTools } from '../components/AdminQuickTools';
 import { CaptionEditorModal } from '../components/CaptionEditorModal';
 import { FirebaseVideoEditor } from '../components/admin/FirebaseVideoEditor';
 import { verificationService } from '../services/verificationService';
-import { VerificationRequest } from '../types';
+import { VerificationRequest, NewsletterCampaign } from '../types';
 import { notificationService } from '../services/notificationService';
 import { videoService } from '../services/videoService';
 import { GrievanceManagement } from '../components/admin/GrievanceManagement';
+import { Mail, Send, Bell } from 'lucide-react';
 
 type AdminSection = 
   | 'dashboard' 
@@ -95,6 +96,7 @@ type AdminSection =
   | 'paid_videos'
   | 'withdrawals'
   | 'verification_requests'
+  | 'newsletter'
   | 'reports' 
   | 'grievances'
   | 'feedback' 
@@ -240,6 +242,14 @@ export const AdminPanel: React.FC = () => {
   const [isUpdatingSound, setIsUpdatingSound] = useState(false);
   const [reportMessages, setReportMessages] = useState<Record<string, string>>({});
   const [sendingReportUpdateId, setSendingReportUpdateId] = useState<string | null>(null);
+
+  // Newsletter Tool State
+  const [newsletterTitle, setNewsletterTitle] = useState('');
+  const [newsletterMessage, setNewsletterMessage] = useState('');
+  const [isSendingNewsletter, setIsSendingNewsletter] = useState(false);
+  const [isBackfillingNewsletter, setIsBackfillingNewsletter] = useState(false);
+  const [newsletterCampaigns, setNewsletterCampaigns] = useState<NewsletterCampaign[]>([]);
+  const [newsletterResultMsg, setNewsletterResultMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Security Check: Only admins allowed
   useEffect(() => {
@@ -667,6 +677,72 @@ export const AdminPanel: React.FC = () => {
       }).catch(console.warn).finally(() => setLoadingPaidVideos(false));
     }
   }, [activeSection]);
+
+  // Load Newsletter campaigns & ensure legacy users missing newsletter field are activated
+  useEffect(() => {
+    if (activeSection === 'newsletter') {
+      notificationService.getNewsletterCampaigns().then(setNewsletterCampaigns).catch(console.warn);
+      const missingCount = users.filter((u) => u.newsletter === undefined).length;
+      if (missingCount > 0) {
+        notificationService.activateNewsletterForMissingUsers(users).then((updated) => {
+          if (updated > 0) {
+            setUsers((prev) => prev.map((u) => (u.newsletter === undefined ? { ...u, newsletter: true } : u)));
+          }
+        }).catch(console.warn);
+      }
+    }
+  }, [activeSection, users.length]);
+
+  const handleActivateNewsletterForAllMissing = async () => {
+    setIsBackfillingNewsletter(true);
+    setNewsletterResultMsg(null);
+    try {
+      const updated = await notificationService.activateNewsletterForMissingUsers(users);
+      setUsers((prev) => prev.map((u) => (u.newsletter === undefined ? { ...u, newsletter: true } : u)));
+      const msg = updated > 0
+        ? `Activated newsletter for ${updated} existing user account(s).`
+        : 'All existing users already have their newsletter preference active!';
+      setNewsletterResultMsg({ type: 'success', text: msg });
+      addToast(msg, 'success');
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to activate newsletter for existing users.';
+      setNewsletterResultMsg({ type: 'error', text: msg });
+      addToast(msg, 'error');
+    } finally {
+      setIsBackfillingNewsletter(false);
+    }
+  };
+
+  const handleSendNewsletterTip = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newsletterTitle.trim() || !newsletterMessage.trim()) {
+      setNewsletterResultMsg({ type: 'error', text: 'Please enter both a tip title and message.' });
+      return;
+    }
+    setIsSendingNewsletter(true);
+    setNewsletterResultMsg(null);
+    try {
+      const res = await notificationService.sendNewsletterTips(
+        users,
+        newsletterTitle,
+        newsletterMessage,
+        currentUser?.uid
+      );
+      setUsers((prev) => prev.map((u) => (u.newsletter === undefined ? { ...u, newsletter: true } : u)));
+      setNewsletterCampaigns((prev) => [res.campaign, ...prev]);
+      setNewsletterTitle('');
+      setNewsletterMessage('');
+      const msg = `Tip sent as Team SocialIndia to ${res.recipientCount} active subscriber(s)!`;
+      setNewsletterResultMsg({ type: 'success', text: msg });
+      addToast(msg, 'success');
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to send newsletter tip notifications.';
+      setNewsletterResultMsg({ type: 'error', text: msg });
+      addToast(msg, 'error');
+    } finally {
+      setIsSendingNewsletter(false);
+    }
+  };
 
   const handleSaveStorage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -1400,6 +1476,28 @@ export const AdminPanel: React.FC = () => {
           </button>
 
           <button 
+            onClick={() => setActiveSection('newsletter')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'newsletter' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'newsletter' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+          >
+            <div className="flex items-center gap-2.5">
+              <Mail className="w-4 h-4 shrink-0" style={{ color: activeSection === 'newsletter' ? '#ffffff' : '#38bdf8' }} />
+              <span style={{ color: activeSection === 'newsletter' ? '#ffffff' : undefined }}>Newsletter</span>
+            </div>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-black uppercase ${
+              activeSection === 'newsletter'
+                ? 'bg-white/20 text-white'
+                : 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+            }`}>
+              Tips
+            </span>
+          </button>
+
+          <button 
             onClick={() => setActiveSection('tools')}
             className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
               activeSection === 'tools' 
@@ -1490,6 +1588,7 @@ export const AdminPanel: React.FC = () => {
                     paid_videos: 'Paid videos & earnings',
                     withdrawals: 'Creator withdrawals',
                     verification_requests: 'Verification requests',
+                    newsletter: 'Newsletter & Tips',
                     reports: 'Reports',
                     grievances: 'Grievance Management',
                     feedback: 'Feedback',
@@ -1512,6 +1611,7 @@ export const AdminPanel: React.FC = () => {
                     paid_videos: 'Review paid video activity and creator earnings.',
                     withdrawals: 'Review and process creator payout requests.',
                     verification_requests: 'Review creator verification applications.',
+                    newsletter: 'Send helpful tips as Team SocialIndia to all active newsletter users via notifications.',
                     reports: 'Review content and account reports.',
                     grievances: 'Review private grievance submissions and record administrative actions.',
                     feedback: 'Review feedback submitted by the community.',
@@ -3542,6 +3642,262 @@ export const AdminPanel: React.FC = () => {
 
               </div>
             )}
+
+            {/* SECTION: NEWSLETTER & TIPS BROADCAST TO NOTIFICATIONS */}
+            {activeSection === 'newsletter' && (() => {
+              const activeSubscribers = users.filter((u) => u.newsletter !== false && u.status !== 'suspended');
+              const optedOutUsers = users.filter((u) => u.newsletter === false);
+              const missingLegacyUsers = users.filter((u) => u.newsletter === undefined);
+
+              return (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                  {/* Subscriber Summary Stats */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-2xl p-5 shadow-xs">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Active Subscribers</p>
+                      <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                        {activeSubscribers.length}
+                      </p>
+                      <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Receive Team SocialIndia tips</p>
+                    </div>
+
+                    <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-2xl p-5 shadow-xs">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Opted Out (Inactive)</p>
+                      <p className="text-2xl font-black text-slate-700 dark:text-slate-300 mt-1">
+                        {optedOutUsers.length}
+                      </p>
+                      <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Turned off in Settings</p>
+                    </div>
+
+                    <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-2xl p-5 shadow-xs">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Users</p>
+                      <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        {users.length}
+                      </p>
+                      <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Default newsletter: Active</p>
+                    </div>
+
+                    <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-2xl p-5 shadow-xs">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tips Sent</p>
+                      <p className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
+                        {newsletterCampaigns.length}
+                      </p>
+                      <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Delivered to Notifications</p>
+                    </div>
+                  </div>
+
+                  {/* Legacy Sync Action Card if any users lack the field */}
+                  {missingLegacyUsers.length > 0 && (
+                    <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="text-xs font-semibold text-blue-900 dark:text-blue-200">
+                        {missingLegacyUsers.length} existing user account(s) don&apos;t have a saved newsletter status yet. Activate newsletter for all of them now.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleActivateNewsletterForAllMissing}
+                        disabled={isBackfillingNewsletter}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shrink-0 disabled:opacity-50"
+                      >
+                        {isBackfillingNewsletter ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        <span>Activate Missing Users</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Compose Newsletter Tip Card */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <form
+                      onSubmit={handleSendNewsletterTip}
+                      className="lg:col-span-2 bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-7 shadow-sm space-y-5"
+                    >
+                      <div className="flex items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-[#272727]">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 rounded-2xl">
+                            <Mail className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                              Send Newsletter Tip
+                            </h3>
+                            <p className="text-xs text-slate-500 font-medium">
+                              Sent from <strong>Team SocialIndia</strong> to every user&apos;s Notification Bell (for users with Newsletter Active).
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {newsletterResultMsg && (
+                        <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2 ${
+                          newsletterResultMsg.type === 'success'
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                        }`}>
+                          {newsletterResultMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                          <span>{newsletterResultMsg.text}</span>
+                        </div>
+                      )}
+
+                      {/* Quick Tip Starters */}
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Quick Tip Ideas</p>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            {
+                              label: 'Creator Growth Tip',
+                              title: 'Creator Tip from Team SocialIndia',
+                              message: 'Use clear custom thumbnails and relevant hashtags on your videos and Clips to boost discovery across India!'
+                            },
+                            {
+                              label: 'Clips Engagement Tip',
+                              title: 'Boost Your Clips Reach',
+                              message: 'Reply to your viewers in Creator Studio Comments to build a loyal community and keep conversations going!'
+                            },
+                            {
+                              label: 'Channel Safety Tip',
+                              title: 'Account Safety Tip',
+                              message: 'Keep your channel secure and verify your public details so viewers always trust your official SocialIndia channel.'
+                            }
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => {
+                                setNewsletterTitle(preset.title);
+                                setNewsletterMessage(preset.message);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 text-[11px] font-bold transition-colors cursor-pointer"
+                            >
+                              + {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                          Tip Title
+                        </label>
+                        <input
+                          type="text"
+                          value={newsletterTitle}
+                          onChange={(e) => setNewsletterTitle(e.target.value)}
+                          placeholder="e.g. Weekly Creator Tip from Team SocialIndia"
+                          maxLength={120}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300">
+                          Tip Message
+                        </label>
+                        <textarea
+                          rows={4}
+                          value={newsletterMessage}
+                          onChange={(e) => setNewsletterMessage(e.target.value)}
+                          placeholder="Write useful tips, feature highlights, or creator advice to appear in users' notifications..."
+                          maxLength={500}
+                          className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 resize-none"
+                        />
+                        <div className="flex justify-between text-[11px] text-slate-400 font-medium">
+                          <span>Only users with Newsletter = Active will receive this notification.</span>
+                          <span>{newsletterMessage.length}/500</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-3 pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSendingNewsletter || !newsletterTitle.trim() || !newsletterMessage.trim() || activeSubscribers.length === 0}
+                          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-black rounded-2xl shadow-md shadow-blue-600/20 flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+                        >
+                          {isSendingNewsletter ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                          <span>Send Tip to {activeSubscribers.length} Active User{activeSubscribers.length === 1 ? '' : 's'}</span>
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Live Notification Preview */}
+                    <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 shadow-sm space-y-4 h-fit">
+                      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <Bell className="w-4 h-4 text-blue-600" />
+                        <span>Notification Preview</span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-[#eff6ff] dark:bg-blue-950/25 border border-blue-200/80 dark:border-blue-800/60 flex gap-3 items-start">
+                        <img
+                          src="/socialindia-icon.png"
+                          alt="Team SocialIndia"
+                          className="w-9 h-9 rounded-full object-cover shrink-0 border border-blue-200 dark:border-blue-800 bg-white"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-extrabold text-slate-900 dark:text-slate-100">
+                            Team SocialIndia
+                          </p>
+                          <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mt-0.5 break-words">
+                            {newsletterTitle.trim() || 'Tip Title preview'}
+                          </p>
+                          <p className="text-xs text-slate-700 dark:text-slate-200 font-medium leading-normal mt-1 break-words">
+                            {newsletterMessage.trim() || 'Your tip message will appear right here inside every active user’s Notification bell.'}
+                          </p>
+                          <span className="text-[10px] text-slate-400 block mt-1.5">Just now</span>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200/80 dark:border-[#272727] text-[11px] text-slate-600 dark:text-slate-300 space-y-1.5">
+                        <p className="font-extrabold text-slate-800 dark:text-slate-100">Delivery Rules</p>
+                        <p>• Sender shown: <strong>Team SocialIndia</strong></p>
+                        <p>• Targets: <strong>{activeSubscribers.length}</strong> active subscribers</p>
+                        <p>• Skips: <strong>{optedOutUsers.length}</strong> opted-out user(s)</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Previously Sent Newsletter Tips History */}
+                  <div className="bg-white dark:bg-[#121212] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                        <History className="w-4 h-4 text-blue-600" />
+                        <span>Sent Newsletter Tips History</span>
+                      </h3>
+                      <span className="text-xs font-bold text-slate-400">
+                        {newsletterCampaigns.length} sent
+                      </span>
+                    </div>
+
+                    {newsletterCampaigns.length === 0 ? (
+                      <div className="p-8 text-center rounded-2xl bg-slate-50 dark:bg-[#1a1a1a] border border-dashed border-slate-200 dark:border-[#333] text-xs font-semibold text-slate-500">
+                        No newsletter tips sent yet. Use the form above to send your first tip from Team SocialIndia!
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {newsletterCampaigns.map((camp) => (
+                          <div key={camp.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black text-slate-900 dark:text-white">{camp.title}</span>
+                                <span className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 text-[10px] font-bold">
+                                  {camp.senderName || 'Team SocialIndia'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 dark:text-slate-300 break-words">{camp.message}</p>
+                            </div>
+                            <div className="text-right shrink-0 space-y-0.5">
+                              <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black">
+                                {camp.recipientCount} users notified
+                              </span>
+                              <p className="text-[10px] text-slate-400 font-medium">
+                                {formatTimeAgo(camp.sentAt) || formatShortDate(camp.sentAt)}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* SECTION: FIREBASE VIDEO & METRICS EDIT TOOL */}
             {activeSection === 'firebase_edit' && (

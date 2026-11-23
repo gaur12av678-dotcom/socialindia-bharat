@@ -108,6 +108,7 @@ export const authService = {
         email: email,
         emailVerified: false,
         role: 'user',
+        newsletter: true,
       });
 
       // 4. Create default private info while authenticated
@@ -144,6 +145,7 @@ export const authService = {
         points: 10,
         walletBalance: 0,
         status: 'active',
+        newsletter: true,
         gender: 'Male',
         country: 'India',
         createdAt: new Date().toISOString(),
@@ -395,6 +397,7 @@ export const authService = {
         photoURL: photoURL,
         emailVerified: !!fbUser.emailVerified,
         role: 'user',
+        newsletter: true,
       });
 
       const privateInfo: PrivateUserInfo = {

@@ -346,6 +346,7 @@ export const userService = {
       // Admin assignment must be done manually in the Firebase console or Firestore editor for maximum security.
       role: profile.role || 'user',
       status: 'active',
+      newsletter: profile.newsletter ?? true,
       createdAt: now,
       updatedAt: now,
     };
@@ -723,6 +724,7 @@ export const userService = {
       photoURL,
       emailVerified: fbUser.emailVerified || false,
       role: 'user',
+      newsletter: true,
     };
 
     await this.createUserProfile(fbUser.uid, newProfile);

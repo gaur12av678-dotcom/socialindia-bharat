@@ -47,7 +47,8 @@ import {
   CheckCircle,
   HardDrive,
   Terminal,
-  AlertCircle
+  AlertCircle,
+  Lock
 } from 'lucide-react';
 import { payoutService } from '../services/payoutService';
 import { WithdrawalRequest, Video, VerificationRequest } from '../types';
@@ -124,18 +125,14 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
   const [gender, setGender] = useState('Male');
   const [country, setCountry] = useState('India');
   const [age, setAge] = useState('Not selected');
-  const [newsletter, setNewsletter] = useState<'active' | 'inactive'>('inactive');
+  const [newsletter, setNewsletter] = useState<'active' | 'inactive'>('active');
 
   // Profile Form
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [photoURL, setPhotoURL] = useState('');
   const [bannerURL, setBannerURL] = useState('');
-  const [instagram, setInstagram] = useState('');
-  const [twitter, setTwitter] = useState('');
-  const [ytLink, setYtLink] = useState('');
   const [website, setWebsite] = useState('');
-  const [telegram, setTelegram] = useState('');
 
   // Password Change
   const [currentPass, setCurrentPass] = useState('');
@@ -340,11 +337,15 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
       if (currentUserProfile.displayName) {
         setWithdrawAccountName(currentUserProfile.displayName);
       }
-      setInstagram(currentUserProfile.socialLinks?.instagram || '');
-      setTwitter(currentUserProfile.socialLinks?.twitter || '');
-      setYtLink(currentUserProfile.socialLinks?.youtube || '');
-      setWebsite(currentUserProfile.socialLinks?.website || '');
-      setTelegram(currentUserProfile.socialLinks?.telegram || '');
+      setNewsletter(currentUserProfile.newsletter === false ? 'inactive' : 'active');
+      const savedLink =
+        currentUserProfile.socialLinks?.website ||
+        currentUserProfile.socialLinks?.instagram ||
+        currentUserProfile.socialLinks?.twitter ||
+        currentUserProfile.socialLinks?.youtube ||
+        currentUserProfile.socialLinks?.telegram ||
+        '';
+      setWebsite(savedLink);
     }
 
     if (currentUser) {
@@ -401,6 +402,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
         gender,
         country,
         age,
+        newsletter: newsletter === 'active',
       };
       await userService.updateProfile(currentUser.uid, updates);
       await refreshProfile();
@@ -418,6 +420,19 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     }
   };
 
+  // Immediate toggle handler for Newsletter preference
+  const handleToggleNewsletter = async (next: 'active' | 'inactive') => {
+    setNewsletter(next);
+    if (!currentUser) return;
+    const isActive = next === 'active';
+    try {
+      updateUserProfileState({ newsletter: isActive });
+      await userService.updateProfile(currentUser.uid, { newsletter: isActive });
+    } catch (err) {
+      console.warn('Could not persist newsletter toggle immediately:', err);
+    }
+  };
+
   // Save profile handler
   const handleSaveProfile = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -428,17 +443,14 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     try {
       const currentAv = photoURL || currentUserProfile?.photoURL || '';
       const currentBn = bannerURL || currentUserProfile?.bannerURL || '';
+      const cleanLink = website.trim();
       const updates = {
         displayName: displayName.trim(),
         bio: bio.trim(),
         photoURL: currentAv,
         bannerURL: currentBn,
         socialLinks: {
-          instagram,
-          twitter,
-          youtube: ytLink,
-          website,
-          telegram
+          website: cleanLink
         }
       };
       updateUserProfileState(updates);
@@ -1096,14 +1108,19 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                       <Mail className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
                       <input
                         type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        className="w-full h-12 pl-11 pr-4 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-[#2563EB]"
+                        value={email || currentUser?.email || ''}
+                        readOnly
+                        disabled
+                        aria-readonly="true"
+                        placeholder="No email linked"
+                        className="w-full h-12 pl-11 pr-11 bg-slate-100 dark:bg-[#0F172A]/60 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 cursor-not-allowed select-none"
                       />
+                      <Lock className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none" />
                     </div>
                     <p className="text-[11px] text-slate-400 mt-1.5 font-medium">
-                      Add an email so you can recover your account.
+                      {isHindi
+                        ? 'सेटिंग्स से ई-मेल पता बदला नहीं जा सकता।'
+                        : 'Email address cannot be changed from Settings.'}
                     </p>
                   </div>
                 </div>
@@ -1200,16 +1217,18 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                     Newsletter
                   </span>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                    Get updates and tips from SocialIndia in your inbox.
+                    {isHindi
+                      ? 'Team SocialIndia की ओर से नोटिफिकेशन में टिप्स और अपडेट प्राप्त करें।'
+                      : 'Get helpful tips and updates from Team SocialIndia in your notifications.'}
                   </p>
 
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
-                      onClick={() => setNewsletter('active')}
+                      onClick={() => handleToggleNewsletter('active')}
                       className={`px-5 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 cursor-pointer transition-all ${
                         newsletter === 'active'
-                          ? 'border-[#2563EB] text-[#2563EB] bg-blue-50/50'
+                          ? 'border-[#2563EB] text-[#2563EB] bg-blue-50/50 dark:bg-blue-950/30 dark:text-blue-400'
                           : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                       }`}
                     >
@@ -1223,10 +1242,10 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
 
                     <button
                       type="button"
-                      onClick={() => setNewsletter('inactive')}
+                      onClick={() => handleToggleNewsletter('inactive')}
                       className={`px-5 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 cursor-pointer transition-all ${
                         newsletter === 'inactive'
-                          ? 'border-[#2563EB] text-[#2563EB] bg-blue-50/50'
+                          ? 'border-[#2563EB] text-[#2563EB] bg-blue-50/50 dark:bg-blue-950/30 dark:text-blue-400'
                           : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                       }`}
                     >
@@ -1296,27 +1315,17 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">Instagram</label>
-                    <input
-                      type="text"
-                      value={instagram}
-                      onChange={(e) => setInstagram(e.target.value)}
-                      placeholder="https://instagram.com/user"
-                      className="w-full h-11 px-4 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-extrabold uppercase text-slate-500 mb-1">Twitter / X</label>
-                    <input
-                      type="text"
-                      value={twitter}
-                      onChange={(e) => setTwitter(e.target.value)}
-                      placeholder="https://x.com/user"
-                      className="w-full h-11 px-4 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-2">
+                    Link
+                  </label>
+                  <input
+                    type="text"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full h-12 px-4 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-[#2563EB]"
+                  />
                 </div>
               </div>
             </div>

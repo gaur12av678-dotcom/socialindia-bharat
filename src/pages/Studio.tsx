@@ -155,6 +155,7 @@ export const CreatorStudio: React.FC = () => {
   // Studio Comments state for community replies
   const [studioComments, setStudioComments] = useState<(Comment & { videoTitle: string; isShort?: boolean })[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
+  const [commentFilter, setCommentFilter] = useState<'all' | 'replied' | 'unreplied'>('all');
   const [replyTextMap, setReplyTextMap] = useState<Record<string, string>>({});
   const [submittingReplyId, setSubmittingReplyId] = useState<string | null>(null);
   const [activeReplyBoxId, setActiveReplyBoxId] = useState<string | null>(null);
@@ -381,22 +382,16 @@ export const CreatorStudio: React.FC = () => {
     }
   }, [activeTab, videos]);
 
-  const handleSendReply = async (comment: Comment & { videoTitle: string }) => {
+  const handleSendReply = async (comment: Comment & { videoTitle: string; isShort?: boolean }) => {
     const text = (replyTextMap[comment.commentId] || '').trim();
     if (!text || !currentUser || !currentUserProfile) {
       addToast('Please enter a reply text.', 'info');
       return;
     }
 
-    setReplyTextMap(prev => ({ ...prev, [comment.commentId]: '' }));
-    setActiveReplyBoxId(null);
-    addToast('Reply sent successfully!', 'success');
-
-    // Optimistically update local comment reply indicator
-    setStudioComments(prev => prev.map(c => c.commentId === comment.commentId ? { ...c, repliesCount: ((c as any).repliesCount || 0) + 1 } : c));
-
+    setSubmittingReplyId(comment.commentId);
     try {
-      await commentService.addComment(comment.videoId, {
+      const createdReply = await commentService.addComment(comment.videoId, {
         parentCommentId: comment.commentId,
         uid: currentUser.uid,
         username: currentUserProfile.username,
@@ -404,9 +399,22 @@ export const CreatorStudio: React.FC = () => {
         photoURL: currentUserProfile.photoURL || '',
         text: text
       });
+      setStudioComments(prev => [
+        ...prev,
+        {
+          ...createdReply,
+          videoTitle: comment.videoTitle,
+          isShort: comment.isShort
+        }
+      ]);
+      setReplyTextMap(prev => ({ ...prev, [comment.commentId]: '' }));
+      setActiveReplyBoxId(null);
+      addToast('Reply sent successfully!', 'success');
     } catch (err) {
       console.error(err);
       addToast('Failed to post reply.', 'error');
+    } finally {
+      setSubmittingReplyId(null);
     }
   };
 
@@ -881,7 +889,7 @@ export const CreatorStudio: React.FC = () => {
           style={activeTab === 'comments' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
         >
           <MessageSquare className="w-4 h-4 shrink-0" style={{ color: activeTab === 'comments' ? '#ffffff' : undefined }} />
-          <span style={{ color: activeTab === 'comments' ? '#ffffff' : undefined }}>{isHindi ? `टिप्पणियाँ (${studioComments.length || 0})` : `COMMENTS (${studioComments.length || 0})`}</span>
+          <span style={{ color: activeTab === 'comments' ? '#ffffff' : undefined }}>{isHindi ? `टिप्पणियाँ (${studioComments.filter(c => !c.parentCommentId).length})` : `COMMENTS (${studioComments.filter(c => !c.parentCommentId).length})`}</span>
         </button>
 
         {/* EARN & MONETIZATION TAB - Only visible to monetized creators */}
@@ -1732,182 +1740,325 @@ export const CreatorStudio: React.FC = () => {
           )}
 
           {/* COMMENTS & COMMUNITY TAB VIEW */}
-          {activeTab === 'comments' && (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              
-              {/* Header Card */}
-              <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 sm:p-6 rounded-3xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Channel Comments & Community</h2>
-                    <span className="px-2.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-[11px] font-black">
-                      {studioComments.length}
-                    </span>
+          {activeTab === 'comments' && (() => {
+            const topLevelIds = new Set(
+              studioComments.filter(c => !c.parentCommentId).map(c => c.commentId)
+            );
+            const repliesByParent = new Map<string, (Comment & { videoTitle: string; isShort?: boolean })[]>();
+            const topLevelComments: (Comment & { videoTitle: string; isShort?: boolean })[] = [];
+
+            studioComments.forEach((c) => {
+              if (c.parentCommentId && topLevelIds.has(c.parentCommentId)) {
+                const list = repliesByParent.get(c.parentCommentId) || [];
+                list.push(c);
+                repliesByParent.set(c.parentCommentId, list);
+              } else {
+                topLevelComments.push(c);
+              }
+            });
+
+            repliesByParent.forEach((list, parentId) => {
+              list.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+              repliesByParent.set(parentId, list);
+            });
+
+            const hasOwnerReply = (comment: Comment & { videoTitle: string; isShort?: boolean }) => {
+              const replies = repliesByParent.get(comment.commentId) || [];
+              return replies.some(r => r.uid === currentUser.uid) || (comment.uid === currentUser.uid && Boolean(comment.parentCommentId));
+            };
+
+            const repliedComments = topLevelComments.filter(hasOwnerReply);
+            const unrepliedComments = topLevelComments.filter(c => !hasOwnerReply(c));
+
+            const visibleComments =
+              commentFilter === 'replied'
+                ? repliedComments
+                : commentFilter === 'unreplied'
+                  ? unrepliedComments
+                  : topLevelComments;
+
+            return (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                
+                {/* Header Card */}
+                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 sm:p-6 rounded-3xl shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-black text-slate-900 dark:text-white">Channel Comments & Community</h2>
+                        <span className="px-2.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-[11px] font-black">
+                          {topLevelComments.length}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+                        View all comments, see your channel owner replies, and respond to viewers.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={loadStudioComments}
+                      disabled={loadingComments}
+                      className="px-4 py-2 bg-slate-100 dark:bg-[#1E293B] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl flex items-center gap-2 transition-all cursor-pointer w-fit self-start sm:self-auto"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
+                      <span>{loadingComments ? 'Refreshing...' : 'Refresh Comments'}</span>
+                    </button>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                    Reply directly to your viewers across all your videos and shorts.
-                  </p>
-                </div>
 
-                <button
-                  onClick={loadStudioComments}
-                  disabled={loadingComments}
-                  className="px-4 py-2 bg-slate-100 dark:bg-[#1E293B] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl flex items-center gap-2 transition-all cursor-pointer w-fit self-start sm:self-auto"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 text-blue-500" />
-                  <span>{loadingComments ? 'Refreshing...' : 'Refresh Comments'}</span>
-                </button>
-              </div>
-
-              {/* Comments List */}
-              {loadingComments ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-3">
-                  <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-                  <div className="text-xs font-bold text-slate-400">Loading channel comments...</div>
-                </div>
-              ) : studioComments.length === 0 ? (
-                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl p-12 text-center flex flex-col items-center justify-center">
-                  <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
-                    <MessageSquare className="w-8 h-8" />
-                  </div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-white">No comments yet</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1.5 font-medium leading-relaxed">
-                    When viewers watch and comment on your videos or shorts, you will be able to read and reply to them right here!
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {studioComments.map((comment) => {
-                    const isReplying = activeReplyBoxId === comment.commentId;
-                    const isSubmitting = submittingReplyId === comment.commentId;
-
-                    return (
-                      <div
-                        key={comment.commentId}
-                        className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs transition-all hover:border-blue-300 dark:hover:border-blue-700 space-y-3"
+                  {/* Filter Tabs: All / Replied by you / Unreplied */}
+                  <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-slate-100 dark:border-slate-800">
+                    {[
+                      { id: 'all', label: isHindi ? `सभी (${topLevelComments.length})` : `All (${topLevelComments.length})` },
+                      { id: 'replied', label: isHindi ? `रिप्लाई किए गए (${repliedComments.length})` : `Replied (${repliedComments.length})` },
+                      { id: 'unreplied', label: isHindi ? `बिना रिप्लाई (${unrepliedComments.length})` : `Unreplied (${unrepliedComments.length})` },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setCommentFilter(tab.id as 'all' | 'replied' | 'unreplied')}
+                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          commentFilter === tab.id
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-slate-100 dark:bg-[#1E293B] text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'
+                        }`}
                       >
-                        {/* Top: User info + Video info */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <UserAvatar
-                              uid={comment.uid}
-                              fallbackPhotoURL={comment.photoURL}
-                              fallbackDisplayName={comment.displayName || comment.username}
-                              size="sm"
-                            />
-                            <div className="min-w-0">
-                              <span className="text-xs font-extrabold text-slate-900 dark:text-white truncate block">
-                                {comment.displayName || comment.username}
-                              </span>
-                              <span className="text-[11px] text-slate-400 font-semibold">
-                                @{comment.username} • {formatTimeAgo(comment.createdAt)}
-                              </span>
-                              {comment.status === 'pending' && (
-                                <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
-                                  Held for review
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Comments List */}
+                {loadingComments ? (
+                  <div className="py-20 flex flex-col items-center justify-center gap-3">
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                    <div className="text-xs font-bold text-slate-400">Loading channel comments...</div>
+                  </div>
+                ) : visibleComments.length === 0 ? (
+                  <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl p-12 text-center flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-4">
+                      <MessageSquare className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">
+                      {commentFilter === 'replied'
+                        ? 'No replied comments yet'
+                        : commentFilter === 'unreplied'
+                          ? 'No unreplied comments'
+                          : 'No comments yet'}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1.5 font-medium leading-relaxed">
+                      {commentFilter === 'replied'
+                        ? 'Comments you reply to as the channel owner will appear here along with your replies.'
+                        : 'When viewers watch and comment on your videos or shorts, you will be able to read and reply to them right here!'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {visibleComments.map((comment) => {
+                      const isReplying = activeReplyBoxId === comment.commentId;
+                      const isSubmitting = submittingReplyId === comment.commentId;
+                      const replies = repliesByParent.get(comment.commentId) || [];
+                      const ownerReplied = replies.some(r => r.uid === currentUser.uid) || (comment.uid === currentUser.uid && Boolean(comment.parentCommentId));
+
+                      return (
+                        <div
+                          key={comment.commentId}
+                          className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-5 rounded-2xl shadow-xs transition-all hover:border-blue-300 dark:hover:border-blue-700 space-y-3"
+                        >
+                          {/* Top: User info + Video info */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <UserAvatar
+                                uid={comment.uid}
+                                fallbackPhotoURL={comment.photoURL}
+                                fallbackDisplayName={comment.displayName || comment.username}
+                                size="sm"
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                                    {comment.displayName || comment.username}
+                                  </span>
+                                  {comment.uid === currentUser.uid && (
+                                    <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[9px] font-black uppercase tracking-wider">
+                                      Channel Owner
+                                    </span>
+                                  )}
+                                  {ownerReplied && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      <span>Replied</span>
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-slate-400 font-semibold">
+                                  @{comment.username} • {formatTimeAgo(comment.createdAt)}
                                 </span>
-                              )}
+                                {comment.status === 'pending' && (
+                                  <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                                    Held for review
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Video source badge */}
+                            <div 
+                              onClick={() => navigate(comment.isShort ? 'shorts' : 'watch', comment.videoId)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-bold cursor-pointer transition-colors max-w-xs truncate"
+                              title={`Watch "${comment.videoTitle}"`}
+                            >
+                              <VideoIcon className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{comment.videoTitle}</span>
                             </div>
                           </div>
 
-                          {/* Video source badge */}
-                          <div 
-                            onClick={() => navigate(comment.isShort ? 'shorts' : 'watch', comment.videoId)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-bold cursor-pointer transition-colors max-w-xs truncate"
-                            title={`Watch "${comment.videoTitle}"`}
-                          >
-                            <VideoIcon className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate">{comment.videoTitle}</span>
-                          </div>
-                        </div>
+                          {/* Comment text */}
+                          <p className="text-xs md:text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed pl-1">
+                            {comment.text}
+                          </p>
 
-                        {/* Comment text */}
-                        <p className="text-xs md:text-sm text-slate-800 dark:text-slate-200 font-medium leading-relaxed pl-1">
-                          {comment.text}
-                        </p>
+                          {/* Existing Replies (highlighted channel owner replies + other replies) */}
+                          {replies.length > 0 && (
+                            <div className="ml-2 sm:ml-4 pl-3.5 border-l-2 border-blue-200 dark:border-blue-800/70 space-y-2.5 pt-1">
+                              {replies.map((reply) => {
+                                const isOwner = reply.uid === currentUser.uid;
+                                return (
+                                  <div
+                                    key={reply.commentId}
+                                    className={`p-3 rounded-xl border ${
+                                      isOwner
+                                        ? 'bg-blue-50/70 dark:bg-blue-950/25 border-blue-200/80 dark:border-blue-800/60'
+                                        : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200/70 dark:border-slate-800'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <UserAvatar
+                                          uid={reply.uid}
+                                          fallbackPhotoURL={reply.photoURL}
+                                          fallbackDisplayName={reply.displayName || reply.username}
+                                          size="xs"
+                                        />
+                                        <span className="text-xs font-extrabold text-slate-900 dark:text-white truncate">
+                                          {reply.displayName || reply.username}
+                                        </span>
+                                        {isOwner && (
+                                          <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider shrink-0">
+                                            Channel Owner
+                                          </span>
+                                        )}
+                                        <span className="text-[10px] text-slate-400 font-semibold shrink-0">
+                                          {formatTimeAgo(reply.createdAt)}
+                                        </span>
+                                      </div>
 
-                        {/* Bottom Actions toolbar */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-                          <div className="flex items-center gap-2">
-                            {comment.status === 'pending' && (
+                                      <button
+                                        onClick={() => handleDeleteComment(reply.videoId, reply.commentId)}
+                                        className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer shrink-0"
+                                        title="Delete reply"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                    <p className="text-xs text-slate-700 dark:text-slate-200 font-medium leading-relaxed mt-1.5 pl-8 break-words">
+                                      {reply.text}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Bottom Actions toolbar */}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-2">
+                              {comment.status === 'pending' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveComment(comment.videoId, comment.commentId)}
+                                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
+                                >
+                                  Approve
+                                </button>
+                              )}
                               <button
-                                type="button"
-                                onClick={() => handleApproveComment(comment.videoId, comment.commentId)}
-                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
+                                onClick={() => setActiveReplyBoxId(isReplying ? null : comment.commentId)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors cursor-pointer"
                               >
-                                Approve
+                                <Reply className="w-3.5 h-3.5" />
+                                <span>
+                                  {isReplying
+                                    ? 'Cancel Reply'
+                                    : ownerReplied
+                                      ? 'Reply Again'
+                                      : 'Reply to Viewer'}
+                                </span>
                               </button>
-                            )}
+                            </div>
+
                             <button
-                              onClick={() => setActiveReplyBoxId(isReplying ? null : comment.commentId)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-600 dark:text-blue-400 text-xs font-bold transition-colors cursor-pointer"
+                              onClick={() => handleDeleteComment(comment.videoId, comment.commentId)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
+                              title="Delete comment"
                             >
-                              <Reply className="w-3.5 h-3.5" />
-                              <span>{isReplying ? 'Cancel Reply' : 'Reply to Viewer'}</span>
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
 
-                          <button
-                            onClick={() => handleDeleteComment(comment.videoId, comment.commentId)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer"
-                            title="Delete comment"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Expandable Reply Form Box */}
+                          {isReplying && (
+                            <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-[#334155] space-y-2 bg-slate-50 dark:bg-slate-900/40 p-3.5 rounded-xl animate-in slide-in-from-top-2">
+                              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                <CornerDownRight className="w-3.5 h-3.5 text-blue-500" />
+                                <span>Replying as channel owner: <strong>{currentUserProfile?.displayName}</strong></span>
+                              </div>
+
+                              <textarea
+                                value={replyTextMap[comment.commentId] || ''}
+                                onChange={(e) => setReplyTextMap(prev => ({ ...prev, [comment.commentId]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey && (replyTextMap[comment.commentId] || '').trim()) {
+                                    e.preventDefault();
+                                    handleSendReply(comment);
+                                  }
+                                }}
+                                placeholder="Write a helpful reply to your viewer... (Press Enter to send)"
+                                rows={2}
+                                className="w-full px-3 py-2 text-xs bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-xl focus:outline-none focus:border-blue-500 text-slate-900 dark:text-white resize-none"
+                              />
+
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => setActiveReplyBoxId(null)}
+                                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleSendReply(comment)}
+                                  disabled={isSubmitting || !(replyTextMap[comment.commentId] || '').trim()}
+                                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                                >
+                                  {isSubmitting ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Send className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>Send Reply</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-                        {/* Expandable Reply Form Box */}
-                        {isReplying && (
-                          <div className="mt-3 pt-3 border-t border-slate-200/60 dark:border-[#334155] space-y-2 bg-slate-50 dark:bg-slate-900/40 p-3.5 rounded-xl animate-in slide-in-from-top-2">
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
-                              <CornerDownRight className="w-3.5 h-3.5 text-blue-500" />
-                              <span>Replying as channel owner: <strong>{currentUserProfile?.displayName}</strong></span>
-                            </div>
-
-                            <textarea
-                              value={replyTextMap[comment.commentId] || ''}
-                              onChange={(e) => setReplyTextMap(prev => ({ ...prev, [comment.commentId]: e.target.value }))}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey && (replyTextMap[comment.commentId] || '').trim()) {
-                                  e.preventDefault();
-                                  handleSendReply(comment);
-                                }
-                              }}
-                              placeholder="Write a helpful reply to your viewer... (Press Enter to send)"
-                              rows={2}
-                              className="w-full px-3 py-2 text-xs bg-white dark:bg-[#111827] border border-slate-200 dark:border-[#334155] rounded-xl focus:outline-none focus:border-blue-500 text-slate-900 dark:text-white resize-none"
-                            />
-
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => setActiveReplyBoxId(null)}
-                                className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg cursor-pointer"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={() => handleSendReply(comment)}
-                                disabled={isSubmitting || !(replyTextMap[comment.commentId] || '').trim()}
-                                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
-                              >
-                                {isSubmitting ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <Send className="w-3.5 h-3.5" />
-                                )}
-                                <span>Send Reply</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-            </div>
-          )}
+              </div>
+            );
+          })()}
 
           {/* EARN & MONETIZATION TAB VIEW (Only for Monetized Creators) */}
           {activeTab === 'earn' && isUserMonetized && (
@@ -3117,7 +3268,7 @@ export const CreatorStudio: React.FC = () => {
           { id: 'dashboard', label: isHindi ? 'डैशबोर्ड' : 'Dashboard', icon: LayoutDashboard },
           { id: 'content', label: isHindi ? 'कंटेंट' : 'Content', icon: Play, badge: videos.length },
           { id: 'analytics', label: isHindi ? 'एनालिटिक्स' : 'Analytics', icon: BarChart3 },
-          { id: 'comments', label: isHindi ? 'कमेंट्स' : 'Comments', icon: MessageSquare, badge: studioComments.length },
+          { id: 'comments', label: isHindi ? 'कमेंट्स' : 'Comments', icon: MessageSquare, badge: studioComments.filter(c => !c.parentCommentId).length },
           ...(isUserMonetized ? [{ id: 'earn', label: isHindi ? 'कमाई' : 'Earn', icon: DollarSign }] : []),
         ].map((tab) => {
           const Icon = tab.icon;

@@ -1,5 +1,6 @@
 import { 
   doc, 
+  getDoc,
   getDocs, 
   setDoc, 
   updateDoc, 
@@ -8,7 +9,7 @@ import {
   writeBatch 
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Notification, User } from '../types';
+import { Notification, User, NewsletterCampaign } from '../types';
 import { parseDateMs } from '../utils/videoUtils';
 
 export const notificationService = {
@@ -82,7 +83,7 @@ export const notificationService = {
       actorId: 'system',
       actorUsername: 'team_socialindia',
       actorDisplayName: 'Team SocialIndia',
-      actorPhotoURL: '',
+      actorPhotoURL: '/socialindia-icon.png',
       type: 'system',
       title: title || undefined,
       message,
@@ -95,6 +96,132 @@ export const notificationService = {
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `users/${recipientId}/notifications/${notificationId}`);
     }
+  },
+
+  // Activate newsletter: true for any existing users who do not yet have it set
+  async activateNewsletterForMissingUsers(users: User[]): Promise<number> {
+    const missing = users.filter((u) => Boolean(u.uid) && u.newsletter === undefined);
+    if (missing.length === 0) return 0;
+
+    const now = new Date().toISOString();
+    const CHUNK_SIZE = 400;
+    let updatedCount = 0;
+
+    for (let i = 0; i < missing.length; i += CHUNK_SIZE) {
+      const chunk = missing.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach((u) => {
+        batch.update(doc(db, 'users', u.uid), {
+          newsletter: true,
+          updatedAt: now
+        });
+      });
+      await batch.commit();
+      updatedCount += chunk.length;
+    }
+
+    return updatedCount;
+  },
+
+  // Fetch past newsletter tip campaigns sent by admins
+  async getNewsletterCampaigns(): Promise<NewsletterCampaign[]> {
+    try {
+      const snap = await getDoc(doc(db, 'system_settings', 'newsletter_campaigns'));
+      if (snap.exists()) {
+        const list = snap.data()?.campaigns;
+        if (Array.isArray(list)) {
+          return list as NewsletterCampaign[];
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load newsletter campaigns:', err);
+    }
+    return [];
+  },
+
+  // Send a Newsletter Tip notification as Team SocialIndia to all users with active newsletter
+  async sendNewsletterTips(
+    allUsers: User[],
+    title: string,
+    message: string,
+    adminUid?: string
+  ): Promise<{ recipientCount: number; activatedLegacyCount: number; campaign: NewsletterCampaign }> {
+    const cleanTitle = title.trim();
+    const cleanMessage = message.trim();
+    if (!cleanTitle || !cleanMessage) {
+      throw new Error('Please enter both a tip title and message.');
+    }
+
+    // Backfill legacy users missing newsletter field so everyone without explicit opt-out is active
+    const activatedLegacyCount = await this.activateNewsletterForMissingUsers(allUsers).catch(() => 0);
+
+    // Deduplicate recipients by uid and include everyone with active newsletter (newsletter !== false)
+    const uniqueRecipientsMap = new Map<string, User>();
+    allUsers.forEach((u) => {
+      if (u?.uid && u.newsletter !== false && u.status !== 'suspended') {
+        uniqueRecipientsMap.set(u.uid, u);
+      }
+    });
+    const recipients = Array.from(uniqueRecipientsMap.values());
+
+    if (recipients.length === 0) {
+      throw new Error('No active newsletter subscribers found.');
+    }
+
+    const now = new Date().toISOString();
+    const CHUNK_SIZE = 400;
+
+    for (let i = 0; i < recipients.length; i += CHUNK_SIZE) {
+      const chunk = recipients.slice(i, i + CHUNK_SIZE);
+      const batch = writeBatch(db);
+      chunk.forEach((recipient) => {
+        const notificationId =
+          'nl_' + Math.random().toString(36).substring(2, 12) + Date.now().toString(36);
+        const notification: Notification = {
+          notificationId,
+          recipientId: recipient.uid,
+          actorId: 'system',
+          actorUsername: 'team_socialindia',
+          actorDisplayName: 'Team SocialIndia',
+          actorPhotoURL: '/socialindia-icon.png',
+          type: 'system',
+          title: cleanTitle,
+          message: cleanMessage,
+          read: false,
+          createdAt: now,
+        };
+        batch.set(doc(db, 'users', recipient.uid, 'notifications', notificationId), notification);
+      });
+      await batch.commit();
+    }
+
+    const campaign: NewsletterCampaign = {
+      id: 'camp_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
+      title: cleanTitle,
+      message: cleanMessage,
+      recipientCount: recipients.length,
+      sentAt: now,
+      sentBy: adminUid || 'admin',
+      senderName: 'Team SocialIndia',
+    };
+
+    try {
+      const existing = await this.getNewsletterCampaigns();
+      const updated = [campaign, ...existing].slice(0, 50);
+      await setDoc(
+        doc(db, 'system_settings', 'newsletter_campaigns'),
+        { campaigns: updated, updatedAt: now },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Newsletter sent, but campaign history write warned:', err);
+    }
+
+    return {
+      recipientCount: recipients.length,
+      activatedLegacyCount,
+      campaign,
+    };
   },
 
   // Get notifications for a user

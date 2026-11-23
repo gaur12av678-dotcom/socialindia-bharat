@@ -901,7 +901,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                               className={`p-3.5 hover:bg-[#eff6ff] dark:hover:bg-[#1e293b] transition-colors cursor-pointer flex gap-3 items-start ${!n.read ? 'bg-[#eff6ff] dark:bg-blue-950/20' : ''}`}
                             >
                               <UserAvatar 
-                                fallbackPhotoURL={n.actorPhotoURL}
+                                fallbackPhotoURL={n.type === 'system' ? (n.actorPhotoURL || '/socialindia-icon.png') : n.actorPhotoURL}
                                 fallbackDisplayName={n.type === 'system' ? 'Team SocialIndia' : (n.actorDisplayName || n.actorUsername)}
                                 size="xs"
                                 className="w-8 h-8 rounded-full shrink-0"

@@ -425,8 +425,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             profile = await userService.recoverOrCreateProfile(user);
           }
           if (profile && isCurrentRequest()) {
+            const needsNewsletterBackfill = profile.newsletter === undefined;
+            if (needsNewsletterBackfill) {
+              userService.updateProfile(user.uid, { newsletter: true }).catch(() => {});
+            }
             const enrichedProfile = {
               ...profile,
+              newsletter: profile.newsletter ?? true,
               emailVerified: Boolean(profile.emailVerified || user.emailVerified)
             };
             setCurrentUserProfile(enrichedProfile);

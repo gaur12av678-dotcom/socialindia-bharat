@@ -34,6 +34,7 @@ export interface User {
   verificationRequestedAt?: string;
   verificationRequestId?: string;
   lastPasswordChangedAt?: string;
+  newsletter?: boolean;
   isOnline?: boolean;
   lastSeen?: string;
 
@@ -46,6 +47,16 @@ export interface User {
   };
   createdAt: any; // Firestore Timestamp or Date string
   updatedAt: any;
+}
+
+export interface NewsletterCampaign {
+  id: string;
+  title: string;
+  message: string;
+  recipientCount: number;
+  sentAt: string;
+  sentBy?: string;
+  senderName: string;
 }
 
 export interface VerificationRequest {
