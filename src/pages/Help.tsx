@@ -226,11 +226,15 @@ export const HelpPage: React.FC = () => {
     setTicketSubmitting(true);
     try {
       await feedbackService.submitFeedback({
-        uid: currentUser?.uid || 'guest-ticket',
+        uid: currentUser?.uid || currentUserProfile?.uid || 'guest-ticket',
         username: currentUserProfile?.username || contactEmail || 'Visitor',
+        userDisplayName: currentUserProfile?.displayName || currentUser?.displayName || undefined,
         type: 'help',
+        category: contactCategory,
+        email: contactEmail.trim(),
         subject: `[${contactCategory.toUpperCase()}] ${contactSubject.trim()}`,
-        message: `Email: ${contactEmail || 'Not provided'}\nCategory: ${contactCategory}\n\n${contactMessage.trim()}`
+        detailedDescription: contactMessage.trim(),
+        message: `Email: ${contactEmail.trim() || 'Not provided'}\nCategory: ${contactCategory}\n\n${contactMessage.trim()}`
       });
 
       setTicketSuccess(true);
@@ -510,8 +514,8 @@ export const HelpPage: React.FC = () => {
                 </h3>
                 <p className="text-xs text-emerald-800/90 dark:text-emerald-300 max-w-md mx-auto">
                   {isHindi
-                    ? 'आपका अनुरोध सोशलइंडिया में दर्ज हो गया है। इस फॉर्म से ईमेल नहीं भेजा जाता।'
-                    : 'Your request was recorded in SocialIndia. This form does not send an email acknowledgement.'}
+                    ? 'आपका अनुरोध सोशलइंडिया में दर्ज हो गया है। साइन-इन होने पर हमारी टीम का जवाब आपको सीधे आपकी सूचनाओं (Notifications) में मिलेगा।'
+                    : 'Your request was recorded in SocialIndia. If you are signed in, any reply from our team will appear directly in your Notifications.'}
                 </p>
                 <button
                   type="button"

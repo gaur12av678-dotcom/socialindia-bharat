@@ -5,9 +5,18 @@ export interface FeedbackEntry {
   id?: string;
   uid: string;
   username: string;
+  userDisplayName?: string;
   type: 'help' | 'feedback';
+  category?: string;
+  email?: string;
   subject: string;
+  detailedDescription?: string;
   message: string;
+  screenshotUrl?: string;
+  screenshotUrls?: string[];
+  adminReply?: string;
+  repliedAt?: string;
+  repliedBy?: string;
   status: 'pending' | 'reviewed' | 'resolved';
   createdAt: string;
 }
@@ -39,6 +48,24 @@ export const feedbackService = {
   async updateFeedbackStatus(id: string, status: FeedbackEntry['status']): Promise<void> {
     try {
       await updateDoc(doc(db, 'feedback', id), { status });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `feedback/${id}`);
+    }
+  },
+
+  async replyToFeedback(
+    id: string,
+    adminReply: string,
+    status: FeedbackEntry['status'] = 'reviewed',
+    repliedBy?: string
+  ): Promise<void> {
+    try {
+      await updateDoc(doc(db, 'feedback', id), {
+        adminReply,
+        repliedAt: new Date().toISOString(),
+        ...(repliedBy ? { repliedBy } : {}),
+        status
+      });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `feedback/${id}`);
     }

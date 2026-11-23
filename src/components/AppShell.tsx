@@ -913,7 +913,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                                 {(n.title || (n.type === 'system' && n.actorDisplayName !== 'Team SocialIndia' && n.actorDisplayName !== 'SocialIndia System' ? n.actorDisplayName : '')) && (
                                   <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mt-0.5">{n.title || n.actorDisplayName}</p>
                                 )}
-                                <p className="text-xs text-slate-700 dark:text-slate-200 font-medium leading-normal mt-0.5 break-words">{n.message}</p>
+                                <p className="text-xs text-slate-700 dark:text-slate-200 font-medium leading-normal mt-0.5 break-words whitespace-pre-wrap">{n.message}</p>
                                 <span className="text-[10px] text-slate-400 dark:text-slate-500 block mt-1">{formatTimeAgo(n.createdAt) || formatShortDate(n.createdAt)}</span>
                               </div>
                             </div>

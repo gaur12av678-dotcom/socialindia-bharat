@@ -1,25 +1,120 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { feedbackService } from '../services/feedbackService';
+import { postService } from '../services/postService';
 import { useTranslation } from '../i18n';
-import { 
-  MessageSquare, 
-  Send, 
-  CheckCircle2, 
-  Loader2, 
-  Camera, 
-  Info, 
-  ChevronDown, 
-  ChevronUp, 
-  X, 
-  ArrowLeft, 
-  AlertCircle, 
-  Monitor, 
+import {
+  MessageSquare,
+  CheckCircle2,
+  Loader2,
+  Camera,
+  ImagePlus,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Monitor,
   HelpCircle,
-  Eye,
-  PenTool
+  PenTool,
+  Trash2,
+  Undo2,
+  Square,
+  Highlighter
 } from 'lucide-react';
+
+interface SelectedScreenshot {
+  id: string;
+  name: string;
+  dataUrl: string;
+}
+
+interface AnnotationBox {
+  mode: 'highlight' | 'blackout';
+  x: number; // normalized 0..1
+  y: number;
+  w: number;
+  h: number;
+}
+
+const MAX_SCREENSHOTS = 3;
+
+function isImageFile(file: File): boolean {
+  if (file.type && file.type.startsWith('image/')) return true;
+  return /\.(png|jpe?g|webp|gif|bmp|heic|heif|avif)$/i.test(file.name || '');
+}
+
+async function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to read image file'));
+      }
+    };
+    reader.onerror = () => reject(reader.error || new Error('Failed to read image file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressScreenshotFile(file: File): Promise<string> {
+  const rawDataUrl = await readFileAsDataUrl(file);
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (!width || !height) {
+        resolve(rawDataUrl);
+        return;
+      }
+
+      const maxDim = 1280;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.max(1, Math.round(width * ratio));
+        height = Math.max(1, Math.round(height * ratio));
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(rawDataUrl);
+        return;
+      }
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+
+      try {
+        let compressed = canvas.toDataURL('image/jpeg', 0.8);
+        if (compressed.length > 220000) {
+          compressed = canvas.toDataURL('image/jpeg', 0.65);
+        }
+        if (compressed.length > 280000) {
+          compressed = canvas.toDataURL('image/jpeg', 0.5);
+        }
+        resolve(compressed);
+      } catch {
+        resolve(rawDataUrl);
+      }
+    };
+    img.onerror = () => {
+      if (rawDataUrl.startsWith('data:image/') && rawDataUrl.length < 350000) {
+        resolve(rawDataUrl);
+      } else {
+        reject(new Error('Unsupported image format'));
+      }
+    };
+    img.src = rawDataUrl;
+  });
+}
 
 export const FeedbackPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast } = useApp();
@@ -31,16 +126,29 @@ export const FeedbackPage: React.FC = () => {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [includeScreenshot, setIncludeScreenshot] = useState(true);
+  const [screenshots, setScreenshots] = useState<SelectedScreenshot[]>([]);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
   const [includeSystemInfo, setIncludeSystemInfo] = useState(true);
   const [showSystemInfoDetails, setShowSystemInfoDetails] = useState(false);
-  const [showHighlightModal, setShowHighlightModal] = useState(false);
-  const [hasHighlights, setHasHighlights] = useState(false);
+
+  // Highlight / Redact modal state
+  const [editingScreenshotId, setEditingScreenshotId] = useState<string | null>(null);
+  const [annotationMode, setAnnotationMode] = useState<'highlight' | 'blackout'>('highlight');
+  const [annotations, setAnnotations] = useState<AnnotationBox[]>([]);
+  const [draftBox, setDraftBox] = useState<AnnotationBox | null>(null);
+  const drawStartRef = useRef<{ x: number; y: number } | null>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Status
   const [submitting, setSubmitting] = useState(false);
+  const [uploadStatusText, setUploadStatusText] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  // Gather actual system info like Google / YouTube does
+  // Gather actual system info
   const [systemInfo, setSystemInfo] = useState({
     userAgent: '',
     os: '',
@@ -67,6 +175,197 @@ export const FeedbackPage: React.FC = () => {
     }
   }, []);
 
+  const processSelectedFiles = async (fileList: FileList | File[]) => {
+    const incoming = Array.from(fileList || []);
+    if (incoming.length === 0) return;
+
+    const availableSlots = MAX_SCREENSHOTS - screenshots.length;
+    if (availableSlots <= 0) {
+      addToast(
+        isHindi
+          ? `आप अधिकतम ${MAX_SCREENSHOTS} स्क्रीनशॉट ही जोड़ सकते हैं।`
+          : `You can attach up to ${MAX_SCREENSHOTS} screenshots.`,
+        'error'
+      );
+      return;
+    }
+
+    const validImages = incoming.filter(isImageFile);
+    if (validImages.length === 0) {
+      addToast(
+        isHindi ? 'कृपया गैलरी से एक मान्य इमेज या स्क्रीनशॉट चुनें।' : 'Please choose a valid image or screenshot from your gallery.',
+        'error'
+      );
+      return;
+    }
+
+    const filesToProcess = validImages.slice(0, availableSlots);
+    setIncludeScreenshot(true);
+    setIsProcessingImage(true);
+
+    try {
+      const processed: SelectedScreenshot[] = [];
+      for (const file of filesToProcess) {
+        const dataUrl = await compressScreenshotFile(file);
+        processed.push({
+          id: `shot_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          name: file.name || 'screenshot.jpg',
+          dataUrl
+        });
+      }
+
+      setScreenshots((prev) => [...prev, ...processed].slice(0, MAX_SCREENSHOTS));
+      addToast(
+        isHindi
+          ? `${processed.length} स्क्रीनशॉट जोड़ा गया।`
+          : `${processed.length} screenshot${processed.length > 1 ? 's' : ''} added.`,
+        'success'
+      );
+    } catch {
+      addToast(
+        isHindi ? 'गैलरी से स्क्रीनशॉट जोड़ने में समस्या आई।' : 'Could not load the selected screenshot.',
+        'error'
+      );
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  const handleGalleryInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      await processSelectedFiles(files);
+    }
+    // Reset input value so picking the same image again still triggers onChange
+    e.target.value = '';
+  };
+
+  const openGalleryPicker = () => {
+    if (isProcessingImage) return;
+    fileInputRef.current?.click();
+  };
+
+  const removeScreenshot = (id: string) => {
+    setScreenshots((prev) => prev.filter((item) => item.id !== id));
+    if (editingScreenshotId === id) {
+      setEditingScreenshotId(null);
+      setAnnotations([]);
+      setDraftBox(null);
+    }
+  };
+
+  const openHighlightEditor = (id: string) => {
+    setEditingScreenshotId(id);
+    setAnnotations([]);
+    setDraftBox(null);
+    setAnnotationMode('highlight');
+  };
+
+  const editingScreenshot = screenshots.find((s) => s.id === editingScreenshotId) || null;
+
+  const getRelativeCoords = (clientX: number, clientY: number) => {
+    const el = editorContainerRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    const x = Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(1, rect.width)));
+    const y = Math.min(1, Math.max(0, (clientY - rect.top) / Math.max(1, rect.height)));
+    return { x, y };
+  };
+
+  const handleEditorPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const pt = getRelativeCoords(e.clientX, e.clientY);
+    drawStartRef.current = pt;
+    setDraftBox({ mode: annotationMode, x: pt.x, y: pt.y, w: 0, h: 0 });
+  };
+
+  const handleEditorPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drawStartRef.current) return;
+    const pt = getRelativeCoords(e.clientX, e.clientY);
+    const start = drawStartRef.current;
+    setDraftBox({
+      mode: annotationMode,
+      x: Math.min(start.x, pt.x),
+      y: Math.min(start.y, pt.y),
+      w: Math.abs(pt.x - start.x),
+      h: Math.abs(pt.y - start.y)
+    });
+  };
+
+  const handleEditorPointerUp = () => {
+    if (draftBox && draftBox.w > 0.015 && draftBox.h > 0.015) {
+      setAnnotations((prev) => [...prev, draftBox]);
+    }
+    drawStartRef.current = null;
+    setDraftBox(null);
+  };
+
+  const applyAnnotationsAndClose = async () => {
+    if (!editingScreenshot) {
+      setEditingScreenshotId(null);
+      return;
+    }
+
+    if (annotations.length === 0) {
+      setEditingScreenshotId(null);
+      return;
+    }
+
+    try {
+      const updatedUrl = await new Promise<string>((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width || 800;
+          canvas.height = img.height || 600;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(editingScreenshot.dataUrl);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          for (const box of annotations) {
+            const bx = box.x * canvas.width;
+            const by = box.y * canvas.height;
+            const bw = box.w * canvas.width;
+            const bh = box.h * canvas.height;
+
+            if (box.mode === 'blackout') {
+              ctx.fillStyle = '#000000';
+              ctx.fillRect(bx, by, bw, bh);
+            } else {
+              ctx.fillStyle = 'rgba(251, 191, 36, 0.28)';
+              ctx.fillRect(bx, by, bw, bh);
+              ctx.lineWidth = Math.max(3, Math.round(canvas.width * 0.005));
+              ctx.strokeStyle = '#f59e0b';
+              ctx.strokeRect(bx, by, bw, bh);
+            }
+          }
+
+          try {
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+          } catch {
+            resolve(editingScreenshot.dataUrl);
+          }
+        };
+        img.onerror = () => resolve(editingScreenshot.dataUrl);
+        img.src = editingScreenshot.dataUrl;
+      });
+
+      setScreenshots((prev) =>
+        prev.map((item) =>
+          item.id === editingScreenshot.id ? { ...item, dataUrl: updatedUrl } : item
+        )
+      );
+      addToast(isHindi ? 'स्क्रीनशॉट अपडेट हो गया।' : 'Screenshot updated.', 'success');
+    } finally {
+      setEditingScreenshotId(null);
+      setAnnotations([]);
+      setDraftBox(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) {
@@ -75,27 +374,62 @@ export const FeedbackPage: React.FC = () => {
     }
 
     setSubmitting(true);
+    setUploadStatusText('');
     try {
       const formattedSubject = subject.trim() || `${feedbackType.toUpperCase()}: Feedback from ${currentUserProfile?.username || 'User'}`;
-      const systemInfoSummary = includeSystemInfo 
+      const systemInfoSummary = includeSystemInfo
         ? `\n\n--- System Info ---\nOS: ${systemInfo.os}\nResolution: ${systemInfo.screenResolution}\nTheme: ${systemInfo.theme}\nLanguage: ${systemInfo.language}\nURL: ${systemInfo.currentUrl}`
         : '';
-      const screenshotNotice = includeScreenshot ? '\n[Screenshot attached with feedback payload]' : '';
+
+      const activeScreenshots = includeScreenshot ? screenshots : [];
+      const uploadedScreenshotUrls: string[] = [];
+
+      if (activeScreenshots.length > 0) {
+        for (let i = 0; i < activeScreenshots.length; i++) {
+          setUploadStatusText(
+            isHindi
+              ? `स्क्रीनशॉट अपलोड हो रहा है (${i + 1}/${activeScreenshots.length})...`
+              : `Uploading screenshot (${i + 1}/${activeScreenshots.length})...`
+          );
+          try {
+            const url = await postService.uploadPostMedia(activeScreenshots[i].dataUrl, false);
+            uploadedScreenshotUrls.push(url);
+          } catch {
+            // Keep compressed data URL fallback if cloud upload fails
+            uploadedScreenshotUrls.push(activeScreenshots[i].dataUrl);
+          }
+        }
+      }
+
+      setUploadStatusText(isHindi ? 'प्रतिक्रिया भेजी जा रही है...' : 'Sending feedback...');
+
+      const screenshotNotice =
+        uploadedScreenshotUrls.length > 0
+          ? `\n[${uploadedScreenshotUrls.length} screenshot${uploadedScreenshotUrls.length > 1 ? 's' : ''} attached]`
+          : '';
 
       await feedbackService.submitFeedback({
-        uid: currentUser?.uid || 'guest-feedback',
+        uid: currentUser?.uid || currentUserProfile?.uid || 'guest-feedback',
         username: currentUserProfile?.username || 'Community Member',
         type: 'feedback',
         subject: `[${feedbackType.toUpperCase()}] ${formattedSubject}`,
-        message: `${message.trim()}${screenshotNotice}${systemInfoSummary}`
+        message: `${message.trim()}${screenshotNotice}${systemInfoSummary}`,
+        ...(uploadedScreenshotUrls.length > 0
+          ? {
+              screenshotUrl: uploadedScreenshotUrls[0],
+              screenshotUrls: uploadedScreenshotUrls
+            }
+          : {})
       });
 
       setSubmitted(true);
+      setScreenshots([]);
       addToast(isHindi ? 'प्रतिक्रिया भेजने के लिए धन्यवाद!' : 'Thank you for your feedback!', 'success');
-    } catch (err) {
+    } catch {
       addToast(isHindi ? 'प्रतिक्रिया भेजने में विफल।' : 'Failed to send feedback.', 'error');
     } finally {
       setSubmitting(false);
+      setUploadStatusText('');
     }
   };
 
@@ -113,9 +447,9 @@ export const FeedbackPage: React.FC = () => {
               {isHindi ? 'प्रतिक्रिया के लिए धन्यवाद' : 'Thank you for the feedback'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed max-w-sm mx-auto">
-              {isHindi 
-                ? 'आपकी प्रतिक्रिया सोशलइंडिया को सभी के लिए बेहतर बनाने में मदद करती है। यदि हमें और जानकारी चाहिए होगी तो हम संपर्क करेंगे।' 
-                : 'Your feedback helps make SocialIndia better for everyone. We review every report and suggestion directly.'}
+              {isHindi
+                ? 'आपकी प्रतिक्रिया सोशलइंडिया को सभी के लिए बेहतर बनाने में मदद करती है। हमारी टीम का जवाब आपको सीधे आपकी सूचनाओं (Notifications) में मिलेगा।'
+                : 'Your feedback helps make SocialIndia better for everyone. Any reply from our team will appear directly in your Notifications.'}
             </p>
           </div>
 
@@ -126,6 +460,7 @@ export const FeedbackPage: React.FC = () => {
                 setSubmitted(false);
                 setMessage('');
                 setSubject('');
+                setScreenshots([]);
               }}
               className="h-10 px-5 rounded-full border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
             >
@@ -147,10 +482,18 @@ export const FeedbackPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0f0f0f] text-slate-900 dark:text-[#f1f1f1] font-['Plus_Jakarta_Sans',sans-serif] py-6 sm:py-10 px-4 sm:px-6">
-      
+      {/* Hidden Gallery Input (No capture attr so Android/iOS opens Gallery & Photos chooser directly) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleGalleryInputChange}
+        className="hidden"
+      />
+
       {/* Centered YouTube "Send Feedback" Dialog Container */}
       <div className="max-w-xl mx-auto bg-white dark:bg-[#181818] border border-slate-200 dark:border-slate-800 rounded-[28px] overflow-hidden shadow-xs">
-        
         {/* Header Bar */}
         <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between">
           <div className="space-y-1">
@@ -163,8 +506,8 @@ export const FeedbackPage: React.FC = () => {
               </h1>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 pl-10">
-              {isHindi 
-                ? 'हम आपकी प्रतिक्रिया की सराहना करते हैं। यह हमारे उत्पादों को बेहतर बनाने में मदद करती है।' 
+              {isHindi
+                ? 'हम आपकी प्रतिक्रिया की सराहना करते हैं। यह हमारे उत्पादों को बेहतर बनाने में मदद करती है।'
                 : 'We appreciate your feedback. It helps us improve our product for creators and viewers.'}
             </p>
           </div>
@@ -181,7 +524,6 @@ export const FeedbackPage: React.FC = () => {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          
           {/* Feedback Type Selector (Pills) */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
@@ -220,12 +562,12 @@ export const FeedbackPage: React.FC = () => {
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder={isHindi ? "उदा. डार्क मोड में वीडियो प्लेयर कंट्रोल..." : "e.g. Player controls in dark mode, Upload speed..."}
+              placeholder={isHindi ? 'उदा. डार्क मोड में वीडियो प्लेयर कंट्रोल...' : 'e.g. Player controls in dark mode, Upload speed...'}
               className="w-full h-11 px-3.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#272727] text-xs sm:text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:border-[#065fd4] dark:focus:border-[#3ea6ff]"
             />
           </div>
 
-          {/* Main Feedback Textarea with YouTube-Exact Placeholder */}
+          {/* Main Feedback Textarea */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -243,16 +585,16 @@ export const FeedbackPage: React.FC = () => {
               onChange={(e) => setMessage(e.target.value)}
               placeholder={
                 isHindi
-                  ? "अपनी प्रतिक्रिया साझा करें। कृपया पासवर्ड या निजी जानकारी न लिखें। यदि सहायता चाहिए तो सहायता केंद्र पर जाएं।"
+                  ? 'अपनी प्रतिक्रिया साझा करें। कृपया पासवर्ड या निजी जानकारी न लिखें। यदि सहायता चाहिए तो सहायता केंद्र पर जाएं।'
                   : "Have feedback? We'd love to hear it, but please don't share sensitive information. Have questions or need help? Go to the Help Center."
               }
               className="w-full p-3.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#272727] text-xs sm:text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-[#065fd4] dark:focus:border-[#3ea6ff] focus:ring-1 focus:ring-[#065fd4] resize-none leading-relaxed"
             />
           </div>
 
-          {/* YouTube Signature Feature 1: Screenshot Attachment */}
+          {/* Screenshot Attachment from Gallery */}
           <div className="p-3.5 bg-slate-50 dark:bg-[#222222] border border-slate-200 dark:border-slate-700/80 rounded-2xl space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <label className="flex items-center gap-2.5 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -266,44 +608,139 @@ export const FeedbackPage: React.FC = () => {
                 </span>
               </label>
 
-              {includeScreenshot && (
-                <button
-                  type="button"
-                  onClick={() => setShowHighlightModal(true)}
-                  className="text-xs font-semibold text-[#065fd4] dark:text-[#3ea6ff] hover:underline cursor-pointer flex items-center gap-1"
-                >
-                  <PenTool className="w-3 h-3" />
-                  <span>{hasHighlights ? (isHindi ? 'हाइलाइट संपादित करें' : 'Edit highlights') : (isHindi ? 'हाइलाइट करें' : 'Highlight issue')}</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={openGalleryPicker}
+                disabled={isProcessingImage || screenshots.length >= MAX_SCREENSHOTS}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#065fd4] dark:text-[#3ea6ff] hover:bg-blue-100 dark:hover:bg-blue-900/60 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isProcessingImage ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ImagePlus className="w-3.5 h-3.5" />
+                )}
+                <span>
+                  {screenshots.length > 0
+                    ? isHindi
+                      ? 'गैलरी से और जोड़ें'
+                      : 'Add from gallery'
+                    : isHindi
+                      ? 'गैलरी से चुनें'
+                      : 'Choose from gallery'}
+                </span>
+              </button>
             </div>
 
             {includeScreenshot && (
-              <div 
-                onClick={() => setShowHighlightModal(true)}
-                className="relative h-24 w-full bg-slate-200 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-300 dark:border-slate-700 cursor-pointer group flex items-center justify-center text-xs text-slate-500"
-              >
-                {/* Simulated screenshot thumbnail of SocialIndia view */}
-                <div className="absolute inset-0 opacity-40 dark:opacity-20 flex flex-col p-2 space-y-1">
-                  <div className="h-2 w-1/4 bg-blue-500 rounded-full" />
-                  <div className="h-10 w-full bg-slate-400/30 rounded" />
-                  <div className="flex gap-2">
-                    <div className="h-6 w-1/3 bg-slate-400/20 rounded" />
-                    <div className="h-6 w-1/3 bg-slate-400/20 rounded" />
+              <>
+                {screenshots.length === 0 ? (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={openGalleryPicker}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openGalleryPicker();
+                      }
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingOver(true);
+                    }}
+                    onDragLeave={() => setIsDraggingOver(false)}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      setIsDraggingOver(false);
+                      if (e.dataTransfer.files?.length) {
+                        await processSelectedFiles(e.dataTransfer.files);
+                      }
+                    }}
+                    className={`relative min-h-[112px] w-full rounded-xl border-2 border-dashed transition-colors cursor-pointer flex flex-col items-center justify-center gap-2 p-4 text-center ${
+                      isDraggingOver
+                        ? 'border-[#065fd4] bg-blue-50/70 dark:bg-blue-950/30'
+                        : 'border-slate-300 dark:border-slate-700 bg-white/80 dark:bg-[#181818] hover:border-[#065fd4] dark:hover:border-[#3ea6ff]'
+                    }`}
+                  >
+                    {isProcessingImage ? (
+                      <>
+                        <Loader2 className="w-6 h-6 animate-spin text-[#065fd4] dark:text-[#3ea6ff]" />
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          {isHindi ? 'स्क्रीनशॉट तैयार हो रहा है...' : 'Loading screenshot...'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[#065fd4] dark:text-[#3ea6ff] flex items-center justify-center">
+                          <ImagePlus className="w-5 h-5" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                            {isHindi ? 'गैलरी से स्क्रीनशॉट चुनने के लिए टैप करें' : 'Tap to choose a screenshot from your gallery'}
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {isHindi
+                              ? `PNG, JPG या WebP · अधिकतम ${MAX_SCREENSHOTS} स्क्रीनशॉट`
+                              : `PNG, JPG or WebP · Up to ${MAX_SCREENSHOTS} screenshots`}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
-                {hasHighlights && (
-                  <div className="absolute top-3 left-10 w-28 h-10 border-2 border-amber-400 bg-amber-400/20 rounded z-10" />
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    {screenshots.map((shot) => (
+                      <div
+                        key={shot.id}
+                        className="relative group rounded-xl overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-900 aspect-video sm:aspect-[4/3]"
+                      >
+                        <img
+                          src={shot.dataUrl}
+                          alt={shot.name}
+                          onClick={() => openHighlightEditor(shot.id)}
+                          className="w-full h-full object-cover cursor-pointer"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => removeScreenshot(shot.id)}
+                          aria-label={isHindi ? 'स्क्रीनशॉट हटाएं' : 'Remove screenshot'}
+                          className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/75 hover:bg-red-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-sm"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openHighlightEditor(shot.id)}
+                          className="absolute inset-x-1.5 bottom-1.5 px-2.5 py-1 rounded-lg bg-black/75 hover:bg-black/90 text-white text-[11px] font-medium flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <PenTool className="w-3 h-3" />
+                          <span>{isHindi ? 'हाइलाइट / छुपाएं' : 'Highlight / Hide'}</span>
+                        </button>
+                      </div>
+                    ))}
+
+                    {screenshots.length < MAX_SCREENSHOTS && (
+                      <button
+                        type="button"
+                        onClick={openGalleryPicker}
+                        disabled={isProcessingImage}
+                        className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-[#065fd4] dark:hover:border-[#3ea6ff] bg-white/70 dark:bg-[#181818] aspect-video sm:aspect-[4/3] flex flex-col items-center justify-center gap-1.5 text-slate-600 dark:text-slate-300 hover:text-[#065fd4] dark:hover:text-[#3ea6ff] transition-colors cursor-pointer"
+                      >
+                        <ImagePlus className="w-5 h-5" />
+                        <span className="text-[11px] font-semibold">
+                          {isHindi ? 'और जोड़ें' : 'Add another'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
                 )}
-                <div className="relative z-20 flex items-center gap-1.5 px-3 py-1.5 bg-black/70 text-white rounded-full text-[11px] font-medium group-hover:scale-105 transition-transform">
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>{isHindi ? 'पूर्वावलोकन देखें या जानकारी छुपाएं' : 'Click to highlight or hide info'}</span>
-                </div>
-              </div>
+              </>
             )}
           </div>
 
-          {/* YouTube Signature Feature 2: System Information Toggle & Drawer */}
+          {/* System Information Toggle & Drawer */}
           <div className="border border-slate-200 dark:border-slate-700/80 rounded-2xl overflow-hidden">
             <div className="p-3.5 bg-slate-50 dark:bg-[#222222] flex items-center justify-between">
               <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -341,7 +778,7 @@ export const FeedbackPage: React.FC = () => {
             )}
           </div>
 
-          {/* YouTube Standard Legal Privacy Disclaimer */}
+          {/* Standard Legal Privacy Disclaimer */}
           <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
             {isHindi ? (
               <>
@@ -369,8 +806,8 @@ export const FeedbackPage: React.FC = () => {
             )}
           </div>
 
-          {/* YouTube Bottom Action Bar */}
-          <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+          {/* Bottom Action Bar */}
+          <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={() => navigate('help')}
@@ -380,7 +817,7 @@ export const FeedbackPage: React.FC = () => {
               <span>{isHindi ? 'सहायता केंद्र पर जाएं' : 'Go to Help Center'}</span>
             </button>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 ml-auto">
               <button
                 type="button"
                 onClick={() => navigate('home')}
@@ -395,20 +832,17 @@ export const FeedbackPage: React.FC = () => {
                 className="h-10 px-6 rounded-full bg-[#065fd4] hover:bg-[#054fb1] text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 shadow-xs disabled:opacity-50 active:scale-98"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin text-white" />}
-                <span>{isHindi ? 'भेजें' : 'Send'}</span>
+                <span>{submitting && uploadStatusText ? uploadStatusText : isHindi ? 'भेजें' : 'Send'}</span>
               </button>
             </div>
           </div>
-
         </form>
       </div>
 
-      {/* ========================================================================= */}
-      {/* YOUTUBE SCREENSHOT HIGHLIGHT / PRIVACY BLACKOUT MODAL                     */}
-      {/* ========================================================================= */}
-      {showHighlightModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white dark:bg-[#1e1f20] rounded-[24px] max-w-lg w-full p-6 space-y-4 border border-slate-300 dark:border-slate-700 shadow-2xl">
+      {/* SCREENSHOT HIGHLIGHT / PRIVACY BLACKOUT MODAL */}
+      {editingScreenshot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-[#1e1f20] rounded-[24px] max-w-lg w-full p-5 sm:p-6 space-y-4 border border-slate-300 dark:border-slate-700 shadow-2xl">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <PenTool className="w-4 h-4 text-[#065fd4] dark:text-[#3ea6ff]" />
@@ -416,46 +850,122 @@ export const FeedbackPage: React.FC = () => {
               </h3>
               <button
                 type="button"
-                onClick={() => setShowHighlightModal(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                onClick={() => {
+                  setEditingScreenshotId(null);
+                  setAnnotations([]);
+                  setDraftBox(null);
+                }}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {isHindi 
-                ? 'जिस क्षेत्र में समस्या है उसे हाइलाइट करें या अपनी व्यक्तिगत जानकारी को छुपाने के लिए ब्लैकआउट करें।' 
-                : 'Click or drag to highlight an issue area, or blackout personal sensitive details.'}
+              {isHindi
+                ? 'समस्या वाले हिस्से पर बॉक्स खींचकर हाइलाइट करें या निजी जानकारी छुपाने के लिए ब्लैकआउट करें।'
+                : 'Drag across the screenshot to highlight an issue or blackout sensitive details.'}
             </p>
 
-            <div className="relative h-48 bg-slate-100 dark:bg-slate-900 rounded-xl overflow-hidden border border-slate-300 dark:border-slate-700 flex items-center justify-center">
-              <div className="text-xs text-slate-400 text-center space-y-1">
-                <Camera className="w-8 h-8 mx-auto text-slate-400" />
-                <p>{isHindi ? 'वर्तमान स्क्रीन कैप्चर पूर्वावलोकन' : 'Current screen capture active'}</p>
-                {hasHighlights && (
-                  <span className="inline-block px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-[10px] font-bold">
-                    {isHindi ? 'हाइलाइट चिह्नित है' : 'Highlight zone marked'}
-                  </span>
-                )}
+            {/* Tool Toggle */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAnnotationMode('highlight')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition-colors cursor-pointer ${
+                    annotationMode === 'highlight'
+                      ? 'bg-amber-500 text-slate-950 border-amber-500'
+                      : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <Highlighter className="w-3.5 h-3.5" />
+                  <span>{isHindi ? 'हाइलाइट' : 'Highlight'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAnnotationMode('blackout')}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 border transition-colors cursor-pointer ${
+                    annotationMode === 'blackout'
+                      ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white'
+                      : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                  <span>{isHindi ? 'जानकारी छुपाएं' : 'Hide info'}</span>
+                </button>
+              </div>
+
+              {annotations.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAnnotations((prev) => prev.slice(0, -1))}
+                    className="p-1.5 rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    title={isHindi ? 'अंतिम हटाएं' : 'Undo'}
+                  >
+                    <Undo2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnnotations([])}
+                    className="p-1.5 rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                    title={isHindi ? 'सब साफ करें' : 'Clear all'}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Interactive Screenshot Canvas Area */}
+            <div className="flex justify-center bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-300 dark:border-slate-700 overflow-hidden p-2">
+              <div
+                ref={editorContainerRef}
+                onPointerDown={handleEditorPointerDown}
+                onPointerMove={handleEditorPointerMove}
+                onPointerUp={handleEditorPointerUp}
+                onPointerCancel={handleEditorPointerUp}
+                className="relative inline-block max-h-[55vh] select-none touch-none cursor-crosshair"
+              >
+                <img
+                  src={editingScreenshot.dataUrl}
+                  alt={editingScreenshot.name}
+                  draggable={false}
+                  className="max-h-[52vh] w-auto max-w-full rounded-lg block pointer-events-none"
+                />
+                {[...annotations, ...(draftBox ? [draftBox] : [])].map((box, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      left: `${box.x * 100}%`,
+                      top: `${box.y * 100}%`,
+                      width: `${box.w * 100}%`,
+                      height: `${box.h * 100}%`
+                    }}
+                    className={
+                      box.mode === 'blackout'
+                        ? 'absolute bg-black rounded-xs pointer-events-none'
+                        : 'absolute bg-amber-400/30 border-2 border-amber-500 rounded-xs pointer-events-none'
+                    }
+                  />
+                ))}
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center justify-between pt-1">
               <button
                 type="button"
-                onClick={() => {
-                  setHasHighlights(!hasHighlights);
-                  addToast(hasHighlights ? 'Highlights cleared' : 'Issue area highlighted', 'info');
-                }}
-                className="text-xs font-semibold text-[#065fd4] dark:text-[#3ea6ff] hover:underline cursor-pointer"
+                onClick={() => removeScreenshot(editingScreenshot.id)}
+                className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
               >
-                {hasHighlights ? (isHindi ? 'हाइलाइट हटाएं' : 'Clear highlight') : (isHindi ? 'क्षेत्र हाइलाइट करें' : 'Highlight issue area')}
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isHindi ? 'स्क्रीनशॉट हटाएं' : 'Remove screenshot'}</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setShowHighlightModal(false)}
+                onClick={applyAnnotationsAndClose}
                 className="h-9 px-5 bg-[#065fd4] hover:bg-[#054fb1] text-white text-xs font-semibold rounded-full cursor-pointer"
               >
                 {isHindi ? 'पूर्ण' : 'Done'}
@@ -464,7 +974,6 @@ export const FeedbackPage: React.FC = () => {
           </div>
         </div>
       )}
-
     </div>
   );
 };

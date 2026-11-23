@@ -99,6 +99,7 @@ type AdminSection =
   | 'newsletter'
   | 'reports' 
   | 'grievances'
+  | 'help_requests'
   | 'feedback' 
   | 'storage' 
   | 'trash' 
@@ -156,6 +157,7 @@ export const AdminPanel: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>(() => persistentAdminSnapshot?.videos || []);
   const [reports, setReports] = useState<Report[]>(() => persistentAdminSnapshot?.reports || []);
   const [feedback, setFeedback] = useState<FeedbackEntry[]>(() => persistentAdminSnapshot?.feedback || []);
+  const [previewFeedbackImage, setPreviewFeedbackImage] = useState<string | null>(null);
   const [trashItems, setTrashItems] = useState<TrashItem[]>(() => persistentAdminSnapshot?.trashItems || []);
   const [adCampaigns, setAdCampaigns] = useState<any[]>(() => persistentAdminSnapshot?.adCampaigns || []);
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>(() => persistentAdminSnapshot?.withdrawalRequests || []);
@@ -242,6 +244,9 @@ export const AdminPanel: React.FC = () => {
   const [isUpdatingSound, setIsUpdatingSound] = useState(false);
   const [reportMessages, setReportMessages] = useState<Record<string, string>>({});
   const [sendingReportUpdateId, setSendingReportUpdateId] = useState<string | null>(null);
+  const [feedbackReplies, setFeedbackReplies] = useState<Record<string, string>>({});
+  const [sendingFeedbackReplyId, setSendingFeedbackReplyId] = useState<string | null>(null);
+  const [feedbackFilter, setFeedbackFilter] = useState<'all' | 'help' | 'feedback' | 'pending'>('all');
 
   // Newsletter Tool State
   const [newsletterTitle, setNewsletterTitle] = useState('');
@@ -923,13 +928,134 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const handleResolveFeedback = async (id: string, status: FeedbackEntry['status']) => {
+  const isRegisteredFeedbackUser = (uid?: string) =>
+    Boolean(uid && uid !== 'guest-feedback' && uid !== 'guest-ticket');
+
+  const parseHelpDetails = (entry: FeedbackEntry) => {
+    const rawMsg = (entry.message || '').trim();
+    const emailMatch = rawMsg.match(/^Email:\s*(.+)$/im);
+    const categoryMatch = rawMsg.match(/^Category:\s*(.+)$/im);
+    const subjectCatMatch = (entry.subject || '').match(/^\[([^\]]+)\]\s*(.*)$/);
+
+    const email = (entry.email || (emailMatch ? emailMatch[1].trim() : '') || '').trim();
+    const category = (
+      entry.category ||
+      (categoryMatch ? categoryMatch[1].trim() : '') ||
+      (subjectCatMatch ? subjectCatMatch[1].trim() : '')
+    ).trim();
+
+    let detailedDescription = (entry.detailedDescription || '').trim();
+    if (!detailedDescription) {
+      const stripped = rawMsg
+        .replace(/^Email:\s*.*\n?/im, '')
+        .replace(/^Category:\s*.*\n?/im, '')
+        .trim();
+      detailedDescription = stripped || rawMsg;
+    }
+
+    const cleanSubject = subjectCatMatch && subjectCatMatch[2]
+      ? subjectCatMatch[2].trim()
+      : entry.subject;
+
+    return {
+      email: email && email !== 'Not provided' ? email : '',
+      category,
+      cleanSubject,
+      detailedDescription
+    };
+  };
+
+  const handleSendFeedbackReply = async (entry: FeedbackEntry) => {
+    if (!entry.id) return;
+    const replyText = (feedbackReplies[entry.id] || '').trim();
+    if (!replyText) return;
+
+    setSendingFeedbackReplyId(entry.id);
     try {
-      await feedbackService.updateFeedbackStatus(id, status);
-      setFeedback(prev => prev.map(f => f.id === id ? { ...f, status } : f));
-      addToast(`Feedback marked as ${status}.`, 'success');
+      const nextStatus: FeedbackEntry['status'] = entry.status === 'resolved' ? 'resolved' : 'reviewed';
+      await feedbackService.replyToFeedback(
+        entry.id,
+        replyText,
+        nextStatus,
+        currentUserProfile?.username || currentUser?.uid || 'admin'
+      );
+
+      let notified = false;
+      if (isRegisteredFeedbackUser(entry.uid)) {
+        const label = entry.type === 'help' ? 'help request' : 'feedback';
+        await notificationService.sendSystemNotification(
+          entry.uid,
+          `Reply to your ${label}${entry.subject ? ` (${entry.subject})` : ''}`,
+          replyText
+        );
+        notified = true;
+      }
+
+      const nowIso = new Date().toISOString();
+      setFeedback(prev => prev.map(f => f.id === entry.id
+        ? { ...f, adminReply: replyText, repliedAt: nowIso, status: nextStatus }
+        : f));
+      setFeedbackReplies(prev => ({ ...prev, [entry.id!]: '' }));
+      addToast(
+        notified
+          ? 'Reply sent to the user via notification!'
+          : 'Reply saved (guest submission — no user account for notification).',
+        notified ? 'success' : 'info'
+      );
     } catch (err) {
-      addToast('Failed to update feedback status.', 'error');
+      addToast('Failed to send reply.', 'error');
+    } finally {
+      setSendingFeedbackReplyId(null);
+    }
+  };
+
+  const handleResolveFeedback = async (entry: FeedbackEntry, status: FeedbackEntry['status']) => {
+    if (!entry.id) return;
+    const typedReply = (feedbackReplies[entry.id] || '').trim();
+    try {
+      if (typedReply) {
+        await feedbackService.replyToFeedback(
+          entry.id,
+          typedReply,
+          status,
+          currentUserProfile?.username || currentUser?.uid || 'admin'
+        );
+      } else {
+        await feedbackService.updateFeedbackStatus(entry.id, status);
+      }
+
+      const canNotify = isRegisteredFeedbackUser(entry.uid);
+      if (canNotify) {
+        const isHelp = entry.type === 'help';
+        const statusMsg = status === 'resolved'
+          ? `Your ${isHelp ? 'support request' : 'feedback'} has been reviewed and resolved by Team SocialIndia. Thank you for reaching out!`
+          : `Thank you! Team SocialIndia has received and reviewed your ${isHelp ? 'support request' : 'feedback'}.`;
+        await notificationService.sendSystemNotification(
+          entry.uid,
+          `${isHelp ? 'Help Request' : 'Feedback'} ${status === 'resolved' ? 'Resolved' : 'Acknowledged'}`,
+          typedReply || statusMsg
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      setFeedback(prev => prev.map(f => f.id === entry.id
+        ? {
+            ...f,
+            status,
+            ...(typedReply ? { adminReply: typedReply, repliedAt: nowIso } : {})
+          }
+        : f));
+      if (typedReply) {
+        setFeedbackReplies(prev => ({ ...prev, [entry.id!]: '' }));
+      }
+      addToast(
+        canNotify
+          ? `${entry.type === 'help' ? 'Help request' : 'Feedback'} marked as ${status} & user notified.`
+          : `${entry.type === 'help' ? 'Help request' : 'Feedback'} marked as ${status}.`,
+        'success'
+      );
+    } catch (err) {
+      addToast('Failed to update status.', 'error');
     }
   };
 
@@ -1437,16 +1563,43 @@ export const AdminPanel: React.FC = () => {
           </button>
 
           <button 
+            onClick={() => setActiveSection('help_requests')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+              activeSection === 'help_requests' 
+                ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
+            }`}
+            style={activeSection === 'help_requests' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
+          >
+            <div className="flex items-center gap-2.5">
+              <HelpCircle className="w-4 h-4 shrink-0" style={{ color: activeSection === 'help_requests' ? '#ffffff' : undefined }} />
+              <span style={{ color: activeSection === 'help_requests' ? '#ffffff' : undefined }}>Help Requests</span>
+            </div>
+            {feedback.filter(f => f.type === 'help' && f.status === 'pending').length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-400 text-slate-950">
+                {feedback.filter(f => f.type === 'help' && f.status === 'pending').length}
+              </span>
+            )}
+          </button>
+
+          <button 
             onClick={() => setActiveSection('feedback')}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
               activeSection === 'feedback' 
                 ? 'bg-[#2563EB] hover:bg-[#1d4ed8] text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#1c1c20]'
             }`}
             style={activeSection === 'feedback' ? { backgroundColor: '#2563EB', color: '#ffffff' } : undefined}
           >
-            <MessageSquare className="w-4 h-4 shrink-0" style={{ color: activeSection === 'feedback' ? '#ffffff' : undefined }} />
-            <span style={{ color: activeSection === 'feedback' ? '#ffffff' : undefined }}>Feedback</span>
+            <div className="flex items-center gap-2.5">
+              <MessageSquare className="w-4 h-4 shrink-0" style={{ color: activeSection === 'feedback' ? '#ffffff' : undefined }} />
+              <span style={{ color: activeSection === 'feedback' ? '#ffffff' : undefined }}>Feedback</span>
+            </div>
+            {feedback.filter(f => f.type !== 'help' && f.status === 'pending').length > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-indigo-500 text-white">
+                {feedback.filter(f => f.type !== 'help' && f.status === 'pending').length}
+              </span>
+            )}
           </button>
 
           <button 
@@ -1591,7 +1744,8 @@ export const AdminPanel: React.FC = () => {
                     newsletter: 'Newsletter & Tips',
                     reports: 'Reports',
                     grievances: 'Grievance Management',
-                    feedback: 'Feedback',
+                    help_requests: 'Help & Support Requests',
+                    feedback: 'Feedback & Support',
                     storage: 'Cloud storage',
                     trash: 'Trash vault',
                     tools: 'Operations & diagnostics',
@@ -1614,7 +1768,8 @@ export const AdminPanel: React.FC = () => {
                     newsletter: 'Send helpful tips as Team SocialIndia to all active newsletter users via notifications.',
                     reports: 'Review content and account reports.',
                     grievances: 'Review private grievance submissions and record administrative actions.',
-                    feedback: 'Review feedback submitted by the community.',
+                    help_requests: 'Review Help Center requests including issue category, email, detailed description, and reply via notification.',
+                    feedback: 'Review user feedback and support requests submitted by the community.',
                     storage: 'Manage the platform media storage configuration.',
                     trash: 'Restore or permanently remove archived content.',
                     tools: 'Run platform operations and content diagnostics.',
@@ -2795,68 +2950,260 @@ export const AdminPanel: React.FC = () => {
             {/* Feedback Section */}
             {activeSection === 'grievances' && <GrievanceManagement />}
 
-            {/* Feedback Section */}
-            {activeSection === 'feedback' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {feedback.map(f => (
-                  <div key={f.id} className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-5 space-y-4 shadow-sm relative overflow-hidden">
-                    {f.status === 'pending' && <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />}
-                    
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{f.type === 'help' ? 'Help Request' : 'User Feedback'}</span>
-                        <h4 className="text-xs font-black text-indigo-600 uppercase tracking-tight">{f.subject}</h4>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${f.status === 'pending' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30'}`}>
-                        {f.status}
-                      </span>
-                    </div>
+            {/* Help Requests & Feedback Section */}
+            {(activeSection === 'feedback' || activeSection === 'help_requests') && (() => {
+              const isHelpTab = activeSection === 'help_requests';
+              const visibleItems = feedback.filter(item => {
+                if (isHelpTab) return item.type === 'help';
+                if (feedbackFilter === 'help') return item.type === 'help';
+                if (feedbackFilter === 'feedback') return item.type !== 'help';
+                if (feedbackFilter === 'pending') return item.status === 'pending';
+                return true;
+              });
 
-                    <div className="bg-slate-50 dark:bg-[#1a1a1a] rounded-xl p-3">
-                      <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
-                        "{f.message}"
-                      </p>
+              return (
+                <div className="space-y-5">
+                  {!isHelpTab && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {[
+                        { id: 'all', label: `All (${feedback.length})` },
+                        { id: 'feedback', label: `User Feedback (${feedback.filter(f => f.type !== 'help').length})` },
+                        { id: 'help', label: `Help Requests (${feedback.filter(f => f.type === 'help').length})` },
+                        { id: 'pending', label: `Pending (${feedback.filter(f => f.status === 'pending').length})` },
+                      ].map(tab => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setFeedbackFilter(tab.id as any)}
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
+                            feedbackFilter === tab.id
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white dark:bg-[#0f0f0f] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-[#272727] hover:bg-slate-50 dark:hover:bg-[#1a1a1a]'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
                     </div>
+                  )}
 
-                    <div className="pt-2 flex flex-col gap-1 text-[10px] text-slate-500 font-bold">
-                      <div className="flex justify-between">
-                        <span>User</span>
-                        <span className="text-slate-900 dark:text-white truncate max-w-[120px]">@{f.username}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Date</span>
-                        <span className="text-slate-900 dark:text-white">{new Date(f.createdAt).toLocaleDateString()}</span>
-                      </div>
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {visibleItems.map(f => {
+                      const isHelp = f.type === 'help';
+                      const helpDetails = isHelp ? parseHelpDetails(f) : null;
+                      const canNotifyUser = isRegisteredFeedbackUser(f.uid);
 
-                    <div className="pt-4 flex gap-2">
-                      <button 
-                        onClick={() => handleResolveFeedback(f.id!, 'resolved')}
-                        disabled={f.status === 'resolved'}
-                        className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[11px] rounded-xl transition-colors"
+                      return (
+                        <div key={f.id} className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-5 space-y-4 shadow-sm relative overflow-hidden flex flex-col">
+                          {f.status === 'pending' && <div className={`absolute top-0 left-0 w-1 h-full ${isHelp ? 'bg-blue-500' : 'bg-indigo-500'}`} />}
+
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${
+                                  isHelp
+                                    ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
+                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
+                                }`}>
+                                  {isHelp ? 'Help Request' : 'User Feedback'}
+                                </span>
+                                {helpDetails?.category && (
+                                  <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                                    {helpDetails.category}
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tight break-words">
+                                {helpDetails ? helpDetails.cleanSubject : f.subject}
+                              </h4>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 ${f.status === 'pending' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/30' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30'}`}>
+                              {f.status}
+                            </span>
+                          </div>
+
+                          {isHelp && helpDetails ? (
+                            <div className="space-y-2.5">
+                              {helpDetails.email && (
+                                <div className="flex items-center justify-between gap-2 bg-slate-50 dark:bg-[#1a1a1a] rounded-xl px-3 py-2 text-[11px]">
+                                  <span className="font-bold text-slate-500">Email</span>
+                                  <a
+                                    href={`mailto:${helpDetails.email}`}
+                                    className="font-semibold text-blue-600 dark:text-blue-400 hover:underline truncate"
+                                  >
+                                    {helpDetails.email}
+                                  </a>
+                                </div>
+                              )}
+                              <div className="bg-slate-50 dark:bg-[#1a1a1a] rounded-xl p-3 space-y-1">
+                                <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                  Detailed Description
+                                </span>
+                                <p className="text-xs text-slate-700 dark:text-slate-200 font-medium leading-relaxed whitespace-pre-wrap break-words">
+                                  {helpDetails.detailedDescription}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-slate-50 dark:bg-[#1a1a1a] rounded-xl p-3 space-y-1">
+                              <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                Feedback Description
+                              </span>
+                              <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed whitespace-pre-wrap break-words">
+                                {f.message}
+                              </p>
+                            </div>
+                          )}
+
+                          {(() => {
+                            const shots = (f.screenshotUrls && f.screenshotUrls.length > 0)
+                              ? f.screenshotUrls
+                              : f.screenshotUrl
+                                ? [f.screenshotUrl]
+                                : [];
+                            if (shots.length === 0) return null;
+                            return (
+                              <div className="grid grid-cols-3 gap-2">
+                                {shots.map((shotUrl, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => setPreviewFeedbackImage(shotUrl)}
+                                    className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-900 aspect-video hover:opacity-90 transition-opacity cursor-pointer"
+                                    title="Click to enlarge screenshot"
+                                  >
+                                    <img
+                                      src={shotUrl}
+                                      alt={`Attachment ${idx + 1}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </button>
+                                ))}
+                              </div>
+                            );
+                          })()}
+
+                          <div className="pt-1 flex flex-col gap-1 text-[10px] text-slate-500 font-bold">
+                            <div className="flex justify-between gap-2">
+                              <span>User</span>
+                              <span className="text-slate-900 dark:text-white truncate max-w-[160px]">
+                                {f.userDisplayName ? `${f.userDisplayName} (@${f.username})` : `@${f.username}`}
+                              </span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <span>Account</span>
+                              <span className={canNotifyUser ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
+                                {canNotifyUser ? 'Signed-in (Notifications enabled)' : 'Guest submission'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <span>Submitted</span>
+                              <span className="text-slate-900 dark:text-white">{new Date(f.createdAt).toLocaleString()}</span>
+                            </div>
+                          </div>
+
+                          {f.adminReply && (
+                            <div className="rounded-xl bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-950/30 dark:text-blue-200 space-y-1">
+                              <div className="flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                                <span>Reply Sent (Notification)</span>
+                                {f.repliedAt && <span>{new Date(f.repliedAt).toLocaleDateString()}</span>}
+                              </div>
+                              <p className="whitespace-pre-wrap leading-relaxed break-words">{f.adminReply}</p>
+                            </div>
+                          )}
+
+                          <div className="space-y-2 pt-1 mt-auto">
+                            <textarea
+                              value={(f.id && feedbackReplies[f.id]) || ''}
+                              onChange={(e) => {
+                                if (!f.id) return;
+                                const val = e.target.value;
+                                setFeedbackReplies(prev => ({ ...prev, [f.id!]: val }));
+                              }}
+                              rows={2}
+                              placeholder={
+                                canNotifyUser
+                                  ? 'Write a reply to send directly to this user’s Notifications...'
+                                  : 'Write a note (guest submission — cannot deliver in-app notification)'
+                              }
+                              className="w-full resize-y rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 focus:outline-none focus:border-blue-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleSendFeedbackReply(f)}
+                              disabled={!f.id || !feedbackReplies[f.id]?.trim() || sendingFeedbackReplyId === f.id}
+                              className="w-full rounded-xl bg-blue-600 py-2 text-[11px] font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>
+                                {sendingFeedbackReplyId === f.id
+                                  ? 'Sending reply…'
+                                  : canNotifyUser
+                                    ? 'Send reply via Notification'
+                                    : 'Save reply'}
+                              </span>
+                            </button>
+                          </div>
+
+                          <div className="pt-2 flex gap-2">
+                            <button 
+                              onClick={() => handleResolveFeedback(f, 'resolved')}
+                              disabled={f.status === 'resolved'}
+                              className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-[11px] rounded-xl transition-colors cursor-pointer"
+                            >
+                              Resolve
+                            </button>
+                            <button 
+                              onClick={() => handleResolveFeedback(f, 'reviewed')}
+                              disabled={f.status === 'reviewed' || f.status === 'resolved'}
+                              className="flex-1 py-2 bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] disabled:opacity-50 text-slate-700 dark:text-slate-300 font-bold text-[11px] rounded-xl transition-colors cursor-pointer"
+                            >
+                              Acknowledge
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {visibleItems.length === 0 && (
+                      <div className="col-span-full py-20 text-center bg-white dark:bg-[#0f0f0f] border border-dashed border-slate-300 dark:border-[#272727] rounded-3xl">
+                        <Sparkles className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                        <h4 className="text-sm font-black text-slate-400">Inbox Clear</h4>
+                        <p className="text-xs text-slate-400">
+                          {isHelpTab ? 'No help requests yet.' : 'No feedback or help requests match this filter.'}
+                        </p>
+                      </div>
+                    )}
+
+                    {previewFeedbackImage && (
+                      <div
+                        onClick={() => setPreviewFeedbackImage(null)}
+                        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
                       >
-                        Resolve
-                      </button>
-                      <button 
-                        onClick={() => handleResolveFeedback(f.id!, 'reviewed')}
-                        disabled={f.status === 'reviewed' || f.status === 'resolved'}
-                        className="flex-1 py-2 bg-slate-100 dark:bg-[#272727] hover:bg-slate-200 dark:hover:bg-[#333] disabled:opacity-50 text-slate-700 dark:text-slate-300 font-bold text-[11px] rounded-xl transition-colors"
-                      >
-                        Acknowledge
-                      </button>
-                    </div>
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="relative max-w-3xl w-full bg-slate-950 rounded-2xl border border-slate-700 p-2 shadow-2xl"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setPreviewFeedbackImage(null)}
+                            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center cursor-pointer"
+                            aria-label="Close preview"
+                          >
+                            <XCircle className="w-5 h-5" />
+                          </button>
+                          <img
+                            src={previewFeedbackImage}
+                            alt="Feedback screenshot preview"
+                            className="w-full max-h-[80vh] object-contain rounded-xl"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
-
-                {feedback.length === 0 && (
-                  <div className="col-span-full py-20 text-center bg-white dark:bg-[#0f0f0f] border border-dashed border-slate-300 dark:border-[#272727] rounded-3xl">
-                    <Sparkles className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                    <h4 className="text-sm font-black text-slate-400">Inbox Clear</h4>
-                    <p className="text-xs text-slate-400">No feedback or help requests yet.</p>
-                  </div>
-                )}
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             {/* CLOUD STORAGE MANAGEMENT SECTION */}
             {activeSection === 'storage' && (() => {
