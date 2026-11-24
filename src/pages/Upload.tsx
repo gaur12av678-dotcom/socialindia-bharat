@@ -309,6 +309,7 @@ export const UploadPage: React.FC = () => {
     try {
       let finalVideoUrl = videoUrl;
       let finalDuration = await getVideoFileDuration(selectedVideoFile);
+      let finalFileSizeBytes: number | undefined = selectedVideoFile?.size;
       let finalThumbnailUrl = thumbnailUrl;
 
       // 1. Upload Video File directly via high-speed chunked stream
@@ -328,8 +329,11 @@ export const UploadPage: React.FC = () => {
         if (typeof uploadRes.duration === 'number' && Number.isFinite(uploadRes.duration) && uploadRes.duration > 0) {
           finalDuration = uploadRes.duration;
         }
+        if (typeof uploadRes.bytes === 'number' && Number.isFinite(uploadRes.bytes) && uploadRes.bytes > 0) {
+          finalFileSizeBytes = Math.round(uploadRes.bytes);
+        }
       }
-      finalDuration = Math.max(1, Math.round(finalDuration));
+      finalDuration = Number.isFinite(finalDuration) && finalDuration > 0 ? Math.max(1, Math.round(finalDuration)) : 1;
 
       // 2. Upload Thumbnail if picked
       if (selectedThumbFile) {
@@ -365,6 +369,7 @@ export const UploadPage: React.FC = () => {
         category,
         tags,
         duration: finalDuration,
+        ...(finalFileSizeBytes ? { fileSizeBytes: finalFileSizeBytes } : {}),
         visibility,
         commentsMode,
         isShort,

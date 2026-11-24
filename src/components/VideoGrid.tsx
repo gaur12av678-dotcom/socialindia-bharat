@@ -16,6 +16,7 @@ interface VideoGridProps {
   gridColsClass?: string;
   skeletonCount?: number;
   priorityCount?: number;
+  hideNotInterested?: boolean;
 }
 
 const VideoGridComponent: React.FC<VideoGridProps> = ({
@@ -27,7 +28,8 @@ const VideoGridComponent: React.FC<VideoGridProps> = ({
   emptyMessage = 'Videos published on SocialIndia will appear here.',
   gridColsClass = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6',
   skeletonCount = 6,
-  priorityCount = 3
+  priorityCount = 3,
+  hideNotInterested = false
 }) => {
   const { navigate } = useRouter();
   const { currentUser } = useApp();
@@ -92,6 +94,7 @@ const VideoGridComponent: React.FC<VideoGridProps> = ({
             video={video} 
             index={idx}
             priority={idx < priorityCount}
+            hideNotInterested={hideNotInterested}
           />
         </React.Fragment>
       ))}

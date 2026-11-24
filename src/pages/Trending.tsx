@@ -25,7 +25,9 @@ export const Trending: React.FC = () => {
 
   const initialCached = videoService.getCachedVideos({ isShort: false });
   const [videos, setVideos] = useState<Video[]>(() => {
-    if (persistentTrendingVideos.length > 0) return persistentTrendingVideos;
+    if (persistentTrendingVideos.length > 0) {
+      return persistentTrendingVideos;
+    }
     if (initialCached.length > 0) {
       const ranked = rankTrending(initialCached);
       persistentTrendingVideos = ranked;
@@ -147,6 +149,7 @@ export const Trending: React.FC = () => {
         videos={videos} 
         loading={loading} 
         skeletonCount={6}
+        hideNotInterested={true}
         emptyMessage={isHindi ? 'अभी कोई ट्रेंडिंग वीडियो उपलब्ध नहीं है।' : 'No trending video entries calculated yet.'}
       />
 

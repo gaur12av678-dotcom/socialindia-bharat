@@ -1,11 +1,72 @@
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Video } from '../types';
 
 const WATCHED_STORAGE_KEY = 'socialindia_watched_ids';
 const HOME_RECOMMENDED_STORAGE_KEY = 'socialindia_home_recommended_ids';
 const SHORTS_RECOMMENDED_STORAGE_KEY = 'socialindia_home_shorts_recommended_ids';
+const NOT_INTERESTED_KEY_PREFIX = 'socialindia_not_interested_';
+export const NOT_INTERESTED_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (1 month)
+export const NOT_INTERESTED_EVENT = 'socialindia:not-interested-updated';
+
+interface NotInterestedEntry {
+  videoId: string;
+  createdAt: number;
+  expiresAt: number;
+  category?: string;
+  creatorId?: string;
+}
+
+const cloudSyncedUids = new Set<string>();
+
+function getNotInterestedStorageKey(uid?: string): string {
+  return `${NOT_INTERESTED_KEY_PREFIX}${uid || 'guest'}`;
+}
+
+function readEntriesForKey(storageKey: string, now = Date.now()): NotInterestedEntry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const active = parsed.filter(
+      (item): item is NotInterestedEntry =>
+        Boolean(item) &&
+        typeof item.videoId === 'string' &&
+        item.videoId.length > 0 &&
+        typeof item.expiresAt === 'number' &&
+        Number.isFinite(item.expiresAt) &&
+        item.expiresAt > now
+    );
+    if (active.length !== parsed.length) {
+      localStorage.setItem(storageKey, JSON.stringify(active));
+    }
+    return active;
+  } catch {
+    return [];
+  }
+}
+
+function readActiveNotInterestedEntries(uid?: string): NotInterestedEntry[] {
+  const now = Date.now();
+  const byId = new Map<string, NotInterestedEntry>();
+  const guestEntries = readEntriesForKey(getNotInterestedStorageKey(undefined), now);
+  guestEntries.forEach(entry => byId.set(entry.videoId, entry));
+  if (uid) {
+    const userEntries = readEntriesForKey(getNotInterestedStorageKey(uid), now);
+    userEntries.forEach(entry => {
+      const existing = byId.get(entry.videoId);
+      if (!existing || entry.expiresAt > existing.expiresAt) {
+        byId.set(entry.videoId, entry);
+      }
+    });
+  }
+  return Array.from(byId.values());
+}
+
 let lastHeroVideoId = '';
 let lastWatchSidebarFirstVideoId = '';
-let lastMoreVideosFirstId = '';
 let lastHeroShortId = '';
 
 function getRecentIds(storageKey: string): Set<string> {
@@ -54,6 +115,108 @@ export interface WatchSidebarOptions {
 }
 
 export const recommendationService = {
+  markNotInterested(video: Pick<Video, 'videoId' | 'category' | 'creatorId'>, uid?: string): void {
+    if (!video?.videoId || typeof window === 'undefined') return;
+    const now = Date.now();
+    const entry: NotInterestedEntry = {
+      videoId: video.videoId,
+      createdAt: now,
+      expiresAt: now + NOT_INTERESTED_TTL_MS,
+      category: video.category || undefined,
+      creatorId: video.creatorId || undefined,
+    };
+
+    const targetKey = getNotInterestedStorageKey(uid);
+    const existing = readEntriesForKey(targetKey, now).filter(item => item.videoId !== video.videoId);
+    existing.push(entry);
+    const trimmed = existing.slice(-500);
+    try {
+      localStorage.setItem(targetKey, JSON.stringify(trimmed));
+    } catch (e) {
+      console.warn('LocalStorage save not-interested failed:', e);
+    }
+
+    window.dispatchEvent(new CustomEvent(NOT_INTERESTED_EVENT, {
+      detail: { videoId: video.videoId, uid }
+    }));
+
+    if (uid) {
+      void setDoc(
+        doc(db, 'users', uid, 'private', 'not_interested'),
+        {
+          items: trimmed,
+          updatedAt: new Date(now).toISOString(),
+        },
+        { merge: true }
+      ).catch(err => {
+        console.warn('Could not sync not-interested preferences to cloud:', err);
+      });
+    }
+  },
+
+  async syncNotInterestedFromCloud(uid?: string): Promise<void> {
+    if (!uid || typeof window === 'undefined' || cloudSyncedUids.has(uid)) return;
+    cloudSyncedUids.add(uid);
+    try {
+      const snap = await getDoc(doc(db, 'users', uid, 'private', 'not_interested'));
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const cloudItems: NotInterestedEntry[] = Array.isArray(data?.items) ? data.items : [];
+      const now = Date.now();
+      const storageKey = getNotInterestedStorageKey(uid);
+      const localItems = readEntriesForKey(storageKey, now);
+      const merged = new Map<string, NotInterestedEntry>();
+
+      localItems.forEach(item => merged.set(item.videoId, item));
+      let addedNew = false;
+      cloudItems.forEach(item => {
+        if (
+          item &&
+          typeof item.videoId === 'string' &&
+          typeof item.expiresAt === 'number' &&
+          item.expiresAt > now
+        ) {
+          const prev = merged.get(item.videoId);
+          if (!prev) addedNew = true;
+          if (!prev || item.expiresAt > prev.expiresAt) {
+            merged.set(item.videoId, item);
+          }
+        }
+      });
+
+      const finalItems = Array.from(merged.values()).slice(-500);
+      localStorage.setItem(storageKey, JSON.stringify(finalItems));
+      if (addedNew) {
+        window.dispatchEvent(new CustomEvent(NOT_INTERESTED_EVENT, { detail: { uid } }));
+      }
+    } catch (err) {
+      console.warn('Could not fetch cloud not-interested preferences:', err);
+    }
+  },
+
+  getNotInterestedIds(uid?: string): Set<string> {
+    return new Set(readActiveNotInterestedEntries(uid).map(item => item.videoId));
+  },
+
+  getNotInterestedPenaltySignals(uid?: string): {
+    categoryCounts: Map<string, number>;
+    creatorCounts: Map<string, number>;
+  } {
+    const entries = readActiveNotInterestedEntries(uid);
+    const categoryCounts = new Map<string, number>();
+    const creatorCounts = new Map<string, number>();
+    entries.forEach(entry => {
+      if (entry.category) {
+        const catKey = entry.category.trim().toLowerCase();
+        if (catKey) categoryCounts.set(catKey, (categoryCounts.get(catKey) || 0) + 1);
+      }
+      if (entry.creatorId) {
+        creatorCounts.set(entry.creatorId, (creatorCounts.get(entry.creatorId) || 0) + 1);
+      }
+    });
+    return { categoryCounts, creatorCounts };
+  },
+
   recordVideoWatch(videoId: string, _uid?: string) {
     if (!videoId) return;
     try {
@@ -101,7 +264,10 @@ export const recommendationService = {
   rankAndFilterVideos(videos: Video[], options?: { isShortsOnly?: boolean; userUid?: string; rotateTop?: boolean }): Video[] {
     if (!videos || videos.length === 0) return [];
 
-    let pool = [...videos];
+    const notInterestedIds = this.getNotInterestedIds(options?.userUid);
+    const { categoryCounts, creatorCounts: dismissedCreators } = this.getNotInterestedPenaltySignals(options?.userUid);
+
+    let pool = videos.filter(v => v && v.videoId && !notInterestedIds.has(v.videoId));
     if (options?.isShortsOnly) {
       pool = pool.filter(v => v.isShort);
     }
@@ -126,6 +292,10 @@ export const recommendationService = {
         Math.log10(comments + 1) * 8 + viralVelocity + engagementRate + freshness;
       if (watchedIds.has(video.videoId)) total *= 0.4;
       if (recentlyRecommendedIds.has(video.videoId)) total *= 0.35;
+      const dismissedCreatorHits = video.creatorId ? (dismissedCreators.get(video.creatorId) || 0) : 0;
+      if (dismissedCreatorHits > 0) total *= Math.max(0.45, 1 - dismissedCreatorHits * 0.15);
+      const dismissedCatHits = video.category ? (categoryCounts.get(video.category.trim().toLowerCase()) || 0) : 0;
+      if (dismissedCatHits > 0) total *= Math.max(0.6, 1 - dismissedCatHits * 0.08);
       return total;
     };
 
@@ -174,12 +344,14 @@ export const recommendationService = {
    * Stable across renders and scrolling (no random jumping).
    */
   getHomeMoreVideosRecommendations(options: HomeMoreVideosOptions): Video[] {
-    const { allVideos, firstRowIds = [], category = 'All' } = options;
+    const { allVideos, firstRowIds = [], category = 'All', userUid } = options;
     if (!allVideos || allVideos.length === 0) return [];
 
+    const notInterestedIds = this.getNotInterestedIds(userUid);
+    const { categoryCounts, creatorCounts: dismissedCreators } = this.getNotInterestedPenaltySignals(userUid);
     const firstRowSet = new Set(firstRowIds);
-    // Exclude shorts and row-1 videos
-    let pool = allVideos.filter(v => !v.isShort && !firstRowSet.has(v.videoId));
+    // Exclude shorts, row-1 videos, and 30-day not-interested videos
+    let pool = allVideos.filter(v => v && v.videoId && !v.isShort && !firstRowSet.has(v.videoId) && !notInterestedIds.has(v.videoId));
 
     if (category && category !== 'All') {
       const targetCat = category.trim().toLowerCase();
@@ -215,6 +387,10 @@ export const recommendationService = {
 
       if (watchedIds.has(v.videoId)) totalScore *= 0.4;
       if (recentlyRecommendedIds.has(v.videoId)) totalScore *= 0.35;
+      const dismissedCreatorHits = v.creatorId ? (dismissedCreators.get(v.creatorId) || 0) : 0;
+      if (dismissedCreatorHits > 0) totalScore *= Math.max(0.45, 1 - dismissedCreatorHits * 0.15);
+      const dismissedCatHits = v.category ? (categoryCounts.get(v.category.trim().toLowerCase()) || 0) : 0;
+      if (dismissedCatHits > 0) totalScore *= Math.max(0.6, 1 - dismissedCatHits * 0.08);
 
       return {
         video: v,
@@ -257,24 +433,22 @@ export const recommendationService = {
 
   /**
    * YOUTUBE-STYLE WATCH PAGE SIDEBAR RECOMMENDATION ALGORITHM
-   * 1. Multi-factor scoring:
-   *    - Views & Likes engagement (log scaled).
-   *    - Freshness / New Content Boost (new uploads < 24h/3d/7d get high boost).
-   *    - Category / Creator Affinity (when in 'All' or 'Related').
-   * 2. Watched Videos intelligent decay:
-   *    - Watched videos are penalized (0.45x) so unwatched & fresh content naturally surfaces first.
-   *    - BUT watched videos are NOT deleted/banned ("or yeh bhi mat karo ki ak bar hi dikho algruhtim bano").
-   * 3. Dynamic Positional Jitter & Anti-Freeze:
-   *    - Shuffles/rotates top positions so the same video doesn't appear in the exact same slot repeatedly ("same positing per hi ak vedio mat dikho").
-   *    - Prevents back-to-back #0 repetition.
-   * 4. Strict category filter when a specific category is chosen, or full library when 'All'.
    */
   getWatchSidebarRecommendations(options: WatchSidebarOptions): Video[] {
-    const { currentVideo, allVideos, selectedCategory } = options;
+    const { currentVideo, allVideos, selectedCategory, userUid } = options;
     if (!allVideos || allVideos.length === 0) return [];
 
-    // Exclude current video and shorts
-    let pool = allVideos.filter(v => v.videoId !== currentVideo?.videoId && !v.isShort);
+    const notInterestedIds = this.getNotInterestedIds(userUid);
+    const { categoryCounts, creatorCounts: dismissedCreators } = this.getNotInterestedPenaltySignals(userUid);
+
+    // Exclude current video, shorts, and 30-day not-interested videos
+    let pool = allVideos.filter(v =>
+      v &&
+      v.videoId &&
+      v.videoId !== currentVideo?.videoId &&
+      !v.isShort &&
+      !notInterestedIds.has(v.videoId)
+    );
 
     // Filter by selected category
     if (selectedCategory && selectedCategory !== 'All') {
@@ -304,7 +478,6 @@ export const recommendationService = {
     const watchedIds = this.getWatchedVideoIds();
     const now = Date.now();
 
-    // Score each candidate
     interface ScoredCandidate {
       video: Video;
       score: number;
@@ -314,24 +487,21 @@ export const recommendationService = {
       const views = Number(v.viewsCount) || 0;
       const likes = Number(v.likesCount) || 0;
 
-      // Base engagement score (log scaled)
       const engagement = (Math.log10(Math.max(1, views) + 1) * 35) + (Math.log10(Math.max(1, likes) + 1) * 20);
 
-      // Freshness bonus (New content boost)
       const uploadTime = new Date(v.createdAt || 0).getTime();
-      const ageHours = (now - uploadTime) / (1000 * 60 * 60);
+      const ageHours = Number.isFinite(uploadTime) ? (now - uploadTime) / (1000 * 60 * 60) : Infinity;
       let freshness = 0;
       if (ageHours < 24) {
-        freshness = 120; // Super fresh uploaded today!
+        freshness = 120;
       } else if (ageHours < 72) {
-        freshness = 80;  // 1-3 days
+        freshness = 80;
       } else if (ageHours < 168) {
-        freshness = 50;  // 1 week
+        freshness = 50;
       } else if (ageHours < 720) {
-        freshness = 25;  // 1 month
+        freshness = 25;
       }
 
-      // Affinity bonus (if 'All' or general)
       let affinity = 0;
       if (currentVideo) {
         if (v.category && currentVideo.category && v.category.toLowerCase() === currentVideo.category.toLowerCase()) {
@@ -348,13 +518,19 @@ export const recommendationService = {
 
       let totalScore = engagement + freshness + affinity;
 
-      // Watched penalty: Decays score so unwatched new content comes first,
-      // but does NOT remove the video entirely ("or yeh bhi mat karo ki ak bar hi dikho")
       if (watchedIds.has(v.videoId)) {
         totalScore *= 0.45;
       }
 
-      // Dynamic position jitter ("same positing per hi ak vedio mat dikho")
+      const dismissedCreatorHits = v.creatorId ? (dismissedCreators.get(v.creatorId) || 0) : 0;
+      if (dismissedCreatorHits > 0) {
+        totalScore *= Math.max(0.45, 1 - dismissedCreatorHits * 0.15);
+      }
+      const dismissedCatHits = v.category ? (categoryCounts.get(v.category.trim().toLowerCase()) || 0) : 0;
+      if (dismissedCatHits > 0) {
+        totalScore *= Math.max(0.6, 1 - dismissedCatHits * 0.08);
+      }
+
       const jitter = Math.random() * 20;
       totalScore += jitter;
 
@@ -364,21 +540,17 @@ export const recommendationService = {
       };
     });
 
-    // Sort by final score descending
     scored.sort((a, b) => b.score - a.score);
     const sortedVideos = scored.map(s => s.video);
 
-    // Apply positional rotation on top 6 candidates so they don't appear in frozen order
     const TOP_WINDOW = Math.min(6, sortedVideos.length);
     if (TOP_WINDOW > 1) {
       const topWindow = sortedVideos.slice(0, TOP_WINDOW);
-      // Light shuffle within the top window
       for (let i = topWindow.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [topWindow[i], topWindow[j]] = [topWindow[j], topWindow[i]];
       }
 
-      // Ensure position 0 is not the exact same video as last view if alternatives exist
       if (topWindow.length > 1 && topWindow[0].videoId === lastWatchSidebarFirstVideoId) {
         const swapIdx = Math.floor(Math.random() * (topWindow.length - 1)) + 1;
         [topWindow[0], topWindow[swapIdx]] = [topWindow[swapIdx], topWindow[0]];
@@ -396,18 +568,14 @@ export const recommendationService = {
 
   /**
    * YOUTUBE-STYLE SHORTS RECOMMENDATION ALGORITHM
-   * Solves: "shorts same ak hi dikhti hai lagothim bano"
-   * 1. Multi-factor engagement scoring (views + likes + comments).
-   * 2. Watched decay penalty (0.35x for already-watched shorts to prioritize fresh/unseen content).
-   * 3. Dynamic positional jitter (randomizes candidate scores to eliminate frozen static order).
-   * 4. Creator Diversity Interleaving (prevents 2+ consecutive shorts from the same creator).
-   * 5. Anti-Repeat Hero (prevents the same short from sticking at card #0 on every refresh).
    */
   getShortsRecommendations(options: ShortsRecommendationOptions): Video[] {
-    const { allShorts, currentShortId, excludeIds = [], limit } = options;
+    const { allShorts, currentShortId, excludeIds = [], userUid, limit } = options;
     if (!allShorts || allShorts.length === 0) return [];
 
+    const notInterestedIds = this.getNotInterestedIds(userUid);
     const excludeSet = new Set(excludeIds);
+    notInterestedIds.forEach(id => excludeSet.add(id));
     if (currentShortId) {
       excludeSet.add(currentShortId);
     }

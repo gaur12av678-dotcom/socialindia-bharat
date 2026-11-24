@@ -597,11 +597,11 @@ export const CreatorStudio: React.FC = () => {
     tempVideo.preload = 'metadata';
     tempVideo.src = localBlobUrl;
     tempVideo.onloadedmetadata = () => {
-      if (tempVideo.duration && !isNaN(tempVideo.duration)) {
+      if (Number.isFinite(tempVideo.duration) && tempVideo.duration > 0) {
         setDuration(Math.round(tempVideo.duration));
-        if (tempVideo.videoHeight > tempVideo.videoWidth) {
-          setIsShort(true);
-        }
+      }
+      if (tempVideo.videoHeight > tempVideo.videoWidth) {
+        setIsShort(true);
       }
     };
 
@@ -679,7 +679,8 @@ export const CreatorStudio: React.FC = () => {
 
     try {
       let finalVideoUrl = videoUrl;
-      let finalDuration = duration;
+      let finalDuration = Number.isFinite(Number(duration)) && Number(duration) > 0 ? Math.round(Number(duration)) : 0;
+      let finalFileSizeBytes: number | undefined = selectedVideoFile?.size;
       let finalThumbnailUrl = thumbnailUrl;
       let publishedVideo: Video | null = null;
 
@@ -695,8 +696,11 @@ export const CreatorStudio: React.FC = () => {
           }
         });
         finalVideoUrl = uploadRes.videoUrl;
-        if (uploadRes.duration) {
-          finalDuration = uploadRes.duration;
+        if (typeof uploadRes.duration === 'number' && Number.isFinite(uploadRes.duration) && uploadRes.duration > 0) {
+          finalDuration = Math.round(uploadRes.duration);
+        }
+        if (typeof uploadRes.bytes === 'number' && Number.isFinite(uploadRes.bytes) && uploadRes.bytes > 0) {
+          finalFileSizeBytes = Math.round(uploadRes.bytes);
         }
       }
 
@@ -736,6 +740,7 @@ export const CreatorStudio: React.FC = () => {
           category,
           tags,
           duration: finalDuration,
+          ...(finalFileSizeBytes ? { fileSizeBytes: finalFileSizeBytes } : {}),
           visibility,
           commentsMode,
           isShort,
@@ -752,6 +757,7 @@ export const CreatorStudio: React.FC = () => {
           category,
           tags,
           duration: finalDuration,
+          ...(finalFileSizeBytes ? { fileSizeBytes: finalFileSizeBytes } : {}),
           visibility,
           commentsMode,
           isShort,

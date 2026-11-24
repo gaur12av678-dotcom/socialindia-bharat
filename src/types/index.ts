@@ -102,6 +102,7 @@ export interface Video {
   videoUrl: string;
   thumbnailUrl: string;
   duration: number; // in seconds
+  fileSizeBytes?: number; // real uploaded media size in bytes
   creatorId: string;
   creatorUsername: string;
   creatorDisplayName: string;

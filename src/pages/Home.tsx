@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { videoService } from '../services/videoService';
-import { recommendationService } from '../services/recommendationService';
+import { recommendationService, NOT_INTERESTED_EVENT } from '../services/recommendationService';
 import { Video } from '../types';
 import { VideoGrid } from '../components/VideoGrid';
 import { useApp } from '../context/AppContext';
@@ -294,10 +294,14 @@ export const Home: React.FC = () => {
     if (initialCachedShorts.length > 0) return false;
     return true;
   });
-  const [extraMoreVideos, setExtraMoreVideos] = useState<Video[]>(() => persistentExtraMoreVideos);
+  const [extraMoreVideos, setExtraMoreVideos] = useState<Video[]>(() => {
+    const blocked = recommendationService.getNotInterestedIds(currentUser?.uid);
+    return persistentExtraMoreVideos.filter(v => !blocked.has(v.videoId));
+  });
   const [moreDisplayCount, setMoreDisplayCount] = useState<number>(() => persistentMoreDisplayCount);
   const [hasMorePlatformVideos, setHasMorePlatformVideos] = useState<boolean>(() => persistentHasMoreVideos);
   const [isLoadingMoreVideos, setIsLoadingMoreVideos] = useState<boolean>(false);
+  const [notInterestedVersion, setNotInterestedVersion] = useState<number>(0);
   const moreSentinelRef = useRef<HTMLDivElement>(null);
   const lastMoreRevealScrollYRef = useRef(-1);
   const lastVideoDocRef = useRef<any>(persistentLastVideoDoc);
@@ -466,9 +470,10 @@ export const Home: React.FC = () => {
           persistentRankedVideos = ranked;
           setVideos(ranked);
         } else if (newVideos.length > 0 && selectedCategoryRef.current === 'All') {
+          const blocked = recommendationService.getNotInterestedIds(currentUser?.uid);
           setExtraMoreVideos(previous => {
             const ids = new Set(previous.map(video => video.videoId));
-            const additions = newVideos.filter(video => !ids.has(video.videoId));
+            const additions = newVideos.filter(video => !ids.has(video.videoId) && !blocked.has(video.videoId));
             return additions.length > 0 ? [...previous, ...additions] : previous;
           });
         }
@@ -749,6 +754,53 @@ export const Home: React.FC = () => {
     return () => window.removeEventListener('socialindia:refresh-home', onHomeRefreshEvent);
   }, [selectedCategory]);
 
+  // Sync 30-day Not Interested preferences from cloud when signed in & react immediately on click
+  useEffect(() => {
+    if (currentUser?.uid) {
+      void recommendationService.syncNotInterestedFromCloud(currentUser.uid);
+    }
+  }, [currentUser?.uid]);
+
+  useEffect(() => {
+    const onNotInterestedUpdated = () => {
+      const blocked = recommendationService.getNotInterestedIds(currentUser?.uid);
+      if (blocked.size === 0) return;
+
+      masterVideosRef.current = masterVideosRef.current.filter(v => !blocked.has(v.videoId));
+      persistentMasterVideos = persistentMasterVideos.filter(v => !blocked.has(v.videoId));
+      persistentRankedVideos = persistentRankedVideos.filter(v => !blocked.has(v.videoId));
+      persistentExtraMoreVideos = persistentExtraMoreVideos.filter(v => !blocked.has(v.videoId));
+      if (persistentHomeShorts) {
+        persistentHomeShorts = persistentHomeShorts.filter(v => !blocked.has(v.videoId));
+      }
+
+      setVideos(prev => {
+        const next = prev.filter(v => !blocked.has(v.videoId));
+        return next.length !== prev.length ? next : prev;
+      });
+      setExtraMoreVideos(prev => {
+        const next = prev.filter(v => !blocked.has(v.videoId));
+        return next.length !== prev.length ? next : prev;
+      });
+      setShorts(prev => {
+        const next = prev.filter(v => !blocked.has(v.videoId));
+        return next.length !== prev.length ? next : prev;
+      });
+      setNotInterestedVersion(v => v + 1);
+
+      if (selectedCategoryRef.current === 'All') {
+        if (hasMorePlatformVideos && !isFetchingMoreRef.current) {
+          void fetchMorePlatformVideos();
+        }
+      } else if (hasMoreSelectedCategoryRef.current && !isFetchingMoreRef.current) {
+        void fetchMoreSelectedCategoryVideos();
+      }
+    };
+
+    window.addEventListener(NOT_INTERESTED_EVENT, onNotInterestedUpdated);
+    return () => window.removeEventListener(NOT_INTERESTED_EVENT, onNotInterestedUpdated);
+  }, [currentUser?.uid, hasMorePlatformVideos]);
+
   // Persist paginated More Videos state across Home remounts
   useEffect(() => {
     persistentExtraMoreVideos = extraMoreVideos;
@@ -963,19 +1015,20 @@ export const Home: React.FC = () => {
       firstRowIds: firstRowVideos.map(v => v.videoId),
       userUid: currentUser?.uid
     });
-  }, [isFollowingFeed, selectedCategory, firstRowIdsKey, currentUser?.uid, videos]);
+  }, [isFollowingFeed, selectedCategory, firstRowIdsKey, currentUser?.uid, videos, notInterestedVersion]);
 
   // Combine initial More Videos with cursor-paginated extra platform videos (without reordering already-seen items)
   const allMoreVideos = React.useMemo(() => {
+    const blocked = recommendationService.getNotInterestedIds(currentUser?.uid);
     const seen = new Set(firstRowVideos.map(v => v.videoId));
     const uniqueVideos: Video[] = [];
     for (const video of [...baseMoreVideos, ...extraMoreVideos]) {
-      if (!video.videoId || seen.has(video.videoId)) continue;
+      if (!video.videoId || seen.has(video.videoId) || blocked.has(video.videoId)) continue;
       seen.add(video.videoId);
       uniqueVideos.push(video);
     }
     return uniqueVideos;
-  }, [baseMoreVideos, extraMoreVideos, firstRowVideos]);
+  }, [baseMoreVideos, extraMoreVideos, firstRowVideos, currentUser?.uid, notInterestedVersion]);
 
   const displayedMoreVideos = React.useMemo(() => {
     return allMoreVideos.slice(0, moreDisplayCount);

@@ -176,6 +176,11 @@ function getPersistedVideos(): Video[] {
   return [];
 }
 
+function sanitizeVideoDuration(val: unknown): number {
+  const num = Number(val);
+  return Number.isFinite(num) && num > 0 && num < 864000 ? Math.round(num) : 0;
+}
+
 function cleanVideoForPersistence(v: Video): Video {
   return {
     videoId: v.videoId,
@@ -183,7 +188,10 @@ function cleanVideoForPersistence(v: Video): Video {
     description: (v.description || '').slice(0, 120),
     videoUrl: v.videoUrl || '',
     thumbnailUrl: v.thumbnailUrl || '',
-    duration: v.duration || 0,
+    duration: sanitizeVideoDuration(v.duration),
+    ...(typeof v.fileSizeBytes === 'number' && Number.isFinite(v.fileSizeBytes) && v.fileSizeBytes > 0
+      ? { fileSizeBytes: Math.round(v.fileSizeBytes) }
+      : {}),
     creatorId: v.creatorId || '',
     creatorUsername: v.creatorUsername || '',
     creatorDisplayName: v.creatorDisplayName || '',
@@ -277,7 +285,7 @@ export const videoService = {
   async uploadVideo(
     file: File, 
     onProgress?: (progress: number, stage?: string) => void
-  ): Promise<{ videoUrl: string; duration?: number }> {
+  ): Promise<{ videoUrl: string; duration?: number; bytes?: number }> {
     const MAX_VIDEO_SIZE_BYTES = 104857600; // 100MB
     if (file.size > MAX_VIDEO_SIZE_BYTES) {
       throw new Error('Please upload a video lower than 100MB.');
@@ -293,10 +301,12 @@ export const videoService = {
         const CHUNK_SIZE = 25 * 1024 * 1024;
 
         if (file.size <= CHUNK_SIZE) {
-          return await this.uploadSingleVideo(file, cloudName, preset, onProgress);
+          const singleRes = await this.uploadSingleVideo(file, cloudName, preset, onProgress);
+          return { ...singleRes, bytes: singleRes.bytes || file.size };
         }
 
-        return await this.uploadChunkedVideo(file, cloudName, preset, CHUNK_SIZE, onProgress);
+        const chunkedRes = await this.uploadChunkedVideo(file, cloudName, preset, CHUNK_SIZE, onProgress);
+        return { ...chunkedRes, bytes: chunkedRes.bytes || file.size };
       }
     } catch (cldErr: any) {
       console.warn('Cloudinary upload unavailable or failed, falling back to Firebase Storage:', cldErr);
@@ -311,7 +321,7 @@ export const videoService = {
       const url = await this.uploadToFirebase(file, 'videos', (pct) => {
         if (onProgress) onProgress(pct, `Uploading video... ${pct}%`);
       });
-      return { videoUrl: url };
+      return { videoUrl: url, bytes: file.size };
     } catch (fbErr: any) {
       console.error('Firebase storage upload failed:', fbErr);
       throw new Error(fbErr.message || 'Failed to upload video to media storage.');
@@ -324,7 +334,7 @@ export const videoService = {
     cloudName: string,
     preset: string,
     onProgress?: (progress: number, stage?: string) => void
-  ): Promise<{ videoUrl: string; duration?: number }> {
+  ): Promise<{ videoUrl: string; duration?: number; bytes?: number }> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', preset);
@@ -347,9 +357,14 @@ export const videoService = {
             const response = JSON.parse(xhr.responseText);
             console.log('Cloudinary Video Upload Success:', response.secure_url);
             onProgress?.(100, 'Video ready!');
+            const cleanDuration = sanitizeVideoDuration(response.duration);
+            const cleanBytes = typeof response.bytes === 'number' && Number.isFinite(response.bytes) && response.bytes > 0
+              ? Math.round(response.bytes)
+              : file.size;
             resolve({
               videoUrl: response.secure_url,
-              duration: response.duration ? Math.round(response.duration) : undefined
+              duration: cleanDuration > 0 ? cleanDuration : undefined,
+              bytes: cleanBytes
             });
           } catch (jsonErr) {
             reject(jsonErr);
@@ -380,14 +395,14 @@ export const videoService = {
     preset: string,
     chunkSize: number,
     onProgress?: (progress: number, stage?: string) => void
-  ): Promise<{ videoUrl: string; duration?: number }> {
+  ): Promise<{ videoUrl: string; duration?: number; bytes?: number }> {
     const uniqueUploadId = `${Date.now()}${Math.random().toString(36).replace(/[^a-z0-9]/gi, '')}`;
     const totalSize = file.size;
     const totalChunks = Math.ceil(totalSize / chunkSize);
 
     let start = 0;
     let chunkIndex = 0;
-    let finalResult: { videoUrl: string; duration?: number } | null = null;
+    let finalResult: { videoUrl: string; duration?: number; bytes?: number } | null = null;
 
     while (start < totalSize) {
       const end = Math.min(start + chunkSize, totalSize);
@@ -422,7 +437,10 @@ export const videoService = {
     }
 
     onProgress?.(100, 'Video ready!');
-    return finalResult;
+    return {
+      ...finalResult,
+      bytes: finalResult.bytes || file.size
+    };
   },
 
   // Upload an individual chunk with Range header
@@ -439,7 +457,7 @@ export const videoService = {
     totalChunks: number,
     isLastChunk: boolean,
     onProgress?: (progress: number, stage?: string) => void
-  ): Promise<{ videoUrl: string; duration?: number }> {
+  ): Promise<{ videoUrl: string; duration?: number; bytes?: number }> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const formData = new FormData();
@@ -462,9 +480,14 @@ export const videoService = {
             const res = JSON.parse(xhr.responseText || '{}');
             if (isLastChunk) {
               if (onProgress) onProgress(100, 'Processing video stream on Cloud CDN...');
+              const cleanDuration = sanitizeVideoDuration(res.duration);
+              const cleanBytes = typeof res.bytes === 'number' && Number.isFinite(res.bytes) && res.bytes > 0
+                ? Math.round(res.bytes)
+                : totalSize;
               resolve({
                 videoUrl: res.secure_url,
-                duration: res.duration ? Math.round(res.duration) : undefined
+                duration: cleanDuration > 0 ? cleanDuration : undefined,
+                bytes: cleanBytes
               });
             } else {
               resolve({ videoUrl: '' });
@@ -661,13 +684,19 @@ export const videoService = {
       }
     }
 
+    const cleanDuration = sanitizeVideoDuration(videoData.duration);
+    const cleanFileSizeBytes = typeof videoData.fileSizeBytes === 'number' && Number.isFinite(videoData.fileSizeBytes) && videoData.fileSizeBytes > 0
+      ? Math.round(videoData.fileSizeBytes)
+      : undefined;
+
     const fullVideo: Video = {
       videoId,
       title: videoData.title || 'Untitled Video',
       description: videoData.description || '',
       videoUrl: videoData.videoUrl || '',
       thumbnailUrl: finalThumbnail,
-      duration: videoData.duration || 0,
+      duration: cleanDuration,
+      ...(cleanFileSizeBytes ? { fileSizeBytes: cleanFileSizeBytes } : {}),
       creatorId: videoData.creatorId || '',
       creatorUsername: videoData.creatorUsername || '',
       creatorDisplayName: videoData.creatorDisplayName || '',

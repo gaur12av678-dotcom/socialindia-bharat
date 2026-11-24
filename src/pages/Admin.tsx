@@ -131,6 +131,70 @@ const readImagePreview = (file: File): Promise<string> => new Promise((resolve, 
   reader.readAsDataURL(file);
 });
 
+const safeFiniteDuration = (val: unknown): number => {
+  const num = Number(val);
+  return Number.isFinite(num) && num > 0 && num < 864000 ? Math.round(num) : 0;
+};
+
+const isExternalEmbedUrl = (url?: string): boolean => {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return (
+    lower.includes('youtube.com') ||
+    lower.includes('youtu.be') ||
+    lower.includes('drive.google.com') ||
+    lower.includes('docs.google.com') ||
+    lower.includes('vimeo.com') ||
+    lower.includes('ytimg.com') ||
+    lower.includes('googleusercontent.com') ||
+    lower.includes('unsplash.com')
+  );
+};
+
+const isPlatformHostedMediaUrl = (url?: string): boolean => {
+  if (!url || isExternalEmbedUrl(url)) return false;
+  const lower = url.toLowerCase();
+  return (
+    lower.includes('res.cloudinary.com') ||
+    lower.includes('firebasestorage.googleapis.com') ||
+    lower.includes('storage.googleapis.com') ||
+    /\.(mp4|webm|mov|m4v|jpg|jpeg|png|webp)(\?|#|$)/i.test(lower)
+  );
+};
+
+const formatStorageBytes = (bytes: number): string => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1024) {
+    return `${mb >= 100 ? Math.round(mb) : mb.toFixed(1)} MB`;
+  }
+  const gb = mb / 1024;
+  return `${gb.toFixed(2)} GB`;
+};
+
+const probeMediaContentLength = async (url: string): Promise<number | null> => {
+  if (!url || !isPlatformHostedMediaUrl(url)) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4500);
+  try {
+    const res = await fetch(url, { method: 'HEAD', signal: controller.signal });
+    if (!res.ok) return null;
+    const rawLen = res.headers.get('content-length');
+    if (rawLen) {
+      const parsed = Number(rawLen);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 let persistentAdminSnapshot: {
   users: User[];
   videos: Video[];
@@ -193,6 +257,9 @@ export const AdminPanel: React.FC = () => {
   const [isTestingStorage, setIsTestingStorage] = useState(false);
   const [storageTestStatus, setStorageTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [storageTestMessage, setStorageTestMessage] = useState('');
+  const [probedMediaBytes, setProbedMediaBytes] = useState<Record<string, number>>({});
+  const [isProbingStorage, setIsProbingStorage] = useState(false);
+  const [storageProbeNonce, setStorageProbeNonce] = useState(0);
 
   // Sound Library Management States
   const [sounds, setSounds] = useState<SoundTrack[]>([]);
@@ -271,6 +338,62 @@ export const AdminPanel: React.FC = () => {
   useEffect(() => {
     adminMainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [activeSection]);
+
+  useEffect(() => {
+    if (activeSection !== 'storage' || videos.length === 0) return;
+    let cancelled = false;
+    const urlsToProbe = new Set<string>();
+    videos.forEach(v => {
+      if (
+        v.videoUrl &&
+        !(typeof v.fileSizeBytes === 'number' && Number.isFinite(v.fileSizeBytes) && v.fileSizeBytes > 0) &&
+        isPlatformHostedMediaUrl(v.videoUrl) &&
+        probedMediaBytes[v.videoUrl] === undefined
+      ) {
+        urlsToProbe.add(v.videoUrl);
+      }
+      if (
+        v.thumbnailUrl &&
+        isPlatformHostedMediaUrl(v.thumbnailUrl) &&
+        probedMediaBytes[v.thumbnailUrl] === undefined
+      ) {
+        urlsToProbe.add(v.thumbnailUrl);
+      }
+    });
+
+    if (urlsToProbe.size === 0) return;
+
+    const queue = Array.from(urlsToProbe);
+    setIsProbingStorage(true);
+
+    const runProbes = async () => {
+      const results: Record<string, number> = {};
+      const CONCURRENCY = 5;
+      let cursor = 0;
+      const worker = async () => {
+        while (!cancelled && cursor < queue.length) {
+          const idx = cursor++;
+          const url = queue[idx];
+          const bytes = await probeMediaContentLength(url);
+          if (bytes !== null && bytes > 0) {
+            results[url] = bytes;
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, () => worker()));
+      if (!cancelled && Object.keys(results).length > 0) {
+        setProbedMediaBytes(prev => ({ ...prev, ...results }));
+      }
+      if (!cancelled) {
+        setIsProbingStorage(false);
+      }
+    };
+
+    void runProbes();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSection, videos, storageProbeNonce]);
 
   const loadData = async () => {
     if (!persistentAdminSnapshot) {
@@ -1088,10 +1211,10 @@ export const AdminPanel: React.FC = () => {
     adminService.getAnnouncement().then(ann => {
       if (ann) {
         setAnnouncementActive(Boolean(ann.active));
-        setAnnouncementText(ann.message || '');
-        setAnnouncementType(ann.type || 'info');
-        setAnnouncementLinkText(ann.linkText || '');
-        setAnnouncementLinkUrl(ann.linkUrl || '');
+        setAnnouncementText(typeof ann.message === 'string' ? ann.message : String(ann.message ?? ''));
+        setAnnouncementType(ann.type === 'alert' || ann.type === 'success' ? ann.type : 'info');
+        setAnnouncementLinkText(typeof ann.linkText === 'string' ? ann.linkText : String(ann.linkText ?? ''));
+        setAnnouncementLinkUrl(typeof ann.linkUrl === 'string' ? ann.linkUrl : String(ann.linkUrl ?? ''));
       }
     }).catch(console.error);
   }, []);
@@ -1101,10 +1224,10 @@ export const AdminPanel: React.FC = () => {
     try {
       await adminService.saveAnnouncement({
         active: announcementActive,
-        message: announcementText.trim(),
+        message: String(announcementText ?? '').trim(),
         type: announcementType,
-        linkText: announcementLinkText.trim(),
-        linkUrl: announcementLinkUrl.trim()
+        linkText: String(announcementLinkText ?? '').trim(),
+        linkUrl: String(announcementLinkUrl ?? '').trim()
       });
       addToast('Broadcast announcement updated successfully!', 'success');
     } catch {
@@ -2137,118 +2260,96 @@ export const AdminPanel: React.FC = () => {
             {/* Users Section */}
             {activeSection === 'users' && (
               <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl overflow-hidden shadow-sm">
-                <div className="p-5 border-b border-slate-100 dark:border-[#272727] flex items-center justify-between">
+                <div className="p-5 border-b border-slate-100 dark:border-[#272727] flex items-center justify-between flex-wrap gap-3">
                   <div>
                     <h3 className="text-sm font-black text-slate-900 dark:text-white">Registered Accounts & Security Audits</h3>
                     <p className="text-xs text-slate-500 font-medium">Manage user accounts, credit wallet funds, and review password audit details.</p>
                   </div>
+                  <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-[#1a1a1a] text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                    {filteredUsers.length} accounts
+                  </span>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 dark:bg-[#1a1a1a] text-[10px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-100 dark:border-[#272727]">
-                        <th className="px-4 py-2.5">User</th>
-                        <th className="px-4 py-2.5">Status & Role</th>
-                        <th className="px-4 py-2.5">Wallet Balance & Points</th>
-                        <th className="px-4 py-2.5">Password Audit</th>
-                        <th className="px-4 py-2.5">Monetization</th>
-                        <th className="px-4 py-2.5">Stats</th>
-                        <th className="px-4 py-2.5 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-[#272727]">
-                      {filteredUsers.map(u => (
-                        <tr key={u.uid} className="text-xs hover:bg-slate-50/50 dark:hover:bg-[#1a1a1a]/50 transition-colors">
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
-                                {u.photoURL ? <img src={u.photoURL} className="w-full h-full object-cover" /> : getInitials(u.displayName)}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-900 dark:text-white truncate">{u.displayName}</p>
-                                <p className="text-[10px] text-slate-500 truncate">@{u.username} • {u.email}</p>
-                              </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-[#272727]">
+                  {filteredUsers.map(u => {
+                    const userStatus = u.status || 'active';
+                    const userRole = String(u.role || 'user');
+                    const isVerifiedCreator = isUserVerified(u);
+                    const hasPendingVerification = !isVerifiedCreator && verificationRequests.some(r => r.userId === u.uid && r.status === 'pending');
+
+                    return (
+                      <div
+                        key={u.uid}
+                        className="p-4 sm:px-5 sm:py-4 hover:bg-slate-50/70 dark:hover:bg-[#1a1a1a]/60 transition-colors flex flex-col gap-3.5"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 min-w-0">
+                          {/* User Identity */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                              {u.photoURL ? <img src={u.photoURL} alt={u.displayName || u.username || 'User'} className="w-full h-full object-cover" /> : getInitials(u.displayName || u.username || 'U')}
                             </div>
-                          </td>
-                          <td className="px-4 py-2.5 space-y-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${u.status === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30' : 'bg-red-50 text-[#800080] dark:bg-red-950/30'}`}>
-                                {u.status}
-                              </span>
-                              {isUserVerified(u) ? (
-                                <span className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-[#00A3FF] font-black text-[9px] flex items-center gap-0.5" title="Verified Blue Tick">
-                                  <CheckCircle2 className="w-2.5 h-2.5 fill-[#00A3FF] text-white" />
-                                  Verified
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-bold text-sm text-slate-900 dark:text-white truncate max-w-[220px] sm:max-w-xs">
+                                  {u.displayName || u.username || 'Unnamed User'}
+                                </p>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${userStatus === 'active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30' : 'bg-red-50 text-[#800080] dark:bg-red-950/30'}`}>
+                                  {userStatus}
                                 </span>
-                              ) : verificationRequests.some(r => r.userId === u.uid && r.status === 'pending') ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveSection('verification_requests');
-                                    setVerificationFilter('pending');
-                                    setVerificationSearch(u.username);
-                                  }}
-                                  className="px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-600 font-black text-[9px] cursor-pointer hover:underline flex items-center gap-0.5"
-                                  title="Verification request pending review"
-                                >
-                                  <Clock className="w-2.5 h-2.5" />
-                                  Review Req
-                                </button>
-                              ) : null}
-                            </div>
-                            <p className="text-[10px] font-black text-slate-500 uppercase">{u.role}</p>
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <p className="font-mono font-black text-blue-600 dark:text-blue-400">
-                              ₹{(u.walletBalance || 0).toFixed(2)}
-                            </p>
-                            {(u.bonusBalance || 0) > 0 && (
-                              <p className="text-[10px] font-mono text-amber-500 font-bold">
-                                +₹{(u.bonusBalance || 0).toFixed(2)} Bonus
+                                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-[#222] text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase">
+                                  {userRole}
+                                </span>
+                                {isVerifiedCreator ? (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-[#00A3FF] font-black text-[9px] inline-flex items-center gap-0.5" title="Verified Blue Tick">
+                                    <CheckCircle2 className="w-2.5 h-2.5 fill-[#00A3FF] text-white" />
+                                    Verified
+                                  </span>
+                                ) : hasPendingVerification ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveSection('verification_requests');
+                                      setVerificationFilter('pending');
+                                      setVerificationSearch(u.username || '');
+                                    }}
+                                    className="px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-600 font-black text-[9px] cursor-pointer hover:underline inline-flex items-center gap-0.5"
+                                    title="Verification request pending review"
+                                  >
+                                    <Clock className="w-2.5 h-2.5" />
+                                    Review Req
+                                  </button>
+                                ) : null}
+                              </div>
+                              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                @{u.username || 'user'}{u.email ? ` • ${u.email}` : ''}
                               </p>
-                            )}
-                            <p className="text-[10px] font-mono text-slate-400 font-bold">
-                              {u.points || 0} pts
-                            </p>
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 block">
-                              {u.lastPasswordChangedAt 
-                                ? `Changed: ${new Date(u.lastPasswordChangedAt).toLocaleDateString()}` 
-                                : 'No recent password change'}
-                            </span>
-                            <span className="text-[10px] text-slate-400 block">
-                              Joined {formatShortDate(u.createdAt)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5">
+                            </div>
+                          </div>
+
+                          {/* Action Buttons — Always wrapped and inside viewport */}
+                          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                             <button
+                              type="button"
                               onClick={() => handleToggleMonetization(u.uid, u.isMonetized || false)}
-                              className={`px-3 py-1.5 rounded-xl font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer border ${
-                                u.isMonetized 
-                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20' 
-                                  : 'bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-900 text-slate-400'
+                              className={`px-2.5 py-1.5 rounded-lg font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer border ${
+                                u.isMonetized
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/50'
+                                  : 'bg-slate-50 border-slate-200 text-slate-500 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400'
                               }`}
                               title="Click to instantly bypass criteria and toggle monetization"
                             >
-                              {u.isMonetized ? '✓ Active' : 'Enable'}
+                              {u.isMonetized ? '✓ Monetized' : 'Enable Monetization'}
                             </button>
-                          </td>
-                          <td className="px-4 py-2.5 text-slate-500">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-bold">{u.videosCount} videos</span>
-                              <span className="text-[10px]">{u.followersCount} followers</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5 text-right space-x-1.5">
+
                             {u.isMonetized ? (
                               <button
+                                type="button"
                                 onClick={() => {
                                   setBonusModalUser(u);
                                   setBonusAmount(50);
                                   setBonusReason('Admin Promotion Bonus');
                                 }}
-                                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
+                                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
                                 title="Add Admin Reward / Bonus Funds to monetized user"
                               >
                                 <Gift className="w-3.5 h-3.5" />
@@ -2256,57 +2357,101 @@ export const AdminPanel: React.FC = () => {
                               </button>
                             ) : (
                               <button
+                                type="button"
                                 onClick={() => {
                                   addToast('Monetization Required: Enable monetization to award Admin Rewards to this creator.', 'info');
                                 }}
-                                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer opacity-70 hover:opacity-100"
+                                className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer opacity-75 hover:opacity-100"
                                 title="Admin Reward is only available for Monetized Users. Click Enable Monetization first."
                               >
                                 <Gift className="w-3.5 h-3.5 text-slate-400" />
                                 <span>Reward (Locked)</span>
                               </button>
                             )}
+
                             {u.isMonetized ? (
                               <button
+                                type="button"
                                 onClick={() => {
                                   setWalletModalUser(u);
                                   setCreditAmount(10);
                                 }}
-                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
+                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black shadow-xs cursor-pointer inline-flex items-center gap-1"
                                 title="Give money to monetized user wallet"
                               >
                                 <span>+ Wallet ($)</span>
                               </button>
                             ) : (
                               <button
+                                type="button"
                                 onClick={() => {
                                   addToast('Monetization Required: Enable monetization to credit user wallet balance.', 'info');
                                 }}
-                                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer opacity-70 hover:opacity-100"
+                                className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 rounded-lg text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer opacity-75 hover:opacity-100"
                                 title="Wallet Credit is only available for Monetized Users. Click Enable Monetization first."
                               >
                                 <span>Wallet (Locked)</span>
                               </button>
                             )}
-                            <button 
-                              onClick={() => handleUpdateUserStatus(u.uid, u.status)}
-                              className={`p-1.5 rounded-lg transition-colors ${u.status === 'active' ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'}`}
-                              title={u.status === 'active' ? 'Suspend User' : 'Activate User'}
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateUserStatus(u.uid, userStatus)}
+                              className={`p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer ${userStatus === 'active' ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/30' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'}`}
+                              title={userStatus === 'active' ? 'Suspend User' : 'Activate User'}
                             >
-                              {u.status === 'active' ? <UserX className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                              {userStatus === 'active' ? <UserX className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
                             </button>
-                            <button 
+
+                            <button
+                              type="button"
                               onClick={() => setUserToDelete(u)}
-                              className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[#800080] rounded-lg transition-colors"
+                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[#800080] transition-colors cursor-pointer"
                               title="Delete user to 180-Day Trash Vault"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </div>
+
+                        {/* Secondary Account Metrics Strip */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2.5 border-t border-slate-100/80 dark:border-[#222] text-xs">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Wallet & Points</p>
+                            <p className="font-mono font-black text-blue-600 dark:text-blue-400 mt-0.5">
+                              ₹{(u.walletBalance || 0).toFixed(2)}
+                              {(u.bonusBalance || 0) > 0 && (
+                                <span className="ml-1.5 text-[10px] text-amber-500">+₹{(u.bonusBalance || 0).toFixed(2)}</span>
+                              )}
+                            </p>
+                            <p className="text-[10px] font-mono text-slate-400 font-bold">{u.points || 0} pts</p>
+                          </div>
+
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Channel Stats</p>
+                            <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{u.videosCount || 0} videos</p>
+                            <p className="text-[10px] text-slate-400">{u.followersCount || 0} followers</p>
+                          </div>
+
+                          <div className="col-span-2 sm:col-span-2">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Security Audit</p>
+                            <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mt-0.5">
+                              {u.lastPasswordChangedAt
+                                ? `Password changed: ${new Date(u.lastPasswordChangedAt).toLocaleDateString()}`
+                                : 'No recent password change'}
+                            </p>
+                            <p className="text-[10px] text-slate-400">Joined {formatShortDate(u.createdAt)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {filteredUsers.length === 0 && (
+                    <div className="py-12 text-center text-xs font-bold text-slate-400">
+                      No matching user accounts found.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3207,23 +3352,71 @@ export const AdminPanel: React.FC = () => {
 
             {/* CLOUD STORAGE MANAGEMENT SECTION */}
             {activeSection === 'storage' && (() => {
-              const totalVids = videos.length;
-              const totalShorts = videos.filter(v => v.isShort).length;
-              const totalLong = videos.filter(v => !v.isShort).length;
-              const totalSeconds = videos.reduce((acc, v) => acc + (Number(v.duration) || 0), 0);
+              const getVideoAssetMetrics = (v: Video) => {
+                const durationSec = safeFiniteDuration(v.duration);
+                const isExternal = isExternalEmbedUrl(v.videoUrl) || (!isPlatformHostedMediaUrl(v.videoUrl) && Boolean(v.videoUrl));
+
+                let videoBytes = 0;
+                let isExactVideoSize = true;
+
+                if (!isExternal && v.videoUrl) {
+                  if (typeof v.fileSizeBytes === 'number' && Number.isFinite(v.fileSizeBytes) && v.fileSizeBytes > 0) {
+                    videoBytes = Math.round(v.fileSizeBytes);
+                  } else if (probedMediaBytes[v.videoUrl] && probedMediaBytes[v.videoUrl] > 0) {
+                    videoBytes = probedMediaBytes[v.videoUrl];
+                  } else {
+                    isExactVideoSize = false;
+                    // Conservative finite bitrate estimate only when CORS/HEAD size unavailable
+                    videoBytes = durationSec > 0 ? Math.round((durationSec / 60) * 2.2 * 1024 * 1024) : 0;
+                  }
+                }
+
+                let thumbBytes = 0;
+                if (v.thumbnailUrl && isPlatformHostedMediaUrl(v.thumbnailUrl)) {
+                  if (probedMediaBytes[v.thumbnailUrl] && probedMediaBytes[v.thumbnailUrl] > 0) {
+                    thumbBytes = probedMediaBytes[v.thumbnailUrl];
+                  } else {
+                    thumbBytes = 180 * 1024;
+                  }
+                }
+
+                return {
+                  video: v,
+                  durationSec,
+                  isExternal,
+                  videoBytes,
+                  thumbBytes,
+                  totalBytes: videoBytes + thumbBytes,
+                  isExactVideoSize
+                };
+              };
+
+              const assetMetrics = videos.map(getVideoAssetMetrics);
+              const hostedAssets = assetMetrics.filter(a => !a.isExternal);
+              const externalEmbedCount = assetMetrics.filter(a => a.isExternal).length;
+              const hostedLongAssets = hostedAssets.filter(a => !a.video.isShort);
+              const hostedShortAssets = hostedAssets.filter(a => a.video.isShort);
+
+              const totalSeconds = assetMetrics.reduce((acc, a) => acc + a.durationSec, 0);
               const totalHours = (totalSeconds / 3600).toFixed(1);
               const totalMins = Math.round(totalSeconds / 60);
-              
-              // Real media storage footprint calculated from active video durations & thumbnails
-              // Standard web video bitrate ~ 2.2 MB / minute; posters ~ 180 KB each
-              const vidMB = Math.round((totalSeconds / 60) * 2.2);
-              const thumbMB = Math.round(totalVids * 0.18);
-              const totalMB = vidMB + thumbMB;
-              const totalGB = (totalMB / 1024).toFixed(2);
+
+              const longBytes = hostedLongAssets.reduce((acc, a) => acc + a.videoBytes, 0);
+              const shortBytes = hostedShortAssets.reduce((acc, a) => acc + a.videoBytes, 0);
+              const thumbBytes = assetMetrics.reduce((acc, a) => acc + a.thumbBytes, 0);
+              const totalBytes = longBytes + shortBytes + thumbBytes;
+              const totalMB = Number((totalBytes / (1024 * 1024)).toFixed(1));
+              const exactVerifiedCount = hostedAssets.filter(a => a.isExactVideoSize).length;
+
               const freeQuotaGB = 25; // Cloudinary free tier 25GB
-              const quotaUsedPercent = Math.min(100, Math.max(0.1, Number(((totalMB / (freeQuotaGB * 1024)) * 100).toFixed(2))));
-              
-              const topVideos = [...videos].sort((a, b) => (Number(b.duration) || 0) - (Number(a.duration) || 0)).slice(0, 5);
+              const quotaBytes = freeQuotaGB * 1024 * 1024 * 1024;
+              const quotaUsedPercent = totalBytes > 0
+                ? Math.min(100, Number(((totalBytes / quotaBytes) * 100).toFixed(3)))
+                : 0;
+
+              const topVideos = [...assetMetrics]
+                .sort((a, b) => b.totalBytes - a.totalBytes || b.durationSec - a.durationSec)
+                .slice(0, 6);
 
               return (
               <div className="space-y-6 max-w-4xl">
@@ -3231,20 +3424,34 @@ export const AdminPanel: React.FC = () => {
                 <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 sm:p-8 rounded-3xl shadow-xl space-y-6 relative overflow-hidden">
                   <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-cyan-300 text-[10px] font-black uppercase tracking-wider">
-                        <Activity className="w-3.5 h-3.5" />
-                        <span>Live Firestore Media Assets & Storage</span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-cyan-300 text-[10px] font-black uppercase tracking-wider">
+                          <Activity className="w-3.5 h-3.5" />
+                          <span>Live CDN & Firestore Media Storage</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setStorageProbeNonce(n => n + 1)}
+                          disabled={isProbingStorage}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold cursor-pointer transition-colors disabled:opacity-60"
+                          title="Re-check real Content-Length headers from Cloudinary / Firebase CDN"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${isProbingStorage ? 'animate-spin' : ''}`} />
+                          <span>{isProbingStorage ? 'Checking CDN sizes...' : 'Verify Live Sizes'}</span>
+                        </button>
                       </div>
                       <h2 className="text-xl sm:text-2xl font-black">Platform Real Storage Metrics</h2>
                       <p className="text-xs text-white/75 max-w-xl font-medium">
-                        Real-time storage calculated directly from live video documents, playtimes, posters, and vault files in Firestore.
+                        {hostedAssets.length > 0
+                          ? `Measured from ${exactVerifiedCount}/${hostedAssets.length} verified CDN media files (${externalEmbedCount} external YouTube/Drive links use 0 MB CDN).`
+                          : `${externalEmbedCount} external embed videos (YouTube / Drive) • 0 MB platform CDN storage consumed.`}
                       </p>
                     </div>
 
-                    <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 shrink-0 text-right sm:text-right">
-                      <p className="text-[10px] uppercase font-black tracking-wider text-cyan-300">Total Calculated Storage</p>
+                    <div className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 shrink-0 text-left sm:text-right">
+                      <p className="text-[10px] uppercase font-black tracking-wider text-cyan-300">Total CDN Storage Used</p>
                       <p className="text-2xl font-black font-mono mt-0.5">
-                        {totalMB >= 1024 ? `${totalGB} GB` : `${totalMB} MB`}
+                        {formatStorageBytes(totalBytes)}
                       </p>
                       <p className="text-[10px] text-white/70">of {freeQuotaGB} GB CDN Free Tier</p>
                     </div>
@@ -3252,14 +3459,14 @@ export const AdminPanel: React.FC = () => {
 
                   {/* Quota Progress Bar */}
                   <div className="space-y-2 relative z-10">
-                    <div className="flex justify-between text-[11px] font-bold">
+                    <div className="flex justify-between text-[11px] font-bold flex-wrap gap-2">
                       <span className="text-cyan-200">Storage Capacity Utilized: {quotaUsedPercent}%</span>
                       <span className="text-white/80">{totalMB} MB / {freeQuotaGB * 1024} MB ({freeQuotaGB} GB)</span>
                     </div>
                     <div className="w-full h-3 bg-white/15 rounded-full overflow-hidden p-0.5 backdrop-blur-sm">
                       <div 
                         className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full transition-all duration-500 shadow-sm"
-                        style={{ width: `${Math.max(2, quotaUsedPercent)}%` }}
+                        style={{ width: `${totalBytes > 0 ? Math.max(2, quotaUsedPercent) : 0}%` }}
                       />
                     </div>
                   </div>
@@ -3267,24 +3474,24 @@ export const AdminPanel: React.FC = () => {
                   {/* 4 Storage Breakdown Cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 relative z-10 pt-2">
                     <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
-                      <p className="text-[10px] font-black uppercase text-cyan-200">Standard Videos</p>
-                      <p className="text-lg font-black mt-0.5">{totalLong} files</p>
-                      <p className="text-[10px] text-white/70 font-mono">~{Math.round((videos.filter(v => !v.isShort).reduce((acc, v) => acc + (Number(v.duration)||0), 0) / 60) * 2.2)} MB</p>
+                      <p className="text-[10px] font-black uppercase text-cyan-200">Hosted Videos</p>
+                      <p className="text-lg font-black mt-0.5">{hostedLongAssets.length} files</p>
+                      <p className="text-[10px] text-white/70 font-mono">{formatStorageBytes(longBytes)}</p>
                     </div>
                     <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
-                      <p className="text-[10px] font-black uppercase text-cyan-200">Vertical Clips</p>
-                      <p className="text-lg font-black mt-0.5">{totalShorts} files</p>
-                      <p className="text-[10px] text-white/70 font-mono">~{Math.round((videos.filter(v => v.isShort).reduce((acc, v) => acc + (Number(v.duration)||0), 0) / 60) * 2.2)} MB</p>
+                      <p className="text-[10px] font-black uppercase text-cyan-200">Hosted Clips</p>
+                      <p className="text-lg font-black mt-0.5">{hostedShortAssets.length} files</p>
+                      <p className="text-[10px] text-white/70 font-mono">{formatStorageBytes(shortBytes)}</p>
                     </div>
                     <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
-                      <p className="text-[10px] font-black uppercase text-cyan-200">Cover Artworks</p>
-                      <p className="text-lg font-black mt-0.5">{totalVids} posters</p>
-                      <p className="text-[10px] text-white/70 font-mono">~{thumbMB} MB</p>
+                      <p className="text-[10px] font-black uppercase text-cyan-200">CDN Posters</p>
+                      <p className="text-lg font-black mt-0.5">{assetMetrics.filter(a => a.thumbBytes > 0).length} files</p>
+                      <p className="text-[10px] text-white/70 font-mono">{formatStorageBytes(thumbBytes)}</p>
                     </div>
                     <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
                       <p className="text-[10px] font-black uppercase text-cyan-200">Total Playtime</p>
                       <p className="text-lg font-black mt-0.5">{totalHours} hrs</p>
-                      <p className="text-[10px] text-white/70">{totalMins} minutes</p>
+                      <p className="text-[10px] text-white/70">{totalMins} mins • {externalEmbedCount} external</p>
                     </div>
                   </div>
                 </div>
@@ -3292,19 +3499,21 @@ export const AdminPanel: React.FC = () => {
                 {/* Top Media Files in Database */}
                 {topVideos.length > 0 && (
                   <div className="bg-white dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 shadow-xs space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <div>
                         <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
                           <Film className="w-4 h-4 text-blue-600" />
                           <span>Top Storage-Consuming Media Assets</span>
                         </h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Videos with largest duration & bitrate footprints in your Firestore database.</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Actual uploaded file sizes from Cloudinary / Firebase CDN (external embeds count as 0 MB).</p>
                       </div>
                       <span className="text-[10px] font-bold text-slate-400">{topVideos.length} listed</span>
                     </div>
 
                     <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                      {topVideos.map((vid, idx) => (
+                      {topVideos.map((asset, idx) => {
+                        const vid = asset.video;
+                        return (
                         <div key={vid.videoId || idx} className="py-3 flex items-center justify-between gap-3 flex-wrap">
                           <div className="flex items-center gap-3 min-w-0">
                             <img 
@@ -3315,14 +3524,23 @@ export const AdminPanel: React.FC = () => {
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-sm">{vid.title}</p>
                               <p className="text-[10px] text-slate-400">
-                                @{vid.creatorUsername || 'creator'} • {vid.isShort ? 'Clip' : 'Video'} • {Math.floor((vid.duration || 0) / 60)}m {(vid.duration || 0) % 60}s
+                                @{vid.creatorUsername || 'creator'} • {vid.isShort ? 'Clip' : 'Video'} • {Math.floor(asset.durationSec / 60)}m {asset.durationSec % 60}s
                               </p>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                              asset.isExternal
+                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                : asset.isExactVideoSize
+                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600'
+                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600'
+                            }`}>
+                              {asset.isExternal ? 'External' : asset.isExactVideoSize ? 'Exact' : 'Est.'}
+                            </span>
                             <span className="text-xs font-black font-mono text-blue-600 dark:text-blue-400">
-                              ~{Math.max(1, Math.round(((vid.duration || 30) / 60) * 2.2))} MB
+                              {asset.isExternal ? '0 MB CDN' : `${asset.isExactVideoSize ? '' : '~'}${formatStorageBytes(asset.totalBytes)}`}
                             </span>
                             <a
                               href={`/#/watch/${vid.videoId}`}
@@ -3335,7 +3553,8 @@ export const AdminPanel: React.FC = () => {
                             </a>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -3575,7 +3794,7 @@ export const AdminPanel: React.FC = () => {
                     <tbody className="divide-y divide-slate-100 dark:divide-[#272727]">
                       {trashItems
                         .filter(t => trashSubFilter === 'all' || t.itemType === trashSubFilter)
-                        .filter(t => t.title.toLowerCase().includes(searchTerm.toLowerCase()) || (t.subtitle || '').toLowerCase().includes(searchTerm.toLowerCase()))
+                        .filter(t => (t.title || '').toLowerCase().includes(searchTerm.toLowerCase()) || (t.subtitle || '').toLowerCase().includes(searchTerm.toLowerCase()))
                         .map((item) => {
                           const daysLeft = trashService.getDaysRemaining(item.scheduledPurgeDate);
                           const isRestored = item.status === 'restored';
@@ -3590,7 +3809,7 @@ export const AdminPanel: React.FC = () => {
                                       <img src={item.photoURL} alt={item.title} className="w-full h-full object-cover" />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center text-slate-400 font-black text-[10px]">
-                                        {item.itemType.toUpperCase()}
+                                        {String(item.itemType || 'item').toUpperCase()}
                                       </div>
                                     )}
                                   </div>
@@ -3779,10 +3998,10 @@ export const AdminPanel: React.FC = () => {
                       <div className="flex items-center gap-2 min-w-0">
                         <Megaphone className="w-4 h-4 shrink-0" />
                         <span className="truncate">
-                          {announcementText.trim() || 'No announcement message entered yet. Enter text below to preview.'}
+                          {String(announcementText ?? '').trim() || 'No announcement message entered yet. Enter text below to preview.'}
                         </span>
                       </div>
-                      {announcementLinkText.trim() && (
+                      {String(announcementLinkText ?? '').trim() && (
                         <span className="px-2.5 py-1 bg-white/20 rounded-lg text-[11px] font-extrabold underline shrink-0">
                           {announcementLinkText}
                         </span>
@@ -3953,7 +4172,7 @@ export const AdminPanel: React.FC = () => {
                         <option value="">-- Choose User to Update --</option>
                         {users.map(u => (
                           <option key={u.uid} value={u.uid}>
-                            {u.displayName || u.username} (@{u.username}) • Current: {u.role.toUpperCase()}
+                            {u.displayName || u.username || 'Unnamed User'} (@{u.username || 'user'}) • Current: {String(u.role || 'user').toUpperCase()}
                           </option>
                         ))}
                       </select>

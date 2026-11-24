@@ -14,7 +14,7 @@ import { downloadService } from '../services/downloadService';
 import { paidVideoService } from '../services/paidVideoService';
 import { adService } from '../services/adService';
 import { playlistService } from '../services/playlistService';
-import { recommendationService } from '../services/recommendationService';
+import { recommendationService, NOT_INTERESTED_EVENT } from '../services/recommendationService';
 import { playbackProgressService } from '../services/playbackProgressService';
 import { Video, Comment, User, AdCampaign, Playlist } from '../types';
 import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
@@ -122,6 +122,21 @@ export const Watch: React.FC = () => {
   const [activeRelatedMenuId, setActiveRelatedMenuId] = useState<string | null>(null);
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
   const [savedWatchLaterMap, setSavedWatchLaterMap] = useState<Record<string, boolean>>({});
+  const [notInterestedVersion, setNotInterestedVersion] = useState(0);
+
+  useEffect(() => {
+    if (currentUser?.uid) {
+      void recommendationService.syncNotInterestedFromCloud(currentUser.uid);
+    }
+  }, [currentUser?.uid]);
+
+  useEffect(() => {
+    const onNotInterestedUpdated = () => {
+      setNotInterestedVersion(v => v + 1);
+    };
+    window.addEventListener(NOT_INTERESTED_EVENT, onNotInterestedUpdated);
+    return () => window.removeEventListener(NOT_INTERESTED_EVENT, onNotInterestedUpdated);
+  }, []);
 
   // YouTube-style smart recommendation algorithm for Watch sidebar
   const recommendedSidebarVideos = React.useMemo(() => {
@@ -134,11 +149,18 @@ export const Watch: React.FC = () => {
     });
   }, [video, candidateVideoPool, selectedCategoryFilter, currentUser?.uid]);
 
-  const displayedSidebarVideos = React.useMemo(() => {
-    return recommendedSidebarVideos.slice(0, sidebarDisplayCount);
-  }, [recommendedSidebarVideos, sidebarDisplayCount]);
+  // Filter newly dismissed videos without re-running random jitter so next video slides right into the slot
+  const filteredSidebarVideos = React.useMemo(() => {
+    const blocked = recommendationService.getNotInterestedIds(currentUser?.uid);
+    if (blocked.size === 0) return recommendedSidebarVideos;
+    return recommendedSidebarVideos.filter(v => !blocked.has(v.videoId));
+  }, [recommendedSidebarVideos, notInterestedVersion, currentUser?.uid]);
 
-  const hasMoreSidebarVideos = sidebarDisplayCount < recommendedSidebarVideos.length;
+  const displayedSidebarVideos = React.useMemo(() => {
+    return filteredSidebarVideos.slice(0, sidebarDisplayCount);
+  }, [filteredSidebarVideos, sidebarDisplayCount]);
+
+  const hasMoreSidebarVideos = sidebarDisplayCount < filteredSidebarVideos.length;
 
   // Infinite scroll trigger for Watch sidebar videos
   useEffect(() => {
@@ -161,7 +183,7 @@ export const Watch: React.FC = () => {
       if (el) observer.unobserve(el);
       observer.disconnect();
     };
-  }, [hasMoreSidebarVideos, isLoadingMoreSidebar, recommendedSidebarVideos.length]);
+  }, [hasMoreSidebarVideos, isLoadingMoreSidebar, filteredSidebarVideos.length]);
 
   // Dynamic category pills list for Watch page sidebar
   const categoryPills = React.useMemo(() => {
@@ -2693,7 +2715,7 @@ export const Watch: React.FC = () => {
               return (
                 <div 
                   key={v.videoId}
-                  className="flex flex-col md:flex-row md:items-start gap-2.5 md:gap-3 bg-transparent md:bg-white md:dark:bg-[#111827] border-0 md:border md:border-slate-200/70 md:dark:border-[#334155] p-0 md:p-2.5 rounded-xl md:rounded-2xl md:hover:shadow-md md:hover:border-blue-300 md:dark:hover:border-blue-700 transition-all group relative"
+                  className={`flex flex-col md:flex-row md:items-start gap-2.5 md:gap-3 bg-transparent md:bg-white md:dark:bg-[#111827] border-0 md:border md:border-slate-200/70 md:dark:border-[#334155] p-0 md:p-2.5 rounded-xl md:rounded-2xl md:hover:shadow-md md:hover:border-blue-300 md:dark:hover:border-blue-700 transition-all group relative ${activeRelatedMenuId === v.videoId ? 'z-[60]' : 'z-0'}`}
                 >
                   {/* 16:9 Thumbnail with Duration Badge (Link with draggable false on img) */}
                   <a
@@ -2829,7 +2851,7 @@ export const Watch: React.FC = () => {
                       {activeRelatedMenuId === v.videoId && (
                         <div 
                           onClick={(e) => e.stopPropagation()}
-                          className="absolute right-0 top-7 w-44 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in"
+                          className="absolute right-0 top-7 w-48 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl py-1.5 z-[70] text-xs animate-in fade-in"
                         >
                       <button
                         onClick={() => {
@@ -2899,7 +2921,13 @@ export const Watch: React.FC = () => {
 
                       <button
                         onClick={() => {
-                          addToast(isHindi ? 'प्रतिक्रिया नोट की गई। हम ऐसे वीडियो कम दिखाएंगे।' : 'Feedback noted. We will recommend fewer videos like this.', 'info');
+                          recommendationService.markNotInterested(v, currentUser?.uid);
+                          addToast(
+                            isHindi
+                              ? 'यह वीडियो 1 महीने के लिए होम और सुझाव फ़ीड से हटा दिया गया है।'
+                              : 'Removed from Home & recommendations for 30 days.',
+                            'info'
+                          );
                           setActiveRelatedMenuId(null);
                         }}
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-500 font-medium cursor-pointer"

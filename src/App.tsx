@@ -291,9 +291,11 @@ function MainAppContent() {
 
         {/* Full-width standalone Admin Workspace */}
         <main className="flex-1 min-w-0">
-          <Suspense fallback={<RouteFallback path={route.path} />}>
-            <AdminPanel />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<RouteFallback path={route.path} />}>
+              <AdminPanel />
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
     );

@@ -6,6 +6,7 @@ import { useApp } from '../context/AppContext';
 import { downloadService } from '../services/downloadService';
 import { savedVideoService } from '../services/savedVideoService';
 import { videoService } from '../services/videoService';
+import { recommendationService } from '../services/recommendationService';
 import { UserAvatar } from './UserAvatar';
 import { ShortsLogo } from './ShortsLogo';
 import { userService } from '../services/userService';
@@ -46,9 +47,10 @@ interface VideoCardProps {
   video: Video;
   index?: number;
   priority?: boolean;
+  hideNotInterested?: boolean;
 }
 
-const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priority = false }) => {
+const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priority = false, hideNotInterested = false }) => {
   const { navigate } = useRouter();
   const { currentUser, addToast } = useApp();
   const { t, isHindi, formatTime } = useTranslation();
@@ -73,6 +75,8 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
     return false;
   });
   const [showMenu, setShowMenu] = useState(false);
+  const [openMenuUpward, setOpenMenuUpward] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   // Dynamic live stream status - reacts immediately when live stream ends on YouTube
   const [isLive, setIsLive] = useState<boolean>(() => 
@@ -112,6 +116,17 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
     window.addEventListener('socialindia:playback-progress-updated', onProgressUpdated);
     return () => window.removeEventListener('socialindia:playback-progress-updated', onProgressUpdated);
   }, [video.videoId, video.duration]);
+
+  useEffect(() => {
+    const handleCloseAllMenus = (e: Event) => {
+      const customEvent = e as CustomEvent<{ videoId?: string }>;
+      if (customEvent.detail?.videoId !== video.videoId) {
+        setShowMenu(false);
+      }
+    };
+    window.addEventListener('socialindia:close-card-menus', handleCloseAllMenus);
+    return () => window.removeEventListener('socialindia:close-card-menus', handleCloseAllMenus);
+  }, [video.videoId]);
 
   useEffect(() => {
     if (!showMenu) return;
@@ -205,7 +220,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
   return (
     <div
       style={{ animationDelay: `${(index % 3) * 35}ms` }}
-      className="yt-card-animate group flex flex-col w-full"
+      className={`yt-card-animate group flex flex-col w-full relative ${showMenu ? 'z-[60]' : 'z-0'}`}
     >
       {/* Thumbnail area with duration badge (wrapped in anchor tag with draggable image disabled so dragging transfers the video watch link, opening the actual video page with title & creator!) */}
       <a
@@ -345,9 +360,23 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
         {/* 3-Dots Menu Button (⋮) */}
         <div className="relative shrink-0">
           <button
+            ref={menuButtonRef}
             onClick={(e) => {
               e.stopPropagation();
-              setShowMenu(!showMenu);
+              const nextOpen = !showMenu;
+              if (nextOpen) {
+                window.dispatchEvent(new CustomEvent('socialindia:close-card-menus', {
+                  detail: { videoId: video.videoId }
+                }));
+                if (menuButtonRef.current) {
+                  const rect = menuButtonRef.current.getBoundingClientRect();
+                  const spaceBelow = window.innerHeight - rect.bottom;
+                  setOpenMenuUpward(spaceBelow < 230 && rect.top > 230);
+                } else {
+                  setOpenMenuUpward(false);
+                }
+              }
+              setShowMenu(nextOpen);
             }}
             className="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
             title={isHindi ? 'वीडियो विकल्प' : 'Video options'}
@@ -359,7 +388,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
           {showMenu && (
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="absolute right-0 top-7 w-48 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-1.5 z-50 text-xs animate-in fade-in"
+              className={`absolute right-0 ${openMenuUpward ? 'bottom-8' : 'top-7'} w-52 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl py-1.5 z-[70] text-xs animate-in fade-in`}
             >
               <button
                 onClick={() => {
@@ -429,18 +458,28 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
                 <span>{isHindi ? 'बाद में देखें (Watch Later)' : 'Save to Watch Later'}</span>
               </button>
 
-              <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
+              {!hideNotInterested && (
+                <>
+                  <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
 
-              <button
-                onClick={() => {
-                  addToast(isHindi ? 'आपकी प्रतिक्रिया नोट की गई। ऐसे वीडियो कम दिखाए जाएंगे।' : 'Feedback noted. We will recommend fewer videos like this.', 'info');
-                  setShowMenu(false);
-                }}
-                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-500 font-medium cursor-pointer"
-              >
-                <Ban className="w-3.5 h-3.5 text-slate-400" />
-                <span>{isHindi ? 'रुचि नहीं है' : 'Not interested'}</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      recommendationService.markNotInterested(video, currentUser?.uid);
+                      addToast(
+                        isHindi
+                          ? 'यह वीडियो 1 महीने के लिए होम और सुझाव फ़ीड से हटा दिया गया है।'
+                          : 'Removed from Home & recommendations for 30 days.',
+                        'info'
+                      );
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-500 font-medium cursor-pointer"
+                  >
+                    <Ban className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{isHindi ? 'रुचि नहीं है' : 'Not interested'}</span>
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

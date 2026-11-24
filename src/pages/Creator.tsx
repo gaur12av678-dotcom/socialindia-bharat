@@ -1310,7 +1310,7 @@ export const CreatorProfile: React.FC = () => {
             {loadingContent ? (
               <VideoGrid videos={[]} loading={true} />
             ) : sortedVideos.length > 0 ? (
-              <VideoGrid videos={sortedVideos} loading={false} />
+              <VideoGrid videos={sortedVideos} loading={false} hideNotInterested={true} />
             ) : (
               <div className="py-20 text-center flex flex-col items-center justify-center space-y-3">
                 <div className="w-16 h-16 rounded-3xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400">

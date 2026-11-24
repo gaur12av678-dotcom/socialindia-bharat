@@ -229,7 +229,7 @@ html.dark .si-watch-ambient-header {
   }
   100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 .yt-card-animate {
