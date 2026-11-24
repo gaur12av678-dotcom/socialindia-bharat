@@ -7,11 +7,13 @@ import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { adService } from '../services/adService';
 import { AdCampaign } from '../types';
-import { Flame, Zap, ArrowRight, Play, RotateCw, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Flame, Zap, ArrowRight, Play, RotateCw, ArrowDown, ChevronLeft, ChevronRight, MoreVertical, Share2, ArrowDownToLine, Bookmark, Clock, Ban } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { ShortsLogo } from '../components/ShortsLogo';
 import { Subscriptions } from './Subscriptions';
 import { getVideoUrlDuration, parseVideoUrl } from '../utils/videoUtils';
+import { downloadService } from '../services/downloadService';
+import { savedVideoService } from '../services/savedVideoService';
 
 export const categoriesList = [
   'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy',
@@ -66,15 +68,32 @@ interface HomeClipCardProps {
   idx: number;
   isHindi: boolean;
   onOpen: (videoId: string) => void;
+  currentUserUid?: string;
+  onRequireSignIn: () => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
+  t: (key: string, fallback?: string) => string;
 }
 
-const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHindi, onOpen }) => {
+const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({
+  short,
+  idx,
+  isHindi,
+  onOpen,
+  currentUserUid,
+  onRequireSignIn,
+  addToast,
+  t
+}) => {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
   const [resolvedDuration, setResolvedDuration] = useState(0);
   const [shouldResolveDuration, setShouldResolveDuration] = useState(false);
-  const clipCardRef = useRef<HTMLAnchorElement>(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const [openMenuUpward, setOpenMenuUpward] = useState(false);
+  const [alignMenuLeft, setAlignMenuLeft] = useState(false);
+  const clipCardRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setImgLoaded(false);
@@ -83,6 +102,24 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHi
       setImgLoaded(true);
     }
   }, [short.videoId, short.thumbnailUrl]);
+
+  useEffect(() => {
+    const handleCloseAllMenus = (e: Event) => {
+      const customEvent = e as CustomEvent<{ videoId?: string }>;
+      if (customEvent.detail?.videoId !== short.videoId) {
+        setShowMenu(false);
+      }
+    };
+    window.addEventListener('socialindia:close-card-menus', handleCloseAllMenus);
+    return () => window.removeEventListener('socialindia:close-card-menus', handleCloseAllMenus);
+  }, [short.videoId]);
+
+  useEffect(() => {
+    if (!showMenu) return;
+    const handleOutsideClick = () => setShowMenu(false);
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, [showMenu]);
 
   useEffect(() => {
     const node = clipCardRef.current;
@@ -132,24 +169,29 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHi
     ? savedDuration
     : resolvedDuration;
 
+  const clipUrl = `#/clips/${short.videoId}`;
+  const handleClipClick = (e: React.MouseEvent) => {
+    if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    e.preventDefault();
+    onOpen(short.videoId);
+  };
+
   return (
-    <a
+    <div
       ref={clipCardRef}
-      href={`#/clips/${short.videoId}`}
-      draggable={true}
-      title={short.title}
-      onClick={(e) => {
-        if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
-        e.preventDefault();
-        onOpen(short.videoId);
-      }}
       style={{
         animationDelay: `${(idx % 3) * 35}ms`,
         animationFillMode: 'both'
       }}
-      className="yt-card-animate w-full min-w-0 group relative block cursor-pointer select-none transition-transform active:scale-[0.98]"
+      className={`yt-card-animate w-full min-w-0 group relative select-none ${showMenu ? 'z-[60]' : 'z-0'}`}
     >
-      <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-[#dbe2ee] dark:bg-slate-800 shadow-md">
+      <a
+        href={clipUrl}
+        draggable={true}
+        title={short.title}
+        onClick={handleClipClick}
+        className="block relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-[#dbe2ee] dark:bg-slate-800 shadow-md cursor-pointer transition-transform active:scale-[0.98]"
+      >
         {short.thumbnailUrl && !imgLoaded && !imgFailed && (
           <div className="absolute inset-0 bg-[#dbe2ee] dark:bg-slate-800 animate-pulse z-0" />
         )}
@@ -178,8 +220,8 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHi
           </div>
         )}
 
-        {/* Dark gradient scrim at bottom */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/10 group-hover:from-black/90 transition-colors pointer-events-none" />
+        {/* Subtle bottom scrim */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/10 group-hover:from-black/65 transition-colors pointer-events-none" />
 
         {/* Play Button Overlay on Hover */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -194,20 +236,160 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHi
             {`${Math.floor(displayDuration / 60)}:${(displayDuration % 60).toString().padStart(2, '0')}`}
           </div>
         )}
-      </div>
+      </a>
 
-      {/* Short Title & Creator & Views */}
+      {/* Short Title, Creator/Views & 3-Dots Menu (YouTube Shorts Style) */}
       {imgLoaded || imgFailed || !short.thumbnailUrl ? (
-      <div className="mt-2 space-y-0.5 px-0.5">
-        <p className="text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-[#065fd4] dark:group-hover:text-[#3b82f6] transition-colors">
-          {short.title}
-        </p>
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-          <span className="truncate max-w-[120px]">{short.creatorDisplayName || short.creatorUsername}</span>
-          <span>•</span>
-          <span className="shrink-0">
-            {short.viewsCount ? (isHindi ? `${(short.viewsCount / 1000).toFixed(1)}k व्यूज़` : `${short.viewsCount.toLocaleString()} views`) : (isHindi ? '1.2k व्यूज़' : '1.2k views')}
-          </span>
+      <div className="mt-2 flex items-start gap-1.5 px-0.5">
+        <a
+          href={clipUrl}
+          draggable={true}
+          title={short.title}
+          onClick={handleClipClick}
+          className="flex-1 min-w-0 space-y-0.5 cursor-pointer block"
+        >
+          <p className="text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-[#065fd4] dark:group-hover:text-[#3b82f6] transition-colors">
+            {short.title}
+          </p>
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+            <span className="truncate max-w-[100px]">{short.creatorDisplayName || short.creatorUsername}</span>
+            <span>•</span>
+            <span className="shrink-0">
+              {short.viewsCount ? (isHindi ? `${(short.viewsCount / 1000).toFixed(1)}k व्यूज़` : `${short.viewsCount.toLocaleString()} views`) : (isHindi ? '1.2k व्यूज़' : '1.2k views')}
+            </span>
+          </div>
+        </a>
+
+        {/* 3-Dots Menu Button (⋮) */}
+        <div className="relative shrink-0">
+          <button
+            ref={menuButtonRef}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              const nextOpen = !showMenu;
+              if (nextOpen) {
+                window.dispatchEvent(new CustomEvent('socialindia:close-card-menus', {
+                  detail: { videoId: short.videoId }
+                }));
+                if (menuButtonRef.current) {
+                  const rect = menuButtonRef.current.getBoundingClientRect();
+                  const spaceBelow = window.innerHeight - rect.bottom;
+                  setOpenMenuUpward(spaceBelow < 230 && rect.top > 230);
+                  setAlignMenuLeft(rect.right < 220);
+                } else {
+                  setOpenMenuUpward(false);
+                  setAlignMenuLeft(false);
+                }
+              }
+              setShowMenu(nextOpen);
+            }}
+            className="p-1 text-slate-400 hover:text-slate-800 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
+            title={isHindi ? 'क्लिप विकल्प' : 'Clip options'}
+            aria-label={isHindi ? 'क्लिप विकल्प' : 'Clip options'}
+          >
+            <MoreVertical className="w-4 h-4" />
+          </button>
+
+          {showMenu && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className={`absolute ${alignMenuLeft ? 'left-0' : 'right-0'} ${openMenuUpward ? 'bottom-8' : 'top-7'} w-52 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl py-1.5 z-[70] text-xs animate-in fade-in`}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  const shareUrl = `${window.location.origin}/#/clips/${short.videoId}`;
+                  if (navigator.share) {
+                    navigator.share({ title: short.title, url: shareUrl }).catch(() => {});
+                  } else {
+                    navigator.clipboard.writeText(shareUrl);
+                    addToast(t('link_copied', 'Link copied to clipboard!'), 'success');
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+              >
+                <Share2 className="w-3.5 h-3.5 text-blue-500" />
+                <span>{t('action_share', 'Share')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  addToast(isHindi ? 'क्लिप डाउनलोड हो रही है...' : 'Downloading clip...', 'info');
+                  try {
+                    await downloadService.downloadVideo(short, () => {});
+                    addToast(isHindi ? 'क्लिप डाउनलोड्स में सहेजी गई!' : 'Clip saved to Downloads!', 'success');
+                  } catch {
+                    addToast(isHindi ? 'डाउनलोड प्रारंभ!' : 'Download initiated!', 'info');
+                  }
+                  setShowMenu(false);
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+              >
+                <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
+                <span>{t('action_download', 'Download')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMenu(false);
+                  if (!currentUserUid) {
+                    addToast(isHindi ? 'वीडियो सहेजने के लिए कृपया साइन इन करें' : 'Please sign in to save videos', 'info');
+                    onRequireSignIn();
+                    return;
+                  }
+                  savedVideoService.saveVideo(currentUserUid, short);
+                  addToast(isHindi ? 'प्लेलिस्ट में सहेजा गया!' : 'Saved to playlist!', 'success');
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+              >
+                <Bookmark className="w-3.5 h-3.5 text-purple-500" />
+                <span>{isHindi ? 'प्लेलिस्ट में सहेजें' : 'Save to Playlist'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMenu(false);
+                  if (!currentUserUid) {
+                    addToast(isHindi ? 'वीडियो सहेजने के लिए कृपया साइन इन करें' : 'Please sign in to save videos', 'info');
+                    onRequireSignIn();
+                    return;
+                  }
+                  savedVideoService.saveVideo(currentUserUid, short);
+                  addToast(isHindi ? 'बाद में देखने के लिए सहेजा गया!' : 'Saved to Watch Later!', 'success');
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                <span>{isHindi ? 'बाद में देखें (Watch Later)' : 'Save to Watch Later'}</span>
+              </button>
+
+              <div className="h-px bg-slate-100 dark:bg-slate-700 my-1" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  recommendationService.markNotInterested(short, currentUserUid);
+                  addToast(
+                    isHindi
+                      ? 'यह क्लिप 1 महीने के लिए होम और सुझाव फ़ीड से हटा दी गई है।'
+                      : 'Removed from Home & recommendations for 30 days.',
+                    'info'
+                  );
+                  setShowMenu(false);
+                }}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-500 font-medium cursor-pointer"
+              >
+                <Ban className="w-3.5 h-3.5 text-slate-400" />
+                <span>{isHindi ? 'रुचि नहीं है' : 'Not interested'}</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
       ) : (
@@ -216,7 +398,7 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({ short, idx, isHi
           <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-full w-[60%]" />
         </div>
       )}
-    </a>
+    </div>
   );
 });
 
@@ -225,6 +407,7 @@ export const Home: React.FC = () => {
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
   const openHomeShort = React.useCallback((id: string) => navigate('shorts', id), [navigate]);
+  const openSignInFromCard = React.useCallback(() => navigate('signin'), [navigate]);
   const [selectedCategory, setSelectedCategory] = useState(route.searchParams?.category || persistentHomeCategory || 'All');
   const [mobileFeedTab, setMobileFeedTab] = useState<'all' | 'following'>('all');
   const [isMobileViewport, setIsMobileViewport] = useState<boolean>(() =>
@@ -782,11 +965,30 @@ export const Home: React.FC = () => {
         const next = prev.filter(v => !blocked.has(v.videoId));
         return next.length !== prev.length ? next : prev;
       });
+      let needsMoreShorts = false;
       setShorts(prev => {
-        const next = prev.filter(v => !blocked.has(v.videoId));
-        return next.length !== prev.length ? next : prev;
+        const kept = prev.filter(v => !blocked.has(v.videoId));
+        if (kept.length === prev.length) return prev;
+        let next = kept;
+        if (kept.length < 5) {
+          const cachedShorts = videoService.getCachedVideos({ isShort: true });
+          const additions = recommendationService.getShortsRecommendations({
+            allShorts: cachedShorts,
+            excludeIds: kept.map(s => s.videoId),
+            userUid: currentUser?.uid,
+            limit: 5 - kept.length
+          });
+          next = [...kept, ...additions].slice(0, 5);
+        }
+        persistentHomeShorts = next;
+        if (next.length < 5) needsMoreShorts = true;
+        return next;
       });
       setNotInterestedVersion(v => v + 1);
+
+      if (needsMoreShorts) {
+        void fetchHomeShorts(true);
+      }
 
       if (selectedCategoryRef.current === 'All') {
         if (hasMorePlatformVideos && !isFetchingMoreRef.current) {
@@ -1366,6 +1568,10 @@ export const Home: React.FC = () => {
                   idx={idx}
                   isHindi={isHindi}
                   onOpen={openHomeShort}
+                  currentUserUid={currentUser?.uid}
+                  onRequireSignIn={openSignInFromCard}
+                  addToast={addToast}
+                  t={t}
                 />
               ))}
             </div>

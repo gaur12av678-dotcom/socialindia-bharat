@@ -1348,12 +1348,12 @@ export const CreatorProfile: React.FC = () => {
                   <div
                     key={idx}
                     style={{ animationDelay: `${idx * 70}ms` }}
-                    className="rounded-2xl overflow-hidden aspect-[9/16] bg-[#dbe2ee] dark:bg-slate-800 animate-pulse relative p-3 flex flex-col justify-between shadow-xs"
+                    className="flex flex-col space-y-2 animate-pulse"
                   >
-                    <div className="w-12 h-4 bg-[#bcc8dc] dark:bg-slate-700 rounded-md" />
-                    <div className="space-y-2">
-                      <div className="h-3.5 bg-[#bcc8dc] dark:bg-slate-700 rounded-md w-[85%]" />
-                      <div className="h-2.5 bg-[#bcc8dc] dark:bg-slate-700 rounded-md w-[50%]" />
+                    <div className="rounded-2xl overflow-hidden aspect-[9/16] bg-[#dbe2ee] dark:bg-slate-800 shadow-xs" />
+                    <div className="space-y-1.5 px-0.5">
+                      <div className="h-3.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[85%]" />
+                      <div className="h-2.5 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[50%]" />
                     </div>
                   </div>
                 ))}
@@ -1372,53 +1372,50 @@ export const CreatorProfile: React.FC = () => {
                       e.preventDefault();
                       navigate('shorts', short.videoId);
                     }}
-                    className="group relative block rounded-2xl overflow-hidden aspect-[9/16] bg-slate-900 cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 yt-card-animate"
+                    className="group flex flex-col cursor-pointer yt-card-animate"
                   >
-                    {/* Thumbnail Image with draggable disabled so dragging transfers link to short */}
-                    {short.thumbnailUrl ? (
-                      <img
-                        src={short.thumbnailUrl}
-                        alt={short.title}
-                        draggable={false}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none select-none"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-linear-to-b from-indigo-950 via-slate-900 to-black flex items-center justify-center">
-                        <Zap className="w-10 h-10 text-red-500/70" />
-                      </div>
-                    )}
+                    {/* Clean 9:16 YouTube-style Shorts Thumbnail (no title overlay) */}
+                    <div className="relative rounded-2xl overflow-hidden aspect-[9/16] bg-slate-900 shadow-sm group-hover:shadow-lg transition-all duration-300">
+                      {short.thumbnailUrl ? (
+                        <img
+                          src={short.thumbnailUrl}
+                          alt={short.title}
+                          draggable={false}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none select-none"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-linear-to-b from-indigo-950 via-slate-900 to-black flex items-center justify-center">
+                          <Zap className="w-10 h-10 text-red-500/70" />
+                        </div>
+                      )}
 
-                    {/* Gradient Overlay for Readable Text */}
-                    <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/20 to-transparent pointer-events-none" />
+                      {short.visibility !== 'public' && currentUser?.uid === short.creatorId && (
+                        <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/75 text-[9px] font-bold text-white capitalize pointer-events-none">
+                          {short.visibility}
+                        </div>
+                      )}
 
-                    {/* Top Red Shorts Badge */}
-                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs flex items-center gap-1 border border-white/10 pointer-events-none">
-                      <Zap className="w-3 h-3 text-red-500 fill-red-500" />
-                      <span className="text-[10px] font-extrabold text-white uppercase tracking-wider">Clips</span>
-                    </div>
-                    {short.visibility !== 'public' && currentUser?.uid === short.creatorId && (
-                      <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/75 text-[9px] font-bold text-white capitalize pointer-events-none">
-                        {short.visibility}
-                      </div>
-                    )}
-
-                    {/* Hover Play Button */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      <div className="w-12 h-12 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center text-white scale-90 group-hover:scale-100 transition-transform">
-                        <Play className="w-5 h-5 fill-white ml-0.5" />
+                      {/* Hover Play Button */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none bg-black/15">
+                        <div className="w-12 h-12 rounded-full bg-white/25 backdrop-blur-md flex items-center justify-center text-white scale-90 group-hover:scale-100 transition-transform">
+                          <Play className="w-5 h-5 fill-white ml-0.5" />
+                        </div>
                       </div>
                     </div>
 
-                    {/* Bottom Metadata */}
-                    <div className="absolute bottom-0 inset-x-0 p-3 space-y-1 pointer-events-none">
-                      <h4 className="text-xs font-bold text-white line-clamp-2 leading-snug drop-shadow-xs">
+                    {/* Title & Views below thumbnail (YouTube Channel Shorts Style) */}
+                    <div className="mt-2 px-0.5 space-y-0.5">
+                      <h4 className="text-xs sm:text-[13px] font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                         {short.title}
                       </h4>
-                      <div className="flex items-center justify-between text-[11px] font-medium text-slate-300">
-                        <span>{formatViews(short.viewsCount || 0)} views</span>
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                        <span>{formatViews(short.viewsCount || 0)}</span>
                         {short.createdAt && (
-                          <span className="text-slate-400 text-[10px]">{formatTimeAgo(short.createdAt)}</span>
+                          <>
+                            <span>•</span>
+                            <span className="truncate">{formatTimeAgo(short.createdAt)}</span>
+                          </>
                         )}
                       </div>
                     </div>
