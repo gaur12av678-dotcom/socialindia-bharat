@@ -7,6 +7,7 @@ import { Playlist, Video } from '../types';
 import { formatTimeAgo, formatViews, formatDuration } from '../utils/videoUtils';
 import { isUserVerified } from '../utils/userUtils';
 import { UserAvatar } from '../components/UserAvatar';
+import { openShareModal } from '../components/ShareModal';
 import { 
   ListVideo, 
   Play, 
@@ -347,12 +348,14 @@ export const PlaylistsPage: React.FC = () => {
 
   // Share playlist link
   const handleSharePlaylist = (playlist: Playlist) => {
-    const url = `${window.location.origin}/playlists/${playlist.playlistId}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(() => {
-        addToast(isHindi ? 'प्लेलिस्ट लिंक क्लिपबोर्ड पर कॉपी हो गया!' : 'Playlist link copied to clipboard!', 'success');
-      });
-    }
+    const url = `${window.location.origin}/#/playlists/${playlist.playlistId}`;
+    openShareModal({
+      url,
+      title: playlist.title,
+      description: playlist.description,
+      thumbnailUrl: playlistVideos[0]?.thumbnailUrl || playlist.thumbnailUrl,
+      mediaType: 'playlist'
+    });
   };
 
   // Show Playlist Grid Skeleton while Firebase Auth hydrates (never flash Sign-In)

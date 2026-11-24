@@ -14,6 +14,7 @@ import { Subscriptions } from './Subscriptions';
 import { getVideoUrlDuration, parseVideoUrl } from '../utils/videoUtils';
 import { downloadService } from '../services/downloadService';
 import { savedVideoService } from '../services/savedVideoService';
+import { openShareModal } from '../components/ShareModal';
 
 export const categoriesList = [
   'All', 'Music', 'Gaming', 'Technology', 'Education', 'News', 'Sports', 'Entertainment', 'Coding', 'Lifestyle', 'Science', 'Vlogs', 'Comedy',
@@ -301,12 +302,13 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({
                 type="button"
                 onClick={() => {
                   const shareUrl = `${window.location.origin}/#/clips/${short.videoId}`;
-                  if (navigator.share) {
-                    navigator.share({ title: short.title, url: shareUrl }).catch(() => {});
-                  } else {
-                    navigator.clipboard.writeText(shareUrl);
-                    addToast(t('link_copied', 'Link copied to clipboard!'), 'success');
-                  }
+                  openShareModal({
+                    url: shareUrl,
+                    title: short.title,
+                    description: short.description,
+                    thumbnailUrl: short.thumbnailUrl,
+                    mediaType: 'clip'
+                  });
                   setShowMenu(false);
                 }}
                 className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"

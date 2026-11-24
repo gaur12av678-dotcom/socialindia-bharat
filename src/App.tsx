@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell';
 import { useRouter } from './hooks/useRouter';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AndroidOAuthBridge } from './components/AndroidOAuthBridge';
+import { ShareModal } from './components/ShareModal';
 import {
   ROUTE_SEO_META,
   SITE_URL,
@@ -457,6 +458,7 @@ export default function App() {
   return (
     <AppProvider>
       <MainAppContent />
+      <ShareModal />
     </AppProvider>
   );
 }

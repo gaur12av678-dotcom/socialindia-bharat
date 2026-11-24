@@ -8,6 +8,7 @@ import { UserAvatar } from '../UserAvatar';
 import { userService } from '../../services/userService';
 import { InstagramVideoPlayer } from './InstagramVideoPlayer';
 import { RichText } from '../RichText';
+import { openShareModal } from '../ShareModal';
 import { formatTimeAgo, formatViews } from '../../utils/videoUtils';
 import { formatLinkHost, normalizeLinkUrl } from '../../utils/linkUtils';
 import { isUserVerified } from '../../utils/userUtils';
@@ -330,18 +331,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
   };
 
   const handleShare = () => {
-    const shareUrl = `${window.location.origin}/#/creator/${post.authorUsername}?tab=posts`;
-    if (navigator.share) {
-      navigator.share({
-        title: `${post.authorDisplayName} on SocialIndia`,
-        text: post.content,
-        url: shareUrl
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        addToast(isHindi ? 'पोस्ट लिंक क्लिपबोर्ड पर कॉपी हो गया!' : 'Post link copied to clipboard!', 'success');
-      });
-    }
+    const shareUrl = `${window.location.origin}/#/@${post.authorUsername}/posts`;
+    openShareModal({
+      url: shareUrl,
+      title: `${post.authorDisplayName} on SocialIndia`,
+      description: post.content,
+      thumbnailUrl: post.videoThumbnailUrl || post.images?.[0] || post.authorPhotoURL,
+      mediaType: 'post'
+    });
     setMenuOpen(false);
   };
 

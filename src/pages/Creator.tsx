@@ -14,6 +14,7 @@ import { CreatePostBox } from '../components/community/CreatePostBox';
 import { getInitials, formatSubscribers, formatViews, formatTimeAgo } from '../utils/videoUtils';
 import { compressBanner, compressAvatar } from '../utils/imageUtils';
 import { UserAvatar, updateUserAvatarCache } from '../components/UserAvatar';
+import { openShareModal } from '../components/ShareModal';
 import { useTranslation } from '../i18n';
 import { isUserVerified } from '../utils/userUtils';
 import {
@@ -170,12 +171,28 @@ export const CreatorProfile: React.FC = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>(() => initialChannelSnapshot?.playlists || []);
   const [posts, setPosts] = useState<CommunityPost[]>(() => initialChannelSnapshot?.posts || []);
   const [loading, setLoading] = useState(!creator);
-  const [loadingContent, setLoadingContent] = useState<boolean>(() => {
+  const [loadingVideos, setLoadingVideos] = useState<boolean>(() => {
     if (initialChannelSnapshot) return false;
     if (creator?.uid) {
       const cachedVids = videoService.getCachedVideos({ creatorId: creator.uid, creatorUsername: creator.username });
-      return cachedVids.length === 0;
+      return cachedVids.filter(v => v.visibility === 'public' && !v.isShort).length === 0;
     }
+    return true;
+  });
+  const [loadingShorts, setLoadingShorts] = useState<boolean>(() => {
+    if (initialChannelSnapshot) return false;
+    if (creator?.uid) {
+      const cachedVids = videoService.getCachedVideos({ creatorId: creator.uid, creatorUsername: creator.username });
+      return cachedVids.filter(v => v.visibility === 'public' && v.isShort).length === 0;
+    }
+    return true;
+  });
+  const [loadingPlaylists, setLoadingPlaylists] = useState<boolean>(() => {
+    if (initialChannelSnapshot) return false;
+    return true;
+  });
+  const [loadingPosts, setLoadingPosts] = useState<boolean>(() => {
+    if (initialChannelSnapshot) return false;
     return true;
   });
 
@@ -357,7 +374,10 @@ export const CreatorProfile: React.FC = () => {
     if (!targetUsername && !currentUser) {
       if (!appLoading) {
         setLoading(false);
-        setLoadingContent(false);
+        setLoadingVideos(false);
+        setLoadingShorts(false);
+        setLoadingPlaylists(false);
+        setLoadingPosts(false);
       }
       return;
     }
@@ -379,13 +399,19 @@ export const CreatorProfile: React.FC = () => {
           setPlaylists(snapshot.playlists);
           setPosts(snapshot.posts);
           setLoading(false);
-          setLoadingContent(false);
+          setLoadingVideos(false);
+          setLoadingShorts(false);
+          setLoadingPlaylists(false);
+          setLoadingPosts(false);
         } else {
           setVideos([]);
           setShorts([]);
           setPlaylists([]);
           setPosts([]);
-          setLoadingContent(true);
+          setLoadingVideos(true);
+          setLoadingShorts(true);
+          setLoadingPlaylists(true);
+          setLoadingPosts(true);
         }
         setActiveTab(resolveTab(route.subTab || route.searchParams?.tab));
       }
@@ -399,21 +425,40 @@ export const CreatorProfile: React.FC = () => {
         if (activeUid) {
           setSubscribed(subscriptionService.isSubscribedSync(activeUid, cached.uid, cached.username));
         }
-        // Instantly seed creator videos from local cache for THIS specific user
+        // Instantly seed creator videos/shorts from local cache if available,
+        // while keeping loading flags active for any tab whose content has not yet arrived.
         const cachedCreatorVids = videoService.getCachedVideos({ creatorId: cached.uid, creatorUsername: cached.username });
-        if (cachedCreatorVids.length > 0) {
-          const publicVids = cachedCreatorVids.filter(v => v.visibility === 'public');
-          setVideos(publicVids.filter(v => !v.isShort));
-          setShorts(publicVids.filter(v => v.isShort));
-          setLoadingContent(false);
+        const publicVids = cachedCreatorVids.filter(v => v.visibility === 'public');
+        const cachedLongs = publicVids.filter(v => !v.isShort);
+        const cachedShortsList = publicVids.filter(v => v.isShort);
+        if (cachedLongs.length > 0) {
+          setVideos(cachedLongs);
+          setLoadingVideos(false);
         } else {
-          setLoadingContent(true);
+          setLoadingVideos(true);
         }
+        if (cachedShortsList.length > 0) {
+          setShorts(cachedShortsList);
+          setLoadingShorts(false);
+        } else {
+          setLoadingShorts(true);
+        }
+        const cachedPls = playlistService.getCachedUserPlaylists(cached.uid);
+        if (cachedPls.length > 0) {
+          setPlaylists(cachedPls);
+          setLoadingPlaylists(false);
+        } else {
+          setLoadingPlaylists(true);
+        }
+        setLoadingPosts(true);
       } else if (!cached) {
         // Critical: Clear previous creator data so old user's profile is not shown while loading
         setCreator(null);
         setLoading(true);
-        setLoadingContent(true);
+        setLoadingVideos(true);
+        setLoadingShorts(true);
+        setLoadingPlaylists(true);
+        setLoadingPosts(true);
       }
 
       try {
@@ -499,7 +544,10 @@ export const CreatorProfile: React.FC = () => {
         if (!uProfile) {
           if (!cached) setCreator(null);
           setLoading(false);
-          setLoadingContent(false);
+          setLoadingVideos(false);
+          setLoadingShorts(false);
+          setLoadingPlaylists(false);
+          setLoadingPosts(false);
           return;
         }
 
@@ -544,14 +592,20 @@ export const CreatorProfile: React.FC = () => {
               ? { ...current, videosCount: visibleVids.length }
               : current);
           }
+          setLoadingVideos(false);
+          setLoadingShorts(false);
+
           if (plsResult.status === 'fulfilled') {
             nextPlaylists = plsResult.value;
             setPlaylists(nextPlaylists);
           }
+          setLoadingPlaylists(false);
+
           if (postsResult.status === 'fulfilled') {
             nextPosts = postsResult.value;
             setPosts(nextPosts);
           }
+          setLoadingPosts(false);
 
           if (currentTargetKey) {
             persistentChannelCache.set(currentTargetKey, {
@@ -563,7 +617,6 @@ export const CreatorProfile: React.FC = () => {
             });
           }
           setLoading(false);
-          setLoadingContent(false);
         }
 
       } catch (err) {
@@ -571,7 +624,10 @@ export const CreatorProfile: React.FC = () => {
       } finally {
         if (isMounted) {
           setLoading(false);
-          setLoadingContent(false);
+          setLoadingVideos(false);
+          setLoadingShorts(false);
+          setLoadingPlaylists(false);
+          setLoadingPosts(false);
         }
       }
     };
@@ -609,21 +665,50 @@ export const CreatorProfile: React.FC = () => {
           ))}
         </div>
 
-        {/* Video Grid Skeleton */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="space-y-3">
-              <div className="aspect-video bg-slate-200 dark:bg-[#1E293B] rounded-2xl w-full" />
-              <div className="flex gap-3">
-                <div className="w-10 h-10 bg-slate-200 dark:bg-[#1E293B] rounded-full shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-[90%]" />
-                  <div className="h-3 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-[60%]" />
+        {/* Tab-matched Grid Skeleton */}
+        {activeTab === 'shorts' ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 px-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex flex-col space-y-2">
+                <div className="aspect-[9/16] bg-slate-200 dark:bg-[#1E293B] rounded-2xl w-full" />
+                <div className="h-3.5 bg-slate-200 dark:bg-[#1E293B] rounded-md w-[85%]" />
+                <div className="h-2.5 bg-slate-200 dark:bg-[#1E293B] rounded-md w-[50%]" />
+              </div>
+            ))}
+          </div>
+        ) : activeTab === 'playlists' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="space-y-2">
+                <div className="mx-auto w-[86%] h-2 rounded-t-xl bg-slate-200/80 dark:bg-slate-800/70" />
+                <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden">
+                  <div className="aspect-video bg-slate-200 dark:bg-[#1E293B] relative">
+                    <div className="absolute inset-y-0 right-0 w-1/3 bg-slate-300/70 dark:bg-slate-700/70" />
+                  </div>
+                  <div className="p-4 space-y-2">
+                    <div className="h-4 bg-slate-200 dark:bg-[#1E293B] rounded-md w-[75%]" />
+                    <div className="h-3 bg-slate-200 dark:bg-[#1E293B] rounded-md w-[50%]" />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 px-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="space-y-3">
+                <div className="aspect-video bg-slate-200 dark:bg-[#1E293B] rounded-2xl w-full" />
+                <div className="flex gap-3">
+                  <div className="w-10 h-10 bg-slate-200 dark:bg-[#1E293B] rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-[90%]" />
+                    <div className="h-3 bg-slate-200 dark:bg-[#1E293B] rounded-lg w-[60%]" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -680,17 +765,16 @@ export const CreatorProfile: React.FC = () => {
 
   const handleShareChannel = () => {
     if (!creator) return;
-    const shareData = {
-      title: creator.displayName,
-      text: isHindi ? `SocialIndia पर @${creator.username} का चैनल देखें!` : `Check out @${creator.username}'s channel on SocialIndia!`,
-      url: window.location.href,
-    };
-    if (navigator.share) {
-      navigator.share(shareData).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      addToast(isHindi ? 'चैनल लिंक क्लिपबोर्ड पर कॉपी हो गया!' : 'Channel link copied to clipboard!', 'success');
-    }
+    const channelUrl = creator.username
+      ? `${window.location.origin}/#/@${creator.username}`
+      : window.location.href;
+    openShareModal({
+      url: channelUrl,
+      title: `${creator.displayName} (@${creator.username})`,
+      description: creator.bio || (isHindi ? `SocialIndia पर @${creator.username} का चैनल देखें!` : `Check out @${creator.username}'s channel on SocialIndia!`),
+      thumbnailUrl: creator.photoURL || creator.bannerURL,
+      mediaType: 'channel'
+    });
   };
 
   const handleSubscribeToggle = async () => {
@@ -949,7 +1033,7 @@ export const CreatorProfile: React.FC = () => {
                 <span>•</span>
                 <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/followers?|subscribers?/i, '').trim()} फ़ॉलोअर्स` : formatSubscribers(creator.followersCount)}</span>
                 <span>•</span>
-                <span>{loadingContent ? '…' : videos.length + shorts.length} {isHindi ? 'वीडियो' : (!loadingContent && videos.length + shorts.length === 1 ? 'video' : 'videos')}</span>
+                <span>{loadingVideos && loadingShorts ? '…' : videos.length + shorts.length} {isHindi ? 'वीडियो' : (!(loadingVideos && loadingShorts) && videos.length + shorts.length === 1 ? 'video' : 'videos')}</span>
               </div>
               <p className="text-xs text-slate-700 dark:text-slate-300 max-w-2xl font-medium line-clamp-2 pt-1">
                 {creator.bio || (isHindi ? "SocialIndia पर मेरे आधिकारिक चैनल में आपका स्वागत है! बेहतरीन वीडियो के लिए जुड़े रहें।" : "Welcome to my SocialIndia official channel! Stay tuned for awesome videos.")}
@@ -1087,7 +1171,7 @@ export const CreatorProfile: React.FC = () => {
                 <span>•</span>
                 <span>{isHindi ? `${formatSubscribers(creator.followersCount).replace(/followers?|subscribers?/i, '').trim()} फ़ॉलोअर्स` : formatSubscribers(creator.followersCount)}</span>
                 <span>•</span>
-                <span>{loadingContent ? '…' : videos.length + shorts.length} {isHindi ? 'वीडियो' : (!loadingContent && videos.length + shorts.length === 1 ? 'video' : 'videos')}</span>
+                <span>{loadingVideos && loadingShorts ? '…' : videos.length + shorts.length} {isHindi ? 'वीडियो' : (!(loadingVideos && loadingShorts) && videos.length + shorts.length === 1 ? 'video' : 'videos')}</span>
               </div>
 
               <p 
@@ -1203,7 +1287,7 @@ export const CreatorProfile: React.FC = () => {
           <VideoIcon className="w-4 h-4" />
           <span>{t('tab_videos', 'Videos')}</span>
           <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
-            {loadingContent && videos.length === 0 ? '…' : videos.length}
+            {loadingVideos && videos.length === 0 ? '…' : videos.length}
           </span>
           {activeTab === 'videos' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
@@ -1217,7 +1301,7 @@ export const CreatorProfile: React.FC = () => {
           <Zap className="w-4 h-4 text-red-500 fill-red-500" />
           <span>{t('tab_shorts', 'Clips')}</span>
           <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
-            {loadingContent && shorts.length === 0 ? '...' : shorts.length}
+            {loadingShorts && shorts.length === 0 ? '…' : shorts.length}
           </span>
           {activeTab === 'shorts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
@@ -1231,7 +1315,7 @@ export const CreatorProfile: React.FC = () => {
           <Bookmark className="w-4 h-4" />
           <span>{t('tab_playlists', 'Playlists')}</span>
           <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
-            {loadingContent && channelPlaylists.length === 0 ? '...' : channelPlaylists.length}
+            {loadingPlaylists && channelPlaylists.length === 0 ? '…' : channelPlaylists.length}
           </span>
           {activeTab === 'playlists' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
@@ -1245,7 +1329,7 @@ export const CreatorProfile: React.FC = () => {
           <MessageSquare className="w-4 h-4" />
           <span>{isHindi ? 'कम्युनिटी' : 'Community'}</span>
           <span className="text-[11px] font-normal px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">
-            {loadingContent && posts.length === 0 ? '...' : posts.length}
+            {loadingPosts && posts.length === 0 ? '…' : posts.length}
           </span>
           {activeTab === 'posts' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400 rounded-full" />}
         </button>
@@ -1268,7 +1352,7 @@ export const CreatorProfile: React.FC = () => {
         {activeTab === 'videos' && (
           <div className="space-y-4">
             {/* YouTube-style Filter Chips */}
-            {(videos.length > 0 || loadingContent) && (
+            {(videos.length > 0 || loadingVideos) && (
               <div className="flex items-center gap-2 pb-1">
                 <button
                   type="button"
@@ -1307,7 +1391,7 @@ export const CreatorProfile: React.FC = () => {
               </div>
             )}
 
-            {loadingContent ? (
+            {loadingVideos ? (
               <VideoGrid videos={[]} loading={true} />
             ) : sortedVideos.length > 0 ? (
               <VideoGrid videos={sortedVideos} loading={false} hideNotInterested={true} />
@@ -1342,7 +1426,7 @@ export const CreatorProfile: React.FC = () => {
         {/* SHORTS TAB (YouTube 9:16 Vertical Grid) */}
         {activeTab === 'shorts' && (
           <div className="space-y-4">
-            {loadingContent ? (
+            {loadingShorts ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
                 {Array.from({ length: 5 }).map((_, idx) => (
                   <div
@@ -1453,14 +1537,22 @@ export const CreatorProfile: React.FC = () => {
         {/* PLAYLISTS TAB */}
         {activeTab === 'playlists' && (
           <div className="space-y-4">
-            {loadingContent ? (
+            {loadingPlaylists ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {Array.from({ length: 3 }).map((_, idx) => (
-                  <div key={idx} style={{ animationDelay: `${idx * 80}ms` }} className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs animate-pulse">
-                    <div className="aspect-video bg-[#dbe2ee] dark:bg-slate-800" />
-                    <div className="p-4 space-y-2">
-                      <div className="h-4 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[75%]" />
-                      <div className="h-3 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[50%]" />
+                  <div key={idx} style={{ animationDelay: `${idx * 80}ms` }} className="space-y-1.5 animate-pulse">
+                    <div className="mx-auto w-[86%] h-2 rounded-t-xl bg-[#dbe2ee]/80 dark:bg-slate-800/70" />
+                    <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl overflow-hidden shadow-xs">
+                      <div className="aspect-video bg-[#dbe2ee] dark:bg-slate-800 relative">
+                        <div className="absolute inset-y-0 right-0 w-1/3 bg-[#cbd5e1]/80 dark:bg-slate-700/70 flex flex-col items-center justify-center gap-1.5">
+                          <div className="w-4 h-4 rounded bg-white/40 dark:bg-slate-600" />
+                          <div className="w-6 h-3 rounded bg-white/40 dark:bg-slate-600" />
+                        </div>
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <div className="h-4 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[75%]" />
+                        <div className="h-3 bg-[#dbe2ee] dark:bg-slate-800 rounded-md w-[50%]" />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1563,7 +1655,7 @@ export const CreatorProfile: React.FC = () => {
               </div>
             )}
 
-            {loadingContent ? (
+            {loadingPosts ? (
               <div className="space-y-4">
                 {Array.from({ length: 2 }).map((_, idx) => (
                   <div key={idx} style={{ animationDelay: `${idx * 100}ms` }} className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] rounded-3xl p-5 space-y-4 shadow-xs animate-pulse">

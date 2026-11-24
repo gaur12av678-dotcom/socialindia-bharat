@@ -15,6 +15,7 @@ import { paidVideoService } from '../services/paidVideoService';
 import { adService } from '../services/adService';
 import { playlistService } from '../services/playlistService';
 import { recommendationService, NOT_INTERESTED_EVENT } from '../services/recommendationService';
+import { openShareModal } from '../components/ShareModal';
 import { playbackProgressService } from '../services/playbackProgressService';
 import { Video, Comment, User, AdCampaign, Playlist } from '../types';
 import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
@@ -658,10 +659,13 @@ export const Watch: React.FC = () => {
         videoService.incrementViewCount(videoId).catch(console.error);
         recommendationService.recordVideoWatch(videoId, currentUser?.uid);
         
-        // Resume is only for the last 3 watched regular videos opened on their own.
+        // Resume is only for the last 3 watched regular videos opened on their own (or explicit ?t= timestamp).
         // Never seek old progress for live broadcasts, playlist playback, or older videos outside the last 3.
         const isLiveVideo = Boolean(mergedVideo.isLive);
-        if (!isPlaylistPlayback && !isLiveVideo) {
+        const explicitTimeParam = Number(route.searchParams?.t || 0);
+        if (Number.isFinite(explicitTimeParam) && explicitTimeParam > 0 && !isLiveVideo) {
+          setSeekToTime(Math.floor(explicitTimeParam));
+        } else if (!isPlaylistPlayback && !isLiveVideo) {
           const localProgress = playbackProgressService.getProgress(videoId, mergedVideo.duration);
           setSeekToTime(localProgress > 5 ? localProgress : undefined);
         } else {
@@ -972,18 +976,17 @@ export const Watch: React.FC = () => {
   };
 
   const handleShare = () => {
+    if (!video) return;
     const shareUrl = `${window.location.origin}/#/watch/${video.videoId}`;
-    if (navigator.share) {
-      navigator.share({
-        title: video.title,
-        text: video.description,
-        url: shareUrl
-      }).catch(console.error);
-    } else {
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        addToast('Video link copied to clipboard!', 'success');
-      });
-    }
+    const currentProgress = playbackProgressService.getProgress(video.videoId, video.duration);
+    openShareModal({
+      url: shareUrl,
+      title: video.title,
+      description: video.description,
+      thumbnailUrl: video.thumbnailUrl,
+      startTimeSeconds: currentProgress,
+      mediaType: 'video'
+    });
   };
 
   const handleDownloadToggle = async () => {
@@ -2856,12 +2859,13 @@ export const Watch: React.FC = () => {
                       <button
                         onClick={() => {
                           const shareUrl = `${window.location.origin}/#/watch/${v.videoId}`;
-                          if (navigator.share) {
-                            navigator.share({ title: v.title, url: shareUrl }).catch(() => {});
-                          } else {
-                            navigator.clipboard.writeText(shareUrl);
-                            addToast(isHindi ? 'लिंक क्लिपबोर्ड पर कॉपी हो गया!' : 'Link copied to clipboard!', 'success');
-                          }
+                          openShareModal({
+                            url: shareUrl,
+                            title: v.title,
+                            description: v.description,
+                            thumbnailUrl: v.thumbnailUrl,
+                            mediaType: 'video'
+                          });
                           setActiveRelatedMenuId(null);
                         }}
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"

@@ -14,6 +14,7 @@ import { playbackProgressService } from '../services/playbackProgressService';
 import { liveBroadcastService } from '../services/liveBroadcastService';
 import { useTranslation } from '../i18n';
 import { isUserVerified } from '../utils/userUtils';
+import { openShareModal } from './ShareModal';
 import { 
   MoreVertical, 
   Share2, 
@@ -393,12 +394,13 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
               <button
                 onClick={() => {
                   const shareUrl = `${window.location.origin}/#/${video.isShort ? 'clips' : 'watch'}/${video.videoId}`;
-                  if (navigator.share) {
-                    navigator.share({ title: video.title, url: shareUrl }).catch(() => {});
-                  } else {
-                    navigator.clipboard.writeText(shareUrl);
-                    addToast(t('link_copied', 'Link copied to clipboard!'), 'success');
-                  }
+                  openShareModal({
+                    url: shareUrl,
+                    title: video.title,
+                    description: video.description,
+                    thumbnailUrl: video.thumbnailUrl,
+                    mediaType: video.isShort ? 'clip' : 'video'
+                  });
                   setShowMenu(false);
                 }}
                 className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"

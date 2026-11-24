@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from '../hooks/useRouter';
 import { videoService } from '../services/videoService';
 import { recommendationService } from '../services/recommendationService';
+import { openShareModal } from '../components/ShareModal';
 import { userService } from '../services/userService';
 import { likeService } from '../services/likeService';
 import { commentService } from '../services/commentService';
@@ -1356,8 +1357,12 @@ export const Shorts: React.FC = () => {
   const handleShare = () => {
     if (!activeShort) return;
     const shareUrl = `${window.location.origin}/#/clips/${activeShort.videoId}`;
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      addToast('Clip link copied to clipboard!', 'success');
+    openShareModal({
+      url: shareUrl,
+      title: activeShort.title,
+      description: activeShort.description,
+      thumbnailUrl: activeShort.thumbnailUrl,
+      mediaType: 'clip'
     });
   };
 
