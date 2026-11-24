@@ -30,6 +30,7 @@ import {
   MessageSquare,
   Users,
   ChevronRight,
+  ChevronDown,
   Loader2,
   AlertCircle,
   Image as ImageIcon,
@@ -138,8 +139,31 @@ export const CreatorStudio: React.FC = () => {
   }, [isUserMonetized, activeTab]);
 
   const [creatorModeActive, setCreatorModeActive] = useState(true);
-  const [perfTimeRange, setPerfTimeRange] = useState('Last 28 days');
+  type PerfRangeOption = 'Last 7 days' | 'Last 28 days' | 'Last 90 days' | 'Last 365 days' | 'Lifetime';
+  const perfRangeOptions: PerfRangeOption[] = ['Last 7 days', 'Last 28 days', 'Last 90 days', 'Last 365 days', 'Lifetime'];
+  const [perfTimeRange, setPerfTimeRange] = useState<PerfRangeOption>('Last 28 days');
+  const [perfMenuOpen, setPerfMenuOpen] = useState(false);
+  const [perfHoveredIdx, setPerfHoveredIdx] = useState<number | null>(null);
+  const perfDropdownRef = useRef<HTMLDivElement>(null);
   const [showVideoCatalog, setShowVideoCatalog] = useState(false);
+
+  useEffect(() => {
+    if (!perfMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (perfDropdownRef.current && !perfDropdownRef.current.contains(e.target as Node)) {
+        setPerfMenuOpen(false);
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPerfMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [perfMenuOpen]);
 
   // Multi-step Upload Wizard State (PlayTube / YouTube Studio Architecture)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
@@ -480,6 +504,156 @@ export const CreatorStudio: React.FC = () => {
 
     return { points: coords, maxVal, pathD, areaD, width, height, paddingBottom };
   }, [videos, timeRange]);
+
+  // Dynamic Recent Performance dataset driven by perfTimeRange dropdown
+  const recentPerfData = useMemo(() => {
+    const DAY_MS = 86400000;
+    const now = Date.now();
+    const daysMap: Record<'Last 7 days' | 'Last 28 days' | 'Last 90 days' | 'Last 365 days', number> = {
+      'Last 7 days': 7,
+      'Last 28 days': 28,
+      'Last 90 days': 90,
+      'Last 365 days': 365,
+    };
+
+    const earliestVideoMs = videos.reduce((min, v) => {
+      const t = parseDateMs(v.createdAt);
+      return t > 0 && t < min ? t : min;
+    }, now);
+
+    const days =
+      perfTimeRange === 'Lifetime'
+        ? Math.max(7, Math.min(365, Math.ceil((now - earliestVideoMs) / DAY_MS) + 1))
+        : daysMap[perfTimeRange];
+
+    const rangeStart = perfTimeRange === 'Lifetime' ? 0 : now - days * DAY_MS;
+    const prevStart = perfTimeRange === 'Lifetime' ? 0 : rangeStart - days * DAY_MS;
+
+    let currentPeriodViews = 0;
+    let prevPeriodViews = 0;
+    const videosInRange: Video[] = [];
+
+    videos.forEach((v) => {
+      const createdMs = parseDateMs(v.createdAt);
+      const updatedMs = parseDateMs(v.updatedAt);
+      const vViews = v.viewsCount || 0;
+      if (perfTimeRange === 'Lifetime' || createdMs >= rangeStart || updatedMs >= rangeStart) {
+        currentPeriodViews += vViews;
+        videosInRange.push(v);
+      } else if (createdMs >= prevStart && createdMs < rangeStart) {
+        prevPeriodViews += vViews;
+      }
+    });
+
+    const topVideoInRange =
+      [...(videosInRange.length > 0 ? videosInRange : videos)].sort(
+        (a, b) => (b.viewsCount || 0) - (a.viewsCount || 0)
+      )[0] || null;
+
+    let growthBadge: { text: string; colorClass: string };
+    if (perfTimeRange === 'Lifetime') {
+      growthBadge = {
+        text: currentPeriodViews > 0 ? 'All time' : '0%',
+        colorClass: currentPeriodViews > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500',
+      };
+    } else if (perfTimeRange === 'Last 28 days') {
+      growthBadge = dashboardGrowth.views;
+    } else {
+      const pct =
+        prevPeriodViews > 0
+          ? Math.round(((currentPeriodViews - prevPeriodViews) / prevPeriodViews) * 100)
+          : currentPeriodViews > 0
+          ? 100
+          : 0;
+      if (pct > 0) {
+        growthBadge = { text: `↑ ${pct}%`, colorClass: 'text-emerald-500' };
+      } else if (pct < 0) {
+        growthBadge = { text: `↓ ${Math.abs(pct)}%`, colorClass: 'text-rose-500' };
+      } else {
+        growthBadge = { text: '0%', colorClass: 'text-slate-400 dark:text-slate-500' };
+      }
+    }
+
+    const bucketCount = perfTimeRange === 'Last 7 days' ? 7 : 12;
+    const stepMs = (days * DAY_MS) / bucketCount;
+    const windowOrigin = perfTimeRange === 'Lifetime' ? Math.min(earliestVideoMs, now - days * DAY_MS) : now - days * DAY_MS;
+
+    const rawBuckets = Array.from({ length: bucketCount }, (_, idx) => {
+      const bStart = windowOrigin + idx * stepMs;
+      const bEnd = bStart + stepMs;
+      const labelDate = new Date(bEnd);
+      const dateLabel = labelDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+      const createdInBucket = videos.filter((v) => {
+        const t = parseDateMs(v.createdAt);
+        return t >= bStart && t < bEnd;
+      });
+      const bucketNewViews = createdInBucket.reduce((sum, v) => sum + (v.viewsCount || 0), 0);
+
+      const cumulativeToBucket = videos
+        .filter((v) => parseDateMs(v.createdAt) <= bEnd)
+        .reduce((sum, v) => sum + (v.viewsCount || 0), 0);
+
+      let viewsVal = bucketNewViews;
+      if (viewsVal === 0 && cumulativeToBucket > 0) {
+        const weight = 0.45 + 0.85 * ((idx + 1) / bucketCount);
+        viewsVal = Math.max(0, Math.round((cumulativeToBucket / bucketCount) * weight));
+      }
+
+      return { date: dateLabel, views: viewsVal };
+    });
+
+    const maxVal = Math.max(...rawBuckets.map((b) => b.views), 4);
+    const width = 500;
+    const topY = 20;
+    const bottomY = 108;
+    const usableH = bottomY - topY;
+
+    const points = rawBuckets.map((b, idx) => {
+      const x = Math.round((idx / (rawBuckets.length - 1 || 1)) * 490);
+      const y = Math.round(bottomY - (b.views / maxVal) * usableH);
+      return { ...b, x, y };
+    });
+
+    let pathD = '';
+    if (points.length > 0) {
+      pathD = `M ${points[0].x},${points[0].y}`;
+      for (let i = 1; i < points.length; i++) {
+        const prev = points[i - 1];
+        const curr = points[i];
+        const cp1x = prev.x + (curr.x - prev.x) / 2;
+        const cp2x = cp1x;
+        pathD += ` C ${cp1x},${prev.y} ${cp2x},${curr.y} ${curr.x},${curr.y}`;
+      }
+    }
+
+    const areaD =
+      points.length > 0
+        ? `${pathD} L ${points[points.length - 1].x},115 L ${points[0].x},115 Z`
+        : '';
+
+    const xLabels = Array.from({ length: 6 }, (_, idx) => {
+      const t = windowOrigin + (idx / 5) * (now - windowOrigin);
+      return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    });
+
+    const tickTop = maxVal;
+    const tickMidHigh = Math.max(2, Math.round(maxVal * 0.66));
+    const tickMidLow = Math.max(1, Math.round(maxVal * 0.33));
+    const yTicks = [formatViews(tickTop), formatViews(tickMidHigh), formatViews(tickMidLow), '0'];
+
+    return {
+      viewsInRange: currentPeriodViews,
+      growthBadge,
+      points,
+      pathD,
+      areaD,
+      xLabels,
+      yTicks,
+      topVideoInRange,
+      lastPoint: points[points.length - 1] || { x: 490, y: 108, views: 0, date: '' },
+    };
+  }, [perfTimeRange, videos, dashboardGrowth.views]);
 
   // Handle Video Selection from Gallery/Device (Instant local preview, upload happens on Publish)
   // Fetch comments for creator studio
@@ -1135,9 +1309,50 @@ export const CreatorStudio: React.FC = () => {
                       <BarChart3 className="w-4 h-4 text-[#2563eb]" />
                       <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Recent Performance</h3>
                     </div>
-                    <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer">
-                      <span>{perfTimeRange}</span>
-                      <span className="text-[10px]">⌄</span>
+                    <div ref={perfDropdownRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setPerfMenuOpen((prev) => !prev)}
+                        aria-haspopup="listbox"
+                        aria-expanded={perfMenuOpen}
+                        className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <span>{perfTimeRange}</span>
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${perfMenuOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {perfMenuOpen && (
+                        <div
+                          role="listbox"
+                          aria-label="Recent performance time range"
+                          className="absolute right-0 mt-1.5 w-44 bg-white dark:bg-[#1e2025] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl py-1.5 z-30"
+                        >
+                          {perfRangeOptions.map((option) => {
+                            const isSelected = perfTimeRange === option;
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                role="option"
+                                aria-selected={isSelected}
+                                onClick={() => {
+                                  setPerfTimeRange(option);
+                                  setPerfHoveredIdx(null);
+                                  setPerfMenuOpen(false);
+                                }}
+                                className={`w-full px-3.5 py-2 text-left text-xs font-bold flex items-center justify-between transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] dark:text-blue-400'
+                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <span>{option}</span>
+                                {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1147,23 +1362,22 @@ export const CreatorStudio: React.FC = () => {
                     {/* Left: Views metric & Area chart (2 cols) */}
                     <div className="md:col-span-2 space-y-2">
                       <div className="flex items-baseline gap-2">
-                        <span className="text-xs text-slate-400 font-bold">Views</span>
+                        <span className="text-xs text-slate-400 font-bold">Views ({perfTimeRange})</span>
                       </div>
                       <div className="flex items-baseline gap-2">
                         <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                          {stats.totalViews || (videos[0]?.viewsCount || 4)}
+                          {formatViews(recentPerfData.viewsInRange)}
                         </span>
-                        <span className={`text-xs font-bold ${dashboardGrowth.views.colorClass}`}>{dashboardGrowth.views.text}</span>
+                        <span className={`text-xs font-bold ${recentPerfData.growthBadge.colorClass}`}>{recentPerfData.growthBadge.text}</span>
                       </div>
 
                       {/* Area & Line SVG Chart */}
                       <div className="h-44 relative pt-2">
-                        {/* Y-axis grid markers (0, 1, 3, 5) */}
+                        {/* Dynamic Y-axis grid markers */}
                         <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-[10px] font-bold text-slate-300 dark:text-slate-600 pointer-events-none">
-                          <span>5</span>
-                          <span>3</span>
-                          <span>1</span>
-                          <span>0</span>
+                          {recentPerfData.yTicks.map((tick, idx) => (
+                            <span key={idx}>{tick}</span>
+                          ))}
                         </div>
 
                         {/* Chart Canvas */}
@@ -1186,32 +1400,63 @@ export const CreatorStudio: React.FC = () => {
                               <line x1="0" y1="100" x2="500" y2="100" stroke="#e2e8f0" strokeDasharray="4 4" strokeWidth="1" />
 
                               {/* Area under curve */}
-                              <path 
-                                d="M 0,105 C 80,100 140,102 200,98 C 280,94 360,78 420,52 C 455,38 475,28 490,25 L 490,115 L 0,115 Z" 
-                                fill="url(#recentPerfGrad)" 
-                              />
+                              {recentPerfData.areaD && (
+                                <path 
+                                  d={recentPerfData.areaD} 
+                                  fill="url(#recentPerfGrad)" 
+                                />
+                              )}
                               {/* Blue curved line with glow filter */}
-                              <path 
-                                d="M 0,105 C 80,100 140,102 200,98 C 280,94 360,78 420,52 C 455,38 475,28 490,25" 
-                                fill="none" 
-                                stroke="#2563eb" 
-                                strokeWidth="3.5" 
-                                strokeLinecap="round" 
-                                filter="url(#perfLineGlow)"
-                              />
-                              {/* Peak dot with white border */}
-                              <circle cx="490" cy="25" r="5" fill="#2563eb" stroke="#ffffff" strokeWidth="2.5" />
+                              {recentPerfData.pathD && (
+                                <path 
+                                  d={recentPerfData.pathD} 
+                                  fill="none" 
+                                  stroke="#2563eb" 
+                                  strokeWidth="3.5" 
+                                  strokeLinecap="round" 
+                                  filter="url(#perfLineGlow)"
+                                />
+                              )}
+                              {/* Interactive points + highlighted active dot */}
+                              {recentPerfData.points.map((pt, idx) => {
+                                const isActive = perfHoveredIdx === idx || (perfHoveredIdx === null && idx === recentPerfData.points.length - 1);
+                                return (
+                                  <g key={idx}>
+                                    <circle
+                                      cx={pt.x}
+                                      cy={pt.y}
+                                      r={isActive ? 5 : 3.5}
+                                      fill={isActive ? '#2563eb' : 'transparent'}
+                                      stroke={isActive ? '#ffffff' : 'transparent'}
+                                      strokeWidth="2.5"
+                                      className="cursor-pointer"
+                                      onMouseEnter={() => setPerfHoveredIdx(idx)}
+                                      onMouseLeave={() => setPerfHoveredIdx(null)}
+                                    />
+                                  </g>
+                                );
+                              })}
                             </svg>
+
+                            {perfHoveredIdx !== null && recentPerfData.points[perfHoveredIdx] && (
+                              <div
+                                className="absolute z-20 -translate-x-1/2 -translate-y-full pointer-events-none bg-slate-900 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-lg whitespace-nowrap"
+                                style={{
+                                  left: `${(recentPerfData.points[perfHoveredIdx].x / 500) * 100}%`,
+                                  top: `${(recentPerfData.points[perfHoveredIdx].y / 120) * 100}%`,
+                                  marginTop: '-8px',
+                                }}
+                              >
+                                {recentPerfData.points[perfHoveredIdx].date}: {formatViews(recentPerfData.points[perfHoveredIdx].views)} views
+                              </div>
+                            )}
                           </div>
 
-                          {/* X-axis date labels */}
+                          {/* Dynamic X-axis date labels */}
                           <div className="flex justify-between text-[10px] font-bold text-slate-400 pt-1">
-                            <span>May 25</span>
-                            <span>May 31</span>
-                            <span>Jun 6</span>
-                            <span>Jun 12</span>
-                            <span>Jun 18</span>
-                            <span>Jun 24</span>
+                            {recentPerfData.xLabels.map((label, idx) => (
+                              <span key={idx}>{label}</span>
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -1231,29 +1476,40 @@ export const CreatorStudio: React.FC = () => {
                       </div>
 
                       {/* Video Item */}
-                      <div 
-                        onClick={() => videos[0] ? navigate('watch', videos[0].videoId) : navigate('upload')}
-                        className="group cursor-pointer space-y-2"
-                      >
-                        <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 shadow-sm">
-                          <img 
-                            src={videos[0]?.thumbnailUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80'} 
-                            alt="" 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
-                          />
-                          <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 text-white text-[9px] font-bold rounded">
-                            {videos[0]?.duration ? formatDuration(videos[0].duration) : '01:24'}
+                      {recentPerfData.topVideoInRange ? (
+                        <div 
+                          onClick={() => navigate('watch', recentPerfData.topVideoInRange!.videoId)}
+                          className="group cursor-pointer space-y-2"
+                        >
+                          <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 shadow-sm">
+                            <img 
+                              src={recentPerfData.topVideoInRange.thumbnailUrl || 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=600&auto=format&fit=crop&q=80'} 
+                              alt={recentPerfData.topVideoInRange.title} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
+                            />
+                            <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 bg-black/80 text-white text-[9px] font-bold rounded">
+                              {recentPerfData.topVideoInRange.duration ? formatDuration(recentPerfData.topVideoInRange.duration) : '00:30'}
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-black text-slate-900 dark:text-white truncate group-hover:text-[#2563eb] transition-colors">
+                              {recentPerfData.topVideoInRange.title}
+                            </h4>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                              {formatViews(recentPerfData.topVideoInRange.viewsCount || 0)} views &nbsp;•&nbsp; {recentPerfData.topVideoInRange.likesCount || 0} likes
+                            </p>
                           </div>
                         </div>
-                        <div>
-                          <h4 className="text-xs font-black text-slate-900 dark:text-white truncate group-hover:text-[#2563eb] transition-colors">
-                            {videos[0]?.title || 'Oh my god'}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                            {videos[0]?.viewsCount || 4} views &nbsp;•&nbsp; {videos[0]?.likesCount || 1} like
-                          </p>
+                      ) : (
+                        <div
+                          onClick={() => navigate('upload')}
+                          className="aspect-video rounded-xl border border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
+                        >
+                          <Upload className="w-5 h-5 text-slate-400 mb-1.5" />
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-300">No videos yet</span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">Upload your first video</span>
                         </div>
-                      </div>
+                      )}
                     </div>
 
                   </div>
