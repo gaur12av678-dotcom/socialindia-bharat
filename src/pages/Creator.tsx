@@ -1447,7 +1447,7 @@ export const CreatorProfile: React.FC = () => {
                 {shorts.map((short, idx) => (
                   <a
                     key={short.videoId}
-                    href={`#/clips/${short.videoId}`}
+                    href={`/shorts/${encodeURIComponent(short.videoId)}`}
                     draggable={true}
                     title={short.title}
                     style={{ animationDelay: `${idx * 40}ms` }}

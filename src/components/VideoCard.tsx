@@ -192,8 +192,12 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
     };
   }, [video.creatorId, video.creatorDisplayName, video.creatorPhotoURL, video.creatorUsername]);
 
-  const watchUrl = video.isShort ? `#/clips/${video.videoId}` : `#/watch/${video.videoId}`;
-  const creatorUrl = video.creatorUsername ? `#/@${video.creatorUsername}` : `#/creator/${video.creatorId}`;
+  const watchUrl = video.isShort
+    ? `/shorts/${encodeURIComponent(video.videoId)}`
+    : `/watch/${encodeURIComponent(video.videoId)}`;
+  const creatorUrl = video.creatorUsername
+    ? `/@${encodeURIComponent(video.creatorUsername)}`
+    : `/creator/${encodeURIComponent(video.creatorId)}`;
 
   const handleCardClick = (e?: React.MouseEvent) => {
     // If middle click or Cmd/Ctrl/Shift key, let the browser handle opening in a new tab natively!
@@ -393,7 +397,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
             >
               <button
                 onClick={() => {
-                  const shareUrl = `${window.location.origin}/#/${video.isShort ? 'clips' : 'watch'}/${video.videoId}`;
+                  const shareUrl = `${window.location.origin}/${video.isShort ? 'shorts' : 'watch'}/${encodeURIComponent(video.videoId)}`;
                   openShareModal({
                     url: shareUrl,
                     title: video.title,

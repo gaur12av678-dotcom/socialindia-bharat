@@ -2611,7 +2611,7 @@ export const Watch: React.FC = () => {
 
                       {/* Thumbnail (Draggable Link) */}
                       <a
-                        href={`#/watch/${pVid.videoId}?list=${activePlaylist.playlistId}`}
+                        href={`/watch/${encodeURIComponent(pVid.videoId)}?list=${encodeURIComponent(activePlaylist.playlistId)}`}
                         draggable={true}
                         title={pVid.title}
                         onClick={(e) => {
@@ -2637,7 +2637,7 @@ export const Watch: React.FC = () => {
                       {/* Info */}
                       <div className="min-w-0 flex-1">
                         <a
-                          href={`#/watch/${pVid.videoId}?list=${activePlaylist.playlistId}`}
+                          href={`/watch/${encodeURIComponent(pVid.videoId)}?list=${encodeURIComponent(activePlaylist.playlistId)}`}
                           draggable={true}
                           title={pVid.title}
                           onClick={(e) => {

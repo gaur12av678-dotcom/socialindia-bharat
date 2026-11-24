@@ -170,7 +170,7 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({
     ? savedDuration
     : resolvedDuration;
 
-  const clipUrl = `#/clips/${short.videoId}`;
+  const clipUrl = `/shorts/${encodeURIComponent(short.videoId)}`;
   const handleClipClick = (e: React.MouseEvent) => {
     if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
     e.preventDefault();
@@ -301,7 +301,7 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({
               <button
                 type="button"
                 onClick={() => {
-                  const shareUrl = `${window.location.origin}/#/clips/${short.videoId}`;
+                  const shareUrl = `${window.location.origin}/shorts/${encodeURIComponent(short.videoId)}`;
                   openShareModal({
                     url: shareUrl,
                     title: short.title,
@@ -1472,13 +1472,19 @@ export const Home: React.FC = () => {
             </h2>
           </div>
           
-          <button 
-            onClick={() => navigate('trending')}
+          <a 
+            href="/trending"
+            onClick={(e) => {
+              if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                e.preventDefault();
+                navigate('trending');
+              }
+            }}
             className="text-xs font-bold text-[#065fd4] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer"
           >
             <span>{isHindi ? 'सभी देखें' : 'See All'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          </a>
         </div>
 
         <VideoGrid 
@@ -1533,13 +1539,19 @@ export const Home: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button 
-                onClick={() => navigate('shorts')}
+              <a 
+                href="/shorts"
+                onClick={(e) => {
+                  if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                    e.preventDefault();
+                    navigate('shorts');
+                  }
+                }}
                 className="text-xs font-bold text-[#065fd4] dark:text-[#3b82f6] hover:underline flex items-center gap-1 cursor-pointer ml-1"
               >
                 <span>{isHindi ? 'सभी देखें' : 'See All'}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+              </a>
             </div>
           </div>
 

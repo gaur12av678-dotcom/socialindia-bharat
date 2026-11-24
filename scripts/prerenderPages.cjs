@@ -149,14 +149,20 @@ const isQualitySeedVideo = (v) => {
   return true;
 };
 
-const featuredVideosHtml = seedVideos
-  .filter(isQualitySeedVideo)
-  .slice(0, 12)
-  .map(v => {
-    const url = v.isShort ? `/shorts/${v.videoId}` : `/watch/${v.videoId}`;
-    return `<li><a href="${escapeHtml(url)}" style="color:#2563eb;text-decoration:none;font-weight:600;">${escapeHtml(cleanText(v.title))}</a></li>`;
-  })
-  .join('\n');
+const qualitySeedVideos = seedVideos.filter(isQualitySeedVideo);
+
+function renderVideoLinkItems(list) {
+  return list
+    .map(v => {
+      const url = v.isShort ? `/shorts/${v.videoId}` : `/watch/${v.videoId}`;
+      return `<li><a href="${escapeHtml(url)}" style="color:#2563eb;text-decoration:none;font-weight:600;">${escapeHtml(cleanText(v.title))}</a></li>`;
+    })
+    .join('\n');
+}
+
+const featuredVideosHtml = renderVideoLinkItems(qualitySeedVideos.slice(0, 24));
+const allLongVideosHtml = renderVideoLinkItems(qualitySeedVideos.filter(v => !v.isShort));
+const allClipsHtml = renderVideoLinkItems(qualitySeedVideos.filter(v => v.isShort));
 
 const pages = [
   {
@@ -221,7 +227,7 @@ const pages = [
     heading: 'Trending Videos & Viral Creators in India',
     content: `
       <p>Watch what India is watching right now. Explore trending videos and Clips across entertainment, music, comedy, technology, news commentary, and regional culture.</p>
-      ${featuredVideosHtml ? `<h2>Popular &amp; Recent Videos on SocialIndia</h2><ul>${featuredVideosHtml}</ul>` : ''}
+      ${allLongVideosHtml ? `<h2>All Trending &amp; Featured Videos on SocialIndia</h2><ul>${allLongVideosHtml}</ul>` : ''}
       <p>Looking for fast vertical clips? Explore <a href="/shorts">SocialIndia Clips</a> or <a href="/search">search all channels and videos</a>.</p>
     `
   },
@@ -238,6 +244,7 @@ const pages = [
     heading: 'SocialIndia Clips – Explore Short Videos',
     content: `
       <p>Explore vertical Clips and short videos from Indian creators. Watch comedy skits, news explainers, music clips, devotionals, sports highlights, and daily moments in a fast swipeable player built for Bharat.</p>
+      ${allClipsHtml ? `<h2>Popular &amp; Recent Clips on SocialIndia</h2><ul>${allClipsHtml}</ul>` : ''}
       <h2>Why Watch &amp; Create Clips on SocialIndia</h2>
       <ul>
         <li><strong>Fast Adaptive Playback:</strong> Smooth vertical streaming engineered for Indian mobile data networks as well as desktop browsers.</li>
@@ -809,6 +816,18 @@ for (const v of seedVideos) {
     { name: cleanTitle, url: pageUrl }
   ]);
 
+  const relatedPool = qualitySeedVideos.filter(item => item.videoId !== v.videoId && Boolean(item.isShort) === Boolean(v.isShort));
+  const seedIdx = Math.max(0, relatedPool.findIndex(item => item.videoId > v.videoId));
+  const rotatedRelated = [
+    ...relatedPool.slice(seedIdx, seedIdx + 8),
+    ...relatedPool.slice(0, Math.max(0, 8 - Math.max(0, relatedPool.length - seedIdx)))
+  ].slice(0, 8);
+  const relatedLinksHtml = renderVideoLinkItems(rotatedRelated);
+
+  const durationSec = Math.max(1, Math.round(Number(v.duration) || 30));
+  const durationDisplay = `${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, '0')}`;
+  const publishedDateDisplay = toIsoUploadDate(v.createdAt).split('T')[0];
+
   const videoHtml = applyMetaAndRoot(templateHtml, {
     title: pageTitle,
     description: pageDesc,
@@ -821,8 +840,10 @@ for (const v of seedVideos) {
     heading: cleanTitle,
     content: `
       <p><img src="${escapeHtml(thumbUrl)}" alt="${escapeHtml(cleanTitle)}" style="max-width:100%;border-radius:12px;margin-bottom:16px;" /></p>
+      <p><strong>Format:</strong> ${v.isShort ? 'SocialIndia Clip (Short Video)' : 'Full Video'} &middot; <strong>Duration:</strong> ${durationDisplay} &middot; <strong>Published:</strong> ${publishedDateDisplay}</p>
       <p>${escapeHtml(cleanText(v.description) || pageDesc)}</p>
-      <p><a href="${escapeHtml(v.isShort ? '/shorts' : '/trending')}" style="color:#2563eb;font-weight:600;">Explore more ${v.isShort ? 'Clips' : 'videos'} on SocialIndia</a></p>
+      <p>Stream on <a href="/" style="color:#2563eb;font-weight:600;">SocialIndia</a>, India&rsquo;s own social media and video platform. Like, comment, save for offline viewing, or explore <a href="${escapeHtml(v.isShort ? '/shorts' : '/trending')}" style="color:#2563eb;font-weight:600;">more ${v.isShort ? 'Clips' : 'trending videos'}</a>.</p>
+      ${relatedLinksHtml ? `<h2>Up Next on SocialIndia</h2><ul>${relatedLinksHtml}</ul>` : ''}
     `
   });
 

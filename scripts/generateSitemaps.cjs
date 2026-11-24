@@ -73,7 +73,7 @@ function getVideoMediaTag(rawUrl) {
   return `<video:content_loc>${escapeXml(url)}</video:content_loc>`;
 }
 
-const todayDate = new Date().toISOString().split('T')[0];
+const nowIso = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 const staticPages = [
   { path: '', changefreq: 'daily', priority: '1.0' },
@@ -125,7 +125,7 @@ for (const page of staticPages) {
   const loc = page.path ? `https://socialindia.web.app/${page.path}` : 'https://socialindia.web.app/';
   pageSitemapXml += `  <url>
     <loc>${loc}</loc>
-    <lastmod>${todayDate}</lastmod>
+    <lastmod>${nowIso}</lastmod>
     <changefreq>${page.changefreq}</changefreq>
     <priority>${page.priority}</priority>
   </url>
@@ -135,7 +135,7 @@ for (const page of staticPages) {
 // Add canonical watch URLs for all public videos to standard sitemap for page discovery
 for (const v of videos) {
   const watchUrl = v.isShort ? `https://socialindia.web.app/shorts/${v.videoId}` : `https://socialindia.web.app/watch/${v.videoId}`;
-  const videoDate = v.createdAt ? cleanIsoDate(v.createdAt).split('T')[0] : todayDate;
+  const videoDate = v.createdAt ? cleanIsoDate(v.createdAt) : nowIso;
   pageSitemapXml += `  <url>
     <loc>${watchUrl}</loc>
     <lastmod>${videoDate}</lastmod>
@@ -195,11 +195,11 @@ const sitemapIndexXml = `<?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
     <loc>https://socialindia.web.app/sitemap.xml</loc>
-    <lastmod>${todayDate}</lastmod>
+    <lastmod>${nowIso}</lastmod>
   </sitemap>
   <sitemap>
     <loc>https://socialindia.web.app/video-sitemap.xml</loc>
-    <lastmod>${todayDate}</lastmod>
+    <lastmod>${nowIso}</lastmod>
   </sitemap>
 </sitemapindex>
 `;

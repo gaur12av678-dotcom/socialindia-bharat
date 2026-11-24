@@ -235,6 +235,16 @@ function MainAppContent() {
       }
 
       if (route.path === 'watch' || route.path === 'shorts' || route.path === 'creator') {
+        const currentCanonical =
+          document.querySelector('link[rel="canonical"]')?.getAttribute('href') || '';
+        const hasPrerenderedEntityMeta =
+          Boolean(route.param) &&
+          currentCanonical === canonicalUrl &&
+          Boolean(document.title) &&
+          document.title !== DEFAULT_TITLE;
+        if (hasPrerenderedEntityMeta) {
+          return;
+        }
         const fallbackTitle = routeMeta?.title || DEFAULT_TITLE;
         const fallbackDescription = routeMeta?.description || DEFAULT_DESCRIPTION;
         applySeoMetadata({

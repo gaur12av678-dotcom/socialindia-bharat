@@ -109,9 +109,19 @@ const YouTubeChannelCard: React.FC<{ user: User }> = ({ user }) => {
 
         <div className="space-y-1.5 min-w-0">
           <div className="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
-            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+            <a
+              href={`/@${encodeURIComponent(user.username)}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                  e.preventDefault();
+                  navigate('creator', user.username);
+                }
+              }}
+              className="text-lg sm:text-xl font-black text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+            >
               {user.displayName}
-            </h3>
+            </a>
             {isUserVerified(user) && (
               <span className="p-0.5 rounded-full bg-blue-500 text-white" title="Verified Channel">
                 <Check className="w-3 h-3 stroke-[3]" />
@@ -157,8 +167,14 @@ const YouTubeShortCard: React.FC<{ video: Video }> = ({ video }) => {
   const { navigate } = useRouter();
 
   return (
-    <div 
-      onClick={() => navigate('shorts', undefined, { v: video.videoId })}
+    <a 
+      href={`/shorts/${encodeURIComponent(video.videoId)}`}
+      onClick={(e) => {
+        if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+          e.preventDefault();
+          navigate('shorts', video.videoId);
+        }
+      }}
       className="group relative flex flex-col cursor-pointer transition-transform hover:-translate-y-1"
     >
       <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-slate-900 shadow-md">
@@ -195,7 +211,7 @@ const YouTubeShortCard: React.FC<{ video: Video }> = ({ video }) => {
           </div>
         </div>
       </div>
-    </div>
+    </a>
   );
 };
 
@@ -244,7 +260,7 @@ const YouTubeSearchVideoCard: React.FC<{ video: Video; priority?: boolean }> = (
 
   return (
     <div 
-      onClick={() => navigate('watch', undefined, { v: video.videoId })}
+      onClick={() => navigate('watch', video.videoId)}
       className="flex flex-col sm:flex-row gap-4 sm:gap-6 p-3 sm:p-4 rounded-3xl hover:bg-slate-100/80 dark:hover:bg-[#16171a] transition-all cursor-pointer group"
     >
       {/* Thumbnail */}
@@ -290,9 +306,19 @@ const YouTubeSearchVideoCard: React.FC<{ video: Video; priority?: boolean }> = (
 
       {/* Video Info */}
       {imageLoaded ? <div className="flex-1 space-y-2 min-w-0">
-        <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-snug">
+        <a
+          href={`/watch/${encodeURIComponent(video.videoId)}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+              e.preventDefault();
+              navigate('watch', video.videoId);
+            }
+          }}
+          className="block text-base sm:text-lg font-bold text-slate-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-snug"
+        >
           {video.title}
-        </h3>
+        </a>
 
         <p className="text-xs text-slate-500 font-bold flex items-center gap-1.5">
           <span>{formatViews(video.viewsCount || 0)}</span>
@@ -301,10 +327,14 @@ const YouTubeSearchVideoCard: React.FC<{ video: Video; priority?: boolean }> = (
         </p>
 
         {/* Channel info */}
-        <div 
+        <a 
+          href={video.creatorUsername ? `/@${encodeURIComponent(video.creatorUsername)}` : `/creator/${encodeURIComponent(video.creatorId)}`}
           onClick={(e) => {
             e.stopPropagation();
-            navigate('creator', video.creatorUsername);
+            if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+              e.preventDefault();
+              navigate('creator', video.creatorUsername || video.creatorId);
+            }
           }}
           className="flex items-center gap-2.5 py-1 hover:opacity-80 transition-opacity w-fit"
         >
@@ -323,7 +353,7 @@ const YouTubeSearchVideoCard: React.FC<{ video: Video; priority?: boolean }> = (
               <Check className="w-2.5 h-2.5 stroke-[3]" />
             </span>
           )}
-        </div>
+        </a>
 
         {/* Description snippet */}
         {video.description && (

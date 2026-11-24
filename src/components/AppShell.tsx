@@ -1420,8 +1420,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </span>
 
               {/* Home */}
-              <button
-                onClick={handleHomeClick}
+              <a
+                href="/"
+                onClick={(e) => {
+                  if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                    e.preventDefault();
+                    handleHomeClick();
+                  }
+                }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'home' && !route.searchParams?.category
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1432,13 +1438,19 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <Home className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'home' && !route.searchParams?.category ? 'text-[#2563eb] dark:text-blue-400 fill-[#2563eb]/20' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_home', 'Home')}</span>
                 </div>
-              </button>
+              </a>
 
               {/* Explore: SocialIndia public posts feed */}
-              <button
-                onClick={() => navigate('explore')}
+              <a
+                href="/community"
+                onClick={(e) => {
+                  if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                    e.preventDefault();
+                    navigate('explore');
+                  }
+                }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
-                  route.path === 'explore'
+                  route.path === 'explore' || route.path === 'community'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-[#1a1b20]'
                 }`}
@@ -1447,11 +1459,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <Globe className="w-[18px] h-[18px] shrink-0 text-[#2563eb]" />
                   <span className="truncate">Explore</span>
                 </div>
-              </button>
+              </a>
 
               {/* Trending */}
-              <button
-                onClick={() => navigate('trending')}
+              <a
+                href="/trending"
+                onClick={(e) => {
+                  if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                    e.preventDefault();
+                    navigate('trending');
+                  }
+                }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'trending'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1462,11 +1480,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <Flame className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'trending' ? 'text-rose-500 fill-rose-500' : 'text-rose-500/80'}`} />
                   <span className="truncate">{t('nav_trending', 'Trending')}</span>
                 </div>
-              </button>
+              </a>
 
               {/* Clips */}
-              <button
-                onClick={() => navigate('shorts')}
+              <a
+                href="/shorts"
+                onClick={(e) => {
+                  if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                    e.preventDefault();
+                    navigate('shorts');
+                  }
+                }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'shorts' && !route.param
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1477,7 +1501,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <ShortsLogo className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${route.path === 'shorts' && !route.param ? 'scale-110' : 'opacity-95'}`} />
                   <span className="truncate">{t('nav_shorts', 'Clips')}</span>
                 </div>
-              </button>
+              </a>
 
               <div className="px-3 pt-2 pb-1 text-[11px] font-extrabold uppercase tracking-wider text-[#606060] dark:text-[#999999]">{isHindi ? 'आपका नेटवर्क' : 'YOUR NETWORK'}</div>
               {/* Following */}
@@ -1594,8 +1618,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </button>
 
               {/* Offline Downloads */}
-              <button
-                onClick={() => navigate('downloads')}
+              <a
+                href="/downloads"
+                onClick={(e) => {
+                  if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                    e.preventDefault();
+                    navigate('downloads');
+                  }
+                }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'downloads'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1606,7 +1636,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <ArrowDownToLine className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'downloads' ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_downloads', 'Downloads')}</span>
                 </div>
-              </button>
+              </a>
 
               {/* Download App (APK) */}
               <button
