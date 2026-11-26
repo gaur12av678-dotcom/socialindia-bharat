@@ -18,7 +18,7 @@ import { db, auth } from '../firebase';
 import { ChatMessage, ChatSession, User } from '../types';
 import { userService } from './userService';
 import { isUserVerified } from '../utils/userUtils';
-import { getCloudinaryConfigAsync } from './videoService';
+import { getCloudinaryConfigAsync, videoService } from './videoService';
 
 const getChatCacheKey = (userA: string, userB: string) => {
   const sorted = [userA, userB].sort().join('_');
@@ -102,6 +102,15 @@ export const chatService = {
     const isVideo = file.type.startsWith('video/');
     const type: 'image' | 'video' = isVideo ? 'video' : 'image';
 
+    if (isVideo) {
+      const res = await videoService.uploadVideo(
+        file,
+        (pct) => onProgress?.(pct),
+        { folder: 'socialindia_chats', firebasePath: 'videos', allowMultiPart: false }
+      );
+      return { url: res.videoUrl, type: 'video' };
+    }
+
     // 1. Try Cloudinary if configured
     try {
       const { cloudName, preset } = await getCloudinaryConfigAsync();
@@ -145,7 +154,7 @@ export const chatService = {
     }
 
     throw new Error(
-      'Media upload failed. Please check Cloudinary configuration and try again.'
+      'Media upload failed. Please try again.'
     );
   },
 

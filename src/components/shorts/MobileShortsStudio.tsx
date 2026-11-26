@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useRouter } from '../../hooks/useRouter';
-import { videoService } from '../../services/videoService';
+import { videoService, MAX_VIDEO_SIZE_BYTES, MAX_VIDEO_SIZE_LABEL } from '../../services/videoService';
 import { userService } from '../../services/userService';
 import { soundService, DEFAULT_SOUNDS } from '../../services/soundService';
 import { SoundTrack } from '../../types';
@@ -754,10 +754,10 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
       return;
     }
 
-    if (videoFile.size > 104857600) {
+    if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
       const msg = isHindi
-        ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।'
-        : 'Please upload a video lower than 100MB.';
+        ? `कृपया ${MAX_VIDEO_SIZE_LABEL} से कम साइज का वीडियो अपलोड करें।`
+        : `Please upload a video smaller than ${MAX_VIDEO_SIZE_LABEL}.`;
       setPublishError(msg);
       addToast(msg, 'error');
       return;
@@ -771,11 +771,20 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
 
     try {
       // 1. Upload Video
-      setUploadStage('Uploading Clip video...');
-      const videoResult = await videoService.uploadVideo(videoFile, (pct, stage) => {
-        setUploadProgress(Math.min(75, Math.round(5 + (pct * 0.7))));
-        if (stage) setUploadStage(stage);
-      });
+      setUploadProgress(1);
+      setUploadStage(isHindi ? 'क्लिप अपलोड हो रहा है... 1%' : 'Uploading Clip... 1%');
+      const videoResult = await videoService.uploadVideo(
+        videoFile,
+        (pct) => {
+          const mapped = Math.min(75, Math.max(1, Math.round(pct * 0.75)));
+          setUploadProgress((prev) => {
+            const next = Math.max(prev, mapped);
+            setUploadStage(isHindi ? `क्लिप अपलोड हो रहा है... ${next}%` : `Uploading Clip... ${next}%`);
+            return next;
+          });
+        },
+        { allowMultiPart: false }
+      );
 
       // 2. Upload Thumbnail
       setUploadStage('Generating & uploading thumbnail cover...');
@@ -802,6 +811,7 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
         videoUrl: videoResult.videoUrl,
         thumbnailUrl: finalThumbUrl || videoResult.videoUrl,
         duration: effectiveDuration,
+        ...(videoResult.bytes ? { fileSizeBytes: videoResult.bytes } : {}),
         category: category,
         tags: [category, 'Clips', 'Bharat', ...finalTitle.split(' ').filter(w => w.startsWith('#'))],
         visibility: visibility,

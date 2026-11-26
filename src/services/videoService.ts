@@ -187,6 +187,8 @@ function cleanVideoForPersistence(v: Video): Video {
     title: v.title || '',
     description: (v.description || '').slice(0, 120),
     videoUrl: v.videoUrl || '',
+    ...(Array.isArray(v.videoParts) && v.videoParts.length > 1 ? { videoParts: v.videoParts } : {}),
+    ...(Array.isArray(v.videoPartDurations) && v.videoPartDurations.length > 1 ? { videoPartDurations: v.videoPartDurations } : {}),
     thumbnailUrl: v.thumbnailUrl || '',
     duration: sanitizeVideoDuration(v.duration),
     ...(typeof v.fileSizeBytes === 'number' && Number.isFinite(v.fileSizeBytes) && v.fileSizeBytes > 0
@@ -275,79 +277,235 @@ export const clearVideoCache = () => {
   }
 };
 
+export const MAX_VIDEO_SIZE_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+export const MAX_VIDEO_SIZE_LABEL = '2 GB';
+const CLOUDINARY_CHUNK_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB chunks (>= 5MB min, safely < 100MB request limit)
+const CLOUDINARY_PROBE_CHUNK_BYTES = 5 * 1024 * 1024; // 5 MB exact Cloudinary min chunk for fast >100MB plan probe
+const CLOUDINARY_FREE_LIMIT_BYTES = 100 * 1024 * 1024; // 100 MB (104,857,600 bytes)
+
+function isCloudinaryPlanLimitError(err: unknown): boolean {
+  const msg = String((err as any)?.message || err || '').toLowerCase();
+  return (
+    Boolean((err as any)?.isPlanLimit) ||
+    msg.includes('file size too large') ||
+    msg.includes('104857600') ||
+    msg.includes('maximum is') ||
+    msg.includes('account limit') ||
+    msg.includes('413') ||
+    msg.includes('payload too large')
+  );
+}
+
+export interface VideoUploadResult {
+  videoUrl: string;
+  videoParts?: string[];
+  videoPartDurations?: number[];
+  duration?: number;
+  bytes?: number;
+}
+
 export const videoService = {
   // Generate safe random video ID
   generateId(): string {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   },
 
-  // Upload Video File to Cloudinary with maximum speed chunked streaming
+  // Upload Video File seamlessly with strictly monotonic YouTube-style progress
   async uploadVideo(
-    file: File, 
-    onProgress?: (progress: number, stage?: string) => void
-  ): Promise<{ videoUrl: string; duration?: number; bytes?: number }> {
-    const MAX_VIDEO_SIZE_BYTES = 104857600; // 100MB
+    file: File,
+    onProgress?: (progress: number, stage?: string) => void,
+    options?: { folder?: string; firebasePath?: string; allowMultiPart?: boolean }
+  ): Promise<VideoUploadResult> {
     if (file.size > MAX_VIDEO_SIZE_BYTES) {
-      throw new Error('Please upload a video lower than 100MB.');
+      throw new Error(`Please upload a video smaller than ${MAX_VIDEO_SIZE_LABEL}.`);
     }
 
-    try {
-      const { cloudName, preset } = await getCloudinaryConfigAsync();
-      
-      if (cloudName && preset) {
-        console.log(`Starting high-speed video upload to Cloudinary (${cloudName}): ${file.name} (${file.size} bytes)`);
+    const folder = options?.folder || 'socialindia_videos';
+    const firebasePath = options?.firebasePath || 'videos';
+    const allowMultiPart = options?.allowMultiPart !== false;
+    let cloudinaryLimitHit = false;
+    let cloudinaryErrMessage = '';
 
-        // 25MB chunks for high-speed streaming with minimal HTTP roundtrips
-        const CHUNK_SIZE = 25 * 1024 * 1024;
+    // Strictly monotonic YouTube-style progress emitter (never drops backward or shows internal chunk/part text)
+    let highWaterPct = 1;
+    const reportProgress = (rawPct: number, done = false) => {
+      const clamped = done ? 100 : Math.min(99, Math.max(1, Math.round(rawPct)));
+      if (clamped > highWaterPct) {
+        highWaterPct = clamped;
+      }
+      const label = highWaterPct >= 100
+        ? 'Processing video...'
+        : `Uploading video... ${highWaterPct}%`;
+      onProgress?.(highWaterPct, label);
+    };
 
-        if (file.size <= CHUNK_SIZE) {
-          const singleRes = await this.uploadSingleVideo(file, cloudName, preset, onProgress);
-          return { ...singleRes, bytes: singleRes.bytes || file.size };
+    reportProgress(1);
+
+    const { cloudName, preset } = await getCloudinaryConfigAsync();
+
+    if (cloudName && preset) {
+      const capCacheKey = `si_cld_plan_cap_${cloudName}`;
+      const isKnown100MbCap = (() => {
+        if (typeof window === 'undefined' || file.size <= CLOUDINARY_FREE_LIMIT_BYTES) return false;
+        try {
+          const cached = sessionStorage.getItem(capCacheKey);
+          if (!cached) return false;
+          const parsed = JSON.parse(cached);
+          return parsed?.cap === '100mb' && Date.now() - (parsed?.ts || 0) < 30 * 60 * 1000;
+        } catch {
+          return false;
         }
+      })();
 
-        const chunkedRes = await this.uploadChunkedVideo(file, cloudName, preset, CHUNK_SIZE, onProgress);
-        return { ...chunkedRes, bytes: chunkedRes.bytes || file.size };
+      if (isKnown100MbCap) {
+        cloudinaryLimitHit = true;
+      } else {
+        try {
+          if (file.size <= CLOUDINARY_CHUNK_SIZE_BYTES) {
+            const singleRes = await this.uploadSingleVideo(
+              file,
+              cloudName,
+              preset,
+              (pct, done) => reportProgress(pct, done),
+              folder
+            );
+            reportProgress(100, true);
+            return { ...singleRes, bytes: singleRes.bytes || file.size };
+          }
+
+          const isLargeFile = file.size > CLOUDINARY_FREE_LIMIT_BYTES;
+          const chunkedRes = await this.uploadChunkedVideo(
+            file,
+            cloudName,
+            preset,
+            CLOUDINARY_CHUNK_SIZE_BYTES,
+            (pct, done) => {
+              // For >100MB files before plan is confirmed, map probe smoothly in 1%..4% so there's no jump if Free cap triggers
+              const mapped = isLargeFile && pct < 5 ? Math.min(4, pct) : pct;
+              reportProgress(mapped, done);
+            },
+            folder
+          );
+          reportProgress(100, true);
+          return { ...chunkedRes, bytes: chunkedRes.bytes || file.size };
+        } catch (cldErr: any) {
+          cloudinaryLimitHit = isCloudinaryPlanLimitError(cldErr);
+          cloudinaryErrMessage = cldErr?.message || '';
+          if (cloudinaryLimitHit && typeof window !== 'undefined') {
+            try {
+              sessionStorage.setItem(capCacheKey, JSON.stringify({ cap: '100mb', ts: Date.now() }));
+            } catch {}
+          }
+          console.warn('Primary video upload retry/fallback:', cldErr);
+        }
       }
-    } catch (cldErr: any) {
-      console.warn('Cloudinary upload unavailable or failed, falling back to Firebase Storage:', cldErr);
-      if (cldErr.message?.includes('100MB') || cldErr.message?.includes('File size too large')) {
-        throw cldErr;
+
+      if (cloudinaryLimitHit) {
+        let creepTimer: ReturnType<typeof setInterval> | null = null;
+        try {
+          reportProgress(Math.max(highWaterPct, 4));
+          // Keep bar gently alive during fast browser video preparation so it never looks frozen
+          creepTimer = setInterval(() => {
+            if (highWaterPct < 24) {
+              reportProgress(highWaterPct + 1);
+            }
+          }, 700);
+
+          const { prepareVideoForCloudinary } = await import('../utils/videoProcessor');
+          const prepared = await prepareVideoForCloudinary(
+            file,
+            (prepPct) => {
+              // Map preparation cleanly across current highWater -> 28%
+              const scaled = 4 + prepPct * 0.24;
+              reportProgress(scaled);
+            },
+            allowMultiPart
+          );
+
+          if (creepTimer) {
+            clearInterval(creepTimer);
+            creepTimer = null;
+          }
+
+          const uploadStartPct = Math.max(4, highWaterPct);
+
+          const totalPreparedBytes = prepared.files.reduce((sum, f) => sum + f.size, 0) || file.size;
+          const uploadedUrls: string[] = [];
+          let uploadedBytesSoFar = 0;
+
+          for (let idx = 0; idx < prepared.files.length; idx++) {
+            const partFile = prepared.files[idx];
+            const partProgressHandler = (pct: number) => {
+              const partUploaded = uploadedBytesSoFar + (partFile.size * Math.min(99, pct)) / 100;
+              const uploadRatio = totalPreparedBytes > 0 ? partUploaded / totalPreparedBytes : 0;
+              const overallPct = uploadStartPct + uploadRatio * (99 - uploadStartPct);
+              reportProgress(overallPct);
+            };
+
+            const res = partFile.size <= CLOUDINARY_CHUNK_SIZE_BYTES
+              ? await this.uploadSingleVideo(partFile, cloudName, preset, partProgressHandler, folder)
+              : await this.uploadChunkedVideo(partFile, cloudName, preset, CLOUDINARY_CHUNK_SIZE_BYTES, partProgressHandler, folder);
+
+            uploadedUrls.push(res.videoUrl);
+            uploadedBytesSoFar += partFile.size;
+          }
+
+          reportProgress(100, true);
+          return {
+            videoUrl: uploadedUrls[0],
+            ...(uploadedUrls.length > 1
+              ? { videoParts: uploadedUrls, videoPartDurations: prepared.durations }
+              : {}),
+            duration: Math.round(prepared.totalDuration) || undefined,
+            bytes: totalPreparedBytes,
+          };
+        } catch (prepErr: any) {
+          if (creepTimer) clearInterval(creepTimer);
+          console.warn('Video preparation fallback notice:', prepErr);
+          cloudinaryErrMessage = prepErr?.message || cloudinaryErrMessage;
+        }
       }
     }
 
-    // Direct Firebase Storage Fallback
+    // Secondary cloud storage fallback (with 8s zero-progress stall guard so it never hangs at 0%)
     try {
-      if (onProgress) onProgress(10, 'Uploading video to secure storage...');
-      const url = await this.uploadToFirebase(file, 'videos', (pct) => {
-        if (onProgress) onProgress(pct, `Uploading video... ${pct}%`);
+      const url = await this.uploadToFirebase(file, firebasePath, (pct) => {
+        reportProgress(pct);
       });
+      reportProgress(100, true);
       return { videoUrl: url, bytes: file.size };
     } catch (fbErr: any) {
-      console.error('Firebase storage upload failed:', fbErr);
-      throw new Error(fbErr.message || 'Failed to upload video to media storage.');
+      console.error('Video storage upload failed:', fbErr);
+      if (cloudinaryLimitHit) {
+        throw new Error(
+          cloudinaryErrMessage ||
+            'Could not process this video for upload. Please try an MP4 file or a smaller video.'
+        );
+      }
+      throw new Error(fbErr?.message || cloudinaryErrMessage || 'Failed to upload video. Please try again.');
     }
   },
 
-  // Direct single-request upload for small video clips
+  // Direct single-request upload for video clips (<= 20MB)
   uploadSingleVideo(
     file: File,
     cloudName: string,
     preset: string,
-    onProgress?: (progress: number, stage?: string) => void
+    onProgress?: (progress: number, done?: boolean) => void,
+    folder: string = 'socialindia_videos'
   ): Promise<{ videoUrl: string; duration?: number; bytes?: number }> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', preset);
-    formData.append('folder', 'socialindia_videos');
+    formData.append('folder', folder);
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      
+
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable && onProgress) {
-          const percent = Math.round((e.loaded / e.total) * 100);
-          const stage = percent >= 100 ? 'Encoding video stream on Cloud CDN...' : `Uploading video... ${percent}%`;
-          onProgress(percent, stage);
+          const percent = Math.min(99, Math.max(1, Math.round((e.loaded / e.total) * 100)));
+          onProgress(percent, false);
         }
       });
 
@@ -355,8 +513,7 @@ export const videoService = {
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
-            console.log('Cloudinary Video Upload Success:', response.secure_url);
-            onProgress?.(100, 'Video ready!');
+            onProgress?.(100, true);
             const cleanDuration = sanitizeVideoDuration(response.duration);
             const cleanBytes = typeof response.bytes === 'number' && Number.isFinite(response.bytes) && response.bytes > 0
               ? Math.round(response.bytes)
@@ -375,12 +532,16 @@ export const videoService = {
             const err = JSON.parse(xhr.responseText);
             if (err.error?.message) errMsg = err.error.message;
           } catch (_) {}
-          reject(new Error(errMsg));
+          const errorObj: any = new Error(errMsg);
+          if (xhr.status === 413 || isCloudinaryPlanLimitError(errMsg)) {
+            errorObj.isPlanLimit = true;
+          }
+          reject(errorObj);
         }
       });
 
       xhr.addEventListener('error', () => {
-        reject(new Error('Network error connecting to media storage server. Please try again.'));
+        reject(new Error('Network error during upload. Please check your connection and try again.'));
       });
 
       xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`);
@@ -388,43 +549,70 @@ export const videoService = {
     });
   },
 
-  // Chunked Upload for large / long videos (adha-adha karke)
+  // Internal chunked upload for large videos
   async uploadChunkedVideo(
     file: File,
     cloudName: string,
     preset: string,
     chunkSize: number,
-    onProgress?: (progress: number, stage?: string) => void
+    onProgress?: (progress: number, done?: boolean) => void,
+    folder: string = 'socialindia_videos'
   ): Promise<{ videoUrl: string; duration?: number; bytes?: number }> {
-    const uniqueUploadId = `${Date.now()}${Math.random().toString(36).replace(/[^a-z0-9]/gi, '')}`;
+    const uniqueUploadId = `si_${Date.now()}_${Math.random().toString(36).replace(/[^a-z0-9]/gi, '')}`;
     const totalSize = file.size;
-    const totalChunks = Math.ceil(totalSize / chunkSize);
+    // Use 5MB probe on chunk 1 for >100MB files so plan cap is detected cleanly
+    const firstChunkSize = totalSize > CLOUDINARY_FREE_LIMIT_BYTES
+      ? Math.min(CLOUDINARY_PROBE_CHUNK_BYTES, chunkSize)
+      : chunkSize;
+    const remainingBytesAfterFirst = Math.max(0, totalSize - firstChunkSize);
+    const totalChunks = 1 + Math.ceil(remainingBytesAfterFirst / chunkSize);
 
     let start = 0;
     let chunkIndex = 0;
     let finalResult: { videoUrl: string; duration?: number; bytes?: number } | null = null;
 
     while (start < totalSize) {
-      const end = Math.min(start + chunkSize, totalSize);
+      const currentChunkSize = chunkIndex === 0 ? firstChunkSize : chunkSize;
+      const end = Math.min(start + currentChunkSize, totalSize);
       const isLastChunk = end >= totalSize;
       const chunkBlob = file.slice(start, end);
 
-      const chunkRes = await this.uploadSingleChunk(
-        chunkBlob,
-        file.name,
-        cloudName,
-        preset,
-        uniqueUploadId,
-        start,
-        end,
-        totalSize,
-        chunkIndex,
-        totalChunks,
-        isLastChunk,
-        onProgress
-      );
+      let chunkRes: { videoUrl: string; duration?: number; bytes?: number } | null = null;
+      const maxAttempts = 3;
+      let lastChunkErr: any = null;
 
-      if (isLastChunk) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          chunkRes = await this.uploadSingleChunk(
+            chunkBlob,
+            file.name,
+            cloudName,
+            preset,
+            uniqueUploadId,
+            start,
+            end,
+            totalSize,
+            chunkIndex,
+            totalChunks,
+            isLastChunk,
+            onProgress,
+            folder
+          );
+          lastChunkErr = null;
+          break;
+        } catch (err: any) {
+          lastChunkErr = err;
+          if (err?.nonRetryable || isCloudinaryPlanLimitError(err) || attempt === maxAttempts) {
+            throw err;
+          }
+          const delayMs = 1200 * attempt;
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+      }
+
+      if (lastChunkErr) throw lastChunkErr;
+
+      if (isLastChunk && chunkRes) {
         finalResult = chunkRes;
       }
 
@@ -433,17 +621,17 @@ export const videoService = {
     }
 
     if (!finalResult || !finalResult.videoUrl) {
-      throw new Error('Video chunk upload completed but video URL was not received.');
+      throw new Error('Video upload did not return a playable URL. Please try again.');
     }
 
-    onProgress?.(100, 'Video ready!');
+    onProgress?.(100, true);
     return {
       ...finalResult,
       bytes: finalResult.bytes || file.size
     };
   },
 
-  // Upload an individual chunk with Range header
+  // Internal segment sender
   uploadSingleChunk(
     chunkBlob: Blob,
     fileName: string,
@@ -456,21 +644,21 @@ export const videoService = {
     chunkIndex: number,
     totalChunks: number,
     isLastChunk: boolean,
-    onProgress?: (progress: number, stage?: string) => void
+    onProgress?: (progress: number, done?: boolean) => void,
+    folder: string = 'socialindia_videos'
   ): Promise<{ videoUrl: string; duration?: number; bytes?: number }> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const formData = new FormData();
       formData.append('file', chunkBlob, fileName);
       formData.append('upload_preset', preset);
-      formData.append('folder', 'socialindia_videos');
+      formData.append('folder', folder);
 
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable && onProgress) {
           const currentLoaded = start + e.loaded;
-          const percent = Math.min(99, Math.round((currentLoaded / totalSize) * 100));
-          const stage = `Uploading part ${chunkIndex + 1}/${totalChunks} (${percent}%)...`;
-          onProgress(percent, stage);
+          const percent = Math.min(99, Math.max(1, Math.round((currentLoaded / totalSize) * 100)));
+          onProgress(percent, false);
         }
       });
 
@@ -479,7 +667,7 @@ export const videoService = {
           try {
             const res = JSON.parse(xhr.responseText || '{}');
             if (isLastChunk) {
-              if (onProgress) onProgress(100, 'Processing video stream on Cloud CDN...');
+              if (onProgress) onProgress(100, true);
               const cleanDuration = sanitizeVideoDuration(res.duration);
               const cleanBytes = typeof res.bytes === 'number' && Number.isFinite(res.bytes) && res.bytes > 0
                 ? Math.round(res.bytes)
@@ -497,23 +685,26 @@ export const videoService = {
             else resolve({ videoUrl: '' });
           }
         } else {
-          let errMsg = `Chunk ${chunkIndex + 1}/${totalChunks} upload failed (HTTP ${xhr.status})`;
+          let errMsg = `Upload failed (HTTP ${xhr.status})`;
           try {
             const err = JSON.parse(xhr.responseText);
             if (err.error?.message) {
-              if (err.error.message.includes('File size too large') || err.error.message.includes('104857600') || err.error.message.includes('account limit')) {
-                errMsg = 'Video file size exceeds direct upload limit (100MB).';
-              } else {
-                errMsg = err.error.message;
-              }
+              errMsg = err.error.message;
             }
           } catch (_) {}
-          reject(new Error(errMsg));
+          const errorObj: any = new Error(errMsg);
+          if (xhr.status === 413 || isCloudinaryPlanLimitError(errMsg)) {
+            errorObj.isPlanLimit = true;
+            errorObj.nonRetryable = true;
+          } else if (xhr.status >= 400 && xhr.status < 500 && xhr.status !== 408 && xhr.status !== 429) {
+            errorObj.nonRetryable = true;
+          }
+          reject(errorObj);
         }
       });
 
       xhr.addEventListener('error', () => {
-        reject(new Error(`Network error uploading video chunk ${chunkIndex + 1}/${totalChunks}. Please check your connection.`));
+        reject(new Error('Network error while uploading video. Please check your connection.'));
       });
 
       xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`);
@@ -560,7 +751,7 @@ export const videoService = {
                 reject(jsonErr);
               }
             } else {
-              let errMsg = `Cloudinary HTTP Error ${xhr.status}`;
+              let errMsg = `Thumbnail upload error (${xhr.status})`;
               try {
                 const err = JSON.parse(xhr.responseText);
                 if (err.error?.message) errMsg = err.error.message;
@@ -613,7 +804,7 @@ export const videoService = {
     return result.videoUrl;
   },
 
-  // Fallback Firebase Storage Upload (Supporting File or Blob)
+  // Fallback Firebase Storage Upload (Supporting File or Blob) with 8s zero-progress stall guard
   async uploadToFirebase(
     fileOrBlob: File | Blob, 
     path: string, 
@@ -623,17 +814,40 @@ export const videoService = {
     const contentType = fileOrBlob.type || 'application/octet-stream';
     const fileRef = ref(storage, `${path}/${Date.now()}_${filename}`);
     return new Promise((resolve, reject) => {
+      let settled = false;
       const uploadTask = uploadBytesResumable(fileRef, fileOrBlob, { contentType });
+
+      const stallTimer = setTimeout(() => {
+        if (!settled && uploadTask.snapshot.bytesTransferred === 0) {
+          settled = true;
+          try {
+            uploadTask.cancel();
+          } catch {}
+          reject(new Error('Backup Firebase Storage did not respond (bucket may not be provisioned).'));
+        }
+      }, 8000);
+
       uploadTask.on('state_changed', 
         (snapshot) => {
-          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          if (onProgress) onProgress(progress);
+          if (snapshot.bytesTransferred > 0) {
+            clearTimeout(stallTimer);
+          }
+          const progress = snapshot.totalBytes > 0
+            ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+            : 0;
+          if (onProgress && progress > 0) onProgress(progress);
         },
         (error) => {
+          clearTimeout(stallTimer);
+          if (settled) return;
+          settled = true;
           console.error('Firebase Storage upload error:', error);
           reject(error);
         },
         async () => {
+          clearTimeout(stallTimer);
+          if (settled) return;
+          settled = true;
           const url = await getDownloadURL(uploadTask.snapshot.ref);
           resolve(url);
         }
@@ -694,6 +908,12 @@ export const videoService = {
       title: videoData.title || 'Untitled Video',
       description: videoData.description || '',
       videoUrl: videoData.videoUrl || '',
+      ...(Array.isArray(videoData.videoParts) && videoData.videoParts.length > 1
+        ? { videoParts: videoData.videoParts }
+        : {}),
+      ...(Array.isArray(videoData.videoPartDurations) && videoData.videoPartDurations.length > 1
+        ? { videoPartDurations: videoData.videoPartDurations }
+        : {}),
       thumbnailUrl: finalThumbnail,
       duration: cleanDuration,
       ...(cleanFileSizeBytes ? { fileSizeBytes: cleanFileSizeBytes } : {}),

@@ -11,7 +11,14 @@ import { subscriptionService } from '../services/subscriptionService';
 import { savedVideoService } from '../services/savedVideoService';
 import { DEFAULT_SOUNDS } from '../services/soundService';
 import { Video, Comment, User } from '../types';
-import { parseVideoUrl, getInitials, formatTimeAgo, formatViews } from '../utils/videoUtils';
+import {
+  parseVideoUrl,
+  getInitials,
+  formatTimeAgo,
+  formatViews,
+  getOptimizedVideoStreamUrl,
+  markCloudinaryTransformFailed,
+} from '../utils/videoUtils';
 import { isUserVerified } from '../utils/userUtils';
 import { UserAvatar } from '../components/UserAvatar';
 import { useTranslation } from '../i18n';
@@ -117,6 +124,45 @@ const ShortVideoMedia: React.FC<{
   }, [short.videoId, short.videoUrl]);
 
   const [isFrameReady, setIsFrameReady] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [forceRaw, setForceRaw] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const bufferingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearBufferingTimer = () => {
+    if (bufferingTimerRef.current) {
+      clearTimeout(bufferingTimerRef.current);
+      bufferingTimerRef.current = null;
+    }
+  };
+
+  const scheduleBuffering = () => {
+    clearBufferingTimer();
+    bufferingTimerRef.current = setTimeout(() => {
+      const vid = videoRef.current;
+      if (vid && isMountedRef.current && isPlayingRef.current && vid.readyState < 3) {
+        setIsBuffering(true);
+      }
+    }, 400);
+  };
+
+  useEffect(() => {
+    setIsFrameReady(false);
+    setIsBuffering(false);
+    setForceRaw(false);
+    setMediaError(false);
+    clearBufferingTimer();
+    return () => clearBufferingTimer();
+  }, [short.videoId, short.videoUrl]);
+
+  const activeDirectSrc = forceRaw
+    ? parsedMedia.embedUrl
+    : getOptimizedVideoStreamUrl(parsedMedia.embedUrl, {
+        isShort: true,
+        fileSizeBytes: short.fileSizeBytes,
+        duration: short.duration,
+      });
 
   // A custom soundtrack is only used when the short explicitly references a non-original sound
   // or an external audio URL that is distinct from the video file itself.
@@ -482,11 +528,28 @@ const ShortVideoMedia: React.FC<{
           }`}
         />
       )}
-      {!isFrameReady && isPlaying && (
+      {((!isFrameReady && isPlaying) || isBuffering) && !mediaError && (
         <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-black/25">
           <div className="w-11 h-11 rounded-full bg-black/55 backdrop-blur-md flex items-center justify-center border border-white/15 shadow-lg">
             <Loader2 className="w-5 h-5 text-white animate-spin" />
           </div>
+        </div>
+      )}
+      {mediaError && (
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2.5 bg-black/75 px-4 text-center">
+          <p className="text-xs font-bold text-slate-200">Could not load this Clip.</p>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMediaError(false);
+              setForceRaw(true);
+              setRetryKey((k) => k + 1);
+            }}
+            className="px-4 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold cursor-pointer"
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -524,17 +587,50 @@ const ShortVideoMedia: React.FC<{
         />
       ) : parsedMedia.type === 'direct' ? (
         <video
+          key={`${short.videoId}-${retryKey}`}
           ref={videoRef}
-          src={parsedMedia.embedUrl}
+          src={activeDirectSrc}
           loop
           playsInline
           // @ts-ignore
           webkit-playsinline="true"
           preload="auto"
           muted={resolvedSoundAudioUrl ? true : isMuted}
-          onCanPlay={handleMediaReadyAndPlay}
-          onLoadedData={handleMediaReadyAndPlay}
+          onWaiting={scheduleBuffering}
+          onSeeking={scheduleBuffering}
+          onSeeked={() => {
+            clearBufferingTimer();
+            setIsBuffering(false);
+          }}
+          onCanPlay={() => {
+            clearBufferingTimer();
+            setIsBuffering(false);
+            handleMediaReadyAndPlay();
+          }}
+          onCanPlayThrough={() => {
+            clearBufferingTimer();
+            setIsBuffering(false);
+            setIsFrameReady(true);
+            onMediaReady();
+          }}
+          onLoadedData={() => {
+            clearBufferingTimer();
+            setIsBuffering(false);
+            handleMediaReadyAndPlay();
+          }}
           onLoadedMetadata={() => {
+            onMediaReady();
+          }}
+          onError={() => {
+            clearBufferingTimer();
+            if (!forceRaw && activeDirectSrc !== parsedMedia.embedUrl) {
+              markCloudinaryTransformFailed(activeDirectSrc);
+              setForceRaw(true);
+              return;
+            }
+            setIsBuffering(false);
+            setIsFrameReady(true);
+            setMediaError(true);
             onMediaReady();
           }}
           onPlaying={() => {
@@ -542,7 +638,10 @@ const ShortVideoMedia: React.FC<{
               videoRef.current?.pause();
               return;
             }
+            clearBufferingTimer();
+            setIsBuffering(false);
             setIsFrameReady(true);
+            setMediaError(false);
             onMediaReady();
             onPlaybackStateChange?.(true);
           }}
@@ -552,6 +651,8 @@ const ShortVideoMedia: React.FC<{
               soundAudioRef.current?.pause();
               return;
             }
+            clearBufferingTimer();
+            setIsBuffering(false);
             setIsFrameReady(true);
             onMediaReady();
             onPlaybackStateChange?.(true);
@@ -560,6 +661,8 @@ const ShortVideoMedia: React.FC<{
             }
           }}
           onPause={() => {
+            clearBufferingTimer();
+            setIsBuffering(false);
             onPlaybackStateChange?.(false);
             if (soundAudioRef.current) {
               soundAudioRef.current.pause();
@@ -567,6 +670,8 @@ const ShortVideoMedia: React.FC<{
           }}
           onTimeUpdate={() => {
             if (videoRef.current && videoRef.current.currentTime > 0) {
+              clearBufferingTimer();
+              setIsBuffering(false);
               setIsFrameReady(true);
             }
             if (videoRef.current && soundAudioRef.current && resolvedSoundAudioUrl) {
@@ -1755,6 +1860,26 @@ export const Shorts: React.FC = () => {
               onMediaReady={() => setIsMediaReady(true)}
               onPlaybackStateChange={setIsPlaying}
             />
+            {isMediaReady && shorts[currentIndex + 1] && (() => {
+              const nextParsed = parseVideoUrl(shorts[currentIndex + 1].videoUrl);
+              if (nextParsed.type !== 'direct') return null;
+              const nextSrc = getOptimizedVideoStreamUrl(nextParsed.embedUrl, {
+                isShort: true,
+                fileSizeBytes: shorts[currentIndex + 1].fileSizeBytes,
+                duration: shorts[currentIndex + 1].duration,
+              });
+              return (
+                <video
+                  key={`preload-${shorts[currentIndex + 1].videoId}`}
+                  src={nextSrc}
+                  preload="auto"
+                  muted
+                  playsInline
+                  className="hidden"
+                  aria-hidden="true"
+                />
+              );
+            })()}
           </div>
 
           {/* PAID SHORT PAYWALL OVERLAY */}

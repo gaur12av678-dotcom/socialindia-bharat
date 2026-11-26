@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Video } from '../types';
-import { parseVideoUrl, formatDuration, getInitials } from '../utils/videoUtils';
+import {
+  parseVideoUrl,
+  formatDuration,
+  getInitials,
+  getOptimizedVideoStreamUrl,
+  markCloudinaryTransformFailed,
+} from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
 import { useTranslation } from '../i18n';
 import { playbackProgressService } from '../services/playbackProgressService';
@@ -80,6 +86,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
   const parsedMedia = parseVideoUrl(video.videoUrl);
+  const videoParts = React.useMemo(() => {
+    if (parsedMedia.type !== 'direct') return null;
+    return Array.isArray(video.videoParts) && video.videoParts.length > 1 ? video.videoParts : null;
+  }, [parsedMedia.type, video.videoParts]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -87,6 +97,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const isMountedRef = useRef<boolean>(true);
   const isUserPausedRef = useRef<boolean>(false);
   const hasStartedInitialAutoplayRef = useRef<boolean>(false);
+  const pendingPartSeekRef = useRef<{ partIndex: number; localTime: number; shouldPlay: boolean } | null>(null);
 
   // Ambient Mode (Enhanced YouTube Ambient Light)
   const ambientVideoRef = useRef<HTMLVideoElement>(null);
@@ -143,9 +154,74 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
   const [isMediaReady, setIsMediaReady] = useState(false);
   const [isBuffering, setIsBuffering] = useState(true);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [selectedQuality, setSelectedQuality] = useState('Auto');
+  const [forceRawPlayback, setForceRawPlayback] = useState(false);
+  const [retrySeed, setRetrySeed] = useState(0);
+  const bufferingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearBufferingTimer = React.useCallback(() => {
+    if (bufferingTimerRef.current) {
+      clearTimeout(bufferingTimerRef.current);
+      bufferingTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleBufferingSpinner = React.useCallback(() => {
+    clearBufferingTimer();
+    bufferingTimerRef.current = setTimeout(() => {
+      const vid = videoRef.current;
+      if (vid && !isUserPausedRef.current && (vid.readyState < 3 || vid.seeking)) {
+        setIsBuffering(true);
+      }
+    }, 380);
+  }, [clearBufferingTimer]);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(video.duration || 0);
+  const [activePartIndex, setActivePartIndex] = useState(0);
+  const [partDurations, setPartDurations] = useState<number[]>(() => {
+    if (!videoParts) return [];
+    if (Array.isArray(video.videoPartDurations) && video.videoPartDurations.length === videoParts.length) {
+      return video.videoPartDurations.map((d) => (Number.isFinite(Number(d)) && Number(d) > 0 ? Number(d) : 0));
+    }
+    const fallbackPerPart = (video.duration || 0) / videoParts.length;
+    return videoParts.map(() => fallbackPerPart);
+  });
+
+  const rawActivePartSrc = videoParts ? (videoParts[activePartIndex] || parsedMedia.embedUrl) : parsedMedia.embedUrl;
+  const approxPartBytes = videoParts && video.fileSizeBytes
+    ? Math.round(video.fileSizeBytes / videoParts.length)
+    : video.fileSizeBytes;
+  const approxPartDuration = videoParts
+    ? (partDurations[activePartIndex] || Math.round((video.duration || 0) / videoParts.length))
+    : video.duration;
+  const activePartSrc = forceRawPlayback
+    ? rawActivePartSrc
+    : getOptimizedVideoStreamUrl(rawActivePartSrc, {
+        quality: selectedQuality,
+        isShort: video.isShort,
+        fileSizeBytes: approxPartBytes,
+        duration: approxPartDuration,
+      });
+
+  const partOffsets = React.useMemo(() => {
+    if (!videoParts) return [0];
+    const offsets: number[] = [];
+    let acc = 0;
+    for (let i = 0; i < videoParts.length; i++) {
+      offsets.push(acc);
+      acc += partDurations[i] || 0;
+    }
+    return offsets;
+  }, [videoParts, partDurations]);
+
+  const totalMultiPartDuration = React.useMemo(() => {
+    if (!videoParts) return 0;
+    const sum = partDurations.reduce((a, b) => a + (b || 0), 0);
+    return sum > 0 ? sum : (video.duration || 0);
+  }, [videoParts, partDurations, video.duration]);
   const [isCreatorVerified, setIsCreatorVerified] = useState(() =>
     isUserVerified(userService.getCachedUserProfile(video.creatorId))
   );
@@ -193,6 +269,21 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   useEffect(() => {
     isUserPausedRef.current = false;
     hasStartedInitialAutoplayRef.current = false;
+    pendingPartSeekRef.current = null;
+    clearBufferingTimer();
+    setForceRawPlayback(false);
+    setMediaError(null);
+    setActivePartIndex(0);
+    if (videoParts) {
+      if (Array.isArray(video.videoPartDurations) && video.videoPartDurations.length === videoParts.length) {
+        setPartDurations(video.videoPartDurations.map((d) => (Number.isFinite(Number(d)) && Number(d) > 0 ? Number(d) : 0)));
+      } else {
+        const fallbackPerPart = (video.duration || 0) / videoParts.length;
+        setPartDurations(videoParts.map(() => fallbackPerPart));
+      }
+    } else {
+      setPartDurations([]);
+    }
     setIsMediaReady(false);
     setIsBuffering(true);
     setIsPlaying(false);
@@ -204,7 +295,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     setIsHolding2x(false);
     hasAppliedSeekRef.current = false;
     setShowResumeBadge(false);
-  }, [video.videoId, video.videoUrl]);
+  }, [video.videoId, video.videoUrl, clearBufferingTimer]);
 
   // Strict media cleanup on unmount or source change so audio never leaks in background
   useEffect(() => {
@@ -270,25 +361,100 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     }
   }, [showResumeBadge]);
 
+  const seekToGlobalTime = React.useCallback((targetTime: number, shouldPlayAfterSeek?: boolean) => {
+    const clampedTarget = Math.max(0, targetTime);
+    setCurrentTime(clampedTarget);
+
+    if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.seekTo) {
+      try {
+        ytPlayerRef.current.seekTo(clampedTarget, true);
+        if (ytAmbientPlayerRef.current?.seekTo) {
+          ytAmbientPlayerRef.current.seekTo(clampedTarget, true);
+        }
+        if (shouldPlayAfterSeek && !isUserPausedRef.current) {
+          ytPlayerRef.current.playVideo?.();
+          if (isAmbientMode) ytAmbientPlayerRef.current?.playVideo?.();
+          setIsPlaying(true);
+        }
+      } catch (err) {
+        console.warn('YT seek failed:', err);
+      }
+      return;
+    }
+
+    if (videoParts && videoParts.length > 1) {
+      let targetIdx = videoParts.length - 1;
+      for (let i = 0; i < videoParts.length; i++) {
+        const start = partOffsets[i] || 0;
+        const end = start + (partDurations[i] || 0);
+        if (clampedTarget < end || i === videoParts.length - 1) {
+          targetIdx = i;
+          break;
+        }
+      }
+      const localTime = Math.max(0, clampedTarget - (partOffsets[targetIdx] || 0));
+      if (targetIdx === activePartIndex && videoRef.current) {
+        videoRef.current.currentTime = localTime;
+        if (ambientVideoRef.current) {
+          ambientVideoRef.current.currentTime = localTime;
+        }
+        if (shouldPlayAfterSeek && !isUserPausedRef.current) {
+          videoRef.current.play().then(() => {
+            if (!isMountedRef.current || isUserPausedRef.current) {
+              videoRef.current?.pause();
+              return;
+            }
+            if (isAmbientMode) ambientVideoRef.current?.play().catch(() => {});
+            setIsPlaying(true);
+          }).catch(() => {});
+        }
+      } else {
+        pendingPartSeekRef.current = {
+          partIndex: targetIdx,
+          localTime,
+          shouldPlay: shouldPlayAfterSeek ?? !isUserPausedRef.current,
+        };
+        setIsBuffering(true);
+        setActivePartIndex(targetIdx);
+      }
+      return;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.currentTime = clampedTarget;
+      if (ambientVideoRef.current) {
+        ambientVideoRef.current.currentTime = clampedTarget;
+      }
+      if (shouldPlayAfterSeek && !isUserPausedRef.current) {
+        videoRef.current.play().then(() => {
+          if (!isMountedRef.current || isUserPausedRef.current) {
+            videoRef.current?.pause();
+            return;
+          }
+          if (isAmbientMode) ambientVideoRef.current?.play().catch(() => {});
+          setIsPlaying(true);
+        }).catch(() => {});
+      }
+    }
+  }, [parsedMedia.type, videoParts, partOffsets, partDurations, activePartIndex, isAmbientMode]);
+
   // Apply initial seek if seekToTime is provided (>5s)
   useEffect(() => {
     if (!seekToTime || seekToTime <= 5 || hasAppliedSeekRef.current) return;
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.seekTo) {
       try {
-        ytPlayerRef.current.seekTo(seekToTime, true);
-        setCurrentTime(seekToTime);
+        seekToGlobalTime(seekToTime, false);
         hasAppliedSeekRef.current = true;
         setShowResumeBadge(true);
       } catch (_) {}
     } else if (videoRef.current && videoRef.current.readyState >= 1) {
       try {
-        videoRef.current.currentTime = seekToTime;
-        setCurrentTime(seekToTime);
+        seekToGlobalTime(seekToTime, false);
         hasAppliedSeekRef.current = true;
         setShowResumeBadge(true);
       } catch (_) {}
     }
-  }, [seekToTime, parsedMedia.type]);
+  }, [seekToTime, parsedMedia.type, seekToGlobalTime]);
 
   // Monitor network connectivity for automatic buffering indication
   useEffect(() => {
@@ -352,39 +518,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   // Handle external seekToTime request (e.g. description timestamp click)
   useEffect(() => {
     if (seekToTime !== undefined && seekToTime >= 0) {
-      if (parsedMedia.type === 'direct' && videoRef.current) {
-        videoRef.current.currentTime = seekToTime;
-        if (ambientVideoRef.current) {
-          ambientVideoRef.current.currentTime = seekToTime;
-          if (!isUserPausedRef.current && isAmbientMode) {
-            ambientVideoRef.current.play().catch(() => {});
-          }
-        }
-        setCurrentTime(seekToTime);
-        if (!isUserPausedRef.current) {
-          videoRef.current.play().then(() => {
-            if (!isMountedRef.current || isUserPausedRef.current) {
-              videoRef.current?.pause();
-              return;
-            }
-            setIsPlaying(true);
-          }).catch(console.error);
-        }
-      } else if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
-        try {
-          ytPlayerRef.current.seekTo(seekToTime, true);
-          if (ytAmbientPlayerRef.current?.seekTo) {
-            ytAmbientPlayerRef.current.seekTo(seekToTime, true);
-          }
-          if (!isUserPausedRef.current) {
-            ytPlayerRef.current.playVideo();
-            if (isAmbientMode) ytAmbientPlayerRef.current?.playVideo?.();
-            setIsPlaying(true);
-          }
-        } catch (e) {
-          console.warn('YouTube seek failed:', e);
-        }
-      }
+      seekToGlobalTime(seekToTime, true);
     }
   }, [seekToTime]);
 
@@ -400,14 +534,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [playerMenuAnchor, setPlayerMenuAnchor] = useState<'top' | 'bottom'>('top');
   const [playerSubMenu, setPlayerSubMenu] = useState<'main' | 'speed' | 'quality' | 'ambient'>('main');
   const [isLooping, setIsLooping] = useState(false);
-  const [selectedQuality, setSelectedQuality] = useState('1080p HD');
   const [linkCopied, setLinkCopied] = useState(false);
 
   const toggleLoop = () => {
     setIsLooping(prev => {
       const next = !prev;
       if (videoRef.current) {
-        videoRef.current.loop = next;
+        videoRef.current.loop = !videoParts && next;
       }
       return next;
     });
@@ -450,22 +583,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     const targetTime = pos * duration;
     setHoverPercent(pos * 100);
     setHoverTime(targetTime);
-    setCurrentTime(targetTime);
     setIsTimelineHovered(true);
-
-    if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.seekTo) {
-      try {
-        ytPlayerRef.current.seekTo(targetTime, true);
-        if (ytAmbientPlayerRef.current?.seekTo) {
-          ytAmbientPlayerRef.current.seekTo(targetTime, true);
-        }
-      } catch (_) {}
-    } else if (videoRef.current) {
-      videoRef.current.currentTime = targetTime;
-      if (ambientVideoRef.current) {
-        ambientVideoRef.current.currentTime = targetTime;
-      }
-    }
+    seekToGlobalTime(targetTime);
   };
 
   const handleTimelineTouchEnd = () => {
@@ -479,23 +598,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     const rect = timelineRef.current.getBoundingClientRect();
     const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const targetTime = pos * duration;
-    setCurrentTime(targetTime);
-
-    if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
-      try {
-        ytPlayerRef.current.seekTo(targetTime, true);
-        if (ytAmbientPlayerRef.current?.seekTo) {
-          ytAmbientPlayerRef.current.seekTo(targetTime, true);
-        }
-      } catch (err) {
-        console.warn('YT seek error', err);
-      }
-    } else if (videoRef.current) {
-      videoRef.current.currentTime = targetTime;
-      if (ambientVideoRef.current) {
-        ambientVideoRef.current.currentTime = targetTime;
-      }
-    }
+    seekToGlobalTime(targetTime);
   };
 
   const handleSpeedChange = (speed: number) => {
@@ -662,11 +765,15 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 ytAmbientPlayerRef.current?.playVideo();
               } catch (_) {}
             } else if (event.data === 2) { // PAUSED
+              setIsMediaReady(true);
               setIsPlaying(false);
               setIsBuffering(false);
               try {
                 ytAmbientPlayerRef.current?.pauseVideo();
               } catch (_) {}
+            } else if (event.data === -1 || event.data === 5) { // UNSTARTED / CUED (e.g. autoplay blocked on mobile)
+              setIsMediaReady(true);
+              setIsBuffering(false);
             } else if (event.data === 3) { // BUFFERING (Network slow or video stalling)
               setIsBuffering(true);
             } else if (event.data === 0) { // ENDED
@@ -687,52 +794,6 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           }
         }
       });
-
-      // Synchronized Ambient YouTube Player for authentic live blurred backdrop
-      const ambientElementId = `yt-ambient-player-${video.videoId}`;
-      const ambientEl = document.getElementById(ambientElementId);
-      if (ambientEl) {
-        try {
-          ytAmbientPlayerRef.current = new window.YT.Player(ambientElementId, {
-            videoId: parsedMedia.youtubeId,
-            playerVars: {
-              autoplay: 1,
-              controls: 0,
-              modestbranding: 1,
-              rel: 0,
-              showinfo: 0,
-              iv_load_policy: 3,
-              disablekb: 1,
-              fs: 0,
-              mute: 1,
-              playsinline: 1,
-              loop: 1,
-              playlist: parsedMedia.youtubeId
-            },
-            events: {
-              onReady: (event: any) => {
-                if (!isMounted) {
-                  try {
-                    event.target.pauseVideo?.();
-                    event.target.destroy?.();
-                  } catch (_) {}
-                  return;
-                }
-                try {
-                  event.target.mute();
-                  if (!isUserPausedRef.current) {
-                    event.target.playVideo();
-                  } else {
-                    event.target.pauseVideo();
-                  }
-                } catch (_) {}
-              }
-            }
-          });
-        } catch (e) {
-          console.warn('Ambient YT player init error:', e);
-        }
-      }
     };
 
     if (window.YT && window.YT.Player) {
@@ -768,18 +829,97 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         }
         ytPlayerRef.current = null;
       }
+    };
+  }, [video.videoId, video.videoUrl]);
+
+  // Only initialize Ambient YouTube Player when Ambient Mode is explicitly enabled (prevents 2x bandwidth waste!)
+  useEffect(() => {
+    if (!isAmbientMode || parsedMedia.type !== 'youtube' || !parsedMedia.youtubeId) {
       if (ytAmbientPlayerRef.current) {
         try {
           ytAmbientPlayerRef.current.pauseVideo?.();
           ytAmbientPlayerRef.current.stopVideo?.();
           ytAmbientPlayerRef.current.destroy?.();
-        } catch (e) {
-          console.error(e);
-        }
+        } catch (_) {}
+        ytAmbientPlayerRef.current = null;
+      }
+      return;
+    }
+
+    let isMounted = true;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const initAmbientYT = () => {
+      if (!isMounted) return;
+      if (!window.YT || !window.YT.Player) {
+        retryTimer = setTimeout(initAmbientYT, 150);
+        return;
+      }
+      const ambientElementId = `yt-ambient-player-${video.videoId}`;
+      const ambientEl = document.getElementById(ambientElementId);
+      if (!ambientEl) return;
+
+      try {
+        ytAmbientPlayerRef.current = new window.YT.Player(ambientElementId, {
+          videoId: parsedMedia.youtubeId,
+          playerVars: {
+            autoplay: 1,
+            controls: 0,
+            modestbranding: 1,
+            rel: 0,
+            showinfo: 0,
+            iv_load_policy: 3,
+            disablekb: 1,
+            fs: 0,
+            mute: 1,
+            playsinline: 1,
+            loop: 1,
+            playlist: parsedMedia.youtubeId
+          },
+          events: {
+            onReady: (event: any) => {
+              if (!isMounted) {
+                try {
+                  event.target.pauseVideo?.();
+                  event.target.destroy?.();
+                } catch (_) {}
+                return;
+              }
+              try {
+                event.target.mute();
+                const mainTime = ytPlayerRef.current?.getCurrentTime?.();
+                if (typeof mainTime === 'number' && mainTime > 0) {
+                  event.target.seekTo?.(mainTime, true);
+                }
+                if (!isUserPausedRef.current) {
+                  event.target.playVideo();
+                } else {
+                  event.target.pauseVideo();
+                }
+              } catch (_) {}
+            }
+          }
+        });
+      } catch (e) {
+        console.warn('Ambient YT player init error:', e);
+      }
+    };
+
+    initAmbientYT();
+
+    return () => {
+      isMounted = false;
+      if (retryTimer) clearTimeout(retryTimer);
+      if (ytAmbientPlayerRef.current) {
+        try {
+          ytAmbientPlayerRef.current.pauseVideo?.();
+          ytAmbientPlayerRef.current.stopVideo?.();
+          ytAmbientPlayerRef.current.destroy?.();
+        } catch (_) {}
         ytAmbientPlayerRef.current = null;
       }
     };
-  }, [video.videoId, video.videoUrl]);
+  }, [isAmbientMode, parsedMedia.type, parsedMedia.youtubeId, video.videoId]);
 
   // Track YouTube Player Progress & auto-detect stream completion
   useEffect(() => {
@@ -843,18 +983,28 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     };
   }, [isAmbientMode, isPlaying, parsedMedia.type]);
 
-  // Direct HTML5 Video Handlers
+  // Direct HTML5 Video Handlers (supports both single MP4 and seamless multi-part segments)
   const handleDirectTimeUpdate = () => {
     if (videoRef.current) {
-      const cur = videoRef.current.currentTime;
-      setCurrentTime(cur);
-      setDuration(videoRef.current.duration || video.duration || 0);
-      if (onProgress) onProgress(cur);
+      const localCur = videoRef.current.currentTime;
+      if (videoRef.current.readyState >= 2) {
+        clearBufferingTimer();
+        setIsBuffering(false);
+        setIsMediaReady(true);
+        setMediaError(null);
+      }
+      const globalCur = videoParts ? (partOffsets[activePartIndex] || 0) + localCur : localCur;
+      const totalDur = videoParts
+        ? (totalMultiPartDuration || video.duration || videoRef.current.duration || 0)
+        : (videoRef.current.duration || video.duration || 0);
+      setCurrentTime(globalCur);
+      setDuration(totalDur);
+      if (onProgress) onProgress(globalCur);
 
-      if (ambientVideoRef.current) {
-        const diff = Math.abs(ambientVideoRef.current.currentTime - cur);
+      if (ambientVideoRef.current && isAmbientMode) {
+        const diff = Math.abs(ambientVideoRef.current.currentTime - localCur);
         if (diff > 0.35) {
-          ambientVideoRef.current.currentTime = cur;
+          ambientVideoRef.current.currentTime = localCur;
         }
       }
     }
@@ -904,19 +1054,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const targetTime = parseFloat(e.target.value);
-    setCurrentTime(targetTime);
-
-    if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
-      ytPlayerRef.current.seekTo(targetTime, true);
-      try {
-        ytAmbientPlayerRef.current?.seekTo(targetTime, true);
-      } catch (_) {}
-    } else if (videoRef.current) {
-      videoRef.current.currentTime = targetTime;
-      if (ambientVideoRef.current) {
-        ambientVideoRef.current.currentTime = targetTime;
-      }
-    }
+    seekToGlobalTime(targetTime);
   };
 
   const toggleMute = () => {
@@ -1011,24 +1149,8 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   };
 
   const skipSeconds = (seconds: number) => {
-    const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
-    setCurrentTime(newTime);
-
-    if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
-      try {
-        ytPlayerRef.current.seekTo(newTime, true);
-        if (ytAmbientPlayerRef.current?.seekTo) {
-          ytAmbientPlayerRef.current.seekTo(newTime, true);
-        }
-      } catch (err) {
-        console.warn('YT seek error', err);
-      }
-    } else if (videoRef.current) {
-      videoRef.current.currentTime = newTime;
-      if (ambientVideoRef.current) {
-        ambientVideoRef.current.currentTime = newTime;
-      }
-    }
+    const newTime = Math.max(0, Math.min(duration || 0, currentTime + seconds));
+    seekToGlobalTime(newTime);
   };
 
   // Double-tap & Keyboard Seeking Feedback state (YouTube Style)
@@ -1276,22 +1398,23 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           willChange: 'filter, transform, opacity'
         }}
       >
-        {parsedMedia.type === 'youtube' ? (
+        {isAmbientMode && parsedMedia.type === 'youtube' ? (
           <div className="w-full h-full scale-125 overflow-hidden flex items-center justify-center opacity-90">
             <div id={`yt-ambient-player-${video.videoId}`} className="w-full h-full pointer-events-none" />
           </div>
-        ) : parsedMedia.type === 'direct' ? (
+        ) : isAmbientMode && parsedMedia.type === 'direct' ? (
           <div className="w-full h-full scale-125 overflow-hidden flex items-center justify-center">
             <video
               ref={ambientVideoRef}
-              src={parsedMedia.embedUrl}
+              src={activePartSrc}
               muted
               playsInline
-              loop={isLooping}
+              preload="metadata"
+              loop={isLooping && !videoParts}
               className="w-full h-full object-cover pointer-events-none"
             />
           </div>
-        ) : video.thumbnailUrl ? (
+        ) : isAmbientMode && video.thumbnailUrl ? (
           <img
             src={video.thumbnailUrl}
             alt=""
@@ -1337,12 +1460,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.seekTo) {
-                  ytPlayerRef.current.seekTo(0, true);
-                } else if (videoRef.current) {
-                  videoRef.current.currentTime = 0;
-                }
-                setCurrentTime(0);
+                seekToGlobalTime(0, true);
                 setShowResumeBadge(false);
                 playbackProgressService.clearProgress(video.videoId);
               }}
@@ -1367,7 +1485,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
       {/* YOUTUBE-STYLE CENTER CIRCULAR BUFFER SPINNER */}
       <AnimatePresence>
-        {(isBuffering || !isMediaReady) && (
+        {(isBuffering || !isMediaReady) && !mediaError && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1380,6 +1498,26 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* MEDIA ERROR / NETWORK RECOVERY OVERLAY */}
+      {mediaError && (
+        <div className="absolute inset-0 z-45 flex flex-col items-center justify-center gap-3 bg-black/80 px-4 text-center">
+          <p className="text-xs sm:text-sm font-bold text-slate-200 max-w-sm">{mediaError}</p>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMediaError(null);
+              setIsBuffering(true);
+              setForceRawPlayback(true);
+              setRetrySeed((s) => s + 1);
+            }}
+            className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-lg cursor-pointer transition-colors"
+          >
+            {isHindi ? 'फिर से चलाएं (Retry)' : 'Retry Video'}
+          </button>
+        </div>
+      )}
 
       {/* VIDEO IFRAME / VIDEO LAYER */}
       <div className="absolute inset-0 overflow-hidden flex items-center justify-center bg-black">
@@ -1413,106 +1551,232 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             className="relative z-[60] w-full h-full"
           />
         ) : (
-          <video
-            ref={videoRef}
-            src={parsedMedia.embedUrl}
-            playsInline
-            preload="auto"
-            onWaiting={() => setIsBuffering(true)}
-            onStalled={() => setIsBuffering(true)}
-            onSeeking={() => setIsBuffering(true)}
-            onSeeked={() => setIsBuffering(false)}
-            onPlay={() => {
-              if (!isMountedRef.current || isUserPausedRef.current) {
-                videoRef.current?.pause();
-                ambientVideoRef.current?.pause();
-                return;
-              }
-              setIsPlaying(true);
-              if (isAmbientMode) {
-                ambientVideoRef.current?.play().catch(() => {});
-              }
-            }}
-            onPause={() => {
-              setIsPlaying(false);
-              ambientVideoRef.current?.pause();
-            }}
-            onPlaying={() => {
-              if (!isMountedRef.current || isUserPausedRef.current) {
-                videoRef.current?.pause();
-                ambientVideoRef.current?.pause();
-                return;
-              }
-              setIsBuffering(false);
-              setIsPlaying(true);
-              setIsMediaReady(true);
-            }}
-            onLoadedMetadata={() => {
-              if (videoRef.current) {
-                const dur = videoRef.current.duration;
-                if (dur) setDuration(dur);
-                if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
-                  hasAppliedSeekRef.current = true;
-                  videoRef.current.currentTime = seekToTime;
-                  setCurrentTime(seekToTime);
-                  setShowResumeBadge(true);
+          <>
+            <video
+              key={`${video.videoId}-${activePartIndex}-${retrySeed}`}
+              ref={videoRef}
+              src={activePartSrc}
+              playsInline
+              preload="auto"
+              onWaiting={() => scheduleBufferingSpinner()}
+              onSeeking={() => scheduleBufferingSpinner()}
+              onSeeked={() => {
+                clearBufferingTimer();
+                setIsBuffering(false);
+              }}
+              onLoadedData={() => {
+                clearBufferingTimer();
+                setIsMediaReady(true);
+                setIsBuffering(false);
+                setMediaError(null);
+              }}
+              onCanPlayThrough={() => {
+                clearBufferingTimer();
+                setIsMediaReady(true);
+                setIsBuffering(false);
+                setMediaError(null);
+              }}
+              onError={() => {
+                clearBufferingTimer();
+                if (!forceRawPlayback && activePartSrc !== rawActivePartSrc) {
+                  markCloudinaryTransformFailed(activePartSrc);
+                  pendingPartSeekRef.current = {
+                    partIndex: activePartIndex,
+                    localTime: videoRef.current?.currentTime || 0,
+                    shouldPlay: !isUserPausedRef.current,
+                  };
+                  setForceRawPlayback(true);
+                  return;
                 }
-              }
-            }}
-            onCanPlay={() => {
-              setIsMediaReady(true);
-              setIsBuffering(false);
-              if (videoRef.current) {
-                if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
-                  hasAppliedSeekRef.current = true;
-                  videoRef.current.currentTime = seekToTime;
-                  setCurrentTime(seekToTime);
-                  setShowResumeBadge(true);
+                setIsBuffering(false);
+                setIsMediaReady(true);
+                setMediaError(
+                  isHindi
+                    ? 'नेटवर्क धीमा है या वीडियो लोड नहीं हो सका। कृपया पुनः प्रयास करें।'
+                    : 'Video could not load due to slow network or stream error.'
+                );
+              }}
+              onPlay={() => {
+                if (!isMountedRef.current || isUserPausedRef.current) {
+                  videoRef.current?.pause();
+                  ambientVideoRef.current?.pause();
+                  return;
                 }
-                if (!hasStartedInitialAutoplayRef.current && !isUserPausedRef.current && isMountedRef.current) {
-                  hasStartedInitialAutoplayRef.current = true;
-                  videoRef.current.play().then(() => {
-                    if (!isMountedRef.current || isUserPausedRef.current) {
-                      videoRef.current?.pause();
-                      return;
+                setIsPlaying(true);
+                setMediaError(null);
+                if (isAmbientMode) {
+                  ambientVideoRef.current?.play().catch(() => {});
+                }
+              }}
+              onPause={() => {
+                setIsPlaying(false);
+                if (!videoRef.current?.seeking) {
+                  clearBufferingTimer();
+                  setIsBuffering(false);
+                }
+                ambientVideoRef.current?.pause();
+              }}
+              onPlaying={() => {
+                if (!isMountedRef.current || isUserPausedRef.current) {
+                  videoRef.current?.pause();
+                  ambientVideoRef.current?.pause();
+                  return;
+                }
+                clearBufferingTimer();
+                setIsBuffering(false);
+                setIsPlaying(true);
+                setIsMediaReady(true);
+                setMediaError(null);
+              }}
+              onLoadedMetadata={() => {
+                if (videoRef.current) {
+                  const dur = videoRef.current.duration;
+                  if (videoParts) {
+                    if (Number.isFinite(dur) && dur > 0) {
+                      setPartDurations((prev) => {
+                        if (Math.abs((prev[activePartIndex] || 0) - dur) < 0.1) return prev;
+                        const next = [...prev];
+                        next[activePartIndex] = dur;
+                        const newTotal = next.reduce((a, b) => a + (b || 0), 0);
+                        if (newTotal > 0) setDuration(newTotal);
+                        return next;
+                      });
                     }
-                    setIsPlaying(true);
-                  }).catch(() => {
-                    if (!isMountedRef.current || isUserPausedRef.current || !videoRef.current) return;
-                    // If browser policy requires mute first for autoplay
-                    videoRef.current.muted = true;
-                    setIsMuted(true);
+                  } else if (dur) {
+                    setDuration(dur);
+                  }
+                  videoRef.current.playbackRate = isHolding2x ? 2 : playbackSpeed;
+                  videoRef.current.muted = isMuted;
+                  videoRef.current.volume = volume;
+
+                  const pending = pendingPartSeekRef.current;
+                  if (pending && pending.partIndex === activePartIndex) {
+                    videoRef.current.currentTime = pending.localTime;
+                    if (ambientVideoRef.current) {
+                      ambientVideoRef.current.currentTime = pending.localTime;
+                    }
+                    setCurrentTime((partOffsets[activePartIndex] || 0) + pending.localTime);
+                  } else if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
+                    hasAppliedSeekRef.current = true;
+                    seekToGlobalTime(seekToTime, false);
+                    setShowResumeBadge(true);
+                  }
+                }
+              }}
+              onCanPlay={() => {
+                clearBufferingTimer();
+                setIsMediaReady(true);
+                setIsBuffering(false);
+                setMediaError(null);
+                if (videoRef.current) {
+                  videoRef.current.playbackRate = isHolding2x ? 2 : playbackSpeed;
+                  videoRef.current.muted = isMuted;
+                  videoRef.current.volume = volume;
+
+                  const pending = pendingPartSeekRef.current;
+                  if (pending && pending.partIndex === activePartIndex) {
+                    pendingPartSeekRef.current = null;
+                    if (Math.abs(videoRef.current.currentTime - pending.localTime) > 0.35) {
+                      videoRef.current.currentTime = pending.localTime;
+                    }
+                    if (pending.shouldPlay && !isUserPausedRef.current && isMountedRef.current) {
+                      videoRef.current.play().then(() => {
+                        if (!isMountedRef.current || isUserPausedRef.current) {
+                          videoRef.current?.pause();
+                          return;
+                        }
+                        if (isAmbientMode) ambientVideoRef.current?.play().catch(() => {});
+                        setIsPlaying(true);
+                      }).catch(() => {});
+                    }
+                    return;
+                  }
+
+                  if (seekToTime && seekToTime > 5 && !hasAppliedSeekRef.current) {
+                    hasAppliedSeekRef.current = true;
+                    seekToGlobalTime(seekToTime, false);
+                    setShowResumeBadge(true);
+                  }
+                  if (!hasStartedInitialAutoplayRef.current && !isUserPausedRef.current && isMountedRef.current) {
+                    hasStartedInitialAutoplayRef.current = true;
                     videoRef.current.play().then(() => {
                       if (!isMountedRef.current || isUserPausedRef.current) {
                         videoRef.current?.pause();
                         return;
                       }
                       setIsPlaying(true);
-                    }).catch(() => {});
-                  });
+                    }).catch(() => {
+                      if (!isMountedRef.current || isUserPausedRef.current || !videoRef.current) return;
+                      // If browser policy requires mute first for autoplay
+                      videoRef.current.muted = true;
+                      setIsMuted(true);
+                      videoRef.current.play().then(() => {
+                        if (!isMountedRef.current || isUserPausedRef.current) {
+                          videoRef.current?.pause();
+                          return;
+                        }
+                        setIsPlaying(true);
+                      }).catch(() => {});
+                    });
+                  }
                 }
-              }
-            }}
-            onTimeUpdate={handleDirectTimeUpdate}
-            onEnded={() => {
-              setIsBuffering(false);
-              if (isLooping) {
-                if (videoRef.current && !isUserPausedRef.current && isMountedRef.current) {
-                  videoRef.current.currentTime = 0;
-                  videoRef.current.play().catch(() => {});
+              }}
+              onTimeUpdate={handleDirectTimeUpdate}
+              onEnded={() => {
+                clearBufferingTimer();
+                setIsBuffering(false);
+                if (videoParts && activePartIndex < videoParts.length - 1) {
+                  const nextIdx = activePartIndex + 1;
+                  pendingPartSeekRef.current = {
+                    partIndex: nextIdx,
+                    localTime: 0,
+                    shouldPlay: !isUserPausedRef.current,
+                  };
+                  setIsBuffering(true);
+                  setActivePartIndex(nextIdx);
+                  return;
                 }
-                return;
-              }
-              setIsPlaying(false);
-              ambientVideoRef.current?.pause();
-              if (onEnded) {
-                onEnded();
-              } else if (isAutoplay && hasNextVideo && onNextVideo) {
-                onNextVideo();
-              }
-            }}
-            className="w-full h-full object-contain"
-          />
+                if (isLooping) {
+                  if (videoParts && activePartIndex !== 0) {
+                    pendingPartSeekRef.current = {
+                      partIndex: 0,
+                      localTime: 0,
+                      shouldPlay: !isUserPausedRef.current,
+                    };
+                    setActivePartIndex(0);
+                  } else if (videoRef.current && !isUserPausedRef.current && isMountedRef.current) {
+                    videoRef.current.currentTime = 0;
+                    videoRef.current.play().catch(() => {});
+                  }
+                  return;
+                }
+                setIsPlaying(false);
+                ambientVideoRef.current?.pause();
+                if (onEnded) {
+                  onEnded();
+                } else if (isAutoplay && hasNextVideo && onNextVideo) {
+                  onNextVideo();
+                }
+              }}
+              className="w-full h-full object-contain"
+            />
+            {videoParts && activePartIndex + 1 < videoParts.length && isMediaReady && (
+              <video
+                key={videoParts[activePartIndex + 1]}
+                src={videoParts[activePartIndex + 1]}
+                preload={
+                  (partDurations[activePartIndex] || 0) > 0 &&
+                  currentTime - (partOffsets[activePartIndex] || 0) >= Math.max(0, (partDurations[activePartIndex] || 0) - 25)
+                    ? 'auto'
+                    : 'none'
+                }
+                muted
+                playsInline
+                className="hidden"
+                aria-hidden="true"
+              />
+            )}
+          </>
         )}
       </div>
 
@@ -2193,17 +2457,28 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     </span>
                   </div>
 
-                  {['1080p HD (Auto)', '1080p Premium 60fps', '720p HD', '480p High', '360p Data Saver', 'Auto'].map((q) => (
+                  {['Auto', '1080p HD', '720p HD', '480p High', '360p Data Saver'].map((q) => (
                     <button
                       key={q}
                       onClick={() => {
-                        setSelectedQuality(q);
+                        if (q !== selectedQuality) {
+                          if (parsedMedia.type === 'direct' && videoRef.current) {
+                            pendingPartSeekRef.current = {
+                              partIndex: activePartIndex,
+                              localTime: videoRef.current.currentTime || 0,
+                              shouldPlay: isPlaying && !isUserPausedRef.current,
+                            };
+                            setIsBuffering(true);
+                            setForceRawPlayback(false);
+                          }
+                          setSelectedQuality(q);
+                        }
                         setPlayerSubMenu('main');
                       }}
                       className="w-full py-1.5 px-2.5 rounded-xl hover:bg-white/10 flex items-center justify-between transition-colors cursor-pointer text-left"
                     >
                       <span className={`text-xs ${selectedQuality === q ? 'font-black text-blue-400' : 'font-medium text-slate-300'}`}>
-                        {q === 'Auto' ? (isHindi ? 'ऑटो (Auto)' : 'Auto') : q}
+                        {q === 'Auto' ? (isHindi ? 'ऑटो (तेज़ स्ट्रीमिंग)' : 'Auto (Fast)') : q}
                       </span>
                       {selectedQuality === q && <Check className="w-3.5 h-3.5 text-blue-400" />}
                     </button>

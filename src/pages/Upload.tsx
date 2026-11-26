@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
-import { videoService } from '../services/videoService';
+import { videoService, MAX_VIDEO_SIZE_BYTES, MAX_VIDEO_SIZE_LABEL } from '../services/videoService';
 import { userService } from '../services/userService';
 import { SoundTrack } from '../types';
 import { formatDuration, captureFrameFromVideoFile, getVideoFileDuration, parseVideoUrl } from '../utils/videoUtils';
@@ -292,11 +292,10 @@ export const UploadPage: React.FC = () => {
       return;
     }
 
-    const MAX_VIDEO_SIZE_BYTES = 104857600; // 100MB
     if (selectedVideoFile.size > MAX_VIDEO_SIZE_BYTES) {
       const msg = isHindi
-        ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।'
-        : 'Please upload a video lower than 100MB.';
+        ? `कृपया ${MAX_VIDEO_SIZE_LABEL} से कम साइज का वीडियो अपलोड करें।`
+        : `Please upload a video smaller than ${MAX_VIDEO_SIZE_LABEL}.`;
       setPublishError(msg);
       addToast(msg, 'error');
       return;
@@ -308,24 +307,32 @@ export const UploadPage: React.FC = () => {
 
     try {
       let finalVideoUrl = videoUrl;
+      let finalVideoParts: string[] | undefined;
+      let finalVideoPartDurations: number[] | undefined;
       let finalDuration = await getVideoFileDuration(selectedVideoFile);
       let finalFileSizeBytes: number | undefined = selectedVideoFile?.size;
       let finalThumbnailUrl = thumbnailUrl;
 
-      // 1. Upload Video File directly via high-speed chunked stream
+      // 1. Upload Video File
       if (selectedVideoFile) {
-        setUploadStageText('Uploading video... 0%');
-        const uploadRes = await videoService.uploadVideo(selectedVideoFile, (progress, stage) => {
-          setUploadProgress(progress);
-          if (stage) {
-            setUploadStageText(stage);
-          } else if (progress >= 100) {
-            setUploadStageText('Finalizing video processing on CDN...');
-          } else {
-            setUploadStageText(`Uploading video... ${progress}%`);
-          }
+        setUploadProgress(1);
+        setUploadStageText(isHindi ? 'वीडियो अपलोड हो रहा है... 1%' : 'Uploading video... 1%');
+        const uploadRes = await videoService.uploadVideo(selectedVideoFile, (progress) => {
+          setUploadProgress((prev) => {
+            const next = Math.max(prev, Math.min(100, progress));
+            setUploadStageText(
+              next >= 100
+                ? (isHindi ? 'वीडियो प्रोसेस हो रहा है...' : 'Processing video...')
+                : (isHindi ? `वीडियो अपलोड हो रहा है... ${next}%` : `Uploading video... ${next}%`)
+            );
+            return next;
+          });
         });
         finalVideoUrl = uploadRes.videoUrl;
+        if (Array.isArray(uploadRes.videoParts) && uploadRes.videoParts.length > 1) {
+          finalVideoParts = uploadRes.videoParts;
+          finalVideoPartDurations = uploadRes.videoPartDurations;
+        }
         if (typeof uploadRes.duration === 'number' && Number.isFinite(uploadRes.duration) && uploadRes.duration > 0) {
           finalDuration = uploadRes.duration;
         }
@@ -365,6 +372,8 @@ export const UploadPage: React.FC = () => {
         title: title.trim(),
         description: description.trim(),
         videoUrl: finalVideoUrl,
+        ...(finalVideoParts && finalVideoParts.length > 1 ? { videoParts: finalVideoParts } : {}),
+        ...(finalVideoPartDurations && finalVideoPartDurations.length > 1 ? { videoPartDurations: finalVideoPartDurations } : {}),
         thumbnailUrl: finalThumbnailUrl,
         category,
         tags,
@@ -790,7 +799,7 @@ export const UploadPage: React.FC = () => {
                     <span className="text-slate-300 dark:text-slate-600">|</span>
                     <span className="flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300">
                       <CloudUpload className="w-3.5 h-3.5 text-[#065fd4]" />
-                      {isHindi ? 'अधिकतम फ़ाइल आकार:' : 'Max file size:'} <strong className="text-slate-800 dark:text-white">100 MB</strong>
+                      {isHindi ? 'अधिकतम फ़ाइल आकार:' : 'Max file size:'} <strong className="text-slate-800 dark:text-white">{MAX_VIDEO_SIZE_LABEL}</strong>
                     </span>
                   </div>
 

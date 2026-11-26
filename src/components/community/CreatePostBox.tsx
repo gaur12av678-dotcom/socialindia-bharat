@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useRouter } from '../../hooks/useRouter';
 import { postService } from '../../services/postService';
-import { videoService } from '../../services/videoService';
+import { videoService, MAX_VIDEO_SIZE_BYTES, MAX_VIDEO_SIZE_LABEL } from '../../services/videoService';
 import { compressImage } from '../../utils/imageUtils';
 import { normalizeLinkUrl, formatLinkHost } from '../../utils/linkUtils';
 import { useTranslation } from '../../i18n';
@@ -142,11 +142,11 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
       return;
     }
 
-    if (file.size > 104857600) {
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
       setStatusMsg({
         text: isHindi
-          ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।'
-          : 'Please upload a video lower than 100MB.',
+          ? `कृपया ${MAX_VIDEO_SIZE_LABEL} से कम साइज का वीडियो अपलोड करें।`
+          : `Please upload a video smaller than ${MAX_VIDEO_SIZE_LABEL}.`,
         type: 'error'
       });
       return;
@@ -179,11 +179,11 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
     e?.preventDefault();
     if (isPosting) return;
 
-    if (selectedVideoFile && selectedVideoFile.size > 104857600) {
+    if (selectedVideoFile && selectedVideoFile.size > MAX_VIDEO_SIZE_BYTES) {
       setStatusMsg({
         text: isHindi
-          ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।'
-          : 'Please upload a video lower than 100MB.',
+          ? `कृपया ${MAX_VIDEO_SIZE_LABEL} से कम साइज का वीडियो अपलोड करें।`
+          : `Please upload a video smaller than ${MAX_VIDEO_SIZE_LABEL}.`,
         type: 'error'
       });
       return;
@@ -220,21 +220,33 @@ export const CreatePostBox: React.FC<CreatePostBoxProps> = ({ onPostCreated, cla
       let uploadedVideoUrl: string | undefined = undefined;
       let effectiveType: 'text' | 'image' | 'video' = images.length > 0 ? 'image' : 'text';
 
-      // 1. Upload Video to Cloudinary with Firebase fallback
+      // 1. Upload Video
       if (selectedVideoFile) {
         effectiveType = 'video';
-        setUploadStageText(isHindi ? 'वीडियो क्लाउड पर अपलोड हो रहा है... 0%' : 'Uploading video to Cloudinary... 0%');
-        const uploadRes = await videoService.uploadVideo(selectedVideoFile, (progress, stage) => {
-          setUploadProgress(progress);
-          setUploadStageText(stage || (isHindi ? `वीडियो अपलोड हो रहा है... ${progress}%` : `Uploading video... ${progress}%`));
-        });
+        setUploadProgress(1);
+        setUploadStageText(isHindi ? 'वीडियो अपलोड हो रहा है... 1%' : 'Uploading video... 1%');
+        const uploadRes = await videoService.uploadVideo(
+          selectedVideoFile,
+          (progress) => {
+            setUploadProgress((prev) => {
+              const next = Math.max(prev, Math.min(100, progress));
+              setUploadStageText(
+                next >= 100
+                  ? (isHindi ? 'वीडियो प्रोसेस हो रहा है...' : 'Processing video...')
+                  : (isHindi ? `वीडियो अपलोड हो रहा है... ${next}%` : `Uploading video... ${next}%`)
+              );
+              return next;
+            });
+          },
+          { allowMultiPart: false }
+        );
         uploadedVideoUrl = uploadRes.videoUrl;
       }
 
-      // 2. Upload Photos to Cloudinary with Firebase fallback (Strictly prevents large Base64 in Firestore)
+      // 2. Upload Photos (Strictly prevents large Base64 in Firestore)
       const uploadedImageUrls: string[] = [];
       if (effectiveType === 'image' && images.length > 0) {
-        setUploadStageText(isHindi ? 'फोटो क्लाउड पर अपलोड हो रही है...' : 'Uploading photos to Cloudinary CDN...');
+        setUploadStageText(isHindi ? 'फोटो अपलोड हो रही है...' : 'Uploading photos...');
         for (let i = 0; i < images.length; i++) {
           const imgItem = images[i];
           if (imgItem.startsWith('http://') || imgItem.startsWith('https://')) {

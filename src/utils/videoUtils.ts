@@ -8,6 +8,93 @@ export interface ParsedVideo {
   youtubeId?: string;
 }
 
+export type PlaybackQuality = 'Auto' | '1080p' | '720p' | '480p' | '360p';
+
+const failedCloudinaryPlaybackTransforms = new Set<string>();
+
+export function markCloudinaryTransformFailed(url: string): void {
+  if (url) failedCloudinaryPlaybackTransforms.add(url);
+}
+
+export function normalizePlaybackQuality(label?: string): PlaybackQuality {
+  const s = (label || '').toLowerCase();
+  if (s.includes('360')) return '360p';
+  if (s.includes('480')) return '480p';
+  if (s.includes('720')) return '720p';
+  if (s.includes('1080') && !s.includes('auto')) return '1080p';
+  return 'Auto';
+}
+
+export function getOptimizedVideoStreamUrl(
+  rawUrl: string,
+  options?: {
+    quality?: string;
+    isShort?: boolean;
+    fileSizeBytes?: number;
+    duration?: number;
+  }
+): string {
+  if (!rawUrl || !rawUrl.includes('res.cloudinary.com') || !rawUrl.includes('/video/upload/')) {
+    return rawUrl;
+  }
+  if (/\.m3u8(\?.*)?$/i.test(rawUrl) || /\.mpd(\?.*)?$/i.test(rawUrl)) {
+    return rawUrl;
+  }
+
+  const uploadMarker = '/video/upload/';
+  const markerIdx = rawUrl.indexOf(uploadMarker);
+  if (markerIdx === -1) return rawUrl;
+
+  const afterUpload = rawUrl.slice(markerIdx + uploadMarker.length);
+  const firstSegment = afterUpload.split('/')[0] || '';
+  const hasExistingTransform =
+    !/^v\d+$/.test(firstSegment) &&
+    afterUpload.includes('/') &&
+    (firstSegment.includes(',') || /^(f_|q_|vc_|w_|h_|c_|so_|sp_)/.test(firstSegment));
+  if (hasExistingTransform) {
+    return rawUrl;
+  }
+
+  const quality = normalizePlaybackQuality(options?.quality);
+  const sizeBytes = options?.fileSizeBytes || 0;
+  const durationSec = options?.duration || 0;
+
+  let transform = '';
+  if (quality === '360p') {
+    transform = 'f_mp4,vc_h264,q_auto:eco,c_limit,h_360';
+  } else if (quality === '480p') {
+    transform = 'f_mp4,vc_h264,q_auto:eco,c_limit,h_480';
+  } else if (quality === '720p') {
+    transform = 'f_mp4,vc_h264,q_auto:good,c_limit,h_720';
+  } else if (quality === '1080p') {
+    if (sizeBytes > 40 * 1024 * 1024 || durationSec > 240) {
+      return rawUrl;
+    }
+    transform = 'f_mp4,vc_h264,q_auto:good,c_limit,h_1080';
+  } else {
+    // Auto mode: shrink high-bitrate short/community clips so mobile playback starts fast without risking Cloudinary Free 423 sync errors
+    if (options?.isShort) {
+      if (sizeBytes > 55 * 1024 * 1024) return rawUrl;
+      transform = 'f_mp4,vc_h264,q_auto:good,c_limit,w_720';
+    } else if (sizeBytes > 0 && sizeBytes <= 38 * 1024 * 1024 && (durationSec === 0 || durationSec <= 240)) {
+      transform = 'f_mp4,vc_h264,q_auto:good,c_limit,h_1080';
+    } else if (!sizeBytes && durationSec > 0 && durationSec <= 120) {
+      transform = 'f_mp4,vc_h264,q_auto:good,c_limit,h_1080';
+    } else {
+      return rawUrl;
+    }
+  }
+
+  const optimizedUrl = `${rawUrl.slice(0, markerIdx + uploadMarker.length)}${transform}/${afterUpload}`.replace(
+    /\.(mov|mkv|avi|webm|m4v)(\?.*)?$/i,
+    '.mp4$2'
+  );
+  if (failedCloudinaryPlaybackTransforms.has(optimizedUrl)) {
+    return rawUrl;
+  }
+  return optimizedUrl;
+}
+
 function getVideoSourceDuration(source: File | string): Promise<number> {
   return new Promise((resolve, reject) => {
     const video = document.createElement('video');

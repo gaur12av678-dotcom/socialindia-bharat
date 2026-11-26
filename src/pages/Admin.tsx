@@ -3721,6 +3721,9 @@ export const AdminPanel: React.FC = () => {
                       </p>
                     </div>
                   </div>
+                  <div className="p-4 bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 rounded-2xl text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                    <strong className="font-black text-blue-700 dark:text-blue-400">Videos &gt; 100 MB (Up to 2 GB):</strong> Videos larger than 20 MB are automatically streamed to Cloudinary in 20 MB chunks with auto-retry. Paid Cloudinary plans support &gt;100 MB directly on Cloudinary. If your Cloudinary account is on the Free Plan (100 MB/video cap), videos above 100 MB automatically fall back to Firebase Storage so creators never get blocked.
+                  </div>
                 </div>
               </div>
               );

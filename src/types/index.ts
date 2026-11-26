@@ -100,6 +100,8 @@ export interface Video {
   title: string;
   description: string;
   videoUrl: string;
+  videoParts?: string[]; // Ordered Cloudinary URLs when >100MB video is split for Free Plan
+  videoPartDurations?: number[]; // Duration in seconds of each part
   thumbnailUrl: string;
   duration: number; // in seconds
   fileSizeBytes?: number; // real uploaded media size in bytes

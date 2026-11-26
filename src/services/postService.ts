@@ -18,7 +18,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, storage, handleFirestoreError, OperationType } from '../firebase';
-import { getCloudinaryConfigAsync } from './videoService';
+import { getCloudinaryConfigAsync, videoService } from './videoService';
 import { CommunityPost, PostComment, PostPoll } from '../types';
 
 // Curated default community posts so community feed & channel posts tabs are vibrant from day one
@@ -305,6 +305,18 @@ export const postService = {
       filename = (fileOrBlobOrDataUrl as File).name || `post_${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`;
     }
 
+    if (isVideo) {
+      const videoFile = blobToUpload instanceof File
+        ? blobToUpload
+        : new File([blobToUpload], filename, { type: blobToUpload.type || 'video/mp4' });
+      const uploadRes = await videoService.uploadVideo(videoFile, onProgress, {
+        folder: 'socialindia_posts',
+        firebasePath: 'posts',
+        allowMultiPart: false,
+      });
+      return uploadRes.videoUrl;
+    }
+
     // 1. Try Cloudinary first (High-speed global CDN)
     try {
       const { cloudName, preset } = await getCloudinaryConfigAsync();
@@ -334,7 +346,7 @@ export const postService = {
                 reject(e);
               }
             } else {
-              let errMsg = `Cloudinary HTTP Error ${xhr.status}`;
+              let errMsg = `Media upload error (${xhr.status})`;
               try {
                 const data = JSON.parse(xhr.responseText);
                 if (data.error?.message) errMsg = data.error.message;
@@ -342,7 +354,7 @@ export const postService = {
               reject(new Error(errMsg));
             }
           });
-          xhr.addEventListener('error', () => reject(new Error('Network error during Cloudinary upload')));
+          xhr.addEventListener('error', () => reject(new Error('Network error during media upload')));
           xhr.open('POST', uploadUrl);
           xhr.send(formData);
         });
@@ -373,7 +385,7 @@ export const postService = {
       if (!isVideo && typeof fileOrBlobOrDataUrl === 'string') {
         return fileOrBlobOrDataUrl;
       }
-      throw new Error('Failed to upload post media to Cloudinary or cloud storage.');
+      throw new Error('Failed to upload post media. Please try again.');
     }
   },
 

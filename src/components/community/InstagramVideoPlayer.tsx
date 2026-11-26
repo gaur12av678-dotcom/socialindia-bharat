@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { Loader2, Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { useTranslation } from '../../i18n';
+import { getOptimizedVideoStreamUrl, markCloudinaryTransformFailed } from '../../utils/videoUtils';
 
 interface InstagramVideoPlayerProps {
   src: string;
@@ -24,6 +25,10 @@ export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src,
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [hasError, setHasError] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [forceRaw, setForceRaw] = useState(false);
+
+  const effectiveSrc = forceRaw ? src : getOptimizedVideoStreamUrl(src, { isShort: true });
 
   useEffect(() => {
     const video = videoRef.current;
@@ -31,6 +36,8 @@ export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src,
     setCurrentTime(0);
     setDuration(0);
     setHasError(false);
+    setIsBuffering(false);
+    setForceRaw(false);
     if (video) {
       video.pause();
       video.currentTime = 0;
@@ -81,7 +88,7 @@ export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src,
 
     observer.observe(player);
     return () => observer.disconnect();
-  }, [src]);
+  }, [effectiveSrc]);
 
   const togglePlayback = () => {
     const video = videoRef.current;
@@ -116,25 +123,45 @@ export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src,
     <div ref={playerRef} className="relative mb-3.5 aspect-[4/5] max-h-[min(70vh,720px)] overflow-hidden rounded-xl bg-black">
       <video
         ref={videoRef}
-        src={src}
+        src={effectiveSrc}
         poster={poster}
         playsInline
         preload="metadata"
         muted={muted}
         onClick={togglePlayback}
+        onWaiting={() => setIsBuffering(true)}
+        onCanPlay={() => setIsBuffering(false)}
+        onLoadedData={() => setIsBuffering(false)}
+        onPlaying={() => setIsBuffering(false)}
         onPlay={() => {
           setPlaying(true);
           window.dispatchEvent(new CustomEvent('socialindia:community-video-playing', {
             detail: playerIdRef.current
           }));
         }}
-        onPause={() => setPlaying(false)}
+        onPause={() => {
+          setPlaying(false);
+          setIsBuffering(false);
+        }}
         onLoadedMetadata={event => {
           const nextDuration = event.currentTarget.duration;
           setDuration(Number.isFinite(nextDuration) ? nextDuration : 0);
         }}
-        onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}
-        onError={() => setHasError(true)}
+        onTimeUpdate={event => {
+          setCurrentTime(event.currentTarget.currentTime);
+          if (event.currentTarget.readyState >= 2) {
+            setIsBuffering(false);
+          }
+        }}
+        onError={() => {
+          setIsBuffering(false);
+          if (!forceRaw && effectiveSrc !== src) {
+            markCloudinaryTransformFailed(effectiveSrc);
+            setForceRaw(true);
+            return;
+          }
+          setHasError(true);
+        }}
         className="h-full w-full cursor-pointer object-contain"
       />
 
@@ -144,6 +171,11 @@ export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src,
         </div>
       ) : (
         <>
+          {isBuffering && playing && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+              <Loader2 className="h-8 w-8 animate-spin text-white" />
+            </div>
+          )}
           {!playing && (
             <button
               type="button"

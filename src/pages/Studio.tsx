@@ -3,7 +3,7 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
-import { videoService, getCloudinaryConfig, setCloudinaryConfig } from '../services/videoService';
+import { videoService, getCloudinaryConfig, setCloudinaryConfig, MAX_VIDEO_SIZE_BYTES, MAX_VIDEO_SIZE_LABEL } from '../services/videoService';
 import { Video, SoundTrack, VideoPurchase } from '../types';
 import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, formatTimeAgo, captureFrameFromVideoFile, parseDateMs } from '../utils/videoUtils';
 import { categoriesList } from './Home';
@@ -840,8 +840,10 @@ export const CreatorStudio: React.FC = () => {
       return;
     }
 
-    if (selectedVideoFile && selectedVideoFile.size > 104857600) {
-      const msg = isHindi ? 'कृपया 100MB से कम साइज का वीडियो अपलोड करें।' : 'Please upload a video lower than 100MB.';
+    if (selectedVideoFile && selectedVideoFile.size > MAX_VIDEO_SIZE_BYTES) {
+      const msg = isHindi
+        ? `कृपया ${MAX_VIDEO_SIZE_LABEL} से कम साइज का वीडियो अपलोड करें।`
+        : `Please upload a video smaller than ${MAX_VIDEO_SIZE_LABEL}.`;
       setPublishError(msg);
       addToast(msg, 'error');
       return;
@@ -853,6 +855,9 @@ export const CreatorStudio: React.FC = () => {
 
     try {
       let finalVideoUrl = videoUrl;
+      let finalVideoParts: string[] | undefined;
+      let finalVideoPartDurations: number[] | undefined;
+      let hasNewVideoUpload = false;
       let finalDuration = Number.isFinite(Number(duration)) && Number(duration) > 0 ? Math.round(Number(duration)) : 0;
       let finalFileSizeBytes: number | undefined = selectedVideoFile?.size;
       let finalThumbnailUrl = thumbnailUrl;
@@ -860,16 +865,25 @@ export const CreatorStudio: React.FC = () => {
 
       // 1. Upload Video File if newly selected
       if (selectedVideoFile) {
-        setUploadStageText('Uploading video... 0%');
+        hasNewVideoUpload = true;
+        setUploadProgress(1);
+        setUploadStageText(isHindi ? 'वीडियो अपलोड हो रहा है... 1%' : 'Uploading video... 1%');
         const uploadRes = await videoService.uploadVideo(selectedVideoFile, (progress) => {
-          setUploadProgress(progress);
-          if (progress >= 100) {
-            setUploadStageText('Encoding video stream...');
-          } else {
-            setUploadStageText(`Uploading video... ${progress}%`);
-          }
+          setUploadProgress((prev) => {
+            const next = Math.max(prev, Math.min(100, progress));
+            setUploadStageText(
+              next >= 100
+                ? (isHindi ? 'वीडियो प्रोसेस हो रहा है...' : 'Processing video...')
+                : (isHindi ? `वीडियो अपलोड हो रहा है... ${next}%` : `Uploading video... ${next}%`)
+            );
+            return next;
+          });
         });
         finalVideoUrl = uploadRes.videoUrl;
+        if (Array.isArray(uploadRes.videoParts) && uploadRes.videoParts.length > 1) {
+          finalVideoParts = uploadRes.videoParts;
+          finalVideoPartDurations = uploadRes.videoPartDurations;
+        }
         if (typeof uploadRes.duration === 'number' && Number.isFinite(uploadRes.duration) && uploadRes.duration > 0) {
           finalDuration = Math.round(uploadRes.duration);
         }
@@ -910,6 +924,12 @@ export const CreatorStudio: React.FC = () => {
           title: title.trim(),
           description: description.trim(),
           videoUrl: finalVideoUrl,
+          ...(hasNewVideoUpload
+            ? {
+                videoParts: finalVideoParts && finalVideoParts.length > 1 ? finalVideoParts : [],
+                videoPartDurations: finalVideoPartDurations && finalVideoPartDurations.length > 1 ? finalVideoPartDurations : [],
+              }
+            : {}),
           thumbnailUrl: finalThumbnailUrl,
           category,
           tags,
@@ -927,6 +947,8 @@ export const CreatorStudio: React.FC = () => {
           title: title.trim(),
           description: description.trim(),
           videoUrl: finalVideoUrl,
+          ...(finalVideoParts && finalVideoParts.length > 1 ? { videoParts: finalVideoParts } : {}),
+          ...(finalVideoPartDurations && finalVideoPartDurations.length > 1 ? { videoPartDurations: finalVideoPartDurations } : {}),
           thumbnailUrl: finalThumbnailUrl,
           category,
           tags,
@@ -2703,7 +2725,7 @@ export const CreatorStudio: React.FC = () => {
                       : (uploadMode === 'short' ? 'Create & Upload Clip' : 'Upload & Publish Video')}
                   </h2>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
-                    {uploadMode === 'short' ? '9:16 Vertical Clip Format' : 'Direct device streaming via Cloud CDN'}
+                    {uploadMode === 'short' ? '9:16 Vertical Clip Format' : 'Direct device video upload to SocialIndia'}
                   </p>
                 </div>
               </div>
@@ -2935,7 +2957,7 @@ export const CreatorStudio: React.FC = () => {
                         </button>
 
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">
-                          MP4 • WebM • MOV • High-Speed Direct Cloud CDN
+                          MP4 • WebM • MOV • High-Speed Direct Upload
                         </p>
                       </div>
                     )}
@@ -3478,7 +3500,7 @@ export const CreatorStudio: React.FC = () => {
                         </div>
 
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium text-center">
-                          Please keep this window open while the video is streaming to Cloud CDN...
+                          Please keep this window open while your video is uploading to SocialIndia...
                         </p>
                       </div>
                     )}

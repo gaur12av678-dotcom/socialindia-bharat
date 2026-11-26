@@ -290,7 +290,7 @@ export const GoProPage: React.FC = () => {
             <div className="space-y-3">
               {[
                 'Watch unlimited videos in Full HD',
-                'Upload standard videos up to 100 MB',
+                'Upload HD videos up to 2 GB',
                 'Create custom playlists & favorites',
                 'Earn activity points & exchange to wallet'
               ].map((benefit, i) => (
