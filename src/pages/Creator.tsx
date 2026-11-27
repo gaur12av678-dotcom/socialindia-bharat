@@ -283,6 +283,17 @@ export const CreatorProfile: React.FC = () => {
     }
   }, [creator?.country, currentUserProfile?.country]);
 
+  // Channel Description / Bio Inline Editing State (YouTube-style)
+  const [isEditingBio, setIsEditingBio] = useState(false);
+  const [bioDraft, setBioDraft] = useState<string>(() => creator?.bio || '');
+  const [isSavingBio, setIsSavingBio] = useState(false);
+
+  useEffect(() => {
+    if (!isEditingBio) {
+      setBioDraft(creator?.bio || '');
+    }
+  }, [creator?.bio, creator?.uid, isEditingBio]);
+
   // Update document title and social/SEO metadata for Creator Channel page
   useEffect(() => {
     if (creator?.displayName || creator?.username) {
@@ -366,6 +377,31 @@ export const CreatorProfile: React.FC = () => {
       addToast(isHindi ? 'देश अपडेट करने में विफल।' : 'Failed to update country.', 'error');
     } finally {
       setIsSavingCountry(false);
+    }
+  };
+
+  const handleSaveBio = async () => {
+    if (!creator || !currentUser) return;
+    setIsSavingBio(true);
+    try {
+      const cleanBio = bioDraft.trim();
+      updateUserProfileState({ bio: cleanBio });
+      const updatedCreator = { ...creator, bio: cleanBio };
+      setCreator(updatedCreator);
+      if (channelCacheKey) {
+        const existingSnap = persistentChannelCache.get(channelCacheKey);
+        if (existingSnap) {
+          persistentChannelCache.set(channelCacheKey, { ...existingSnap, creator: updatedCreator });
+        }
+      }
+      await userService.updateProfile(currentUser.uid, { bio: cleanBio });
+      await refreshProfile();
+      setIsEditingBio(false);
+      addToast(isHindi ? 'चैनल विवरण सफलतापूर्वक सेव हो गया!' : 'Channel description updated!', 'success');
+    } catch (err) {
+      addToast(isHindi ? 'चैनल विवरण सेव करने में विफल।' : 'Failed to save description.', 'error');
+    } finally {
+      setIsSavingBio(false);
     }
   };
 
@@ -509,7 +545,7 @@ export const CreatorProfile: React.FC = () => {
               displayName: match.creatorDisplayName || targetUsername,
               photoURL: match.creatorPhotoURL,
               bannerURL: 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?auto=format&fit=crop&w=1600&q=80',
-              bio: `Official channel of ${match.creatorDisplayName || targetUsername} on SocialIndia.`,
+              bio: '',
               country: 'India',
               followersCount: 14200,
               followingCount: 12,
@@ -526,7 +562,7 @@ export const CreatorProfile: React.FC = () => {
               username: targetUsername,
               displayName: targetUsername.charAt(0).toUpperCase() + targetUsername.slice(1),
               bannerURL: 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?auto=format&fit=crop&w=1600&q=80',
-              bio: `Welcome to @${targetUsername}'s channel on SocialIndia.`,
+              bio: '',
               country: 'India',
               followersCount: 0,
               followingCount: 0,
@@ -1035,9 +1071,36 @@ export const CreatorProfile: React.FC = () => {
                 <span>•</span>
                 <span>{loadingVideos && loadingShorts ? '…' : videos.length + shorts.length} {isHindi ? 'वीडियो' : (!(loadingVideos && loadingShorts) && videos.length + shorts.length === 1 ? 'video' : 'videos')}</span>
               </div>
-              <p className="text-xs text-slate-700 dark:text-slate-300 max-w-2xl font-medium line-clamp-2 pt-1">
-                {creator.bio || (isHindi ? "SocialIndia पर मेरे आधिकारिक चैनल में आपका स्वागत है! बेहतरीन वीडियो के लिए जुड़े रहें।" : "Welcome to my SocialIndia official channel! Stay tuned for awesome videos.")}
-              </p>
+              {creator.bio && creator.bio.trim() ? (
+                <p
+                  onClick={() => handleTabChange('about')}
+                  className="text-xs text-slate-700 dark:text-slate-300 max-w-2xl font-medium line-clamp-2 pt-1 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors"
+                >
+                  {creator.bio.trim()}
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold ml-1">...more</span>
+                </p>
+              ) : isOwner ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBioDraft('');
+                    setIsEditingBio(true);
+                    handleTabChange('about');
+                  }}
+                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-semibold pt-1 cursor-pointer transition-colors"
+                >
+                  {isHindi ? '+ चैनल विवरण जोड़ें' : '+ Add channel description'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('about')}
+                  className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium pt-1 cursor-pointer transition-colors"
+                >
+                  {isHindi ? 'चैनल के बारे में अधिक जानें' : 'More about this channel'}
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold ml-1">›</span>
+                </button>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -1174,14 +1237,38 @@ export const CreatorProfile: React.FC = () => {
                 <span>{loadingVideos && loadingShorts ? '…' : videos.length + shorts.length} {isHindi ? 'वीडियो' : (!(loadingVideos && loadingShorts) && videos.length + shorts.length === 1 ? 'video' : 'videos')}</span>
               </div>
 
-              <p 
-                onClick={() => setActiveTab('about')}
-                className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl font-normal line-clamp-2 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors"
-                title={isHindi ? "चैनल के बारे में और जानें" : "More about this channel"}
-              >
-                {creator.bio || (isHindi ? "SocialIndia पर मेरे आधिकारिक चैनल में आपका स्वागत है! बेहतरीन वीडियो के लिए जुड़े रहें।" : "Welcome to my SocialIndia official channel! Stay tuned for awesome videos.")}
-                <span className="text-blue-600 dark:text-blue-400 font-semibold ml-1">...more</span>
-              </p>
+              {creator.bio && creator.bio.trim() ? (
+                <p 
+                  onClick={() => handleTabChange('about')}
+                  className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-2xl font-normal line-clamp-2 cursor-pointer hover:text-slate-900 dark:hover:text-white transition-colors"
+                  title={isHindi ? "चैनल के बारे में और जानें" : "More about this channel"}
+                >
+                  {creator.bio.trim()}
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold ml-1">...more</span>
+                </p>
+              ) : isOwner ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBioDraft('');
+                    setIsEditingBio(true);
+                    handleTabChange('about');
+                  }}
+                  className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 font-semibold cursor-pointer transition-colors"
+                >
+                  {isHindi ? '+ चैनल विवरण जोड़ें' : '+ Add channel description'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('about')}
+                  className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium cursor-pointer transition-colors"
+                  title={isHindi ? "चैनल के बारे में और जानें" : "More about this channel"}
+                >
+                  {isHindi ? 'चैनल के बारे में अधिक जानें' : 'More about this channel'}
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold ml-1">›</span>
+                </button>
+              )}
 
               {/* Action Buttons Row */}
               <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
@@ -1709,12 +1796,74 @@ export const CreatorProfile: React.FC = () => {
             {/* Description & Country Details (Left 2 cols) */}
             <div className="md:col-span-2 space-y-5">
               <div className="bg-white dark:bg-[#111827] border border-slate-200/80 dark:border-[#334155] p-6 rounded-3xl space-y-4 shadow-xs">
-                <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
-                  {isHindi ? "चैनल विवरण" : "Description"}
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">
-                  {creator.bio || (isHindi ? "इस क्रिएटर ने अभी तक चैनल का कोई अतिरिक्त विवरण नहीं दिया है।" : "Welcome to the official channel on SocialIndia! Subscribe to stay updated with new videos, stories, and exclusive creator updates.")}
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-extrabold uppercase text-slate-900 dark:text-[#F8FAFC] tracking-wider">
+                    {isHindi ? "चैनल विवरण" : "Description"}
+                  </h3>
+                  {isOwner && !isEditingBio && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBioDraft(creator.bio || '');
+                        setIsEditingBio(true);
+                      }}
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer"
+                    >
+                      {creator.bio && creator.bio.trim()
+                        ? (isHindi ? 'बदलें' : 'Edit')
+                        : (isHindi ? '+ विवरण जोड़ें' : '+ Add description')}
+                    </button>
+                  )}
+                </div>
+
+                {isOwner && isEditingBio ? (
+                  <div className="space-y-3">
+                    <textarea
+                      rows={4}
+                      maxLength={1000}
+                      value={bioDraft}
+                      onChange={(e) => setBioDraft(e.target.value)}
+                      placeholder={isHindi ? 'दर्शकों को अपने चैनल के बारे में बताएं...' : 'Tell viewers about your channel. Your description will appear in the About section of your channel.'}
+                      className="w-full p-3.5 bg-slate-50 dark:bg-[#0F172A] border border-slate-300 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 resize-y"
+                      autoFocus
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-400 font-medium">
+                        {bioDraft.length}/1000
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBioDraft(creator.bio || '');
+                            setIsEditingBio(false);
+                          }}
+                          className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+                        >
+                          {isHindi ? 'रद्द करें' : 'Cancel'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSavingBio}
+                          onClick={handleSaveBio}
+                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          {isSavingBio ? (isHindi ? 'सेव हो रहा है...' : 'Saving...') : (isHindi ? 'सेव करें' : 'Save')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : creator.bio && creator.bio.trim() ? (
+                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">
+                    {creator.bio.trim()}
+                  </p>
+                ) : (
+                  <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-500 italic">
+                    {isOwner
+                      ? (isHindi ? 'अभी तक कोई विवरण नहीं जोड़ा गया है। दर्शकों को अपने चैनल के बारे में बताने के लिए विवरण जोड़ें।' : 'No description yet. Add a description to tell viewers about your channel.')
+                      : (isHindi ? 'इस क्रिएटर ने अभी तक कोई विवरण नहीं जोड़ा है।' : 'No description has been added yet.')}
+                  </p>
+                )}
               </div>
 
               {/* Details & Location Box */}
