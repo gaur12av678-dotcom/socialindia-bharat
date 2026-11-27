@@ -12,7 +12,7 @@ import { useTranslation } from '../i18n';
 import { ShortsLogo } from '../components/ShortsLogo';
 import { Subscriptions } from './Subscriptions';
 import { getVideoUrlDuration, parseVideoUrl } from '../utils/videoUtils';
-import { downloadService } from '../services/downloadService';
+import { ActiveDownloadItem, downloadService } from '../services/downloadService';
 import { savedVideoService } from '../services/savedVideoService';
 import { openShareModal } from '../components/ShareModal';
 
@@ -92,9 +92,18 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({
   const [showMenu, setShowMenu] = useState(false);
   const [openMenuUpward, setOpenMenuUpward] = useState(false);
   const [alignMenuLeft, setAlignMenuLeft] = useState(false);
+  const [downloadState, setDownloadState] = useState<ActiveDownloadItem | undefined>(() =>
+    downloadService.getDownloadState(short.videoId)
+  );
   const clipCardRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    return downloadService.subscribeDownloads((items) => {
+      setDownloadState(items.find((d) => d.videoId === short.videoId));
+    });
+  }, [short.videoId]);
 
   useEffect(() => {
     setImgLoaded(false);
@@ -184,7 +193,7 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({
         animationDelay: `${(idx % 3) * 35}ms`,
         animationFillMode: 'both'
       }}
-      className={`yt-card-animate w-full min-w-0 group relative select-none ${showMenu ? 'z-[60]' : 'z-0'}`}
+      className={`si-card-animate w-full min-w-0 group relative select-none ${showMenu ? 'z-[60]' : 'z-0'}`}
     >
       <a
         href={clipUrl}
@@ -231,10 +240,29 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({
           </div>
         </div>
 
-        {/* YouTube-style Duration Badge */}
+        {/* Duration Badge */}
         {Number.isFinite(displayDuration) && displayDuration > 0 && (
           <div className="duration-badge">
             {`${Math.floor(displayDuration / 60)}:${(displayDuration % 60).toString().padStart(2, '0')}`}
+          </div>
+        )}
+
+        {/* Active Offline Download Overlay */}
+        {downloadState?.status === 'downloading' && (
+          <div className="absolute inset-x-0 bottom-0 bg-slate-950/85 backdrop-blur-xs px-2.5 py-1.5 z-20 pointer-events-none space-y-1">
+            <div className="flex items-center justify-between text-[10px] font-black text-white">
+              <span className="flex items-center gap-1">
+                <ArrowDownToLine className="w-3 h-3 text-emerald-400 animate-bounce" />
+                {isHindi ? 'डाउनलोड...' : 'Downloading...'}
+              </span>
+              <span className="text-emerald-400">{downloadState.progress}%</span>
+            </div>
+            <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-400 transition-all duration-200"
+                style={{ width: `${Math.max(4, downloadState.progress)}%` }}
+              />
+            </div>
           </div>
         )}
       </a>
@@ -320,19 +348,23 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({
               <button
                 type="button"
                 onClick={async () => {
-                  addToast(isHindi ? 'क्लिप डाउनलोड हो रही है...' : 'Downloading clip...', 'info');
+                  setShowMenu(false);
                   try {
-                    await downloadService.downloadVideo(short, () => {});
+                    await downloadService.downloadVideo(short);
                     addToast(isHindi ? 'क्लिप डाउनलोड्स में सहेजी गई!' : 'Clip saved to Downloads!', 'success');
                   } catch {
-                    addToast(isHindi ? 'डाउनलोड प्रारंभ!' : 'Download initiated!', 'info');
+                    addToast(isHindi ? 'क्लिप डाउनलोड नहीं हो सकी।' : 'Could not download this clip.', 'error');
                   }
-                  setShowMenu(false);
                 }}
-                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                disabled={downloadState?.status === 'downloading'}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer disabled:opacity-60"
               >
-                <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
-                <span>{t('action_download', 'Download')}</span>
+                <ArrowDownToLine className={`w-3.5 h-3.5 text-emerald-500 ${downloadState?.status === 'downloading' ? 'animate-bounce' : ''}`} />
+                <span>
+                  {downloadState?.status === 'downloading'
+                    ? (isHindi ? `डाउनलोड हो रहा है (${downloadState.progress}%)` : `Downloading (${downloadState.progress}%)`)
+                    : t('action_download', 'Download')}
+                </span>
               </button>
 
               <button
@@ -1422,8 +1454,8 @@ export const Home: React.FC = () => {
                   onClick={() => handleCategorySelect(cat)}
                   className={`h-8 px-3.5 rounded-lg text-xs whitespace-nowrap transition-all duration-150 cursor-pointer select-none active:scale-95 shrink-0 flex items-center justify-center border ${
                     isSelected
-                      ? 'yt-chip-active shadow-xs'
-                      : 'yt-chip-inactive'
+                      ? 'si-chip-active shadow-xs'
+                      : 'si-chip-inactive'
                   }`}
                   aria-pressed={isSelected}
                 >

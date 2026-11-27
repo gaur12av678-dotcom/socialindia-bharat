@@ -543,8 +543,8 @@ export const FeedbackPage: React.FC = () => {
                   onClick={() => setFeedbackType(pill.id as any)}
                   className={`px-3.5 py-1.5 rounded-full border text-xs transition-colors cursor-pointer ${
                     feedbackType === pill.id
-                      ? 'yt-chip-active shadow-xs'
-                      : 'yt-chip-inactive'
+                      ? 'si-chip-active shadow-xs'
+                      : 'si-chip-inactive'
                   }`}
                 >
                   {pill.label}

@@ -35,6 +35,7 @@ export interface User {
   verificationRequestId?: string;
   lastPasswordChangedAt?: string;
   newsletter?: boolean;
+  allowComments?: boolean;
   isOnline?: boolean;
   lastSeen?: string;
 

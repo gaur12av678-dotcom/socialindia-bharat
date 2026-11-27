@@ -3,9 +3,13 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
   return {
     plugins: [react(), tailwindcss()],
+    build: {
+      sourcemap: false,
+    },
+    esbuild: command === 'build' ? { drop: ['console', 'debugger'] } : undefined,
     resolve: {
       alias: {
         '@': import.meta.dirname ?? path.resolve('.'),

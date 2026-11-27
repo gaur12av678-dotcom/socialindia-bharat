@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext';
 import { useRouter } from '../../hooks/useRouter';
 import { UserAvatar } from '../UserAvatar';
 import { userService } from '../../services/userService';
-import { InstagramVideoPlayer } from './InstagramVideoPlayer';
+import { CommunityVideoPlayer } from './CommunityVideoPlayer';
 import { RichText } from '../RichText';
 import { openShareModal } from '../ShareModal';
 import { formatTimeAgo, formatViews } from '../../utils/videoUtils';
@@ -652,15 +652,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onPostDeleted, showFol
         </div>
       )}
 
-      {/* 3b. Media: Instagram-style Video Post */}
+      {/* 3b. Media: Community Video Post */}
       {post.postType === 'video' && post.videoUrl && (
-        <InstagramVideoPlayer
+        <CommunityVideoPlayer
           src={post.videoUrl}
           poster={post.videoThumbnailUrl || undefined}
         />
       )}
 
-      {/* 4. Media: Interactive YouTube Poll */}
+      {/* 4. Media: Interactive Community Poll */}
       {post.postType === 'poll' && poll && poll.options && (
         <div className="mb-4 space-y-2 bg-slate-50 dark:bg-[#16161a] p-3 sm:p-4 rounded-xl border border-slate-200/80 dark:border-slate-800/80">
           <div className="space-y-2">

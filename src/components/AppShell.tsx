@@ -259,16 +259,6 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Pre-load YouTube API for faster video playback
-  useEffect(() => {
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-    }
-  }, []);
-
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const guestRef = useRef<HTMLDivElement>(null);
@@ -369,11 +359,11 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
   const menuItems = [
     { label: t('nav_home', 'Home'), path: 'home', icon: Home },
-    { label: 'Clips', path: 'shorts', icon: ShortsLogo },
+    { label: t('nav_shorts', 'Clips'), path: 'shorts', icon: ShortsLogo },
     { label: t('nav_trending', 'Trending'), path: 'trending', icon: TrendingUp },
     { label: t('nav_chat', 'Direct Messages'), path: 'chat', icon: MessageSquare, protected: true },
     { label: t('nav_downloads', 'Downloads'), path: 'downloads', icon: ArrowDownToLine },
-    { label: 'Following', path: 'subscriptions', icon: Users, protected: true },
+    { label: t('nav_subscriptions', 'Following'), path: 'subscriptions', icon: Users, protected: true },
     { label: t('nav_saved', 'Saved Videos'), path: 'saved', icon: Bookmark, protected: true },
     { label: t('nav_history', 'Watch History'), path: 'history', icon: History, protected: true },
   ];
@@ -838,7 +828,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                     <path d="M4 6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2.5l4 2.5a1 1 0 0 0 1.5-.86V8.86a1 1 0 0 0-1.5-.86L17 10.5V8a2 2 0 0 0-2-2H4z" />
                   </svg>
                   <span className="text-base font-bold text-[#2563eb] dark:text-[#3b82f6] tracking-tight">
-                    Upload
+                    {isHindi ? 'अपलोड' : 'Upload'}
                   </span>
                 </button>
               )}
@@ -1680,10 +1670,44 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
             <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 px-2 space-y-3 select-none">
               <div className="grid grid-cols-2 gap-x-3 gap-y-3 text-[10px]">
                 {[
-                  { title: 'PLATFORM', links: [['Home', 'home'], ['Trending', 'trending'], ['Shorts', 'shorts'], ['Community', 'community'], ['Downloads', 'downloads'], ['Go Pro', 'gopro']] },
-                  { title: 'SUPPORT', links: [['Contact', 'contact'], ['FAQ', 'faq'], ['Grievance Redressal', 'grievance'], ['Help', 'help']] },
-                  { title: 'COMPANY', links: [['About', 'about'], ['Advertising', 'advertising'], ['Ad Info', 'adinfo'], ['Developers', 'developers']] },
-                  { title: 'LEGAL & COMMUNITY', links: [['Privacy Policy', 'privacy'], ['Terms of Use', 'terms'], ['Refund Policy', 'refund'], ['Community Guidelines', 'guidelines']] },
+                  {
+                    title: isHindi ? 'प्लेटफ़ॉर्म' : 'PLATFORM',
+                    links: [
+                      [t('nav_home', 'Home'), 'home'],
+                      [t('nav_trending', 'Trending'), 'trending'],
+                      [t('nav_shorts', 'Clips'), 'shorts'],
+                      [t('nav_community', 'Community'), 'community'],
+                      [t('nav_downloads', 'Downloads'), 'downloads'],
+                      [t('nav_go_pro', 'Go Pro'), 'gopro'],
+                    ],
+                  },
+                  {
+                    title: isHindi ? 'सहायता' : 'SUPPORT',
+                    links: [
+                      [isHindi ? 'संपर्क करें' : 'Contact', 'contact'],
+                      [isHindi ? 'सामान्य प्रश्न' : 'FAQ', 'faq'],
+                      [isHindi ? 'शिकायत निवारण' : 'Grievance Redressal', 'grievance'],
+                      [t('nav_help', 'Help'), 'help'],
+                    ],
+                  },
+                  {
+                    title: isHindi ? 'कंपनी' : 'COMPANY',
+                    links: [
+                      [t('nav_about', 'About'), 'about'],
+                      [isHindi ? 'विज्ञापन' : 'Advertising', 'advertising'],
+                      [isHindi ? 'विज्ञापन जानकारी' : 'Ad Info', 'adinfo'],
+                      [isHindi ? 'डेवलपर्स' : 'Developers', 'developers'],
+                    ],
+                  },
+                  {
+                    title: isHindi ? 'कानूनी एवं समुदाय' : 'LEGAL & COMMUNITY',
+                    links: [
+                      [isHindi ? 'गोपनीयता नीति' : 'Privacy Policy', 'privacy'],
+                      [isHindi ? 'उपयोग की शर्तें' : 'Terms of Use', 'terms'],
+                      [isHindi ? 'रिफ़ंड नीति' : 'Refund Policy', 'refund'],
+                      [isHindi ? 'कम्युनिटी दिशानिर्देश' : 'Community Guidelines', 'guidelines'],
+                    ],
+                  },
                 ].map(section => (
                   <div key={section.title} className="space-y-1.5">
                     <p className="font-black tracking-wider text-slate-500 dark:text-slate-400">{section.title}</p>
@@ -1712,7 +1736,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                 socialindia.ib@gmail.com
               </a>
               <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                © {new Date().getFullYear()} SocialIndia. All rights reserved. · Built by Bharat.
+                © {new Date().getFullYear()} SocialIndia. {isHindi ? 'सर्वाधिकार सुरक्षित · भारत द्वारा निर्मित।' : 'All rights reserved. · Built by Bharat.'}
               </p>
             </div>
           </div>

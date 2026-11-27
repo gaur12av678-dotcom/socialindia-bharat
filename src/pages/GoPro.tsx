@@ -89,16 +89,16 @@ export const GoProPage: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6 select-none relative pb-12">
       
-      {/* Mobile Top Navigation Bar (YouTube style) */}
+      {/* Mobile Top Navigation Bar */}
       <div className="flex items-center gap-3 md:hidden">
         <button
           onClick={() => navigate('home')}
           className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-xs"
-          title="Back to Home"
+          title={isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <span className="text-lg font-black text-slate-900 dark:text-white">SocialIndia Pro</span>
+        <span className="text-lg font-black text-slate-900 dark:text-white">{isHindi ? 'सोशलइंडिया प्रो' : 'SocialIndia Pro'}</span>
       </div>
 
       {/* 1. SOCIALINDIA PRO HERO BANNER (Matches Reference Design Image 1:1) */}
@@ -136,7 +136,7 @@ export const GoProPage: React.FC = () => {
               </h1>
             </div>
             <p className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 leading-snug">
-              More power. More reach. More growth.
+              {isHindi ? 'अधिक शक्ति। अधिक पहुँच। तेज़ विकास।' : 'More power. More reach. More growth.'}
             </p>
             {/* Blue accent indicator */}
             <div className="w-12 h-1 bg-[#2563eb] rounded-full mt-2" />
@@ -149,7 +149,7 @@ export const GoProPage: React.FC = () => {
             <Wallet className="w-5 h-5 text-[#2563eb]" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-wider block">Wallet Balance</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-wider block">{isHindi ? 'वॉलेट बैलेंस' : 'Wallet Balance'}</span>
             <span className="text-base sm:text-lg font-black text-[#1d4ed8] dark:text-[#60a5fa]">
               ${currentWallet.toFixed(2)} USD
             </span>
@@ -203,8 +203,8 @@ export const GoProPage: React.FC = () => {
               <ShieldCheck className="w-5 h-5 text-[#2563eb]" />
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">Verified Badge</h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">Official Blue Checkmark</p>
+              <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">{isHindi ? 'सत्यापित बैज' : 'Verified Badge'}</h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">{isHindi ? 'आधिकारिक नीला चेकमार्क' : 'Official Blue Checkmark'}</p>
             </div>
           </div>
           <ArrowRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-[#2563eb] group-hover:translate-x-0.5 transition-all shrink-0" />
@@ -217,8 +217,8 @@ export const GoProPage: React.FC = () => {
               <Video className="w-5 h-5 text-pink-500" />
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">500 MB Uploads</h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">4K UHD Support</p>
+              <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">{isHindi ? '500 MB अपलोड' : '500 MB Uploads'}</h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">{isHindi ? '4K UHD समर्थन' : '4K UHD Support'}</p>
             </div>
           </div>
         </div>
@@ -230,8 +230,8 @@ export const GoProPage: React.FC = () => {
               <TrendingUp className="w-5 h-5 text-emerald-500" />
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">Featured Status</h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">Boosted on Trending</p>
+              <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">{isHindi ? 'फीचर्ड स्टेटस' : 'Featured Status'}</h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">{isHindi ? 'ट्रेंडिंग पर बढ़ावा' : 'Boosted on Trending'}</p>
             </div>
           </div>
         </div>
@@ -243,8 +243,8 @@ export const GoProPage: React.FC = () => {
               <Zap className="w-5 h-5 text-amber-500 fill-amber-500" />
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">Ad Monetization</h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">Earn Revenue from Views</p>
+              <h4 className="text-xs font-extrabold text-slate-900 dark:text-white truncate">{isHindi ? 'विज्ञापन मोनेटाइजेशन' : 'Ad Monetization'}</h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-0.5">{isHindi ? 'व्यूज़ से कमाई करें' : 'Earn Revenue from Views'}</p>
             </div>
           </div>
         </div>
@@ -270,17 +270,17 @@ export const GoProPage: React.FC = () => {
             
             {/* Plan Badge */}
             <span className="inline-block px-3.5 py-1 bg-blue-50 dark:bg-blue-950/60 text-[#2563eb] dark:text-[#60a5fa] font-black text-[10px] rounded-full uppercase tracking-wider border border-blue-200 dark:border-blue-900/50">
-              BASIC MEMBER
+              {isHindi ? 'बेसिक सदस्य' : 'BASIC MEMBER'}
             </span>
 
             {/* Plan Title */}
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-2xl sm:text-3xl font-black text-[#0f172a] dark:text-white">Free</h3>
+                <h3 className="text-2xl sm:text-3xl font-black text-[#0f172a] dark:text-white">{isHindi ? 'निःशुल्क' : 'Free'}</h3>
                 <Crown className="w-5 h-5 text-slate-400 stroke-[1.8]" />
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-                Start your journey. Create, share and grow.
+                {isHindi ? 'अपनी यात्रा शुरू करें। बनाएं, साझा करें और बढ़ें।' : 'Start your journey. Create, share and grow.'}
               </p>
             </div>
 
@@ -288,12 +288,20 @@ export const GoProPage: React.FC = () => {
 
             {/* Benefits List */}
             <div className="space-y-3">
-              {[
-                'Watch unlimited videos in Full HD',
-                'Upload HD videos up to 2 GB',
-                'Create custom playlists & favorites',
-                'Earn activity points & exchange to wallet'
-              ].map((benefit, i) => (
+              {(isHindi
+                ? [
+                    'फ़ुल HD में असीमित वीडियो देखें',
+                    '2 GB तक HD वीडियो अपलोड करें',
+                    'कस्टम प्लेलिस्ट और पसंदीदा बनाएं',
+                    'गतिविधि पॉइंट कमाएं और वॉलेट में बदलें',
+                  ]
+                : [
+                    'Watch unlimited videos in Full HD',
+                    'Upload HD videos up to 2 GB',
+                    'Create custom playlists & favorites',
+                    'Earn activity points & exchange to wallet',
+                  ]
+              ).map((benefit, i) => (
                 <div key={i} className="flex items-center gap-3 text-xs text-slate-700 dark:text-slate-300 font-medium">
                   <Check className="w-4 h-4 text-[#2563eb] dark:text-[#60a5fa] shrink-0 stroke-[2.5]" />
                   <span>{benefit}</span>
@@ -303,10 +311,16 @@ export const GoProPage: React.FC = () => {
 
             {/* Unavailable Features */}
             <div className="space-y-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
-              {[
-                'Verified Blue Checkmark',
-                'Featured on Trending & Recommendations'
-              ].map((unavail, i) => (
+              {(isHindi
+                ? [
+                    'सत्यापित नीला चेकमार्क',
+                    'ट्रेंडिंग और सुझावों में फ़ीचर्ड',
+                  ]
+                : [
+                    'Verified Blue Checkmark',
+                    'Featured on Trending & Recommendations',
+                  ]
+              ).map((unavail, i) => (
                 <div key={i} className="flex items-center gap-3 text-xs text-slate-400 dark:text-slate-500 line-through">
                   <X className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
                   <span>{unavail}</span>
@@ -319,7 +333,7 @@ export const GoProPage: React.FC = () => {
           {/* Current Plan Button */}
           <div className="pt-8 relative z-10">
             <div className="w-full py-3 bg-white dark:bg-slate-900 border-2 border-[#2563eb]/40 text-[#2563eb] dark:text-[#60a5fa] font-black text-xs rounded-2xl text-center shadow-xs">
-              Current Plan
+              {isHindi ? 'वर्तमान प्लान' : 'Current Plan'}
             </div>
           </div>
 
@@ -364,7 +378,7 @@ export const GoProPage: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 font-black text-[10px] rounded-full uppercase tracking-wider shadow-sm !text-white"
               >
                 <Crown className="w-3.5 h-3.5 fill-white text-white" />
-                <span className="!text-white">PRO CREATOR MEMBERSHIP</span>
+                <span className="!text-white">{isHindi ? 'प्रो क्रिएटर सदस्यता' : 'PRO CREATOR MEMBERSHIP'}</span>
               </span>
 
               {/* Price Tag Glass Card */}
@@ -386,7 +400,7 @@ export const GoProPage: React.FC = () => {
                   style={{ color: '#e0e7ff' }}
                   className="text-[10px] font-bold block mt-0.5 !text-blue-100"
                 >
-                  per month
+                  {isHindi ? 'प्रति माह' : 'per month'}
                 </span>
               </div>
             </div>
@@ -398,7 +412,7 @@ export const GoProPage: React.FC = () => {
                   style={{ color: '#ffffff' }}
                   className="text-2xl sm:text-3xl font-black !text-white"
                 >
-                  Pro
+                  {isHindi ? 'प्रो' : 'Pro'}
                 </h3>
                 <Crown className="w-6 h-6 text-amber-300 fill-amber-300 drop-shadow-md" />
               </div>
@@ -406,7 +420,7 @@ export const GoProPage: React.FC = () => {
                 style={{ color: '#e0e7ff' }}
                 className="text-xs font-semibold mt-1 !text-blue-100"
               >
-                Create Bigger. Earn More.
+                {isHindi ? 'बड़ा बनाएं। ज़्यादा कमाएं।' : 'Create Bigger. Earn More.'}
               </p>
             </div>
 
@@ -414,16 +428,22 @@ export const GoProPage: React.FC = () => {
 
             {/* Pro Benefits List (Explicitly White & Crisp) */}
             <div className="space-y-3">
-              {[
-                { 
-                  text: 'Verified Blue Badge', 
-                  badgeIcon: true 
-                },
-                { text: 'Upload up to 500 MB in 4K UHD' },
-                { text: 'Featured Creator status' },
-                { text: 'Ad Revenue Sharing' },
-                { text: 'Priority Creator Support' }
-              ].map((benefit, i) => (
+              {(isHindi
+                ? [
+                    { text: 'सत्यापित नीला बैज', badgeIcon: true },
+                    { text: '4K UHD में 500 MB तक अपलोड करें' },
+                    { text: 'फ़ीचर्ड क्रिएटर स्टेटस' },
+                    { text: 'विज्ञापन राजस्व हिस्सेदारी' },
+                    { text: 'प्राथमिकता क्रिएटर सहायता' },
+                  ]
+                : [
+                    { text: 'Verified Blue Badge', badgeIcon: true },
+                    { text: 'Upload up to 500 MB in 4K UHD' },
+                    { text: 'Featured Creator status' },
+                    { text: 'Ad Revenue Sharing' },
+                    { text: 'Priority Creator Support' },
+                  ]
+              ).map((benefit, i) => (
                 <div 
                   key={i} 
                   style={{ color: '#ffffff' }}
@@ -461,17 +481,17 @@ export const GoProPage: React.FC = () => {
               {isUpgrading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  <span className="text-white">Processing Upgrade...</span>
+                  <span className="text-white">{isHindi ? 'अपग्रेड हो रहा है...' : 'Processing Upgrade...'}</span>
                 </>
               ) : isPro ? (
                 <>
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span className="text-[#1e1b4b] font-black">✓ You are a Pro Member</span>
+                  <span className="text-[#1e1b4b] font-black">{isHindi ? '✓ आप प्रो सदस्य हैं' : '✓ You are a Pro Member'}</span>
                 </>
               ) : (
                 <>
                   <Crown className="w-4 h-4 text-amber-300 fill-amber-300" />
-                  <span className="text-white font-black">Upgrade to Pro →</span>
+                  <span className="text-white font-black">{isHindi ? 'प्रो में अपग्रेड करें →' : 'Upgrade to Pro →'}</span>
                 </>
               )}
             </button>
@@ -503,14 +523,18 @@ export const GoProPage: React.FC = () => {
 
         <div className="flex items-center gap-2.5 text-slate-800 dark:text-slate-200 z-10">
           <Zap className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
-          <span><strong>Grow your audience.</strong> Unlock more features.</span>
+          <span>
+            {isHindi
+              ? <><strong>अपने दर्शक बढ़ाएं।</strong> और अधिक सुविधाएं अनलॉक करें।</>
+              : <><strong>Grow your audience.</strong> Unlock more features.</>}
+          </span>
         </div>
 
         <button
           onClick={() => window.scrollTo({ top: 350, behavior: 'smooth' })}
           className="text-[#2563eb] dark:text-[#60a5fa] font-extrabold hover:underline shrink-0 flex items-center gap-1 cursor-pointer z-10"
         >
-          <span>View Plans</span>
+          <span>{isHindi ? 'प्लान देखें' : 'View Plans'}</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>

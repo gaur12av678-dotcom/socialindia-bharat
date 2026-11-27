@@ -796,7 +796,7 @@ export const FirebaseVideoEditor: React.FC<Props> = ({ addToast, onRefreshParent
                     type="text"
                     value={formThumbnailUrl}
                     onChange={(e) => setFormThumbnailUrl(e.target.value)}
-                    placeholder="https://images.unsplash.com/... or Cloudinary URL"
+                    placeholder="https://example.com/thumbnail.jpg"
                     className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#202124] border border-slate-300 dark:border-slate-700 rounded-xl text-xs font-mono font-medium focus:outline-none focus:border-amber-500"
                   />
                 </div>

@@ -34,8 +34,8 @@ import { UserAvatar } from '../components/UserAvatar';
 import { searchHistoryService, SearchHistoryEntry, POPULAR_SEARCH_SUGGESTIONS } from '../services/searchHistoryService';
 import { useApp } from '../context/AppContext';
 
-// YouTube Channel Search Result Card
-const YouTubeChannelCard: React.FC<{ user: User }> = ({ user }) => {
+// Channel Search Result Card
+const ChannelSearchCard: React.FC<{ user: User }> = ({ user }) => {
   const { navigate } = useRouter();
   const { currentUser, currentUserProfile, addToast } = useApp();
   const { isHindi } = useTranslation();
@@ -162,9 +162,10 @@ const YouTubeChannelCard: React.FC<{ user: User }> = ({ user }) => {
   );
 };
 
-// YouTube Shorts Vertical Card
-const YouTubeShortCard: React.FC<{ video: Video }> = ({ video }) => {
+// Clips Vertical Card
+const ShortSearchCard: React.FC<{ video: Video }> = ({ video }) => {
   const { navigate } = useRouter();
+  const { isHindi } = useTranslation();
 
   return (
     <a 
@@ -190,7 +191,7 @@ const YouTubeShortCard: React.FC<{ video: Video }> = ({ video }) => {
           <div className="flex justify-end">
             <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-xs">
               <Smartphone className="w-2.5 h-2.5" />
-              Clips
+              {isHindi ? 'क्लिप्स' : 'Clips'}
             </span>
           </div>
 
@@ -231,9 +232,10 @@ const SearchVideoSkeleton: React.FC = () => (
   </div>
 );
 
-// YouTube Search Video Card (Horizontal on desktop, stack on mobile)
-const YouTubeSearchVideoCard: React.FC<{ video: Video; priority?: boolean }> = ({ video, priority = false }) => {
+// Search Video Card (Horizontal on desktop, stack on mobile)
+const VideoSearchCard: React.FC<{ video: Video; priority?: boolean }> = ({ video, priority = false }) => {
   const { navigate } = useRouter();
+  const { isHindi } = useTranslation();
   const [isVerified, setIsVerified] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -299,7 +301,7 @@ const YouTubeSearchVideoCard: React.FC<{ video: Video; priority?: boolean }> = (
         {/* Paid Badge */}
         {video.isPaid && (
           <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-amber-500 text-black text-[10px] font-black uppercase tracking-wider shadow-sm">
-            Paid ₹{video.price || 0}
+            {isHindi ? 'पेड' : 'Paid'} ₹{video.price || 0}
           </span>
         )}
       </div>
@@ -591,7 +593,7 @@ export const Search: React.FC = () => {
       {route.searchParams?.q && (
         <div className="space-y-6">
           
-          {/* Top Title & YouTube Filter Chips Bar */}
+          {/* Top Title & Filter Chips Bar */}
           <div className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
@@ -605,18 +607,18 @@ export const Search: React.FC = () => {
               </span>
             </div>
 
-            {/* YouTube Filter Chips */}
+            {/* Filter Chips */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               <button
                 type="button"
                 onClick={() => setSearchFilter('all')}
                 className={`px-4 py-1.5 rounded-full border text-xs transition-all cursor-pointer whitespace-nowrap ${
                   searchFilter === 'all' 
-                    ? 'yt-chip-active shadow-sm' 
-                    : 'yt-chip-inactive'
+                    ? 'si-chip-active shadow-sm' 
+                    : 'si-chip-inactive'
                 }`}
               >
-                {isHindi ? 'सभी (All)' : 'All'}
+                {isHindi ? 'सभी' : 'All'}
               </button>
 
               <button
@@ -624,8 +626,8 @@ export const Search: React.FC = () => {
                 onClick={() => setSearchFilter('channels')}
                 className={`px-4 py-1.5 rounded-full border text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   searchFilter === 'channels' 
-                    ? 'yt-chip-active shadow-sm' 
-                    : 'yt-chip-inactive'
+                    ? 'si-chip-active shadow-sm' 
+                    : 'si-chip-inactive'
                 }`}
               >
                 <Users className="w-3.5 h-3.5" />
@@ -637,8 +639,8 @@ export const Search: React.FC = () => {
                 onClick={() => setSearchFilter('videos')}
                 className={`px-4 py-1.5 rounded-full border text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   searchFilter === 'videos' 
-                    ? 'yt-chip-active shadow-sm' 
-                    : 'yt-chip-inactive'
+                    ? 'si-chip-active shadow-sm' 
+                    : 'si-chip-inactive'
                 }`}
               >
                 <Film className="w-3.5 h-3.5" />
@@ -651,11 +653,11 @@ export const Search: React.FC = () => {
                 className={`px-4 py-1.5 rounded-full border text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                   searchFilter === 'shorts' 
                     ? 'bg-rose-600 text-white border-rose-600 shadow-sm' 
-                    : 'yt-chip-inactive'
+                    : 'si-chip-inactive'
                 }`}
               >
                 <Smartphone className="w-3.5 h-3.5" />
-                <span>Clips ({shortsVideos.length})</span>
+                <span>{isHindi ? 'क्लिप्स' : 'Clips'} ({shortsVideos.length})</span>
               </button>
             </div>
           </div>
@@ -673,7 +675,7 @@ export const Search: React.FC = () => {
 
                   <div className="space-y-3">
                     {(searchFilter === 'all' ? matchingUsers.slice(0, 1) : matchingUsers).map((user) => (
-                      <YouTubeChannelCard key={user.uid} user={user} />
+                      <ChannelSearchCard key={user.uid} user={user} />
                     ))}
                   </div>
 
@@ -690,7 +692,7 @@ export const Search: React.FC = () => {
                 </div>
               )}
 
-              {/* 2. YOUTUBE SHORTS SHELF (Shown if searchFilter is 'all' or 'shorts') */}
+              {/* 2. CLIPS SHELF (Shown if searchFilter is 'all' or 'shorts') */}
               {(searchFilter === 'all' || searchFilter === 'shorts') && (shortsVideos.length > 0 || loadingVideos) && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
@@ -698,14 +700,14 @@ export const Search: React.FC = () => {
                       <Smartphone className="w-3.5 h-3.5" />
                     </div>
                     <h3 className="text-base font-black text-slate-900 dark:text-white">
-                      Clips
+                      {isHindi ? 'क्लिप्स' : 'Clips'}
                     </h3>
                   </div>
 
                   {/* Vertical grid of Shorts */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
                     {(searchFilter === 'all' ? shortsVideos.slice(0, 6) : shortsVideos).map((short) => (
-                      <YouTubeShortCard key={short.videoId} video={short} />
+                      <ShortSearchCard key={short.videoId} video={short} />
                     ))}
                     {loadingVideos && Array.from({ length: shortsVideos.length > 0 ? 2 : 4 }).map((_, idx) => (
                       <div key={`short-skeleton-${idx}`} className="animate-pulse">
@@ -743,7 +745,7 @@ export const Search: React.FC = () => {
                   {regularVideos.length > 0 ? (
                     <div className="space-y-3">
                       {regularVideos.map((video, idx) => (
-                        <YouTubeSearchVideoCard
+                        <VideoSearchCard
                           key={video.videoId}
                           video={video}
                           priority={idx < 2}

@@ -126,6 +126,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
   const [country, setCountry] = useState('India');
   const [age, setAge] = useState('Not selected');
   const [newsletter, setNewsletter] = useState<'active' | 'inactive'>('active');
+  const [allowComments, setAllowComments] = useState<boolean>(() => currentUserProfile?.allowComments !== false);
 
   // Profile Form
   const [displayName, setDisplayName] = useState('');
@@ -338,6 +339,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
         setWithdrawAccountName(currentUserProfile.displayName);
       }
       setNewsletter(currentUserProfile.newsletter === false ? 'inactive' : 'active');
+      setAllowComments(currentUserProfile.allowComments !== false);
       const savedLink =
         currentUserProfile.socialLinks?.website ||
         currentUserProfile.socialLinks?.instagram ||
@@ -407,16 +409,17 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
       await userService.updateProfile(currentUser.uid, updates);
       await refreshProfile();
       setSavingStatus('saved');
-      setSaveMsg('Settings saved successfully.');
+      const okMsg = isHindi ? 'सेटिंग्स सफलतापूर्वक सहेजी गईं।' : 'Settings saved successfully.';
+      setSaveMsg(okMsg);
       setTimeout(() => {
         setSaveMsg('');
         setSavingStatus('idle');
       }, 3000);
-      addToast('Settings saved successfully.', 'success');
+      addToast(okMsg, 'success');
     } catch (err) {
       console.error(err);
       setSavingStatus('error');
-      setSaveMsg(err instanceof Error ? err.message : 'Failed to save settings.');
+      setSaveMsg(err instanceof Error ? err.message : (isHindi ? 'सेटिंग्स सहेजने में विफल।' : 'Failed to save settings.'));
     }
   };
 
@@ -430,6 +433,28 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
       await userService.updateProfile(currentUser.uid, { newsletter: isActive });
     } catch (err) {
       console.warn('Could not persist newsletter toggle immediately:', err);
+    }
+  };
+
+  // Immediate toggle handler for Allow Comments on Videos (default ON unless manually turned OFF)
+  const handleToggleAllowComments = async (next: boolean) => {
+    const prev = allowComments;
+    setAllowComments(next);
+    if (!currentUser) return;
+    try {
+      updateUserProfileState({ allowComments: next });
+      await userService.updateProfile(currentUser.uid, { allowComments: next });
+      addToast(
+        next
+          ? (isHindi ? 'नए वीडियो के लिए कमेंट्स चालू किए गए।' : 'Comments enabled by default for new uploads.')
+          : (isHindi ? 'नए वीडियो अपलोड के लिए कमेंट्स बंद किए गए।' : 'Comments will be disabled by default on new uploads.'),
+        'success'
+      );
+    } catch (err) {
+      console.warn('Could not update comment privacy preference:', err);
+      setAllowComments(prev);
+      updateUserProfileState({ allowComments: prev });
+      addToast(isHindi ? 'गोपनीयता सेटिंग सहेजने में विफल।' : 'Failed to save privacy preference.', 'error');
     }
   };
 
@@ -464,16 +489,17 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
       }).catch(console.warn);
       await refreshProfile();
       setSavingStatus('saved');
-      setSaveMsg('Profile updated successfully.');
+      const okMsg = isHindi ? 'प्रोफ़ाइल सफलतापूर्वक अपडेट हो गई।' : 'Profile updated successfully.';
+      setSaveMsg(okMsg);
       setTimeout(() => {
         setSaveMsg('');
         setSavingStatus('idle');
       }, 3000);
-      addToast('Profile updated successfully.', 'success');
+      addToast(okMsg, 'success');
     } catch (err) {
       console.error(err);
       setSavingStatus('error');
-      setSaveMsg('Failed to save profile.');
+      setSaveMsg(isHindi ? 'प्रोफ़ाइल सहेजने में विफल।' : 'Failed to save profile.');
     }
   };
 
@@ -675,15 +701,15 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     setPasswordStatusMsg('');
 
     if (!currentPass || !newPass || !confirmPass) {
-      setPasswordStatusMsg('Please fill in all fields.');
+      setPasswordStatusMsg(isHindi ? 'कृपया सभी फ़ील्ड भरें।' : 'Please fill in all fields.');
       return;
     }
     if (newPass.length < 8) {
-      setPasswordStatusMsg('Password must be at least 8 characters.');
+      setPasswordStatusMsg(isHindi ? 'पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।' : 'Password must be at least 8 characters.');
       return;
     }
     if (newPass !== confirmPass) {
-      setPasswordStatusMsg('Passwords do not match.');
+      setPasswordStatusMsg(isHindi ? 'दोनों पासवर्ड मेल नहीं खा रहे हैं।' : 'Passwords do not match.');
       return;
     }
 
@@ -697,7 +723,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
         console.warn(err);
       }
     }
-    setPasswordStatusMsg('Password changed successfully.');
+    setPasswordStatusMsg(isHindi ? 'पासवर्ड सफलतापूर्वक बदल दिया गया।' : 'Password changed successfully.');
     setCurrentPass('');
     setNewPass('');
     setConfirmPass('');
@@ -775,7 +801,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      addToast('Compressing and updating avatar...', 'info');
+      addToast(isHindi ? 'अवतार कंप्रेस व अपडेट हो रहा है...' : 'Compressing and updating avatar...', 'info');
       const compressed = await compressAvatar(file);
       setPhotoURL(compressed);
       if (currentUser) {
@@ -784,11 +810,11 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
         await userService.updateProfile(currentUser.uid, { photoURL: compressed });
         videoService.syncCreatorProfileToVideos(currentUser.uid, { photoURL: compressed }).catch(console.warn);
         await refreshProfile();
-        addToast('Avatar updated permanently!', 'success');
+        addToast(isHindi ? 'अवतार सफलतापूर्वक अपडेट हो गया!' : 'Avatar updated permanently!', 'success');
       }
     } catch (err) {
       console.error('Failed to upload avatar:', err);
-      addToast('Failed to save avatar image.', 'error');
+      addToast(isHindi ? 'अवतार इमेज सेव करने में विफल।' : 'Failed to save avatar image.', 'error');
     }
   };
 
@@ -797,18 +823,18 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      addToast('Compressing and updating banner...', 'info');
+      addToast(isHindi ? 'कवर बैनर कंप्रेस व अपडेट हो रहा है...' : 'Compressing and updating banner...', 'info');
       const compressed = await compressBanner(file);
       setBannerURL(compressed);
       if (currentUser) {
         updateUserProfileState({ bannerURL: compressed });
         await userService.updateProfile(currentUser.uid, { bannerURL: compressed });
         await refreshProfile();
-        addToast('Banner updated permanently!', 'success');
+        addToast(isHindi ? 'कवर बैनर सफलतापूर्वक अपडेट हो गया!' : 'Banner updated permanently!', 'success');
       }
     } catch (err) {
       console.error('Failed to upload banner:', err);
-      addToast('Failed to save banner image.', 'error');
+      addToast(isHindi ? 'बैनर इमेज सेव करने में विफल।' : 'Failed to save banner image.', 'error');
     }
   };
 
@@ -857,9 +883,9 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
     {
       category: isHindi ? 'कमाई (Earnings)' : 'EARNINGS',
       items: [
-        { id: 'monetization', label: isHindi ? 'मोनेटाइजेशन' : 'Monetization', icon: DollarSign, badge: isChannelMonetized ? 'Active' : undefined, badgeType: 'amber' },
+        { id: 'monetization', label: isHindi ? 'मोनेटाइजेशन' : 'Monetization', icon: DollarSign, badge: isChannelMonetized ? (isHindi ? 'सक्रिय' : 'Active') : undefined, badgeType: 'amber' },
         { id: 'wallet', label: isHindi ? 'वॉलेट' : 'Wallet', icon: Wallet, badge: `₹${displayWallet.toFixed(2)}`, badgeType: 'blue' },
-        { id: 'points', label: isHindi ? 'रिवॉर्ड पॉइंट्स' : 'Points', icon: Award, badge: `${points} pts`, badgeType: 'blue' },
+        { id: 'points', label: isHindi ? 'रिवॉर्ड पॉइंट्स' : 'Points', icon: Award, badge: `${points} ${isHindi ? 'पॉइंट्स' : 'pts'}`, badgeType: 'blue' },
         // Only show verification tool if the user is NOT yet verified
         ...(!isUserAlreadyVerified ? [{
           id: 'verification',
@@ -878,8 +904,8 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
       category: isHindi ? 'ऐप व टूल्स (App & Tools)' : 'APP & TOOLS',
       items: [
         { id: 'app_download', label: isHindi ? 'ऐप डाउनलोड करें (APK)' : 'Download App (APK)', icon: Smartphone, badge: 'APK', badgeType: 'blue' },
-        { id: 'creator_studio_nav', label: isHindi ? 'क्रिएटर स्टूडियो' : 'Creator Studio', icon: Film, isExternalRoute: true, route: 'studio', badge: 'Studio', badgeType: 'blue' },
-        ...(currentUserProfile?.role === 'admin' ? [{ id: 'admin_hub_nav', label: isHindi ? 'एडमिन हब' : 'Admin Hub', icon: ShieldCheck, isExternalRoute: true, route: 'admin', badge: 'Admin', badgeType: 'amber' as const }] : []),
+        { id: 'creator_studio_nav', label: isHindi ? 'क्रिएटर स्टूडियो' : 'Creator Studio', icon: Film, isExternalRoute: true, route: 'studio', badge: isHindi ? 'स्टूडियो' : 'Studio', badgeType: 'blue' },
+        ...(currentUserProfile?.role === 'admin' ? [{ id: 'admin_hub_nav', label: isHindi ? 'एडमिन हब' : 'Admin Hub', icon: ShieldCheck, isExternalRoute: true, route: 'admin', badge: isHindi ? 'एडमिन' : 'Admin', badgeType: 'amber' as const }] : []),
         { id: 'help_support_nav', label: isHindi ? 'सहायता केंद्र (Help & FAQ)' : 'Help & FAQ', icon: HelpCircle, isExternalRoute: true, route: 'help' },
         { id: 'feedback_nav', label: isHindi ? 'फ़ीडबैक भेजें' : 'Send Feedback', icon: MessageSquare, isExternalRoute: true, route: 'feedback' },
       ]
@@ -1008,7 +1034,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
               className="flex items-center gap-2 text-xs font-bold text-[#2563EB] hover:underline cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back to Settings</span>
+              <span>{isHindi ? 'सेटिंग्स पर वापस जाएं' : 'Back to Settings'}</span>
             </button>
           </div>
 
@@ -1018,14 +1044,16 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
           {activeTab === 'appearance' && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white">Appearance</h2>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Choose the theme for SocialIndia on this device.</p>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{isHindi ? 'दिखावट (थीम)' : 'Appearance'}</h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {isHindi ? 'इस डिवाइस पर SocialIndia के लिए थीम चुनें।' : 'Choose the theme for SocialIndia on this device.'}
+                </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 {([
-                  ['light', 'Light'],
-                  ['dark', 'Dark'],
-                  ['system', 'Use device setting'],
+                  ['light', isHindi ? 'लाइट थीम' : 'Light'],
+                  ['dark', isHindi ? 'डार्क थीम' : 'Dark'],
+                  ['system', isHindi ? 'डिवाइस की सेटिंग इस्तेमाल करें' : 'Use device setting'],
                 ] as const).map(([value, label]) => (
                   <button
                     key={value}
@@ -1052,10 +1080,10 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
               <div className="flex items-start justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                    General Settings
+                    {isHindi ? 'सामान्य सेटिंग्स' : 'General Settings'}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                    Manage your basic account details.
+                    {isHindi ? 'अपने खाते की बुनियादी जानकारी प्रबंधित करें।' : 'Manage your basic account details.'}
                   </p>
                 </div>
 
@@ -1069,7 +1097,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                   ) : (
                     <Check className="w-4 h-4 stroke-[3]" />
                   )}
-                  <span>Save</span>
+                  <span>{isHindi ? 'सहेजें' : 'Save'}</span>
                 </button>
               </div>
 
@@ -1086,7 +1114,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-2">
-                      Username
+                      {isHindi ? 'यूज़रनेम' : 'Username'}
                     </label>
                     <div className="relative flex items-center">
                       <User className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
@@ -1094,7 +1122,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                         type="text"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        placeholder="e.g. rahul_tech"
+                        placeholder={isHindi ? 'उदा. rahul_tech' : 'e.g. rahul_tech'}
                         className="w-full h-12 pl-11 pr-4 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-[#2563EB]"
                       />
                     </div>
@@ -1102,7 +1130,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
 
                   <div>
                     <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-2">
-                      E-mail Address
+                      {isHindi ? 'ई-मेल पता' : 'E-mail Address'}
                     </label>
                     <div className="relative flex items-center">
                       <Mail className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
@@ -1112,7 +1140,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                         readOnly
                         disabled
                         aria-readonly="true"
-                        placeholder="No email linked"
+                        placeholder={isHindi ? 'कोई ईमेल जुड़ा नहीं है' : 'No email linked'}
                         className="w-full h-12 pl-11 pr-11 bg-slate-100 dark:bg-[#0F172A]/60 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 cursor-not-allowed select-none"
                       />
                       <Lock className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none" />
@@ -1129,7 +1157,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-2">
-                      Gender
+                      {isHindi ? 'लिंग' : 'Gender'}
                     </label>
                     <div className="relative flex items-center">
                       <User className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
@@ -1138,9 +1166,9 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                         onChange={(e) => setGender(e.target.value)}
                         className="w-full h-12 pl-11 pr-10 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-[#2563EB] appearance-none"
                       >
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
+                        <option value="Male">{isHindi ? 'पुरुष' : 'Male'}</option>
+                        <option value="Female">{isHindi ? 'महिला' : 'Female'}</option>
+                        <option value="Other">{isHindi ? 'अन्य' : 'Other'}</option>
                       </select>
                       <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none" />
                     </div>
@@ -1148,7 +1176,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
 
                   <div>
                     <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-2">
-                      Country
+                      {isHindi ? 'देश' : 'Country'}
                     </label>
                     <div className="relative flex items-center">
                       <Globe className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
@@ -1191,7 +1219,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-2">
-                      Age
+                      {isHindi ? 'आयु' : 'Age'}
                     </label>
                     <div className="relative flex items-center">
                       <Clock className="w-4 h-4 text-slate-400 absolute left-4 pointer-events-none" />
@@ -1200,7 +1228,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                         onChange={(e) => setAge(e.target.value)}
                         className="w-full h-12 pl-11 pr-10 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-[#2563EB] appearance-none"
                       >
-                        <option value="Not selected">Not selected</option>
+                        <option value="Not selected">{isHindi ? 'चयनित नहीं' : 'Not selected'}</option>
                         <option value="13-17">13 - 17</option>
                         <option value="18-24">18 - 24</option>
                         <option value="25-34">25 - 34</option>
@@ -1214,7 +1242,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
 
                 <div className="border-t border-slate-100 dark:border-slate-800 pt-5">
                   <span className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-1">
-                    Newsletter
+                    {isHindi ? 'न्यूज़लेटर' : 'Newsletter'}
                   </span>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
                     {isHindi
@@ -1237,7 +1265,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                       }`}>
                         {newsletter === 'active' && <div className="w-2 h-2 rounded-full bg-[#2563EB]" />}
                       </div>
-                      <span>Active</span>
+                      <span>{isHindi ? 'सक्रिय' : 'Active'}</span>
                     </button>
 
                     <button
@@ -1254,7 +1282,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                       }`}>
                         {newsletter === 'inactive' && <div className="w-2 h-2 rounded-full bg-[#2563EB]" />}
                       </div>
-                      <span>Inactive</span>
+                      <span>{isHindi ? 'निष्क्रिय' : 'Inactive'}</span>
                     </button>
                   </div>
                 </div>
@@ -1272,10 +1300,10 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
               <div className="flex items-start justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
                 <div>
                   <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                    Profile Settings
+                    {isHindi ? 'प्रोफ़ाइल सेटिंग्स' : 'Profile Settings'}
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                    Manage your public profile and channel details.
+                    {isHindi ? 'अपनी सार्वजनिक प्रोफ़ाइल और चैनल विवरण प्रबंधित करें।' : 'Manage your public profile and channel details.'}
                   </p>
                 </div>
 
@@ -1285,14 +1313,14 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                   className="px-7 py-2.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-xs sm:text-sm rounded-full shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
                 >
                   {savingStatus === 'saving' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[3]" />}
-                  <span>Save</span>
+                  <span>{isHindi ? 'सहेजें' : 'Save'}</span>
                 </button>
               </div>
 
               <div className="space-y-5">
                 <div>
                   <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-2">
-                    Display Name
+                    {isHindi ? 'प्रदर्शित नाम' : 'Display Name'}
                   </label>
                   <input
                     type="text"
@@ -1304,20 +1332,20 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
 
                 <div>
                   <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-2">
-                    About / Channel Bio
+                    {isHindi ? 'परिचय / चैनल बायो' : 'About / Channel Bio'}
                   </label>
                   <textarea
                     rows={4}
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="Tell viewers about your channel..."
+                    placeholder={isHindi ? 'दर्शकों को अपने चैनल के बारे में बताएं...' : 'Tell viewers about your channel...'}
                     className="w-full p-4 bg-white dark:bg-[#0F172A] border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-medium"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 tracking-wider mb-2">
-                    Link
+                    {isHindi ? 'वेबसाइट लिंक' : 'Link'}
                   </label>
                   <input
                     type="text"
@@ -1338,10 +1366,10 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
             <div className="space-y-6">
               <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Avatar & Cover
+                  {isHindi ? 'अवतार व बैनर' : 'Avatar & Cover'}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Upload your avatar photo and channel cover banner.
+                  {isHindi ? 'अपना प्रोफ़ाइल अवतार और चैनल कवर बैनर अपलोड करें।' : 'Upload your avatar photo and channel cover banner.'}
                 </p>
               </div>
 
@@ -1358,7 +1386,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                     onClick={() => avatarInputRef.current?.click()}
                     className="px-6 py-2.5 bg-[#2563EB] text-white text-xs font-bold rounded-full"
                   >
-                    Upload Avatar
+                    {isHindi ? 'अवतार अपलोड करें' : 'Upload Avatar'}
                   </button>
                 </div>
 
@@ -1370,7 +1398,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                     onClick={() => bannerInputRef.current?.click()}
                     className="px-6 py-2.5 bg-[#2563EB] text-white text-xs font-bold rounded-full"
                   >
-                    Upload Cover
+                    {isHindi ? 'कवर अपलोड करें' : 'Upload Cover'}
                   </button>
                 </div>
               </div>
@@ -1384,28 +1412,32 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
             <div className="space-y-6">
               <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Privacy Settings
+                  {isHindi ? 'गोपनीयता सेटिंग्स' : 'Privacy Settings'}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Control who sees your activity.
+                  {isHindi ? 'नियंत्रित करें कि आपकी गतिविधि कौन देख सकता है।' : 'Control who sees your activity.'}
                 </p>
               </div>
 
               <div className="space-y-4 divide-y divide-slate-100 dark:divide-slate-800">
-                <div className="flex items-center justify-between pt-4 first:pt-0">
+                <label className="flex items-center justify-between gap-4 pt-4 first:pt-0 cursor-pointer">
                   <div>
-                    <h4 className="text-sm font-bold">Show My Following</h4>
-                    <p className="text-xs text-slate-500">Allow other users to see channels you follow</p>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      {isHindi ? 'वीडियो पर कमेंट की अनुमति दें' : 'Allow Comments on Videos'}
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      {isHindi
+                        ? 'दर्शक आपके अपलोड पर कमेंट कर सकते हैं (बंद करने पर आपके नए अपलोड का कमेंट सेक्शन बंद रहेगा)'
+                        : 'Viewers can comment on your uploads (turning this off disables comments by default on your new uploads)'}
+                    </p>
                   </div>
-                  <input type="checkbox" defaultChecked className="w-5 h-5 accent-[#2563EB]" />
-                </div>
-                <div className="flex items-center justify-between pt-4">
-                  <div>
-                    <h4 className="text-sm font-bold">Allow Comments on Videos</h4>
-                    <p className="text-xs text-slate-500">Viewers can comment on your uploads</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="w-5 h-5 accent-[#2563EB]" />
-                </div>
+                  <input
+                    type="checkbox"
+                    checked={allowComments}
+                    onChange={(e) => void handleToggleAllowComments(e.target.checked)}
+                    className="w-5 h-5 accent-[#2563EB] shrink-0 cursor-pointer"
+                  />
+                </label>
               </div>
             </div>
           )}
@@ -1417,10 +1449,10 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
             <div className="space-y-6">
               <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
                 <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  Change Password
+                  {isHindi ? 'पासवर्ड बदलें' : 'Change Password'}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                  Keep your account secure with a strong password.
+                  {isHindi ? 'मज़बूत पासवर्ड के साथ अपने खाते को सुरक्षित रखें।' : 'Keep your account secure with a strong password.'}
                 </p>
               </div>
 
@@ -1433,7 +1465,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
               <form onSubmit={handlePasswordUpdate} className="space-y-4 max-w-md">
                 <div>
                   <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-                    Current Password
+                    {isHindi ? 'वर्तमान पासवर्ड' : 'Current Password'}
                   </label>
                   <input
                     type="password"
@@ -1444,7 +1476,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-                    New Password
+                    {isHindi ? 'नया पासवर्ड' : 'New Password'}
                   </label>
                   <input
                     type="password"
@@ -1455,7 +1487,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-extrabold uppercase text-slate-700 dark:text-slate-300 mb-1.5">
-                    Confirm Password
+                    {isHindi ? 'पासवर्ड की पुष्टि करें' : 'Confirm Password'}
                   </label>
                   <input
                     type="password"
@@ -1468,7 +1500,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                   type="submit"
                   className="px-6 py-2.5 bg-[#2563EB] text-white text-xs font-bold rounded-full"
                 >
-                  Update Password
+                  {isHindi ? 'पासवर्ड अपडेट करें' : 'Update Password'}
                 </button>
               </form>
             </div>
@@ -1822,17 +1854,17 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                   ) : monetizationStatusType === 'Eligible' ? (
                     <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span>Eligible</span>
+                      <span>{isHindi ? 'पात्र' : 'Eligible'}</span>
                     </div>
                   ) : monetizationStatusType === 'Almost There' ? (
                     <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/50 text-[#2563EB] dark:text-blue-300">
                       <Sparkles className="w-4 h-4 text-[#2563EB] dark:text-blue-400 shrink-0" />
-                      <span>Almost There</span>
+                      <span>{isHindi ? 'लगभग पूर्ण' : 'Almost There'}</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-blue-100 dark:border-blue-900/50 bg-[#eff6ff] dark:bg-blue-950/50 text-[#2563EB] dark:text-blue-300">
                       <Clock className="w-4 h-4 text-[#2563EB] dark:text-blue-400 shrink-0" />
-                      <span>In Progress</span>
+                      <span>{isHindi ? 'प्रगति पर' : 'In Progress'}</span>
                     </div>
                   )}
                 </div>
@@ -2054,7 +2086,7 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                         <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
                           {videoRequirementMet ? (
                             <span className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
-                              <CheckCircle2 className="w-4 h-4" /> 1,000+ views reached
+                              <CheckCircle2 className="w-4 h-4" /> {isHindi ? '1,000+ व्यूज पूरे हुए' : '1,000+ views reached'}
                             </span>
                           ) : (
                             <span>{1000 - highestVideoViews} {isHindi ? 'व्यूज शेष' : 'more views needed'}</span>
@@ -2438,13 +2470,13 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                       {/* Social & Reference Links */}
                       <div className="sm:col-span-2 space-y-1.5">
                         <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                          {isHindi ? 'सोशल मीडिया व संदर्भ लिंक (YouTube, Instagram, X/Twitter, Website)' : 'Social Media & Reference Links'}
+                          {isHindi ? 'वेबसाइट व संदर्भ लिंक (Website / Public Link)' : 'Social Media & Reference Links'}
                         </label>
                         <input
                           type="text"
                           value={vSocialLinks}
                           onChange={(e) => setVSocialLinks(e.target.value)}
-                          placeholder={isHindi ? 'उदा. https://instagram.com/user, https://youtube.com/@channel' : 'e.g. https://instagram.com/yourhandle, https://youtube.com/@channel, website URL'}
+                          placeholder={isHindi ? 'उदा. https://yourwebsite.com या पब्लिक प्रोफ़ाइल लिंक' : 'e.g. https://yourwebsite.com, public profile URL'}
                           className="w-full px-4 py-3 bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]"
                         />
                       </div>
@@ -2549,7 +2581,9 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
           {activeTab === 'my_info' && (
             <div className="space-y-6">
               <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">My Information</h2>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {isHindi ? 'मेरी जानकारी' : 'My Information'}
+                </h2>
               </div>
               <button
                 onClick={() => {
@@ -2559,9 +2593,9 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                   dl.setAttribute("download", `account_backup.json`);
                   dl.click();
                 }}
-                className="px-6 py-2.5 bg-[#2563EB] text-white text-xs font-bold rounded-full"
+                className="px-6 py-2.5 bg-[#2563EB] text-white text-xs font-bold rounded-full cursor-pointer"
               >
-                Download Data (.json)
+                {isHindi ? 'डेटा डाउनलोड करें (.json)' : 'Download Data (.json)'}
               </button>
             </div>
           )}
@@ -2569,10 +2603,14 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
           {activeTab === 'delete_account' && (
             <div className="space-y-6">
               <div className="pb-6 border-b border-slate-100 dark:border-slate-800">
-                <h2 className="text-2xl font-black text-rose-600 tracking-tight">Delete account</h2>
+                <h2 className="text-2xl font-black text-rose-600 tracking-tight">
+                  {isHindi ? 'खाता हटाएं' : 'Delete account'}
+                </h2>
               </div>
               <p className="text-xs text-rose-600 font-semibold">
-                Warning: Deleting your account will permanently delete all your channel data, videos, and points.
+                {isHindi
+                  ? 'चेतावनी: अपना खाता हटाने से आपका सारा चैनल डेटा, वीडियो और पॉइंट्स स्थायी रूप से हट जाएंगे।'
+                  : 'Warning: Deleting your account will permanently delete all your channel data, videos, and points.'}
               </p>
             </div>
           )}
@@ -2778,12 +2816,12 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-3xl p-6 max-w-sm w-full space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-base">Withdraw Funds</h3>
-              <button onClick={() => setWithdrawModalOpen(false)} className="text-slate-400 font-bold">✕</button>
+              <h3 className="font-bold text-base">{isHindi ? 'पैसे निकालें' : 'Withdraw Funds'}</h3>
+              <button onClick={() => setWithdrawModalOpen(false)} className="text-slate-400 font-bold cursor-pointer">✕</button>
             </div>
             <form onSubmit={handleWithdrawSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-bold block mb-1">Amount (₹)</label>
+                <label className="text-xs font-bold block mb-1">{isHindi ? 'राशि (₹)' : 'Amount (₹)'}</label>
                 <input
                   type="number"
                   min="500"
@@ -2792,24 +2830,29 @@ export const Settings: React.FC<SettingsProps> = ({ initialTab }) => {
                   onChange={(e) => setWithdrawAmount(Number(e.target.value))}
                   className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-bold"
                 />
-                <p className="mt-1 text-[11px] text-slate-500">Minimum withdrawal: ₹500</p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {isHindi ? 'न्यूनतम निकासी: ₹500' : 'Minimum withdrawal: ₹500'}
+                </p>
               </div>
               <div>
-                <label className="text-xs font-bold block mb-1">UPI ID</label>
+                <label className="text-xs font-bold block mb-1">{isHindi ? 'UPI आईडी' : 'UPI ID'}</label>
                 <input
                   type="text"
-                  placeholder="e.g. user@paytm"
+                  placeholder={isHindi ? 'उदा. user@paytm' : 'e.g. user@paytm'}
                   value={withdrawUpiId}
                   onChange={(e) => setWithdrawUpiId(e.target.value)}
                   className="w-full h-10 px-3 border border-slate-200 rounded-xl text-xs font-bold"
                 />
               </div>
+              {withdrawMsg && (
+                <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400">{withdrawMsg}</p>
+              )}
               <button
                 type="submit"
                 disabled={isSubmittingWithdraw}
-                className="w-full py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl"
+                className="w-full py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl cursor-pointer"
               >
-                Confirm Payout
+                {isHindi ? 'भुगतान की पुष्टि करें' : 'Confirm Payout'}
               </button>
             </form>
           </div>

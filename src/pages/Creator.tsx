@@ -1446,8 +1446,8 @@ export const CreatorProfile: React.FC = () => {
                   onClick={() => setVideoSort('latest')}
                   className={`px-3 py-1.5 text-xs rounded-lg border cursor-pointer transition-all ${
                     videoSort === 'latest'
-                      ? 'yt-chip-active shadow-xs'
-                      : 'yt-chip-inactive'
+                      ? 'si-chip-active shadow-xs'
+                      : 'si-chip-inactive'
                   }`}
                 >
                   {isHindi ? 'नवीनतम' : 'Latest'}
@@ -1457,8 +1457,8 @@ export const CreatorProfile: React.FC = () => {
                   onClick={() => setVideoSort('popular')}
                   className={`px-3 py-1.5 text-xs rounded-lg border cursor-pointer transition-all flex items-center gap-1 ${
                     videoSort === 'popular'
-                      ? 'yt-chip-active shadow-xs'
-                      : 'yt-chip-inactive'
+                      ? 'si-chip-active shadow-xs'
+                      : 'si-chip-inactive'
                   }`}
                 >
                   <Flame className={`w-3.5 h-3.5 ${videoSort === 'popular' ? 'text-amber-300 dark:text-amber-500' : 'text-amber-500'}`} />
@@ -1469,8 +1469,8 @@ export const CreatorProfile: React.FC = () => {
                   onClick={() => setVideoSort('oldest')}
                   className={`px-3 py-1.5 text-xs rounded-lg border cursor-pointer transition-all ${
                     videoSort === 'oldest'
-                      ? 'yt-chip-active shadow-xs'
-                      : 'yt-chip-inactive'
+                      ? 'si-chip-active shadow-xs'
+                      : 'si-chip-inactive'
                   }`}
                 >
                   {isHindi ? 'पुराने' : 'Oldest'}
@@ -1543,9 +1543,9 @@ export const CreatorProfile: React.FC = () => {
                       e.preventDefault();
                       navigate('shorts', short.videoId);
                     }}
-                    className="group flex flex-col cursor-pointer yt-card-animate"
+                    className="group flex flex-col cursor-pointer si-card-animate"
                   >
-                    {/* Clean 9:16 YouTube-style Shorts Thumbnail (no title overlay) */}
+                    {/* Clean 9:16 Clips Thumbnail (no title overlay) */}
                     <div className="relative rounded-2xl overflow-hidden aspect-[9/16] bg-slate-900 shadow-sm group-hover:shadow-lg transition-all duration-300">
                       {short.thumbnailUrl ? (
                         <img

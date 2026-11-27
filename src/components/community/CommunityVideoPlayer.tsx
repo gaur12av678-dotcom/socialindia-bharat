@@ -3,7 +3,7 @@ import { Loader2, Maximize, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { useTranslation } from '../../i18n';
 import { getOptimizedVideoStreamUrl, markCloudinaryTransformFailed } from '../../utils/videoUtils';
 
-interface InstagramVideoPlayerProps {
+interface CommunityVideoPlayerProps {
   src: string;
   poster?: string;
 }
@@ -15,7 +15,7 @@ const formatTime = (seconds: number) => {
   return `${minutes}:${remainingSeconds}`;
 };
 
-export const InstagramVideoPlayer: React.FC<InstagramVideoPlayerProps> = ({ src, poster }) => {
+export const CommunityVideoPlayer: React.FC<CommunityVideoPlayerProps> = ({ src, poster }) => {
   const { isHindi } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const playerRef = useRef<HTMLDivElement>(null);

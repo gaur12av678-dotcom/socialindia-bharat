@@ -3,9 +3,9 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
-import { videoService, getCloudinaryConfig, setCloudinaryConfig, MAX_VIDEO_SIZE_BYTES, MAX_VIDEO_SIZE_LABEL } from '../services/videoService';
+import { videoService, MAX_VIDEO_SIZE_BYTES, MAX_VIDEO_SIZE_LABEL } from '../services/videoService';
 import { Video, SoundTrack, VideoPurchase } from '../types';
-import { parseVideoUrl, extractVideoThumbnail, extractYoutubeThumbnail, formatViews, formatDuration, formatTimeAgo, captureFrameFromVideoFile, parseDateMs } from '../utils/videoUtils';
+import { parseVideoUrl, extractVideoThumbnail, formatViews, formatDuration, formatTimeAgo, captureFrameFromVideoFile, parseDateMs } from '../utils/videoUtils';
 import { categoriesList } from './Home';
 import { soundService } from '../services/soundService';
 import { paidVideoService } from '../services/paidVideoService';
@@ -165,10 +165,13 @@ export const CreatorStudio: React.FC = () => {
     };
   }, [perfMenuOpen]);
 
-  // Multi-step Upload Wizard State (PlayTube / YouTube Studio Architecture)
+  // Multi-step Upload Wizard State
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [uploadMode, setUploadMode] = useState<'video' | 'short'>('video');
-  const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>('allow');
+  const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>(() =>
+    currentUserProfile?.allowComments === false ? 'disabled' : 'allow'
+  );
+  const commentsModeTouchedRef = useRef(false);
 
   // Paid Video & Earnings State
   const [isPaid, setIsPaid] = useState(false);
@@ -188,6 +191,12 @@ export const CreatorStudio: React.FC = () => {
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<Video | null>(null);
   const [captionEditorVideo, setCaptionEditorVideo] = useState<Video | null>(null);
+
+  useEffect(() => {
+    if (!editingVideo && !commentsModeTouchedRef.current) {
+      setCommentsMode(currentUserProfile?.allowComments === false ? 'disabled' : 'allow');
+    }
+  }, [currentUserProfile?.allowComments, editingVideo]);
 
   // Form Fields
   const [title, setTitle] = useState('');
@@ -972,7 +981,7 @@ export const CreatorStudio: React.FC = () => {
           creatorDisplayName: currentUserProfile.displayName,
           creatorPhotoURL: currentUserProfile.photoURL || '',
         });
-        addToast('Video published successfully on SocialIndia!', 'success');
+        addToast(isHindi ? 'सोशलइंडिया पर वीडियो सफलतापूर्वक प्रकाशित हो गया!' : 'Video published successfully on SocialIndia!', 'success');
       }
 
       setPublishModalOpen(false);
@@ -982,12 +991,14 @@ export const CreatorStudio: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Publish error:', err);
-      if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
-        const msg = 'Cloud Storage is not configured yet. Please contact the platform Admin to setup storage in Admin Panel.';
+      if (err.message === 'MEDIA_STORAGE_CONFIG_REQUIRED' || err.message?.includes('MEDIA_STORAGE_CONFIG_REQUIRED')) {
+        const msg = isHindi
+          ? 'क्लाउड स्टोरेज अभी कॉन्फ़िगर नहीं है। कृपया एडमिन पैनल में स्टोरेज सेटअप करने के लिए एडमिन से संपर्क करें।'
+          : 'Cloud Storage is not configured yet. Please contact the platform Admin to setup storage in Admin Panel.';
         setPublishError(msg);
         addToast(msg, 'error');
       } else {
-        const msg = err.message || 'Failed to upload and publish video.';
+        const msg = err.message || (isHindi ? 'वीडियो अपलोड और प्रकाशित करने में विफल।' : 'Failed to upload and publish video.');
         setPublishError(msg);
         addToast(msg, 'error');
       }
@@ -1068,7 +1079,8 @@ export const CreatorStudio: React.FC = () => {
     setIsMonetized(true);
     setIsPaid(false);
     setPrice(10);
-    setCommentsMode('allow');
+    commentsModeTouchedRef.current = false;
+    setCommentsMode(currentUserProfile?.allowComments === false ? 'disabled' : 'allow');
     setIsPublishing(false);
     setUploadProgress(0);
     setUploadStageText('');
@@ -3195,7 +3207,7 @@ export const CreatorStudio: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Subtitles & Captions Tool (YouTube Studio Style) */}
+                    {/* Subtitles & Captions Tool */}
                     <div className="p-5 bg-gradient-to-r from-purple-50/70 to-indigo-50/40 dark:from-purple-950/20 dark:to-indigo-950/10 rounded-3xl border border-purple-200/80 dark:border-purple-800/60 space-y-3 shadow-xs">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
@@ -3205,16 +3217,18 @@ export const CreatorStudio: React.FC = () => {
                           <div>
                             <div className="flex items-center gap-2">
                               <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                                Subtitles & Captions
+                                {isHindi ? 'सबटाइटल और कैप्शन' : 'Subtitles & Captions'}
                               </h4>
                               {editingVideo?.captions && editingVideo.captions.length > 0 && (
                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-purple-200/70 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300">
-                                  ✓ {editingVideo.captions.length} Lines Added
+                                  ✓ {editingVideo.captions.length} {isHindi ? 'पंक्तियाँ जोड़ी गईं' : 'Lines Added'}
                                 </span>
                               )}
                             </div>
                             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
-                              Add timestamped subtitles in Hindi, English, or any language like YouTube Studio.
+                              {isHindi
+                                ? 'सोशलइंडिया स्टूडियो में हिंदी, अंग्रेजी या किसी भी भाषा में टाइमस्टैम्प वाले सबटाइटल जोड़ें।'
+                                : 'Add timestamped subtitles in Hindi, English, or any language directly in SocialIndia Studio.'}
                             </p>
                           </div>
                         </div>
@@ -3226,11 +3240,11 @@ export const CreatorStudio: React.FC = () => {
                             className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black shrink-0 shadow-xs cursor-pointer flex items-center gap-1.5"
                           >
                             <Subtitles className="w-4 h-4" />
-                            <span>Manage Subtitles</span>
+                            <span>{isHindi ? 'सबटाइटल प्रबंधित करें' : 'Manage Subtitles'}</span>
                           </button>
                         ) : (
                           <span className="text-[10px] font-bold text-slate-400">
-                            Available after upload
+                            {isHindi ? 'अपलोड के बाद उपलब्ध' : 'Available after upload'}
                           </span>
                         )}
                       </div>
@@ -3346,21 +3360,28 @@ export const CreatorStudio: React.FC = () => {
                           <MessageSquare className="w-4 h-4" />
                         </div>
                         <div>
-                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Comments & Community</h4>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">Choose how viewers can engage with this video</p>
+                          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                            {isHindi ? 'कमेंट्स व कम्युनिटी' : 'Comments & Community'}
+                          </h4>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                            {isHindi ? 'चुनें कि दर्शक इस वीडियो पर कैसे प्रतिक्रिया दे सकते हैं' : 'Choose how viewers can engage with this video'}
+                          </p>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                         {[
-                          { id: 'allow', label: 'Allow All' },
-                          { id: 'hold', label: 'Hold for Review' },
-                          { id: 'disabled', label: 'Disable' }
+                          { id: 'allow', label: isHindi ? 'सभी कमेंट अनुमति दें' : 'Allow All' },
+                          { id: 'hold', label: isHindi ? 'समीक्षा के लिए रोकें' : 'Hold for Review' },
+                          { id: 'disabled', label: isHindi ? 'कमेंट बंद करें' : 'Disable' }
                         ].map((opt) => (
                           <button
                             key={opt.id}
                             type="button"
-                            onClick={() => setCommentsMode(opt.id as any)}
+                            onClick={() => {
+                              commentsModeTouchedRef.current = true;
+                              setCommentsMode(opt.id as any);
+                            }}
                             className={`p-3 rounded-2xl text-xs font-black text-center transition-all cursor-pointer border-2 ${
                               commentsMode === opt.id
                                 ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
@@ -3383,27 +3404,33 @@ export const CreatorStudio: React.FC = () => {
                     {/* Visibility Option Cards */}
                     <div className="space-y-3">
                       <label className="block text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[11px] font-black">
-                        Choose Visibility *
+                        {isHindi ? 'दृश्यता (Visibility) चुनें *' : 'Choose Visibility *'}
                       </label>
                       
                       <div className="grid grid-cols-1 gap-3">
                         {[
                           {
                             id: 'public',
-                            title: 'Public',
-                            desc: 'Everyone can watch your video. It will appear on the Home feed, search results, and your channel.',
+                            title: isHindi ? 'सार्वजनिक (Public)' : 'Public',
+                            desc: isHindi
+                              ? 'हर कोई आपका वीडियो देख सकता है। यह होम फ़ीड, खोज परिणामों और आपके चैनल पर दिखेगा।'
+                              : 'Everyone can watch your video. It will appear on the Home feed, search results, and your channel.',
                             icon: Globe
                           },
                           {
                             id: 'unlisted',
-                            title: 'Unlisted',
-                            desc: 'Anyone with the video link can watch. It will not appear on public feeds or search.',
+                            title: isHindi ? 'अनलिस्टेड (Unlisted)' : 'Unlisted',
+                            desc: isHindi
+                              ? 'लिंक वाला कोई भी व्यक्ति देख सकता है। यह सार्वजनिक फ़ीड या खोज में नहीं दिखेगा।'
+                              : 'Anyone with the video link can watch. It will not appear on public feeds or search.',
                             icon: EyeOff
                           },
                           {
                             id: 'private',
-                            title: 'Private',
-                            desc: 'Only you can watch this video. You can change visibility anytime.',
+                            title: isHindi ? 'निजी (Private)' : 'Private',
+                            desc: isHindi
+                              ? 'केवल आप यह वीडियो देख सकते हैं। आप इसे कभी भी बदल सकते हैं।'
+                              : 'Only you can watch this video. You can change visibility anytime.',
                             icon: Lock
                           }
                         ].map((item) => {
@@ -3448,7 +3475,9 @@ export const CreatorStudio: React.FC = () => {
 
                     {/* Pre-Publish Review Card */}
                     <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-3">
-                      <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">Summary Review</h4>
+                      <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                        {isHindi ? 'सारांश समीक्षा' : 'Summary Review'}
+                      </h4>
                       <div className="flex items-center gap-3">
                         <div className="w-20 h-14 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-200 dark:border-slate-700">
                           <img 
@@ -3458,13 +3487,13 @@ export const CreatorStudio: React.FC = () => {
                           />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-black text-slate-900 dark:text-white truncate">{title || 'Untitled Video'}</p>
+                          <p className="text-xs font-black text-slate-900 dark:text-white truncate">{title || (isHindi ? 'शीर्षकहीन वीडियो' : 'Untitled Video')}</p>
                           <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 dark:text-slate-400 font-bold flex-wrap">
                             <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 rounded-md font-black">{category}</span>
                             <span>•</span>
                             <span>{formatDuration(duration)}</span>
                             <span>•</span>
-                            <span>{isShort ? '⚡ Clips' : '🎥 Standard Video'}</span>
+                            <span>{isShort ? (isHindi ? '⚡ क्लिप्स' : '⚡ Clips') : (isHindi ? '🎥 मानक वीडियो' : '🎥 Standard Video')}</span>
                             {selectedSoundTrack && (
                               <>
                                 <span>•</span>
@@ -3483,7 +3512,7 @@ export const CreatorStudio: React.FC = () => {
                           <div className="flex items-center gap-2.5">
                             <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
                             <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                              {uploadStageText || `Uploading Video... ${uploadProgress}%`}
+                              {uploadStageText || (isHindi ? `वीडियो अपलोड हो रहा है... ${uploadProgress}%` : `Uploading Video... ${uploadProgress}%`)}
                             </span>
                           </div>
                           <span className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono">

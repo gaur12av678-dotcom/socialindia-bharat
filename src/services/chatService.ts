@@ -111,7 +111,7 @@ export const chatService = {
       return { url: res.videoUrl, type: 'video' };
     }
 
-    // 1. Try Cloudinary if configured
+    // 1. Try primary media CDN if configured
     try {
       const { cloudName, preset } = await getCloudinaryConfigAsync();
       if (cloudName && preset) {
@@ -149,8 +149,8 @@ export const chatService = {
           return { url: res.secure_url, type };
         }
       }
-    } catch (cldErr) {
-      console.warn('Cloudinary media upload failed:', cldErr);
+    } catch {
+      // Primary media upload failed
     }
 
     throw new Error(

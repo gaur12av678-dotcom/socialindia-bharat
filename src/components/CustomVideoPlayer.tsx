@@ -670,7 +670,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         return;
       }
 
-      const playerElementId = `yt-player-${video.videoId}`;
+      const playerElementId = `si-player-${video.videoId}`;
       const element = document.getElementById(playerElementId);
       if (!element) return;
 
@@ -855,7 +855,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         retryTimer = setTimeout(initAmbientYT, 150);
         return;
       }
-      const ambientElementId = `yt-ambient-player-${video.videoId}`;
+      const ambientElementId = `si-ambient-player-${video.videoId}`;
       const ambientEl = document.getElementById(ambientElementId);
       if (!ambientEl) return;
 
@@ -1400,7 +1400,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       >
         {isAmbientMode && parsedMedia.type === 'youtube' ? (
           <div className="w-full h-full scale-125 overflow-hidden flex items-center justify-center opacity-90">
-            <div id={`yt-ambient-player-${video.videoId}`} className="w-full h-full pointer-events-none" />
+            <div id={`si-ambient-player-${video.videoId}`} className="w-full h-full pointer-events-none" />
           </div>
         ) : isAmbientMode && parsedMedia.type === 'direct' ? (
           <div className="w-full h-full scale-125 overflow-hidden flex items-center justify-center">
@@ -1532,7 +1532,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
         {parsedMedia.type === 'youtube' ? (
           <div className="w-full h-full flex items-center justify-center">
-            <div id={`yt-player-${video.videoId}`} className="relative w-full h-full" />
+            <div id={`si-player-${video.videoId}`} className="relative w-full h-full" />
           </div>
         ) : parsedMedia.type === 'drive' ? (
           <iframe

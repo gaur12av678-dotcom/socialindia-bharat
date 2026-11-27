@@ -23,6 +23,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
+import { useTranslation } from '../i18n';
 
 export const countryList = [
   'United States', 'Canada', 'India', 'Afghanistan', 'Albania', 'Algeria', 'Argentina', 
@@ -39,6 +40,7 @@ export const countryList = [
 export const AdvertisingPage: React.FC = () => {
   const { currentUser, currentUserProfile, refreshProfile } = useApp();
   const { navigate } = useRouter();
+  const { isHindi } = useTranslation();
 
   const [adsList, setAdsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +103,7 @@ export const AdvertisingPage: React.FC = () => {
       setUploadedMediaUrl(url);
     } catch (err) {
       console.error(err);
-      setErrorMsg('Failed to upload media file.');
+      setErrorMsg(isHindi ? 'मीडिया फ़ाइल अपलोड करने में विफल।' : 'Failed to upload media file.');
     }
   };
 
@@ -112,17 +114,17 @@ export const AdvertisingPage: React.FC = () => {
     setSuccessMsg('');
 
     if (!currentUser || !currentUserProfile) {
-      setErrorMsg('Please sign in to create an ad.');
+      setErrorMsg(isHindi ? 'विज्ञापन बनाने के लिए कृपया साइन इन करें।' : 'Please sign in to create an ad.');
       return;
     }
 
     if (!adName.trim() || !adTitle.trim()) {
-      setErrorMsg('Please enter campaign name and ad title.');
+      setErrorMsg(isHindi ? 'कृपया अभियान का नाम और विज्ञापन शीर्षक दर्ज करें।' : 'Please enter campaign name and ad title.');
       return;
     }
 
     if (totalLimit <= 0) {
-      setErrorMsg('Please enter a valid total spending limit.');
+      setErrorMsg(isHindi ? 'कृपया मान्य कुल खर्च सीमा दर्ज करें।' : 'Please enter a valid total spending limit.');
       return;
     }
 
@@ -130,7 +132,11 @@ export const AdvertisingPage: React.FC = () => {
     const bonus = currentUserProfile.bonusBalance || 0;
     const totalAvailable = Number((wallet + bonus).toFixed(2));
     if (totalAvailable < totalLimit) {
-      setErrorMsg(`Insufficient Balance (₹${totalAvailable.toFixed(2)} available: Wallet ₹${wallet.toFixed(2)}, Bonus ₹${bonus.toFixed(2)}). Total cost is ₹${totalLimit.toFixed(2)}.`);
+      setErrorMsg(
+        isHindi
+          ? `अपर्याप्त बैलेंस (उपलब्ध ₹${totalAvailable.toFixed(2)}: वॉलेट ₹${wallet.toFixed(2)}, बोनस ₹${bonus.toFixed(2)})। कुल लागत ₹${totalLimit.toFixed(2)} है।`
+          : `Insufficient Balance (₹${totalAvailable.toFixed(2)} available: Wallet ₹${wallet.toFixed(2)}, Bonus ₹${bonus.toFixed(2)}). Total cost is ₹${totalLimit.toFixed(2)}.`
+      );
       return;
     }
 
@@ -165,13 +171,17 @@ export const AdvertisingPage: React.FC = () => {
 
       await refreshProfile();
       await loadData();
-      setSuccessMsg(`✅ Ad campaign "${adName}" created successfully! It is now actively broadcasting live on Home Feed & Watch recommendations.`);
+      setSuccessMsg(
+        isHindi
+          ? `✅ विज्ञापन अभियान "${adName}" सफलतापूर्वक बन गया! यह अब होम फ़ीड और वॉच सुझावों में लाइव प्रसारित हो रहा है।`
+          : `✅ Ad campaign "${adName}" created successfully! It is now actively broadcasting live on Home Feed & Watch recommendations.`
+      );
       setTimeout(() => {
         setCreateModalOpen(false);
         setSuccessMsg('');
       }, 2500);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to create ad campaign.');
+      setErrorMsg(err.message || (isHindi ? 'विज्ञापन अभियान बनाने में विफल।' : 'Failed to create ad campaign.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -201,9 +211,11 @@ export const AdvertisingPage: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                  Advertising
+                  {isHindi ? 'विज्ञापन (Advertising)' : 'Advertising'}
                 </h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Promote your videos, products, and links to millions of viewers</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                  {isHindi ? 'लाखों दर्शकों तक अपने वीडियो, उत्पाद और लिंक प्रचारित करें' : 'Promote your videos, products, and links to millions of viewers'}
+                </p>
               </div>
             </div>
           </div>
@@ -212,7 +224,7 @@ export const AdvertisingPage: React.FC = () => {
           <div className="px-5 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-2xl flex items-center gap-4 shrink-0 text-xs font-bold">
             <div className="flex items-center gap-1.5">
               <Wallet className="w-4 h-4 text-[#00A3FF]" />
-              <span className="text-slate-500 dark:text-slate-400">Wallet:</span>
+              <span className="text-slate-500 dark:text-slate-400">{isHindi ? 'वॉलेट:' : 'Wallet:'}</span>
               <span className="text-[#00A3FF] font-black">₹{(currentUserProfile?.walletBalance || 0).toFixed(2)}</span>
             </div>
             {(currentUserProfile?.bonusBalance || 0) > 0 && (
@@ -220,14 +232,14 @@ export const AdvertisingPage: React.FC = () => {
                 <div className="w-px h-4 bg-slate-300 dark:bg-slate-700" />
                 <div className="flex items-center gap-1.5 text-amber-500">
                   <Gift className="w-3.5 h-3.5" />
-                  <span>Bonus:</span>
+                  <span>{isHindi ? 'बोनस:' : 'Bonus:'}</span>
                   <span className="font-black">₹{(currentUserProfile?.bonusBalance || 0).toFixed(2)}</span>
                 </div>
               </>
             )}
             <div className="w-px h-4 bg-slate-300 dark:bg-slate-700" />
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-500 dark:text-slate-400">Total Funds:</span>
+              <span className="text-slate-500 dark:text-slate-400">{isHindi ? 'कुल धनराशि:' : 'Total Funds:'}</span>
               <span className="text-emerald-500 font-black">
                 ₹{((currentUserProfile?.walletBalance || 0) + (currentUserProfile?.bonusBalance || 0)).toFixed(2)}
               </span>
@@ -245,7 +257,7 @@ export const AdvertisingPage: React.FC = () => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="search for advertising"
+                placeholder={isHindi ? 'विज्ञापन खोजें' : 'search for advertising'}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-full text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-[#00A3FF]"
@@ -262,7 +274,7 @@ export const AdvertisingPage: React.FC = () => {
               className="px-6 py-3 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black text-xs rounded-full shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2 w-full sm:w-auto justify-center"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Create ad</span>
+              <span>{isHindi ? 'विज्ञापन बनाएं' : 'Create ad'}</span>
             </button>
           </div>
 
@@ -271,17 +283,19 @@ export const AdvertisingPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
               <span className="font-extrabold text-emerald-700 dark:text-emerald-400">
-                Live Broadcast Engine Active
+                {isHindi ? 'लाइव ब्रॉडकास्ट इंजन सक्रिय' : 'Live Broadcast Engine Active'}
               </span>
               <span className="text-slate-500 hidden md:inline">
-                • Active campaigns are being broadcasted live to all users on the Home Feed and Watch Recommendations!
+                {isHindi
+                  ? '• सक्रिय अभियान होम फ़ीड और वॉच सुझावों पर सभी उपयोगकर्ताओं को लाइव दिखाए जा रहे हैं!'
+                  : '• Active campaigns are being broadcasted live to all users on the Home Feed and Watch Recommendations!'}
               </span>
             </div>
             <button
               onClick={() => navigate('home')}
               className="text-xs font-black text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1 shrink-0"
             >
-              <span>View Live Feed</span>
+              <span>{isHindi ? 'लाइव फ़ीड देखें' : 'View Live Feed'}</span>
               <ExternalLink className="w-3 h-3" />
             </button>
           </div>
@@ -291,13 +305,13 @@ export const AdvertisingPage: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-[#1A1A1A] text-slate-600 dark:text-slate-400 font-black uppercase tracking-wider border-b border-slate-200 dark:border-[#2B2B2B]">
                 <tr>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Campaign & Headline</th>
-                  <th className="p-4">Placement</th>
-                  <th className="p-4">Impressions</th>
-                  <th className="p-4">Clicks</th>
-                  <th className="p-4">Spent / Budget</th>
-                  <th className="p-4 text-right">Live View</th>
+                  <th className="p-4">{isHindi ? 'स्थिति' : 'Status'}</th>
+                  <th className="p-4">{isHindi ? 'अभियान व शीर्षक' : 'Campaign & Headline'}</th>
+                  <th className="p-4">{isHindi ? 'स्थान' : 'Placement'}</th>
+                  <th className="p-4">{isHindi ? 'इंप्रेशन' : 'Impressions'}</th>
+                  <th className="p-4">{isHindi ? 'क्लिक्स' : 'Clicks'}</th>
+                  <th className="p-4">{isHindi ? 'खर्च / बजट' : 'Spent / Budget'}</th>
+                  <th className="p-4 text-right">{isHindi ? 'प्रीव्यू' : 'Live View'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-[#222222] font-semibold text-slate-800 dark:text-slate-200">
@@ -305,13 +319,15 @@ export const AdvertisingPage: React.FC = () => {
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-slate-400">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-[#00A3FF]" />
-                      <span>Loading advertising campaigns...</span>
+                      <span>{isHindi ? 'विज्ञापन अभियान लोड हो रहे हैं...' : 'Loading advertising campaigns...'}</span>
                     </td>
                   </tr>
                 ) : filteredAds.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-16 text-center text-slate-400 font-bold">
-                      No ad campaigns created yet. Click "+ Create ad" to launch your first sponsored promotion!
+                      {isHindi
+                        ? 'अभी तक कोई विज्ञापन अभियान नहीं बनाया गया है। अपना पहला प्रायोजित प्रचार शुरू करने के लिए "+ विज्ञापन बनाएं" पर क्लिक करें!'
+                        : 'No ad campaigns created yet. Click "+ Create ad" to launch your first sponsored promotion!'}
                     </td>
                   </tr>
                 ) : (
@@ -320,19 +336,19 @@ export const AdvertisingPage: React.FC = () => {
                       <td className="p-4">
                         <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-full font-black text-[10px] uppercase flex items-center gap-1.5 w-fit">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>Live Broadcast</span>
+                          <span>{isHindi ? 'लाइव प्रसारण' : 'Live Broadcast'}</span>
                         </span>
                       </td>
                       <td className="p-4">
                         <p className="font-black text-slate-900 dark:text-white">{ad.name}</p>
                         <p className="text-[11px] text-slate-500 truncate max-w-xs">{ad.headline || ad.title}</p>
                       </td>
-                      <td className="p-4 text-slate-600 dark:text-slate-400">{ad.placement || 'Home Feed & Watch'}</td>
+                      <td className="p-4 text-slate-600 dark:text-slate-400">{ad.placement || (isHindi ? 'होम फ़ीड व वॉच' : 'Home Feed & Watch')}</td>
                       <td className="p-4 font-mono font-bold text-blue-600 dark:text-blue-400">
-                        {ad.impressions || 0} views
+                        {ad.impressions || 0} {isHindi ? 'व्यूज' : 'views'}
                       </td>
                       <td className="p-4 font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                        {ad.clicks || ad.results || 0} clicks
+                        {ad.clicks || ad.results || 0} {isHindi ? 'क्लिक्स' : 'clicks'}
                       </td>
                       <td className="p-4 font-mono">
                         ₹{(ad.spent || 0).toFixed(2)} / ₹{(ad.totalLimit || 0).toFixed(2)}
@@ -343,7 +359,7 @@ export const AdvertisingPage: React.FC = () => {
                           className="px-3 py-1.5 bg-slate-100 dark:bg-[#2B2B2B] hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span>Preview</span>
+                          <span>{isHindi ? 'प्रीव्यू' : 'Preview'}</span>
                         </button>
                       </td>
                     </tr>
@@ -366,7 +382,7 @@ export const AdvertisingPage: React.FC = () => {
             <div className="p-5 border-b border-slate-100 dark:border-[#222222] flex items-center justify-between">
               <h3 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <Users className="w-5 h-5 text-[#00A3FF]" />
-                <span>Create New Ad</span>
+                <span>{isHindi ? 'नया विज्ञापन बनाएं' : 'Create New Ad'}</span>
               </h3>
               <button
                 onClick={() => setCreateModalOpen(false)}
@@ -393,11 +409,11 @@ export const AdvertisingPage: React.FC = () => {
 
               {/* Name */}
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">Name *</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">{isHindi ? 'नाम *' : 'Name *'}</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Summer Video Promotion"
+                  placeholder={isHindi ? 'जैसे: समर वीडियो प्रमोशन' : 'e.g. Summer Video Promotion'}
                   value={adName}
                   onChange={(e) => setAdName(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-slate-900 dark:text-white font-bold focus:outline-none focus:border-[#00A3FF]"
@@ -406,7 +422,7 @@ export const AdvertisingPage: React.FC = () => {
 
               {/* Target Audience Select Country */}
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">Target Audience</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">{isHindi ? 'लक्षित दर्शक (देश)' : 'Target Audience'}</label>
                 <select
                   value={targetCountry}
                   onChange={(e) => setTargetCountry(e.target.value)}
@@ -420,11 +436,11 @@ export const AdvertisingPage: React.FC = () => {
 
               {/* URL */}
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">URL *</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">{isHindi ? 'लिंक (URL) *' : 'URL *'}</label>
                 <input
                   type="url"
                   required
-                  placeholder="https://yourwebsite.com or video link"
+                  placeholder={isHindi ? 'https://yourwebsite.com या वीडियो लिंक' : 'https://yourwebsite.com or video link'}
                   value={targetUrl}
                   onChange={(e) => setTargetUrl(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-slate-900 dark:text-white font-bold focus:outline-none focus:border-[#00A3FF]"
@@ -433,11 +449,11 @@ export const AdvertisingPage: React.FC = () => {
 
               {/* Title */}
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">Title *</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">{isHindi ? 'शीर्षक *' : 'Title *'}</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ad Headline"
+                  placeholder={isHindi ? 'विज्ञापन शीर्षक' : 'Ad Headline'}
                   value={adTitle}
                   onChange={(e) => setAdTitle(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-slate-900 dark:text-white font-bold focus:outline-none focus:border-[#00A3FF]"
@@ -446,10 +462,10 @@ export const AdvertisingPage: React.FC = () => {
 
               {/* Description */}
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">Description</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">{isHindi ? 'विवरण' : 'Description'}</label>
                 <textarea
                   rows={3}
-                  placeholder="Ad body description..."
+                  placeholder={isHindi ? 'विज्ञापन का विवरण लिखें...' : 'Ad body description...'}
                   value={adDesc}
                   onChange={(e) => setAdDescription(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-slate-900 dark:text-white font-medium focus:outline-none focus:border-[#00A3FF]"
@@ -458,7 +474,7 @@ export const AdvertisingPage: React.FC = () => {
 
               {/* Pricing */}
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">Pricing</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">{isHindi ? 'मूल्य निर्धारण (Pricing)' : 'Pricing'}</label>
                 <div className="flex items-center gap-6 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -468,7 +484,7 @@ export const AdvertisingPage: React.FC = () => {
                       onChange={() => setPricingType('click')}
                       className="w-4 h-4 text-[#00A3FF]"
                     />
-                    <span>Pay Per Click ($ 0.7)</span>
+                    <span>{isHindi ? 'प्रति क्लिक भुगतान ($ 0.7)' : 'Pay Per Click ($ 0.7)'}</span>
                   </label>
 
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -479,14 +495,14 @@ export const AdvertisingPage: React.FC = () => {
                       onChange={() => setPricingType('view')}
                       className="w-4 h-4 text-[#00A3FF]"
                     />
-                    <span>Pay Per View ($ 0.05)</span>
+                    <span>{isHindi ? 'प्रति व्यू भुगतान ($ 0.05)' : 'Pay Per View ($ 0.05)'}</span>
                   </label>
                 </div>
               </div>
 
               {/* Placement */}
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">Placement</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">{isHindi ? 'विज्ञापन स्थान' : 'Placement'}</label>
                 <input
                   type="text"
                   readOnly
@@ -498,7 +514,7 @@ export const AdvertisingPage: React.FC = () => {
               {/* Spending Limits */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">Spending limit per day ($)</label>
+                  <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">{isHindi ? 'दैनिक खर्च सीमा (₹)' : 'Spending limit per day (₹)'}</label>
                   <input
                     type="number"
                     min={1}
@@ -509,7 +525,7 @@ export const AdvertisingPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">Total ads spending limit ($) *</label>
+                  <label className="block text-slate-700 dark:text-slate-300 mb-1.5 font-bold uppercase">{isHindi ? 'कुल विज्ञापन खर्च सीमा (₹) *' : 'Total ads spending limit (₹) *'}</label>
                   <input
                     type="number"
                     min={1}
@@ -522,7 +538,7 @@ export const AdvertisingPage: React.FC = () => {
 
               {/* Select Media */}
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 mb-2 font-bold uppercase">Select Media</label>
+                <label className="block text-slate-700 dark:text-slate-300 mb-2 font-bold uppercase">{isHindi ? 'मीडिया चुनें' : 'Select Media'}</label>
                 
                 <div className="flex items-center gap-3 mb-3">
                   <button
@@ -532,7 +548,7 @@ export const AdvertisingPage: React.FC = () => {
                       mediaType === 'upload' ? 'bg-[#00A3FF] text-white' : 'bg-slate-100 dark:bg-[#1A1A1A] text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    Upload File from Device
+                    {isHindi ? 'डिवाइस से फ़ाइल अपलोड करें' : 'Upload File from Device'}
                   </button>
 
                   <button
@@ -542,7 +558,7 @@ export const AdvertisingPage: React.FC = () => {
                       mediaType === 'socialindia_video' ? 'bg-[#00A3FF] text-white' : 'bg-slate-100 dark:bg-[#1A1A1A] text-slate-600 dark:text-slate-400'
                     }`}
                   >
-                    Promote SocialIndia Video/Clip
+                    {isHindi ? 'सोशलइंडिया वीडियो/क्लिप प्रमोट करें' : 'Promote SocialIndia Video/Clip'}
                   </button>
                 </div>
 
@@ -557,16 +573,20 @@ export const AdvertisingPage: React.FC = () => {
                     />
                     <label htmlFor="ad-media-upload" className="px-5 py-2.5 bg-[#00A3FF] text-white rounded-full font-bold cursor-pointer inline-flex items-center gap-2">
                       <Upload className="w-4 h-4" />
-                      <span>{uploadedMediaUrl ? 'Change Uploaded File' : 'Upload Video/Image'}</span>
+                      <span>{uploadedMediaUrl ? (isHindi ? 'अपलोड की गई फ़ाइल बदलें' : 'Change Uploaded File') : (isHindi ? 'वीडियो/छवि अपलोड करें' : 'Upload Video/Image')}</span>
                     </label>
                     {uploadedMediaUrl && (
-                      <p className="text-[10px] text-emerald-600 font-mono font-bold truncate">File Ready: {uploadedMediaUrl}</p>
+                      <p className="text-[10px] text-emerald-600 font-mono font-bold truncate">
+                        {isHindi ? 'फ़ाइल तैयार है:' : 'File Ready:'} {uploadedMediaUrl}
+                      </p>
                     )}
                   </div>
                 ) : (
                   <div>
                     {userVideos.length === 0 ? (
-                      <p className="text-slate-400 text-xs font-semibold">No uploaded videos found to promote. Upload a video first.</p>
+                      <p className="text-slate-400 text-xs font-semibold">
+                        {isHindi ? 'प्रचार करने के लिए कोई अपलोड किया गया वीडियो नहीं मिला। पहले एक वीडियो अपलोड करें।' : 'No uploaded videos found to promote. Upload a video first.'}
+                      </p>
                     ) : (
                       <select
                         value={selectedVideoId}
@@ -574,7 +594,7 @@ export const AdvertisingPage: React.FC = () => {
                         className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1A1A1A] border border-slate-200 dark:border-[#2B2B2B] rounded-xl text-slate-900 dark:text-white font-bold cursor-pointer"
                       >
                         {userVideos.map(v => (
-                          <option key={v.videoId} value={v.videoId}>{v.title} ({v.isShort ? 'Clip' : 'Video'})</option>
+                          <option key={v.videoId} value={v.videoId}>{v.title} ({v.isShort ? (isHindi ? 'क्लिप' : 'Clip') : (isHindi ? 'वीडियो' : 'Video')})</option>
                         ))}
                       </select>
                     )}
@@ -589,7 +609,7 @@ export const AdvertisingPage: React.FC = () => {
                   onClick={() => setCreateModalOpen(false)}
                   className="px-5 py-2.5 text-slate-500 font-bold hover:text-slate-900 dark:hover:text-white cursor-pointer"
                 >
-                  Cancel
+                  {isHindi ? 'रद्द करें' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
@@ -597,7 +617,7 @@ export const AdvertisingPage: React.FC = () => {
                   className="px-8 py-3 bg-[#00A3FF] hover:bg-[#0082CC] text-white font-black rounded-full shadow-lg flex items-center gap-2 cursor-pointer"
                 >
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  <span>Publish Ad Campaign</span>
+                  <span>{isHindi ? 'विज्ञापन प्रकाशित करें' : 'Publish Ad Campaign'}</span>
                 </button>
               </div>
 
@@ -617,8 +637,12 @@ export const AdvertisingPage: React.FC = () => {
                   <Eye className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900 dark:text-white">Live Ad Broadcast Preview</h3>
-                  <p className="text-[11px] text-slate-500">Real-time simulation of how viewers see your campaign</p>
+                  <h3 className="text-base font-black text-slate-900 dark:text-white">
+                    {isHindi ? 'लाइव विज्ञापन प्रसारण प्रीव्यू' : 'Live Ad Broadcast Preview'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {isHindi ? 'दर्शकों को आपका अभियान कैसा दिखेगा, इसका रीयल-टाइम प्रीव्यू' : 'Real-time simulation of how viewers see your campaign'}
+                  </p>
                 </div>
               </div>
               <button
@@ -632,13 +656,17 @@ export const AdvertisingPage: React.FC = () => {
             <div className="p-6 overflow-y-auto space-y-6">
               {/* Home Feed Card View */}
               <div className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-400">1. Home Feed Featured Promotion View:</span>
+                <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+                  {isHindi ? '1. होम फ़ीड फ़ीचर्ड प्रमोशन व्यू:' : '1. Home Feed Featured Promotion View:'}
+                </span>
                 <SponsoredAdCard ad={previewAd} layout="feed" />
               </div>
 
               {/* Watch Sidebar Card View */}
               <div className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-400">2. Watch Page Recommendation Sidebar View:</span>
+                <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+                  {isHindi ? '2. वॉच पेज साइडबार सुझाव व्यू:' : '2. Watch Page Recommendation Sidebar View:'}
+                </span>
                 <div className="max-w-sm">
                   <SponsoredAdCard ad={previewAd} layout="sidebar" />
                 </div>
@@ -648,7 +676,7 @@ export const AdvertisingPage: React.FC = () => {
             <div className="p-5 border-t border-slate-100 dark:border-[#222222] flex items-center justify-between">
               <span className="text-xs font-bold text-emerald-500 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                <span>Live in platform ad rotation</span>
+                <span>{isHindi ? 'प्लेटफ़ॉर्म विज्ञापन रोटेशन में लाइव' : 'Live in platform ad rotation'}</span>
               </span>
               <button
                 onClick={() => {
@@ -657,7 +685,7 @@ export const AdvertisingPage: React.FC = () => {
                 }}
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
               >
-                <span>Go to Home Feed</span>
+                <span>{isHindi ? 'होम फ़ीड पर जाएं' : 'Go to Home Feed'}</span>
                 <ExternalLink className="w-3.5 h-3.5" />
               </button>
             </div>

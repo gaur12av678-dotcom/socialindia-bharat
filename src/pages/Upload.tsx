@@ -72,7 +72,16 @@ export const UploadPage: React.FC = () => {
   const [isMonetized, setIsMonetized] = useState(true);
   const [isPaid, setIsPaid] = useState(false);
   const [price, setPrice] = useState<number>(10);
-  const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>('allow');
+  const defaultCommentsMode: 'allow' | 'disabled' =
+    currentUserProfile?.allowComments === false ? 'disabled' : 'allow';
+  const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>(defaultCommentsMode);
+  const commentsModeTouchedRef = useRef(false);
+
+  useEffect(() => {
+    if (!commentsModeTouchedRef.current) {
+      setCommentsMode(currentUserProfile?.allowComments === false ? 'disabled' : 'allow');
+    }
+  }, [currentUserProfile?.allowComments]);
 
   // Only monetized creators can publish paid videos
   const isUserMonetized = Boolean(
@@ -408,7 +417,7 @@ export const UploadPage: React.FC = () => {
       });
     } catch (err: any) {
       console.error('Publish error:', err);
-      if (err.message === 'CLOUDINARY_CONFIG_REQUIRED' || err.message?.includes('CLOUDINARY_CONFIG_REQUIRED')) {
+      if (err.message === 'MEDIA_STORAGE_CONFIG_REQUIRED' || err.message?.includes('MEDIA_STORAGE_CONFIG_REQUIRED')) {
         const msg = isHindi ? 'क्लाउड स्टोरेज अभी सेटअप नहीं है।' : 'Cloud Storage is not configured yet. Please contact Admin in Admin Panel.';
         setPublishError(msg);
         addToast(msg, 'error');
@@ -1159,7 +1168,10 @@ export const UploadPage: React.FC = () => {
                     <button
                       key={opt.id}
                       type="button"
-                      onClick={() => setCommentsMode(opt.id as any)}
+                      onClick={() => {
+                        commentsModeTouchedRef.current = true;
+                        setCommentsMode(opt.id as any);
+                      }}
                       className={`p-2.5 rounded-xl text-xs font-bold text-center transition-all cursor-pointer border ${
                         commentsMode === opt.id
                           ? 'bg-[#065fd4] text-white border-[#065fd4] shadow-xs'

@@ -15,6 +15,7 @@ import {
 import { Video, CaptionCue } from '../types';
 import { videoService } from '../services/videoService';
 import { formatDuration } from '../utils/videoUtils';
+import { useTranslation } from '../i18n';
 
 interface CaptionEditorModalProps {
   video: Video;
@@ -49,12 +50,13 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
   onClose,
   onSaved
 }) => {
+  const { isHindi } = useTranslation();
   const [cues, setCues] = useState<CaptionCue[]>(() => {
     if (video.captions && Array.isArray(video.captions) && video.captions.length > 0) {
       return [...video.captions].sort((a, b) => a.start - b.start);
     }
     return [
-      { id: 'cue-1', start: 0, end: Math.min(5, Math.floor(video.duration || 10)), text: 'Welcome to this video on SocialIndia!' }
+      { id: 'cue-1', start: 0, end: Math.min(5, Math.floor(video.duration || 10)), text: isHindi ? 'सोशलइंडिया पर इस वीडियो में आपका स्वागत है!' : 'Welcome to this video on SocialIndia!' }
     ];
   });
 
@@ -106,10 +108,10 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
         start: cur,
         end: next,
         text: idx === 1 
-          ? `Welcome: ${video.title}` 
+          ? (isHindi ? `स्वागत है: ${video.title}` : `Welcome: ${video.title}`)
           : idx === 2 
-          ? 'Enjoy watching on SocialIndia!' 
-          : `Timestamp cue ${secondsToTimeString(cur)} - ${secondsToTimeString(next)}`
+          ? (isHindi ? 'सोशलइंडिया पर देखने का आनंद लें!' : 'Enjoy watching on SocialIndia!')
+          : (isHindi ? `समय अंतराल ${secondsToTimeString(cur)} - ${secondsToTimeString(next)}` : `Timestamp cue ${secondsToTimeString(cur)} - ${secondsToTimeString(next)}`)
       });
       cur = next;
       idx++;
@@ -125,7 +127,7 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
       .sort((a, b) => a.start - b.start);
 
     if (sorted.length === 0) {
-      setErrorMsg('Please add at least one caption line with text.');
+      setErrorMsg(isHindi ? 'कृपया कम से कम एक सबटाइटल लाइन जोड़ें।' : 'Please add at least one caption line with text.');
       return;
     }
 
@@ -144,7 +146,7 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
       }, 1000);
     } catch (err: any) {
       console.error('Failed to save captions:', err);
-      setErrorMsg(err.message || 'Failed to save subtitles.');
+      setErrorMsg(err.message || (isHindi ? 'सबटाइटल सहेजने में विफल।' : 'Failed to save subtitles.'));
     } finally {
       setIsSaving(false);
     }
@@ -164,7 +166,7 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
             </div>
             <div className="min-w-0">
               <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
-                Subtitles & Captions Editor
+                {isHindi ? 'सबटाइटल और कैप्शन संपादक' : 'Subtitles & Captions Editor'}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                 {video.title} • {formatDuration(video.duration || 0)}
@@ -183,14 +185,14 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
         <div className="px-4 py-2.5 bg-blue-50/80 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/40 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2 text-blue-800 dark:text-blue-300 font-medium">
             <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-            <span>Add timestamped subtitle cues in Hindi, English, or any language.</span>
+            <span>{isHindi ? 'हिंदी, अंग्रेजी या किसी भी भाषा में टाइमस्टैम्प के साथ सबटाइटल जोड़ें।' : 'Add timestamped subtitle cues in Hindi, English, or any language.'}</span>
           </div>
           <button
             onClick={handleAutoGenerateTemplate}
             type="button"
             className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1"
           >
-            Auto-Template
+            {isHindi ? 'ऑटो-टेम्पलेट' : 'Auto-Template'}
           </button>
         </div>
 
@@ -206,12 +208,14 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
           {cues.length === 0 ? (
             <div className="text-center py-10 space-y-3">
               <Subtitles className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
-              <p className="text-sm font-bold text-slate-500">No subtitle cues added yet.</p>
+              <p className="text-sm font-bold text-slate-500">
+                {isHindi ? 'अभी तक कोई सबटाइटल नहीं जोड़ा गया है।' : 'No subtitle cues added yet.'}
+              </p>
               <button
                 onClick={handleAddCue}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs cursor-pointer inline-flex items-center gap-1.5"
               >
-                <Plus className="w-4 h-4" /> Add First Caption Line
+                <Plus className="w-4 h-4" /> {isHindi ? 'पहली कैप्शन लाइन जोड़ें' : 'Add First Caption Line'}
               </button>
             </div>
           ) : (
@@ -235,7 +239,7 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
                     />
                   </div>
 
-                  <span className="text-slate-400 text-xs font-bold">to</span>
+                  <span className="text-slate-400 text-xs font-bold">{isHindi ? 'से' : 'to'}</span>
 
                   {/* End time */}
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-white/5 px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 text-xs font-mono">
@@ -256,7 +260,7 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
                     type="text"
                     value={cue.text}
                     onChange={(e) => handleUpdateCue(cue.id, 'text', e.target.value)}
-                    placeholder="Enter spoken text for this timestamp..."
+                    placeholder={isHindi ? 'इस समय के लिए बोले गए शब्द लिखें...' : 'Enter spoken text for this timestamp...'}
                     className="w-full px-3 py-1.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
@@ -266,7 +270,7 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
                   type="button"
                   onClick={() => handleRemoveCue(cue.id)}
                   className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer self-end sm:self-center shrink-0"
-                  title="Delete line"
+                  title={isHindi ? 'लाइन हटाएं' : 'Delete line'}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -283,7 +287,7 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
             className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/5 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer transition-colors"
           >
             <Plus className="w-4 h-4 text-blue-500" />
-            <span>Add Timestamp Line</span>
+            <span>{isHindi ? 'नई लाइन जोड़ें' : 'Add Timestamp Line'}</span>
           </button>
 
           <div className="flex items-center gap-2">
@@ -292,7 +296,7 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 cursor-pointer"
             >
-              Cancel
+              {isHindi ? 'रद्द करें' : 'Cancel'}
             </button>
             <button
               type="button"
@@ -301,16 +305,16 @@ export const CaptionEditorModal: React.FC<CaptionEditorModalProps> = ({
               className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-black shadow-md shadow-blue-600/30 flex items-center gap-1.5 cursor-pointer transition-all"
             >
               {isSaving ? (
-                <span>Saving...</span>
+                <span>{isHindi ? 'सहेजा जा रहा है...' : 'Saving...'}</span>
               ) : savedSuccess ? (
                 <>
                   <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                  <span>Saved!</span>
+                  <span>{isHindi ? 'सहेजा गया!' : 'Saved!'}</span>
                 </>
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  <span>Save Captions</span>
+                  <span>{isHindi ? 'कैप्शन सहेजें' : 'Save Captions'}</span>
                 </>
               )}
             </button>

@@ -162,8 +162,19 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('All');
   const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
-  const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>('allow');
+  const [commentsMode, setCommentsMode] = useState<'allow' | 'hold' | 'disabled'>(() =>
+    currentUserProfile?.allowComments === false ? 'disabled' : 'allow'
+  );
+  const commentsModeTouchedRef = useRef(false);
   const [madeForKids, setMadeForKids] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      commentsModeTouchedRef.current = false;
+    } else if (!commentsModeTouchedRef.current) {
+      setCommentsMode(currentUserProfile?.allowComments === false ? 'disabled' : 'allow');
+    }
+  }, [isOpen, currentUserProfile?.allowComments]);
 
   // Publishing Progress
   const [isPublishing, setIsPublishing] = useState(false);
@@ -1959,7 +1970,10 @@ export const MobileShortsStudio: React.FC<MobileShortsStudioProps> = ({
                     key={option.id}
                     type="button"
                     disabled={isPublishing}
-                    onClick={() => setCommentsMode(option.id as typeof commentsMode)}
+                    onClick={() => {
+                      commentsModeTouchedRef.current = true;
+                      setCommentsMode(option.id as typeof commentsMode);
+                    }}
                     className={`p-2 rounded-xl border text-[10px] font-bold transition-colors ${
                       commentsMode === option.id
                         ? 'bg-blue-600 text-white border-blue-600'

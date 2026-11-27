@@ -170,8 +170,8 @@ export const CommunityPage: React.FC = () => {
           onClick={() => setFilterType('all')}
           className={`px-4 py-1.5 rounded-full text-xs border transition-all cursor-pointer shrink-0 ${
             filterType === 'all'
-              ? 'yt-chip-active shadow-xs'
-              : 'yt-chip-inactive'
+              ? 'si-chip-active shadow-xs'
+              : 'si-chip-inactive'
           }`}
         >
           {isHindi ? 'सभी पोस्ट' : 'All Posts'}
@@ -182,8 +182,8 @@ export const CommunityPage: React.FC = () => {
           onClick={() => setFilterType('video')}
           className={`px-4 py-1.5 rounded-full text-xs border flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
             filterType === 'video'
-              ? 'yt-chip-active shadow-xs'
-              : 'yt-chip-inactive'
+              ? 'si-chip-active shadow-xs'
+              : 'si-chip-inactive'
           }`}
         >
           <VideoIcon className="w-3.5 h-3.5" />
@@ -195,8 +195,8 @@ export const CommunityPage: React.FC = () => {
           onClick={() => setFilterType('image')}
           className={`px-4 py-1.5 rounded-full text-xs border flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
             filterType === 'image'
-              ? 'yt-chip-active shadow-xs'
-              : 'yt-chip-inactive'
+              ? 'si-chip-active shadow-xs'
+              : 'si-chip-inactive'
           }`}
         >
           <ImageIcon className="w-3.5 h-3.5" />
@@ -208,8 +208,8 @@ export const CommunityPage: React.FC = () => {
           onClick={() => setFilterType('poll')}
           className={`px-4 py-1.5 rounded-full text-xs border flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
             filterType === 'poll'
-              ? 'yt-chip-active shadow-xs'
-              : 'yt-chip-inactive'
+              ? 'si-chip-active shadow-xs'
+              : 'si-chip-inactive'
           }`}
         >
           <BarChart2 className="w-3.5 h-3.5" />
@@ -261,7 +261,7 @@ export const CommunityPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={loadMorePosts}
-                  className="px-5 py-2 rounded-full text-xs border yt-chip-inactive cursor-pointer transition-all"
+                  className="px-5 py-2 rounded-full text-xs border si-chip-inactive cursor-pointer transition-all"
                 >
                   {isHindi ? 'और पोस्ट देखें' : 'Load more posts'}
                 </button>

@@ -268,17 +268,17 @@ export function parseVideoUrl(url: string): ParsedVideo {
   };
 }
 
-// Automatically extract thumbnail scene from video URL (Cloudinary or YouTube)
+// Automatically extract thumbnail scene from video URL
 export function extractVideoThumbnail(url: string): string | null {
   if (!url) return null;
   
-  // 1. YouTube thumbnail
+  // 1. Embedded video thumbnail
   const parsed = parseVideoUrl(url);
   if (parsed.type === 'youtube' && parsed.youtubeId) {
     return `https://img.youtube.com/vi/${parsed.youtubeId}/hqdefault.jpg`;
   }
 
-  // 2. Cloudinary native frame scene capture at 1.5 seconds
+  // 2. Cloud media native frame scene capture at 1.5 seconds
   if (url.includes('cloudinary.com')) {
     if (url.includes('/video/upload/')) {
       return url
@@ -289,11 +289,6 @@ export function extractVideoThumbnail(url: string): string | null {
   }
 
   return null;
-}
-
-// Automatically extract high quality YouTube thumbnail scene from video URL (alias)
-export function extractYoutubeThumbnail(url: string): string | null {
-  return extractVideoThumbnail(url);
 }
 
 // Helper to capture a real frame from a video file using HTML5 Canvas

@@ -11,33 +11,33 @@ export interface UserAvatarProps {
   onClick?: (e: React.MouseEvent) => void;
 }
 
-// YouTube / Google Material solid color palette for letter avatars
-export const YOUTUBE_AVATAR_COLORS = [
-  '#c5221f', // YouTube Red
+// SocialIndia solid color palette for letter avatars
+export const SI_AVATAR_COLORS = [
+  '#c5221f', // Crimson Red
   '#e37400', // Deep Orange
   '#b06000', // Amber / Ochre
-  '#137333', // Google Forest Green
+  '#137333', // Forest Green
   '#007b83', // Deep Teal
   '#00897b', // Teal Green
-  '#1a73e8', // YouTube / Google Blue
+  '#1a73e8', // Brand Blue
   '#3949ab', // Indigo
   '#7b1fa2', // Purple
   '#c2185b', // Pink / Rose
   '#5f6368', // Slate Neutral Grey
 ];
 
-export function getYouTubeColor(str: string): string {
+export function getAvatarColor(str: string): string {
   if (!str) return '#5f6368';
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const index = Math.abs(hash) % YOUTUBE_AVATAR_COLORS.length;
-  return YOUTUBE_AVATAR_COLORS[index];
+  const index = Math.abs(hash) % SI_AVATAR_COLORS.length;
+  return SI_AVATAR_COLORS[index];
 }
 
-// Single uppercase letter avatar (YouTube standard)
-export function getYouTubeInitial(name: string): string {
+// Single uppercase letter avatar
+export function getUserInitial(name: string): string {
   if (!name) return '';
   const clean = name.replace(/^@/, '').trim();
   if (!clean) return '';
@@ -364,10 +364,10 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   }, [effectivePhoto, resolvedOwnerKey]);
 
   const hasPhoto = Boolean(effectivePhoto && !imgError);
-  const initial = getYouTubeInitial(effectiveDisplayName);
-  const solidColor = getYouTubeColor(effectiveDisplayName || uid || 'User');
+  const initial = getUserInitial(effectiveDisplayName);
+  const solidColor = getAvatarColor(effectiveDisplayName || uid || 'User');
 
-  // Sizing maps matching YouTube specifications
+  // Sizing maps
   const getSizeStyles = () => {
     switch (size) {
       case 'xs':
@@ -397,7 +397,7 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
         onClick ? 'cursor-pointer hover:opacity-95 active:scale-95' : ''
       } ${className}`}
     >
-      {/* YouTube Default Fallback: Authentic Single Letter or Classic YouTube Silhouette */}
+      {/* Default Fallback: Single Letter or Silhouette */}
       <div className="w-full h-full flex items-center justify-center font-semibold text-white leading-none select-none tracking-normal !rounded-full">
         {initial ? (
           <span className="uppercase transform translate-y-[-0.5px]">{initial}</span>

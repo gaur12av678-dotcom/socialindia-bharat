@@ -65,28 +65,40 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       const isChunkError = isChunkLoadError(this.state.error);
+      let isHindi = false;
+      try {
+        isHindi = localStorage.getItem('socialindia_lang') === 'hi';
+      } catch {
+        // Ignore storage errors
+      }
       return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0f0f0f] flex flex-col items-center justify-center p-6 text-center select-none">
           <div className="p-4 bg-rose-50 dark:bg-rose-950/40 text-rose-500 rounded-3xl mb-4 border border-rose-100 dark:border-rose-900/30 animate-pulse">
             <AlertTriangle className="w-8 h-8" />
           </div>
           <h2 className="text-xl font-black text-slate-900 dark:text-white">
-            {isChunkError ? 'App Update Required' : 'Workspace Interrupted'}
+            {isChunkError
+              ? (isHindi ? 'ऐप अपडेट आवश्यक है' : 'App Update Required')
+              : (isHindi ? 'कार्यस्थान में रुकावट' : 'Workspace Interrupted')}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1.5 leading-relaxed">
             {isChunkError
-              ? 'A newer version of SocialIndia was published or your connection blipped while loading this page. Reloading fixes it immediately.'
-              : "SocialIndia encountered a momentary runtime render issue. Don't worry, your personal wallet and workspace files are safe."}
+              ? (isHindi
+                  ? 'सोशलइंडिया का नया संस्करण उपलब्ध है या पेज लोड करते समय कनेक्शन बाधित हुआ। रीलोड करने से यह तुरंत ठीक हो जाएगा।'
+                  : 'A newer version of SocialIndia was published or your connection blipped while loading this page. Reloading fixes it immediately.')
+              : (isHindi
+                  ? 'सोशलइंडिया में एक अस्थायी समस्या आई है। चिंता न करें, आपका वॉलेट और फ़ाइलें पूरी तरह सुरक्षित हैं।'
+                  : "SocialIndia encountered a momentary runtime render issue. Don't worry, your personal wallet and workspace files are safe.")}
           </p>
           <pre className="mt-4 p-3 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] text-left max-w-md w-full whitespace-pre-wrap break-all font-mono text-slate-600 dark:text-rose-400">
-            {this.state.error?.message || 'Unknown render exception'}
+            {this.state.error?.message || (isHindi ? 'अज्ञात रेंडर त्रुटि' : 'Unknown render exception')}
           </pre>
           <button
             onClick={() => void this.handleHardReload()}
             className="mt-6 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl cursor-pointer flex items-center gap-2 shadow-md shadow-blue-500/10 active:scale-95 transition-all"
           >
             <RefreshCw className="w-4 h-4" />
-            <span>Reload Platform</span>
+            <span>{isHindi ? 'प्लेटफ़ॉर्म रीलोड करें' : 'Reload Platform'}</span>
           </button>
         </div>
       );

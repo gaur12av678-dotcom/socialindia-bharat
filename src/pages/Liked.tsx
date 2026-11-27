@@ -113,7 +113,7 @@ export const LikedVideos: React.FC = () => {
                 {t('nav_liked_videos', isHindi ? 'पसंद किए गए वीडियो' : 'Liked Videos')}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full bg-blue-100/80 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[11px] font-black">
-                {likedVideos.length} {likedVideos.length === 1 ? 'video' : 'videos'}
+                {likedVideos.length} {isHindi ? 'वीडियो' : (likedVideos.length === 1 ? 'video' : 'videos')}
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -216,7 +216,7 @@ export const LikedVideos: React.FC = () => {
                 ) : null}
                 {video.isShort && (
                   <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-red-600 text-white text-[9px] font-black uppercase tracking-wider rounded-md pointer-events-none">
-                    Clip
+                    {isHindi ? 'क्लिप' : 'Clip'}
                   </span>
                 )}
                 {/* Play Hover Overlay */}
@@ -244,7 +244,7 @@ export const LikedVideos: React.FC = () => {
                   }}
                   className="block text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors cursor-pointer"
                 >
-                  {video.title || 'Untitled Video'}
+                  {video.title || (isHindi ? 'शीर्षकहीन वीडियो' : 'Untitled Video')}
                 </a>
                 
                 <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
@@ -270,7 +270,7 @@ export const LikedVideos: React.FC = () => {
                   {video.likedAt && (
                     <>
                       <span>•</span>
-                      <span className="hidden sm:inline">Liked {formatTimeAgo(video.likedAt)}</span>
+                      <span className="hidden sm:inline">{isHindi ? `पसंद किया: ${formatTimeAgo(video.likedAt)}` : `Liked ${formatTimeAgo(video.likedAt)}`}</span>
                     </>
                   )}
                 </div>

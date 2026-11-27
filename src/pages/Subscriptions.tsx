@@ -661,7 +661,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
               <button
                 type="button"
                 onClick={() => handleToggleViewMode('grid')}
-                title="Grid view"
+                title={isHindi ? 'ग्रिड व्यू' : 'Grid view'}
                 className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                   viewMode === 'grid'
                     ? 'bg-white dark:bg-[#181818] text-[#065fd4] dark:text-[#3ea6ff] shadow-xs'
@@ -673,7 +673,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
               <button
                 type="button"
                 onClick={() => handleToggleViewMode('list')}
-                title="List view"
+                title={isHindi ? 'लिस्ट व्यू' : 'List view'}
                 className={`p-1.5 rounded-lg transition-all cursor-pointer ${
                   viewMode === 'list'
                     ? 'bg-white dark:bg-[#181818] text-[#065fd4] dark:text-[#3ea6ff] shadow-xs'
@@ -702,8 +702,8 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
               onClick={() => handleSelectFilter(chip.id as SubscriptionsFilter)}
               className={`px-3.5 py-1.5 rounded-full border text-xs shrink-0 transition-colors cursor-pointer ${
                 activeFilter === chip.id
-                  ? 'yt-chip-active shadow-xs font-semibold'
-                  : 'yt-chip-inactive'
+                  ? 'si-chip-active shadow-xs font-semibold'
+                  : 'si-chip-inactive'
               }`}
             >
               {chip.label}
@@ -844,7 +844,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                             </a>
 
                             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                              <span>{formatViews(video.viewsCount || 0)} views</span>
+                              <span>{formatViews(video.viewsCount || 0)} {isHindi ? 'व्यूज' : 'views'}</span>
                               <span>•</span>
                               <span>{formatTimeAgo(video.createdAt)}</span>
                             </div>
@@ -946,7 +946,7 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                       </a>
 
                       <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                        <span>{formatViews(video.viewsCount || 0)} views</span>
+                        <span>{formatViews(video.viewsCount || 0)} {isHindi ? 'व्यूज' : 'views'}</span>
                         <span>•</span>
                         <span>{formatTimeAgo(video.createdAt)}</span>
                       </div>
@@ -1069,7 +1069,13 @@ export const Subscriptions: React.FC<SubscriptionsProps> = ({ embedded = false, 
                       <button
                         type="button"
                         onClick={() => setActiveBellDropdownId(isBellOpen ? null : creator.creatorId)}
-                        title={bellState === 'all' ? 'All notifications' : bellState === 'none' ? 'None' : 'Personalized'}
+                        title={
+                          bellState === 'all'
+                            ? (isHindi ? 'सभी सूचनाएं' : 'All notifications')
+                            : bellState === 'none'
+                            ? (isHindi ? 'कोई नहीं' : 'None')
+                            : (isHindi ? 'निजीकृत' : 'Personalized')
+                        }
                         className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
                       >
                         {bellState === 'all' ? (

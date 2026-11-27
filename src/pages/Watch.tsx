@@ -993,13 +993,13 @@ export const Watch: React.FC = () => {
     if (!video) return;
 
     if (isDownloaded) {
-      if (window.confirm('Delete this video from offline downloads?')) {
+      if (window.confirm(isHindi ? 'क्या इस वीडियो को ऑफ़लाइन डाउनलोड्स से हटाएं?' : 'Delete this video from offline downloads?')) {
         try {
           await downloadService.deleteDownload(video.videoId);
           setIsDownloaded(false);
-          addToast('Video removed from offline downloads.', 'info');
+          addToast(isHindi ? 'वीडियो ऑफ़लाइन डाउनलोड्स से हटा दिया गया।' : 'Video removed from offline downloads.', 'info');
         } catch (err) {
-          addToast('Failed to remove download.', 'error');
+          addToast(isHindi ? 'डाउनलोड हटाने में विफल।' : 'Failed to remove download.', 'error');
         }
       }
       return;
@@ -1007,8 +1007,8 @@ export const Watch: React.FC = () => {
 
     if (downloadProgress !== null) return; // already in progress
 
-    setDownloadProgress(0);
-    addToast('Starting offline download...', 'info');
+    setDownloadProgress(3);
+    addToast(isHindi ? 'ऑफ़लाइन डाउनलोड शुरू हो रहा है...' : 'Starting offline download...', 'info');
 
     try {
       await downloadService.downloadVideo(video, (percent) => {
@@ -1016,11 +1016,11 @@ export const Watch: React.FC = () => {
       });
       setIsDownloaded(true);
       setDownloadProgress(null);
-      addToast('Video downloaded! You can now watch it offline without internet in Downloads.', 'success');
+      addToast(isHindi ? 'वीडियो डाउनलोड हो गया! अब आप इसे डाउनलोड्स में बिना इंटरनेट देख सकते हैं।' : 'Video downloaded! You can now watch it offline without internet in Downloads.', 'success');
     } catch (err) {
       console.error('Download error:', err);
       setDownloadProgress(null);
-      addToast('Failed to download video stream.', 'error');
+      addToast(isHindi ? 'वीडियो डाउनलोड करने में विफल।' : 'Failed to download video stream.', 'error');
     }
   };
 
@@ -2002,7 +2002,7 @@ export const Watch: React.FC = () => {
         <div className="space-y-4 bg-white dark:bg-[#111827] p-4 rounded-2xl border border-slate-200/80 dark:border-[#334155] shadow-xs">
           {video.commentsMode === 'disabled' ? (
             <p className="py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">
-              This comment section is disabled.
+              {isHindi ? 'इस वीडियो के लिए कमेंट्स बंद हैं।' : 'This comment section is disabled.'}
             </p>
           ) : (
             <>
@@ -2095,7 +2095,7 @@ export const Watch: React.FC = () => {
                 <div
                   key={comm.commentId}
                   style={{ animationDelay: `${Math.min(commIdx, 8) * 35}ms` }}
-                  className="space-y-3 yt-card-animate"
+                  className="space-y-3 si-card-animate"
                 >
                   <div className="flex gap-3 items-start group">
                     {/* User Avatar with real-time profile sync */}
@@ -2680,8 +2680,8 @@ export const Watch: React.FC = () => {
                 onClick={() => handleCategoryFilterChange(pill.id)}
                 className={`px-3.5 py-1.5 rounded-xl border text-xs shrink-0 transition-colors cursor-pointer ${
                   isActive
-                    ? 'yt-chip-active shadow-xs'
-                    : 'yt-chip-inactive'
+                    ? 'si-chip-active shadow-xs'
+                    : 'si-chip-inactive'
                 }`}
               >
                 {pill.label}
@@ -2876,14 +2876,13 @@ export const Watch: React.FC = () => {
 
                       <button
                         onClick={async () => {
-                          addToast(isHindi ? 'वीडियो डाउनलोड हो रहा है...' : 'Downloading video...', 'info');
-                          try {
-                            await downloadService.downloadVideo(v, () => {});
-                            addToast(isHindi ? 'वीडियो डाउनलोड्स में सहेजा गया!' : 'Video saved to Downloads!', 'success');
-                          } catch (err) {
-                            addToast(isHindi ? 'डाउनलोड शुरू हुआ!' : 'Download initiated!', 'info');
-                          }
                           setActiveRelatedMenuId(null);
+                          try {
+                            await downloadService.downloadVideo(v);
+                            addToast(isHindi ? 'वीडियो डाउनलोड्स में सहेजा गया!' : 'Video saved to Downloads!', 'success');
+                          } catch {
+                            addToast(isHindi ? 'वीडियो डाउनलोड नहीं हो सका।' : 'Could not download this video.', 'error');
+                          }
                         }}
                         className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
                       >

@@ -131,28 +131,28 @@
 }
 
 /* ============================================================
-   YOUTUBE FILTER CHIPS: High-Contrast & Guaranteed Text Visibility
+   SOCIALINDIA FILTER CHIPS: High-Contrast & Guaranteed Text Visibility
    ============================================================ */
-.yt-chip-active {
+.si-chip-active {
   background-color: #2563eb !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   border-color: #2563eb !important;
   font-weight: 700 !important;
 }
-.yt-chip-active:hover,
-.yt-chip-active:focus-visible {
+.si-chip-active:hover,
+.si-chip-active:focus-visible {
   background-color: #1d4ed8 !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
   border-color: #1d4ed8 !important;
 }
-.yt-chip-active :is(span, svg, i) {
+.si-chip-active :is(span, svg, i) {
   color: inherit !important;
   -webkit-text-fill-color: currentColor !important;
 }
-.dark .yt-chip-active,
-html.dark .yt-chip-active {
+.dark .si-chip-active,
+html.dark .si-chip-active {
   background-color: #ffffff !important;
   color: #0f0f0f !important;
   -webkit-text-fill-color: #0f0f0f !important;
@@ -160,26 +160,26 @@ html.dark .yt-chip-active {
   font-weight: 700 !important;
 }
 
-.yt-chip-inactive {
+.si-chip-inactive {
   background-color: #f2f2f2 !important;
   color: #0f0f0f !important;
   border-color: #e5e5e5 !important;
   font-weight: 500 !important;
 }
-.yt-chip-inactive:hover {
+.si-chip-inactive:hover {
   background-color: #eff6ff !important;
   color: #1d4ed8 !important;
   border-color: #bfdbfe !important;
 }
-.dark .yt-chip-inactive,
-html.dark .yt-chip-inactive {
+.dark .si-chip-inactive,
+html.dark .si-chip-inactive {
   background-color: #272727 !important;
   color: #f1f1f1 !important;
   border-color: #383838 !important;
   font-weight: 500 !important;
 }
-.dark .yt-chip-inactive:hover,
-html.dark .yt-chip-inactive:hover {
+.dark .si-chip-inactive:hover,
+html.dark .si-chip-inactive:hover {
   background-color: #3f3f3f !important;
   color: #ffffff !important;
 }
@@ -222,7 +222,7 @@ html.dark .si-watch-ambient-header {
   from { transform: scale(0.95); opacity: 0; }
   to   { transform: scale(1); opacity: 1; }
 }
-@keyframes ytCardPop {
+@keyframes siCardPop {
   0% {
     opacity: 0;
     transform: translateY(6px);
@@ -232,8 +232,8 @@ html.dark .si-watch-ambient-header {
     transform: none;
   }
 }
-.yt-card-animate {
-  animation: ytCardPop 0.22s ease-out both;
+.si-card-animate {
+  animation: siCardPop 0.22s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {

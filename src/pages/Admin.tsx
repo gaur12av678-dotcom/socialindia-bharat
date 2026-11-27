@@ -900,7 +900,7 @@ export const AdminPanel: React.FC = () => {
     setStorageTestMessage('');
 
     try {
-      // Test Cloudinary endpoint reachability
+      // Test Media CDN endpoint reachability
       const testFormData = new FormData();
       testFormData.append('upload_preset', uploadPreset.trim());
       // 1x1 transparent GIF base64 as tiny test payload
@@ -912,21 +912,21 @@ export const AdminPanel: React.FC = () => {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        await res.json();
         setStorageTestStatus('success');
         setStorageTestMessage(`Connection verified! Successfully uploaded test asset to "${cloudName.trim()}".`);
-        addToast('Cloudinary connection test successful!', 'success');
+        addToast('Media CDN connection test successful!', 'success');
       } else {
         const errJson = await res.json().catch(() => ({}));
         const errMsg = errJson?.error?.message || `HTTP status ${res.status}`;
         setStorageTestStatus('error');
-        setStorageTestMessage(`Cloudinary responded with error: ${errMsg}. Please ensure the preset is set to 'Unsigned'.`);
+        setStorageTestMessage(`Media CDN responded with error: ${errMsg}. Please ensure the profile is set to 'Unsigned'.`);
         addToast(`Test failed: ${errMsg}`, 'error');
       }
     } catch (err: any) {
       setStorageTestStatus('error');
-      setStorageTestMessage(`Network error connecting to Cloudinary: ${err?.message || 'Check your internet connection and Cloud Name.'}`);
-      addToast('Network error testing Cloudinary connection.', 'error');
+      setStorageTestMessage(`Network error connecting to Media CDN: ${err?.message || 'Check your internet connection and Account ID.'}`);
+      addToast('Network error testing Media CDN connection.', 'error');
     } finally {
       setIsTestingStorage(false);
     }
@@ -3434,7 +3434,7 @@ export const AdminPanel: React.FC = () => {
                           onClick={() => setStorageProbeNonce(n => n + 1)}
                           disabled={isProbingStorage}
                           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold cursor-pointer transition-colors disabled:opacity-60"
-                          title="Re-check real Content-Length headers from Cloudinary / Firebase CDN"
+                          title="Re-check real Content-Length headers from Media CDN / Cloud Storage"
                         >
                           <RefreshCw className={`w-3 h-3 ${isProbingStorage ? 'animate-spin' : ''}`} />
                           <span>{isProbingStorage ? 'Checking CDN sizes...' : 'Verify Live Sizes'}</span>
@@ -3443,8 +3443,8 @@ export const AdminPanel: React.FC = () => {
                       <h2 className="text-xl sm:text-2xl font-black">Platform Real Storage Metrics</h2>
                       <p className="text-xs text-white/75 max-w-xl font-medium">
                         {hostedAssets.length > 0
-                          ? `Measured from ${exactVerifiedCount}/${hostedAssets.length} verified CDN media files (${externalEmbedCount} external YouTube/Drive links use 0 MB CDN).`
-                          : `${externalEmbedCount} external embed videos (YouTube / Drive) • 0 MB platform CDN storage consumed.`}
+                          ? `Measured from ${exactVerifiedCount}/${hostedAssets.length} verified CDN media files (${externalEmbedCount} external embed links use 0 MB CDN).`
+                          : `${externalEmbedCount} external embed videos (Drive / Stream) • 0 MB platform CDN storage consumed.`}
                       </p>
                     </div>
 
@@ -3505,7 +3505,7 @@ export const AdminPanel: React.FC = () => {
                           <Film className="w-4 h-4 text-blue-600" />
                           <span>Top Storage-Consuming Media Assets</span>
                         </h4>
-                        <p className="text-[11px] text-slate-400 mt-0.5">Actual uploaded file sizes from Cloudinary / Firebase CDN (external embeds count as 0 MB).</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">Actual uploaded file sizes from Media CDN / Cloud Storage (external embeds count as 0 MB).</p>
                       </div>
                       <span className="text-[10px] font-bold text-slate-400">{topVideos.length} listed</span>
                     </div>
@@ -3568,7 +3568,7 @@ export const AdminPanel: React.FC = () => {
                       </div>
                       <div>
                         <h3 className="text-lg font-black text-slate-900 dark:text-white">Cloud Storage & CDN Settings</h3>
-                        <p className="text-xs text-slate-500 font-medium">Global Cloudinary credentials for all platform video and thumbnail uploads.</p>
+                        <p className="text-xs text-slate-500 font-medium">Global Media Cloud CDN credentials for all platform video and thumbnail uploads.</p>
                       </div>
                     </div>
 
@@ -3593,25 +3593,25 @@ export const AdminPanel: React.FC = () => {
                       <div>
                         <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                           <Key className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Cloud Name *</span>
+                          <span>Media Account ID *</span>
                         </label>
                         <input
                           type="text"
-                          placeholder="e.g. dxyz12345"
+                          placeholder="e.g. si_media_id"
                           value={cloudName}
                           onChange={(e) => setCloudName(e.target.value)}
                           className="w-full px-4 py-3 bg-slate-50 dark:bg-[#1a1a1a] border border-slate-200 dark:border-[#333] rounded-2xl text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 transition-all"
                           required
                         />
                         <p className="text-[10px] text-slate-400 font-medium mt-1.5">
-                          Found in Cloudinary Dashboard home screen.
+                          Found in your Media Cloud CDN dashboard home screen.
                         </p>
                       </div>
 
                       <div>
                         <label className="block text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                           <Folder className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Upload Preset (Unsigned) *</span>
+                          <span>Upload Profile (Unsigned) *</span>
                         </label>
                         <input
                           type="text"
@@ -3689,7 +3689,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="bg-slate-50 dark:bg-[#0f0f0f] border border-slate-200 dark:border-[#272727] rounded-3xl p-6 sm:p-7 space-y-4">
                   <div className="flex items-center gap-2.5 text-slate-900 dark:text-white">
                     <HelpCircle className="w-5 h-5 text-blue-600" />
-                    <h4 className="text-sm font-black uppercase tracking-wider">How Cloudinary Setup Works (1-Minute Guide)</h4>
+                    <h4 className="text-sm font-black uppercase tracking-wider">How Media Cloud CDN Setup Works (1-Minute Guide)</h4>
                   </div>
 
                   <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
@@ -3699,30 +3699,30 @@ export const AdminPanel: React.FC = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                     <div className="p-4 bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#272727] rounded-2xl space-y-2">
                       <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 font-black text-xs flex items-center justify-center">1</div>
-                      <p className="text-xs font-black text-slate-900 dark:text-white">Create Free Account</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white">Create Storage Account</p>
                       <p className="text-[11px] text-slate-500 font-medium">
-                        Sign up at <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold inline-flex items-center gap-0.5">cloudinary.com <ExternalLink className="w-2.5 h-2.5" /></a> (Free 25GB CDN storage & bandwidth).
+                        Use your Media Cloud CDN provider account (25GB free CDN storage & bandwidth).
                       </p>
                     </div>
 
                     <div className="p-4 bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#272727] rounded-2xl space-y-2">
                       <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 font-black text-xs flex items-center justify-center">2</div>
-                      <p className="text-xs font-black text-slate-900 dark:text-white">Copy Cloud Name</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white">Copy Account ID</p>
                       <p className="text-[11px] text-slate-500 font-medium">
-                        On your Cloudinary dashboard home, copy your unique <strong className="font-bold text-slate-700 dark:text-slate-300">"Cloud Name"</strong>.
+                        On your Media Cloud CDN dashboard home, copy your unique <strong className="font-bold text-slate-700 dark:text-slate-300">"Account / Cloud ID"</strong>.
                       </p>
                     </div>
 
                     <div className="p-4 bg-white dark:bg-[#161616] border border-slate-200 dark:border-[#272727] rounded-2xl space-y-2">
                       <div className="w-7 h-7 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 font-black text-xs flex items-center justify-center">3</div>
-                      <p className="text-xs font-black text-slate-900 dark:text-white">Create Unsigned Preset</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white">Create Unsigned Profile</p>
                       <p className="text-[11px] text-slate-500 font-medium">
-                        Go to <strong className="font-bold text-slate-700 dark:text-slate-300">Settings ➔ Upload ➔ Add upload preset</strong>. Set Signing Mode to <strong className="font-bold text-slate-700 dark:text-slate-300">"Unsigned"</strong>, save, and paste preset name above.
+                        Go to <strong className="font-bold text-slate-700 dark:text-slate-300">Settings ➔ Upload ➔ Add upload profile</strong>. Set Signing Mode to <strong className="font-bold text-slate-700 dark:text-slate-300">"Unsigned"</strong>, save, and paste profile name above.
                       </p>
                     </div>
                   </div>
                   <div className="p-4 bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 rounded-2xl text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                    <strong className="font-black text-blue-700 dark:text-blue-400">Videos &gt; 100 MB (Up to 2 GB):</strong> Videos larger than 20 MB are automatically streamed to Cloudinary in 20 MB chunks with auto-retry. Paid Cloudinary plans support &gt;100 MB directly on Cloudinary. If your Cloudinary account is on the Free Plan (100 MB/video cap), videos above 100 MB automatically fall back to Firebase Storage so creators never get blocked.
+                    <strong className="font-black text-blue-700 dark:text-blue-400">Videos &gt; 100 MB (Up to 2 GB):</strong> Videos larger than 20 MB are automatically streamed to the Media CDN in 20 MB chunks with auto-retry. If your CDN tier has a 100 MB/video cap, videos above 100 MB automatically fall back to secondary cloud storage so creators never get blocked.
                   </div>
                 </div>
               </div>

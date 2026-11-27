@@ -183,7 +183,7 @@ export const AdInfoPage: React.FC = () => {
               </div>
 
               <div className="absolute top-4 left-4 px-2.5 py-1 bg-black/80 backdrop-blur-md text-amber-400 border border-amber-400/30 text-[10px] font-black rounded-lg uppercase tracking-wider">
-                Ad • YouTube Style Promotion
+                Ad • SocialIndia Promotion
               </div>
             </div>
           )}

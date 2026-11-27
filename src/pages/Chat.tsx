@@ -141,6 +141,7 @@ export const ChatPage: React.FC = () => {
   
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
+  const [chatFilter, setChatFilter] = useState<'all' | 'unread' | 'groups' | 'direct'>('all');
   const [messageText, setMessageText] = useState('');
   const [loadingSessions, setLoadingSessions] = useState(() => {
     return currentUser ? chatService.getCachedSessions(currentUser.uid).length === 0 : true;
@@ -1182,7 +1183,7 @@ export const ChatPage: React.FC = () => {
       });
     } catch (err) {
       console.error('Failed to delete message:', err);
-      addToast('Failed to delete message. Please try again.', 'error');
+      addToast(isHindi ? 'संदेश हटाने में विफल। कृपया पुनः प्रयास करें।' : 'Failed to delete message. Please try again.', 'error');
     } finally {
       setMessageActionId(null);
     }
@@ -1247,18 +1248,20 @@ export const ChatPage: React.FC = () => {
       const date = new Date(isoString);
       const diffMs = now.getTime() - date.getTime();
       const diffMins = Math.floor(diffMs / 60000);
-      if (diffMins < 1) return 'now';
-      if (diffMins < 60) return `${diffMins} m`;
+      if (diffMins < 1) return isHindi ? 'अभी' : 'now';
+      if (diffMins < 60) return isHindi ? `${diffMins} मि` : `${diffMins} m`;
       const diffHours = Math.floor(diffMins / 60);
-      if (diffHours < 24) return `${diffHours} h`;
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      if (diffHours < 24) return isHindi ? `${diffHours} घं` : `${diffHours} h`;
+      return date.toLocaleDateString(isHindi ? 'hi-IN' : [], { month: 'short', day: 'numeric' });
     } catch {
       return '';
     }
   };
 
-  // Filter sessions based on search query input
-  const filteredSessions = (isCurrentSession ? sessions : []).filter(s =>
+  // Filter sessions based on search query input and WhatsApp-style category filter
+  const activeSessionsList = isCurrentSession ? sessions : [];
+  const unreadChatsCount = activeSessionsList.filter(s => (s.unreadCount || 0) > 0).length;
+  const filteredSessions = activeSessionsList.filter(s =>
     s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -1272,7 +1275,7 @@ export const ChatPage: React.FC = () => {
     username: isHindi ? 'आपकी निजी जगह' : 'Personal storage',
     isPocket: true,
     lastMessage: lastPocketMsg
-      ? (lastPocketMsg.text || (lastPocketMsg.mediaType === 'image' ? '📷 Photo' : lastPocketMsg.mediaType === 'video' ? '🎥 Video' : (isHindi ? 'सिर्फ़ आपके लिए सेव किया गया' : 'Saved just for you')))
+      ? (lastPocketMsg.text || (lastPocketMsg.mediaType === 'image' ? (isHindi ? '📷 फ़ोटो' : '📷 Photo') : lastPocketMsg.mediaType === 'video' ? (isHindi ? '🎥 वीडियो' : '🎥 Video') : (isHindi ? 'सिर्फ़ आपके लिए सेव किया गया' : 'Saved just for you')))
       : (isHindi ? 'सिर्फ़ आपके लिए सेव किया गया' : 'Saved just for you'),
     lastMessageTime: lastPocketMsg?.createdAt,
     unreadCount: 0
@@ -1282,11 +1285,27 @@ export const ChatPage: React.FC = () => {
     username: '',
     unreadCount: 0
   };
-  const visibleSessions = [
-    ...(pocketSession.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      pocketSession.username.toLowerCase().includes(searchQuery.toLowerCase()) ? [pocketSession] : []),
-    ...filteredSessions
-  ];
+  const pocketMatchesSearch =
+    Boolean(pocketSession.userId) &&
+    (pocketSession.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      pocketSession.username.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const visibleSessions = (() => {
+    const baseSessions =
+      chatFilter === 'unread'
+        ? filteredSessions.filter(s => (s.unreadCount || 0) > 0)
+        : chatFilter === 'groups'
+          ? filteredSessions.filter(s => Boolean(s.isGroup))
+          : chatFilter === 'direct'
+            ? filteredSessions.filter(s => !s.isGroup)
+            : filteredSessions;
+
+    const includePocket = (chatFilter === 'all' || chatFilter === 'direct') && pocketMatchesSearch;
+    return [
+      ...(includePocket ? [pocketSession] : []),
+      ...baseSessions
+    ];
+  })();
 
   if (!currentUser) {
     return (
@@ -1336,7 +1355,7 @@ export const ChatPage: React.FC = () => {
             <button
               onClick={() => navigate('home')}
               className="p-1.5 hover:bg-slate-50 dark:hover:bg-[#1e1e1e] rounded-xl text-slate-500 shrink-0 cursor-pointer"
-              title="Back to Home"
+              title={isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -1361,6 +1380,47 @@ export const ChatPage: React.FC = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-[#222] rounded-xl text-xs font-bold focus:outline-none focus:border-blue-600 placeholder-slate-400 dark:placeholder-slate-500"
             />
+          </div>
+
+          {/* WhatsApp-style chat filter pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5" role="tablist" aria-label={isHindi ? 'चैट फ़िल्टर' : 'Chat filters'}>
+            {(
+              [
+                { id: 'all', label: isHindi ? 'सभी' : 'All' },
+                { id: 'unread', label: isHindi ? 'अपठित' : 'Unread', badge: unreadChatsCount },
+                { id: 'groups', label: isHindi ? 'ग्रुप्स' : 'Groups' },
+                { id: 'direct', label: isHindi ? 'डायरेक्ट' : 'Direct' },
+              ] as Array<{ id: 'all' | 'unread' | 'groups' | 'direct'; label: string; badge?: number }>
+            ).map(tab => {
+              const active = chatFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setChatFilter(tab.id)}
+                  className={`inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-emerald-600 text-white shadow-xs dark:bg-emerald-500 dark:text-slate-950'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-[#1a1a1a] dark:text-slate-300 dark:hover:bg-[#242424]'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {typeof tab.badge === 'number' && tab.badge > 0 && (
+                    <span
+                      className={`inline-flex min-w-[16px] h-4 px-1 items-center justify-center rounded-full text-[10px] font-black ${
+                        active
+                          ? 'bg-white/25 text-white dark:bg-slate-950/20 dark:text-slate-950'
+                          : 'bg-emerald-600 text-white'
+                      }`}
+                    >
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 

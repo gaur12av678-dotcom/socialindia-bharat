@@ -63,7 +63,12 @@ export const Downloads: React.FC = () => {
 
   useEffect(() => {
     loadDownloads();
+    const handleDownloadsChanged = () => {
+      loadDownloads();
+    };
+    window.addEventListener('socialindia:downloads_changed', handleDownloadsChanged);
     return () => {
+      window.removeEventListener('socialindia:downloads_changed', handleDownloadsChanged);
       revokeThumbUrls();
     };
   }, []);
@@ -104,12 +109,12 @@ export const Downloads: React.FC = () => {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       
-      {/* Mobile Top Navigation Bar (YouTube style) */}
+      {/* Mobile Top Navigation Bar */}
       <div className="flex items-center gap-3 md:hidden">
         <button
           onClick={() => navigate('home')}
           className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-xs"
-          title="Back to Home"
+          title={isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -207,7 +212,7 @@ export const Downloads: React.FC = () => {
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950 text-white p-4">
                       <Film className="w-10 h-10 text-slate-400 mb-1" />
-                      <span className="text-[11px] font-bold text-slate-300 text-center line-clamp-1">Offline Video</span>
+                      <span className="text-[11px] font-bold text-slate-300 text-center line-clamp-1">{isHindi ? 'ऑफ़लाइन वीडियो' : 'Offline Video'}</span>
                     </div>
                   )}
 
@@ -221,7 +226,7 @@ export const Downloads: React.FC = () => {
                   {/* Shorts badge */}
                   {item.isShort && (
                     <div className="absolute top-2 left-2 px-2 py-0.5 bg-red-600 text-white text-[10px] font-black rounded-md uppercase tracking-wider shadow-sm">
-                      Clips
+                      {isHindi ? 'क्लिप्स' : 'Clips'}
                     </div>
                   )}
 
@@ -262,7 +267,7 @@ export const Downloads: React.FC = () => {
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         {formatFileSize(item.sizeBytes)}
                       </span>
-                      <span>Downloaded {formatTimeAgo(item.downloadedAt)}</span>
+                      <span>{isHindi ? `${formatTimeAgo(item.downloadedAt)} डाउनलोड किया गया` : `Downloaded ${formatTimeAgo(item.downloadedAt)}`}</span>
                     </div>
                   </div>
 
@@ -279,7 +284,7 @@ export const Downloads: React.FC = () => {
                     <button
                       onClick={() => handleDelete(item.videoId, item.title)}
                       className="p-2 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 text-rose-600 dark:text-rose-400 rounded-xl cursor-pointer transition-colors"
-                      title="Delete offline file"
+                      title={isHindi ? 'ऑफ़लाइन फ़ाइल हटाएं' : 'Delete offline file'}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

@@ -315,8 +315,8 @@ export const HelpPage: React.FC = () => {
                 onClick={() => setActiveCategory(chip.id as any)}
                 className={`px-3.5 py-1.5 rounded-full border text-xs shrink-0 transition-colors cursor-pointer ${
                   activeCategory === chip.id
-                    ? 'yt-chip-active shadow-xs'
-                    : 'yt-chip-inactive'
+                    ? 'si-chip-active shadow-xs'
+                    : 'si-chip-inactive'
                 }`}
               >
                 {chip.label}

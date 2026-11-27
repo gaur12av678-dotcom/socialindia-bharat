@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Video } from '../types';
-import { formatViews, formatTimeAgo, formatDuration, getInitials, extractYoutubeThumbnail } from '../utils/videoUtils';
+import { formatViews, formatTimeAgo, formatDuration, getInitials, extractVideoThumbnail } from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
-import { downloadService } from '../services/downloadService';
+import { ActiveDownloadItem, downloadService } from '../services/downloadService';
 import { savedVideoService } from '../services/savedVideoService';
 import { videoService } from '../services/videoService';
 import { recommendationService } from '../services/recommendationService';
@@ -79,11 +79,20 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
   const [openMenuUpward, setOpenMenuUpward] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Dynamic live stream status - reacts immediately when live stream ends on YouTube
+  // Dynamic live stream status - reacts immediately when live stream ends
   const [isLive, setIsLive] = useState<boolean>(() => 
     Boolean(video.isLive && !liveBroadcastService.isLiveEnded(video.videoId))
   );
   const [videoDuration, setVideoDuration] = useState<number>(video.duration || 0);
+  const [downloadState, setDownloadState] = useState<ActiveDownloadItem | undefined>(() =>
+    downloadService.getDownloadState(video.videoId)
+  );
+
+  useEffect(() => {
+    return downloadService.subscribeDownloads((items) => {
+      setDownloadState(items.find((d) => d.videoId === video.videoId));
+    });
+  }, [video.videoId]);
 
   useEffect(() => {
     setIsLive(Boolean(video.isLive && !liveBroadcastService.isLiveEnded(video.videoId)));
@@ -103,7 +112,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
     return () => window.removeEventListener('socialindia:live-stream-ended', handleStreamEnded);
   }, [video.videoId]);
 
-  // YouTube-style watch progress percentage
+  // Watch progress percentage
   const [watchProgressPercent, setWatchProgressPercent] = useState<number>(() => {
     return playbackProgressService.getProgressPercent(video.videoId, video.duration);
   });
@@ -225,7 +234,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
   return (
     <div
       style={{ animationDelay: `${(index % 3) * 35}ms` }}
-      className={`yt-card-animate group flex flex-col w-full relative ${showMenu ? 'z-[60]' : 'z-0'}`}
+      className={`si-card-animate group flex flex-col w-full relative ${showMenu ? 'z-[60]' : 'z-0'}`}
     >
       {/* Thumbnail area with duration badge (wrapped in anchor tag with draggable image disabled so dragging transfers the video watch link, opening the actual video page with title & creator!) */}
       <a
@@ -260,8 +269,8 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
               return;
             }
             e.currentTarget.dataset.fallbackApplied = '1';
-            const ytThumb = extractYoutubeThumbnail(video.videoUrl);
-            e.currentTarget.src = ytThumb || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
+            const fallbackThumb = extractVideoThumbnail(video.videoUrl);
+            e.currentTarget.src = fallbackThumb || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=60";
           }}
         />
         {isLive ? (
@@ -287,13 +296,32 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
           </div>
         )}
 
-        {/* YouTube Red Watch Progress Bar */}
+        {/* Watch Progress Bar */}
         {watchProgressPercent > 0 && !video.isShort && !isLive && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/25 overflow-hidden z-10 pointer-events-none">
             <div 
               className="h-full bg-red-600 transition-all duration-300"
               style={{ width: `${watchProgressPercent}%` }}
             />
+          </div>
+        )}
+
+        {/* Active Offline Download Overlay */}
+        {downloadState?.status === 'downloading' && (
+          <div className="absolute inset-x-0 bottom-0 bg-slate-950/85 backdrop-blur-xs px-2.5 py-1.5 z-20 pointer-events-none space-y-1">
+            <div className="flex items-center justify-between text-[10px] font-black text-white">
+              <span className="flex items-center gap-1">
+                <ArrowDownToLine className="w-3 h-3 text-emerald-400 animate-bounce" />
+                {isHindi ? 'डाउनलोड हो रहा है...' : 'Downloading...'}
+              </span>
+              <span className="text-emerald-400">{downloadState.progress}%</span>
+            </div>
+            <div className="w-full h-1 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-400 transition-all duration-200"
+                style={{ width: `${Math.max(4, downloadState.progress)}%` }}
+              />
+            </div>
           </div>
         )}
       </a>
@@ -415,19 +443,23 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
 
               <button
                 onClick={async () => {
-                  addToast(isHindi ? 'वीडियो डाउनलोड हो रहा है...' : 'Downloading video...', 'info');
-                  try {
-                    await downloadService.downloadVideo(video, () => {});
-                    addToast(isHindi ? 'वीडियो डाउनलोड्स में सहेज लिया गया!' : 'Video saved to Downloads!', 'success');
-                  } catch (err) {
-                    addToast(isHindi ? 'डाउनलोड प्रारंभ!' : 'Download initiated!', 'info');
-                  }
                   setShowMenu(false);
+                  try {
+                    await downloadService.downloadVideo(video);
+                    addToast(isHindi ? 'वीडियो डाउनलोड्स में सहेज लिया गया!' : 'Video saved to Downloads!', 'success');
+                  } catch {
+                    addToast(isHindi ? 'वीडियो डाउनलोड नहीं हो सका।' : 'Could not download this video.', 'error');
+                  }
                 }}
-                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer"
+                disabled={downloadState?.status === 'downloading'}
+                className="w-full px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2.5 text-left text-slate-800 dark:text-slate-200 font-bold cursor-pointer disabled:opacity-60"
               >
-                <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-500" />
-                <span>{t('action_download', 'Download')}</span>
+                <ArrowDownToLine className={`w-3.5 h-3.5 text-emerald-500 ${downloadState?.status === 'downloading' ? 'animate-bounce' : ''}`} />
+                <span>
+                  {downloadState?.status === 'downloading'
+                    ? (isHindi ? `डाउनलोड हो रहा है (${downloadState.progress}%)` : `Downloading (${downloadState.progress}%)`)
+                    : t('action_download', 'Download')}
+                </span>
               </button>
 
               <button

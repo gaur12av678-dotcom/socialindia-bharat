@@ -317,11 +317,10 @@ export const postService = {
       return uploadRes.videoUrl;
     }
 
-    // 1. Try Cloudinary first (High-speed global CDN)
+    // 1. Try primary media CDN first
     try {
       const { cloudName, preset } = await getCloudinaryConfigAsync();
       if (cloudName && preset) {
-        console.log(`Uploading post ${isVideo ? 'video' : 'photo'} to Cloudinary (${cloudName})...`);
         const formData = new FormData();
         formData.append('file', blobToUpload, filename);
         formData.append('upload_preset', preset);
@@ -360,12 +359,11 @@ export const postService = {
         });
 
         if (res.secure_url) {
-          console.log('Post media successfully uploaded to Cloudinary:', res.secure_url);
           return res.secure_url;
         }
       }
-    } catch (cldErr) {
-      console.warn('Cloudinary upload warning, falling back to Firebase Storage:', cldErr);
+    } catch {
+      // Fall back to secondary storage silently
     }
 
     // 2. Fallback to Firebase Storage

@@ -1,9 +1,11 @@
 import React from 'react';
 import { useRouter } from '../hooks/useRouter';
-import { ArrowLeft, Code, Terminal, Play } from 'lucide-react';
+import { ArrowLeft, Terminal } from 'lucide-react';
+import { useTranslation } from '../i18n';
 
 export const DevelopersPage: React.FC = () => {
   const { navigate } = useRouter();
+  const { isHindi } = useTranslation();
 
   return (
     <div className="bg-white dark:bg-[#0f0f0f] text-slate-900 dark:text-slate-100 min-h-screen">
@@ -15,7 +17,7 @@ export const DevelopersPage: React.FC = () => {
           className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-[#065fd4] dark:hover:text-blue-500 cursor-pointer transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Home</span>
+          <span>{isHindi ? 'होम पर वापस जाएं' : 'Back to Home'}</span>
         </button>
 
         {/* Header Title Card */}
@@ -23,23 +25,31 @@ export const DevelopersPage: React.FC = () => {
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#161616]/80 text-[#00a3ff] border border-slate-200 dark:border-slate-800 rounded-full">
             <Terminal className="w-4 h-4" />
             <span className="text-[11px] font-extrabold uppercase tracking-wider">
-              Developer Ecosystem
+              {isHindi ? 'डेवलपर इकोसिस्टम' : 'Developer Ecosystem'}
             </span>
           </div>
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-none text-slate-900 dark:text-white">
-            Developers & API
+            {isHindi ? 'डेवलपर्स और API' : 'Developers & API'}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-2xl font-medium leading-relaxed">
-            Integrate SocialIndia content feeds, parse channels, and securely configure cross-origin video embedding models.
+            {isHindi
+              ? 'SocialIndia कंटेंट फ़ीड, चैनल मेटाडेटा और सुरक्षित वीडियो एम्बेडिंग मॉडल को एकीकृत करें।'
+              : 'Integrate SocialIndia content feeds, parse channels, and securely configure cross-origin video embedding models.'}
           </p>
         </div>
 
         {/* Detailed API Card */}
         <div className="bg-slate-50 dark:bg-[#161616] border border-slate-100 dark:border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6">
-          <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">GET Metadata REST API</h3>
+          <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+            {isHindi ? 'GET मेटाडेटा REST API' : 'GET Metadata REST API'}
+          </h3>
           
           <div className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium space-y-4">
-            <p>We provide open integration endpoint structures. developers can query channel metadata securely using regular web parameters:</p>
+            <p>
+              {isHindi
+                ? 'हम खुले एकीकरण एंडपॉइंट प्रदान करते हैं। डेवलपर्स मानक वेब पैरामीटर का उपयोग करके सुरक्षित रूप से चैनल मेटाडेटा प्राप्त कर सकते हैं:'
+                : 'We provide open integration endpoint structures. Developers can query channel metadata securely using regular web parameters:'}
+            </p>
             
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl font-mono text-[10px] text-slate-800 dark:text-emerald-400 border border-slate-200 dark:border-slate-800 space-y-1 overflow-x-auto">
               <p className="text-slate-500">// Get Creator Channel Public Metadata</p>
@@ -58,7 +68,11 @@ export const DevelopersPage: React.FC = () => {
               <p>{"}"}</p>
             </div>
 
-            <p>All core code blocks run under sleek React TSX Vite parameters. Media file transfers and responsive thumbnails are optimized globally via high-performance edge Content Delivery Networks.</p>
+            <p>
+              {isHindi
+                ? 'सभी मुख्य मॉड्यूल आधुनिक React TypeScript आर्किटेक्चर पर चलते हैं और मीडिया फ़ाइलें वैश्विक एज CDN के माध्यम से तेज़ी से वितरित होती हैं।'
+                : 'All core code blocks run under React TypeScript Vite architecture. Media file transfers and responsive thumbnails are optimized globally via high-performance edge Content Delivery Networks.'}
+            </p>
           </div>
         </div>
 

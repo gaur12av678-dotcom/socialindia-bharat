@@ -638,7 +638,7 @@ export const translations: Record<LanguageCode, Translations> = {
     // Navigation & Shell (नेविगेशन और शैल)
     nav_home: 'होम',
     nav_shorts: 'क्लिप्स',
-    nav_subscriptions: 'Following',
+    nav_subscriptions: 'फ़ॉलोइंग',
     nav_history: 'इतिहास',
     nav_saved: 'सहेजे गए',
     nav_downloads: 'डाउनलोड्स',
@@ -841,7 +841,7 @@ export const translations: Record<LanguageCode, Translations> = {
     saved_title: 'सहेजे गए वीडियो और प्लेलिस्ट',
     saved_empty: 'अभी कोई वीडियो सहेजा नहीं गया है। किसी भी वीडियो पर "सहेजें" दबाकर यहां जोड़ें।',
     saved_watch_later: 'बाद में देखें (Watch Later)',
-    subscriptions_title: 'Following',
+    subscriptions_title: 'फ़ॉलोइंग',
     subscriptions_empty: 'आप अभी किसी क्रिएटर को फ़ॉलो नहीं कर रहे हैं।',
     trending_title: 'सोशलइंडिया पर ट्रेंडिंग',
     trending_now: 'अभी ट्रेंडिंग में है',

@@ -18,7 +18,12 @@ export const ContactUsPage: React.FC = () => {
     const subject = `[SocialIndia Support] ${topic}`;
     const body = `Name: ${name.trim()}\nEmail: ${email.trim()}\nTopic: ${topic}\n\n${message.trim()}`;
     window.location.href = `mailto:socialindia.ib@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    addToast('Your email application was opened. Send the message there to contact SocialIndia.', 'info');
+    addToast(
+      isHindi
+        ? 'आपका ईमेल ऐप खुल गया है। सोशलइंडिया से संपर्क करने के लिए वहाँ से संदेश भेजें।'
+        : 'Your email application was opened. Send the message there to contact SocialIndia.',
+      'info'
+    );
   };
 
   return (
@@ -62,32 +67,36 @@ export const ContactUsPage: React.FC = () => {
           <label className="block space-y-1.5 text-xs font-extrabold">
             {isHindi ? 'विषय' : 'Topic'}
             <select value={topic} onChange={event => setTopic(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
-              <option>General question</option>
-              <option>Customer support</option>
-              <option>Feedback</option>
-              <option>Suggestion</option>
+              <option value="General question">{isHindi ? 'सामान्य प्रश्न' : 'General question'}</option>
+              <option value="Customer support">{isHindi ? 'ग्राहक सहायता' : 'Customer support'}</option>
+              <option value="Feedback">{isHindi ? 'प्रतिक्रिया (Feedback)' : 'Feedback'}</option>
+              <option value="Suggestion">{isHindi ? 'सुझाव (Suggestion)' : 'Suggestion'}</option>
             </select>
           </label>
           <label className="block space-y-1.5 text-xs font-extrabold">
             {isHindi ? 'संदेश' : 'Message'}
             <textarea required minLength={5} maxLength={10000} rows={6} value={message} onChange={event => setMessage(event.target.value)} className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900" />
           </label>
-          <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-xs font-black text-white hover:bg-blue-700">
+          <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-xs font-black text-white hover:bg-blue-700 cursor-pointer">
             <Send className="h-4 w-4" />
             {isHindi ? 'ईमेल में खोलें' : 'Open message in email'}
           </button>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Your email application will open with this message. It is not sent by the website.
+            {isHindi
+              ? 'इस संदेश के साथ आपका ईमेल ऐप खुल जाएगा। यह सीधे वेबसाइट से नहीं भेजा जाता।'
+              : 'Your email application will open with this message. It is not sent by the website.'}
           </p>
         </form>
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4 text-xs dark:border-slate-800">
           <span className="inline-flex items-center gap-2 font-semibold text-slate-600 dark:text-slate-300">
             <MessageSquare className="h-4 w-4 text-blue-600" />
-            For formal complaints, use the separate Grievance Redressal page.
+            {isHindi
+              ? 'औपचारिक शिकायतों के लिए अलग शिकायत निवारण (Grievance Redressal) पेज का उपयोग करें।'
+              : 'For formal complaints, use the separate Grievance Redressal page.'}
           </span>
-          <button onClick={() => navigate('grievance')} className="font-black text-blue-700 hover:underline dark:text-blue-300">
-            Grievance Redressal
+          <button onClick={() => navigate('grievance')} className="font-black text-blue-700 hover:underline dark:text-blue-300 cursor-pointer">
+            {isHindi ? 'शिकायत निवारण' : 'Grievance Redressal'}
           </button>
         </div>
       </div>

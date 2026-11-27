@@ -20,20 +20,37 @@ import { auth, db, storage, handleFirestoreError, OperationType } from '../fireb
 import { Video } from '../types';
 import { userService } from './userService';
 import { trashService } from './trashService';
-import { extractVideoThumbnail, extractYoutubeThumbnail } from '../utils/videoUtils';
+import { extractVideoThumbnail } from '../utils/videoUtils';
 
-// Cloudinary Configuration Helper (supports Firestore global settings, LocalStorage & Env fallback)
+// Media CDN Configuration Helper (supports Firestore global settings, LocalStorage & Env fallback)
+const MEDIA_ENDPOINT_STORAGE_KEY = 'si_media_endpoint_id';
+const MEDIA_PROFILE_STORAGE_KEY = 'si_media_profile_id';
 let cachedCloudinaryConfig: { cloudName: string; preset: string } | null = null;
+
+function readAndMigrateStorageKey(newKey: string, legacyKey: string): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const current = localStorage.getItem(newKey);
+    if (current) return current;
+    const legacy = localStorage.getItem(legacyKey);
+    if (legacy) {
+      localStorage.setItem(newKey, legacy);
+      localStorage.removeItem(legacyKey);
+      return legacy;
+    }
+  } catch {}
+  return '';
+}
 
 export function getCloudinaryConfig() {
   if (cachedCloudinaryConfig && (cachedCloudinaryConfig.cloudName || cachedCloudinaryConfig.preset)) {
     return cachedCloudinaryConfig;
   }
-  const cloudName = (typeof window !== 'undefined' && localStorage.getItem('CLOUDINARY_CLOUD_NAME')) 
-    || import.meta.env.VITE_CLOUDINARY_CLOUD_NAME 
+  const cloudName = readAndMigrateStorageKey(MEDIA_ENDPOINT_STORAGE_KEY, 'CLOUDINARY_CLOUD_NAME')
+    || import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
     || '';
-  const preset = (typeof window !== 'undefined' && localStorage.getItem('CLOUDINARY_UPLOAD_PRESET')) 
-    || import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET 
+  const preset = readAndMigrateStorageKey(MEDIA_PROFILE_STORAGE_KEY, 'CLOUDINARY_UPLOAD_PRESET')
+    || import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
     || '';
   return { cloudName: cloudName.trim(), preset: preset.trim() };
 }
@@ -45,8 +62,12 @@ function canViewVideo(video: Video): boolean {
 export function setCloudinaryConfig(cloudName: string, preset: string) {
   cachedCloudinaryConfig = { cloudName: cloudName.trim(), preset: preset.trim() };
   if (typeof window !== 'undefined') {
-    localStorage.setItem('CLOUDINARY_CLOUD_NAME', cloudName.trim());
-    localStorage.setItem('CLOUDINARY_UPLOAD_PRESET', preset.trim());
+    try {
+      localStorage.setItem(MEDIA_ENDPOINT_STORAGE_KEY, cloudName.trim());
+      localStorage.setItem(MEDIA_PROFILE_STORAGE_KEY, preset.trim());
+      localStorage.removeItem('CLOUDINARY_CLOUD_NAME');
+      localStorage.removeItem('CLOUDINARY_UPLOAD_PRESET');
+    } catch {}
   }
 }
 
@@ -74,8 +95,8 @@ export async function getCloudinaryConfigAsync(): Promise<{ cloudName: string; p
         return globalCfg;
       }
     }
-  } catch (err) {
-    console.warn('Could not read global storage settings from Firestore, using local fallback:', err);
+  } catch {
+    // Use local fallback silently
   }
 
   return cachedCloudinaryConfig || localConfig;
@@ -344,7 +365,7 @@ export const videoService = {
     const { cloudName, preset } = await getCloudinaryConfigAsync();
 
     if (cloudName && preset) {
-      const capCacheKey = `si_cld_plan_cap_${cloudName}`;
+      const capCacheKey = `si_media_cap_${cloudName}`;
       const isKnown100MbCap = (() => {
         if (typeof window === 'undefined' || file.size <= CLOUDINARY_FREE_LIMIT_BYTES) return false;
         try {
@@ -724,8 +745,6 @@ export const videoService = {
     if (cloudName && preset) {
       try {
         const filename = (fileOrBlob as File).name || `thumbnail_${Date.now()}.jpg`;
-        console.log(`Starting thumbnail image upload to Cloudinary (${cloudName}): ${filename}`);
-        
         const formData = new FormData();
         formData.append('file', fileOrBlob, filename);
         formData.append('upload_preset', preset);
@@ -745,7 +764,6 @@ export const videoService = {
             if (xhr.status >= 200 && xhr.status < 300) {
               try {
                 const response = JSON.parse(xhr.responseText);
-                console.log('Cloudinary Thumbnail Upload Success:', response.secure_url);
                 resolve(response.secure_url);
               } catch (jsonErr) {
                 reject(jsonErr);
@@ -767,8 +785,8 @@ export const videoService = {
           xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`);
           xhr.send(formData);
         });
-      } catch (cldErr) {
-        console.warn('Cloudinary thumbnail error or limit, falling back to Firebase Storage:', cldErr);
+      } catch {
+        // Fall back to secondary storage silently
       }
     }
 
@@ -860,7 +878,7 @@ export const videoService = {
     const videoId = this.generateId();
     const now = new Date().toISOString();
     
-    // Extract real scene thumbnail from the video URL itself (Cloudinary/YouTube)
+    // Extract real scene thumbnail from the video URL itself
     const autoSceneThumbnail = extractVideoThumbnail(videoData.videoUrl || '');
     const finalThumbnail = (videoData.thumbnailUrl && videoData.thumbnailUrl.trim().length > 0)
       ? videoData.thumbnailUrl.trim()
