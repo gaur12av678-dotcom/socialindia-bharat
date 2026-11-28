@@ -1895,6 +1895,8 @@ export const ChatPage: React.FC = () => {
                   const isMine = m.senderId === activeUid;
                   const dayLabel = formatMsgDay(m.createdAt, displayedMessages[idx - 1]?.createdAt);
                   const uploadProgressValue = Math.min(100, Math.max(0, m.uploadProgress || 0));
+                  const isVideoMessage = Boolean(m.mediaUrl && m.mediaType === 'video');
+                  const isStandaloneVideo = isVideoMessage && !m.text && !m.replyTo;
                   return (
                     <React.Fragment key={m.id}>
                       {dayLabel && (
@@ -1940,14 +1942,18 @@ export const ChatPage: React.FC = () => {
                             onTouchEnd={cancelMessageLongPress}
                             onTouchCancel={cancelMessageLongPress}
                             onTouchMove={cancelMessageLongPress}
-                            className={`p-3 rounded-2xl text-xs font-semibold leading-relaxed shadow-xs ${
-                              isMine
-                                ? 'bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-white rounded-tr-lg'
-                                : 'bg-white dark:bg-[#202c33] text-slate-900 dark:text-slate-100 border border-[#e9edef] dark:border-[#263238] rounded-tl-lg'
-                            }`}
+                            className={
+                              isStandaloneVideo
+                                ? `p-0 overflow-hidden rounded-2xl bg-black shadow-sm ${isMine ? 'rounded-tr-lg' : 'rounded-tl-lg'}`
+                                : `${isVideoMessage ? 'p-1' : 'p-3'} rounded-2xl text-xs font-semibold leading-relaxed shadow-xs ${
+                                    isMine
+                                      ? 'bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-white rounded-tr-lg'
+                                      : 'bg-white dark:bg-[#202c33] text-slate-900 dark:text-slate-100 border border-[#e9edef] dark:border-[#263238] rounded-tl-lg'
+                                  }`
+                            }
                           >
                             {m.replyTo && (
-                              <div className="mb-2 rounded-lg border-l-2 border-blue-500 bg-black/5 dark:bg-white/10 px-2 py-1.5">
+                              <div className={`mb-2 rounded-lg border-l-2 border-blue-500 bg-black/5 dark:bg-white/10 px-2 py-1.5 ${isVideoMessage ? 'mx-1 mt-1' : ''}`}>
                                 <p className="text-[9px] font-black text-blue-700 dark:text-blue-300">
                                   {m.replyTo.senderId === activeUid
                                     ? (isHindi ? 'आप' : 'You')
@@ -2011,10 +2017,12 @@ export const ChatPage: React.FC = () => {
                               </div>
                             )}
 
-                            {/* Media content: Video (WhatsApp-style tap-to-play custom player) */}
+                            {/* Media content: Video (WhatsApp-style tap-to-play video only) */}
                             {m.mediaUrl && m.mediaType === 'video' && (
                               <div
-                                className="relative mb-2 group overflow-hidden rounded-xl bg-black cursor-pointer"
+                                className={`relative group overflow-hidden bg-black cursor-pointer ${
+                                  isStandaloneVideo ? 'rounded-2xl' : 'mb-1.5 rounded-xl'
+                                }`}
                                 onClick={() => m.deliveryStatus !== 'uploading' && setActiveMediaMessageId(m.id)}
                               >
                                 <video
@@ -2022,30 +2030,36 @@ export const ChatPage: React.FC = () => {
                                   muted
                                   playsInline
                                   preload="metadata"
-                                  className="max-h-72 w-full rounded-xl bg-black object-cover pointer-events-none"
+                                  className="max-h-72 w-full bg-black object-cover pointer-events-none block"
                                 />
                                 {m.deliveryStatus !== 'uploading' && (
-                                  <>
-                                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                                      <div className="w-13 h-13 rounded-full bg-black/60 border border-white/25 backdrop-blur-xs flex items-center justify-center shadow-lg transition-transform group-hover:scale-105">
-                                        <Play className="w-6 h-6 fill-white text-white ml-0.5" />
-                                      </div>
+                                  <div className="absolute inset-0 bg-transparent group-hover:bg-black/15 transition-colors flex items-center justify-center">
+                                    <div className="w-12 h-12 rounded-full bg-black/55 backdrop-blur-xs flex items-center justify-center shadow-md transition-transform group-hover:scale-105">
+                                      <Play className="w-5 h-5 fill-white text-white ml-0.5" />
                                     </div>
-                                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          void handleDownloadMessageMedia(m);
-                                        }}
-                                        className="p-1.5 bg-black/65 hover:bg-black/85 text-white rounded-lg backdrop-blur-xs cursor-pointer"
-                                        title={isHindi ? 'डाउनलोड करें' : 'Download'}
-                                        aria-label={isHindi ? 'डाउनलोड करें' : 'Download'}
+                                  </div>
+                                )}
+                                {isStandaloneVideo && (
+                                  <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-end gap-1.5 bg-gradient-to-t from-black/70 via-black/25 to-transparent px-2.5 pb-1.5 pt-6 text-[10px] leading-none text-white/95 select-none">
+                                    {m.editedAt && (
+                                      <span
+                                        className="italic font-medium opacity-85"
+                                        title={formatMsgTime(String(m.editedAt))}
                                       >
-                                        <Download className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  </>
+                                        {isHindi ? 'संशोधित' : 'edited'}
+                                      </span>
+                                    )}
+                                    <span className="font-semibold drop-shadow-xs">{formatMsgTime(m.createdAt)}</span>
+                                    {isMine && (
+                                      m.deliveryStatus ? (
+                                        <Loader2 className="inline h-2.5 w-2.5 animate-spin" />
+                                      ) : (
+                                        <span className={m.read && !isGroup && !isPocket ? 'text-[#53bdeb] font-extrabold' : 'font-bold text-white/95'}>
+                                          {m.read && !isGroup && !isPocket ? '✓✓' : '✓'}
+                                        </span>
+                                      )
+                                    )}
+                                  </div>
                                 )}
                                 {m.deliveryStatus === 'uploading' && (
                                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white">
@@ -2066,7 +2080,7 @@ export const ChatPage: React.FC = () => {
                               const detectedUrls = extractUrlsFromText(m.text);
                               const primaryLink = detectedUrls[0];
                               return (
-                                <>
+                                <div className={isVideoMessage ? 'px-2 pt-0.5' : ''}>
                                   <p className="break-words whitespace-pre-wrap emoji-font select-text">
                                     <ChatMessageText text={m.text} isMine={isMine} />
                                   </p>
@@ -2098,35 +2112,39 @@ export const ChatPage: React.FC = () => {
                                       <ExternalLink className="w-3.5 h-3.5 text-[#027eb5] dark:text-[#53bdeb] shrink-0" />
                                     </a>
                                   )}
-                                </>
+                                </div>
                               );
                             })()}
 
                             {/* WhatsApp-style bottom-right bubble metadata: Edited label + Time + Ticks */}
-                            <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] leading-none select-none ${
-                              isMine
-                                ? 'text-[#55666e] dark:text-[#a6c8bf]'
-                                : 'text-slate-400 dark:text-slate-400'
-                            }`}>
-                              {m.editedAt && (
-                                <span
-                                  className="italic font-medium opacity-85"
-                                  title={formatMsgTime(String(m.editedAt))}
-                                >
-                                  {isHindi ? 'संशोधित' : 'edited'}
-                                </span>
-                              )}
-                              <span className="font-semibold">{formatMsgTime(m.createdAt)}</span>
-                              {isMine && (
-                                m.deliveryStatus ? (
-                                  <Loader2 className="inline h-2.5 w-2.5 animate-spin" />
-                                ) : (
-                                  <span className={m.read && !isGroup && !isPocket ? 'text-[#2563eb] dark:text-[#53bdeb] font-extrabold' : 'font-bold'}>
-                                    {m.read && !isGroup && !isPocket ? '✓✓' : '✓'}
+                            {!isStandaloneVideo && (
+                              <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] leading-none select-none ${
+                                isVideoMessage ? 'px-2 pb-1' : ''
+                              } ${
+                                isMine
+                                  ? 'text-[#55666e] dark:text-[#a6c8bf]'
+                                  : 'text-slate-400 dark:text-slate-400'
+                              }`}>
+                                {m.editedAt && (
+                                  <span
+                                    className="italic font-medium opacity-85"
+                                    title={formatMsgTime(String(m.editedAt))}
+                                  >
+                                    {isHindi ? 'संशोधित' : 'edited'}
                                   </span>
-                                )
-                              )}
-                            </div>
+                                )}
+                                <span className="font-semibold">{formatMsgTime(m.createdAt)}</span>
+                                {isMine && (
+                                  m.deliveryStatus ? (
+                                    <Loader2 className="inline h-2.5 w-2.5 animate-spin" />
+                                  ) : (
+                                    <span className={m.read && !isGroup && !isPocket ? 'text-[#2563eb] dark:text-[#53bdeb] font-extrabold' : 'font-bold'}>
+                                      {m.read && !isGroup && !isPocket ? '✓✓' : '✓'}
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           {!m.id.startsWith('temp_') && (
