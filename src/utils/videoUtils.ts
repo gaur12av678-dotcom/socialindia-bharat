@@ -72,27 +72,72 @@ export function getOptimizedVideoStreamUrl(
     }
     transform = 'f_mp4,vc_h264,q_auto:good,c_limit,h_1080';
   } else {
-    // Auto mode: shrink high-bitrate short/community clips so mobile playback starts fast without risking Cloudinary Free 423 sync errors
-    if (options?.isShort) {
-      if (sizeBytes > 55 * 1024 * 1024) return rawUrl;
-      transform = 'f_mp4,vc_h264,q_auto:good,c_limit,w_720';
-    } else if (sizeBytes > 0 && sizeBytes <= 38 * 1024 * 1024 && (durationSec === 0 || durationSec <= 240)) {
-      transform = 'f_mp4,vc_h264,q_auto:good,c_limit,h_1080';
-    } else if (!sizeBytes && durationSec > 0 && durationSec <= 120) {
-      transform = 'f_mp4,vc_h264,q_auto:good,c_limit,h_1080';
-    } else {
+    // Auto mode: serve browser-native MP4/WebM streams directly from CDN edge for instant HTTP 206 byte-range start
+    // (on-the-fly Cloudinary transforms stall/423 when not pre-generated). Only transcode non-web formats.
+    const needsContainerConversion = /\.(mov|mkv|avi|flv|wmv)(\?.*)?$/i.test(rawUrl);
+    if (!needsContainerConversion) {
       return rawUrl;
     }
+    transform = options?.isShort
+      ? 'f_mp4,vc_h264,q_auto:good,c_limit,w_720'
+      : 'f_mp4,vc_h264,q_auto:good,c_limit,w_1280';
   }
 
   const optimizedUrl = `${rawUrl.slice(0, markerIdx + uploadMarker.length)}${transform}/${afterUpload}`.replace(
-    /\.(mov|mkv|avi|webm|m4v)(\?.*)?$/i,
+    /\.(mov|mkv|avi|webm|m4v|flv|wmv)(\?.*)?$/i,
     '.mp4$2'
   );
   if (failedCloudinaryPlaybackTransforms.has(optimizedUrl)) {
     return rawUrl;
   }
   return optimizedUrl;
+}
+
+const prewarmedVideoUrls = new Map<string, number>();
+
+export function prewarmVideoPlayback(
+  rawUrl?: string,
+  options?: { isShort?: boolean; fileSizeBytes?: number; duration?: number }
+): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined' || !rawUrl) return;
+  const parsed = parseVideoUrl(rawUrl);
+  if (parsed.type !== 'direct' || !parsed.embedUrl) return;
+
+  const streamUrl = getOptimizedVideoStreamUrl(parsed.embedUrl, options);
+  if (!streamUrl || streamUrl.startsWith('blob:')) return;
+
+  const now = Date.now();
+  const lastWarmed = prewarmedVideoUrls.get(streamUrl);
+  if (lastWarmed && now - lastWarmed < 60_000) return;
+  prewarmedVideoUrls.set(streamUrl, now);
+
+  try {
+    const probe = document.createElement('video');
+    probe.preload = 'metadata';
+    probe.muted = true;
+    probe.playsInline = true;
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      try {
+        probe.removeAttribute('src');
+        probe.load();
+      } catch {}
+    };
+    const timer = window.setTimeout(cleanup, 4000);
+    probe.onloadedmetadata = () => {
+      window.clearTimeout(timer);
+      cleanup();
+    };
+    probe.onerror = () => {
+      window.clearTimeout(timer);
+      cleanup();
+    };
+    probe.src = streamUrl;
+  } catch {
+    // Ignore prewarm failures
+  }
 }
 
 function getVideoSourceDuration(source: File | string): Promise<number> {

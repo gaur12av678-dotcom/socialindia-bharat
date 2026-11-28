@@ -22,7 +22,7 @@ import { SponsoredAdCard } from '../components/ads/SponsoredAdCard';
 import { CustomVideoPlayer } from '../components/CustomVideoPlayer';
 import { SaveToPlaylistModal } from '../components/SaveToPlaylistModal';
 import { UserAvatar } from '../components/UserAvatar';
-import { parseVideoUrl, formatViews, formatTimeAgo, formatDuration, formatSubscribers, getInitials } from '../utils/videoUtils';
+import { parseVideoUrl, formatViews, formatTimeAgo, formatDuration, formatSubscribers, getInitials, prewarmVideoPlayback } from '../utils/videoUtils';
 import { liveBroadcastService } from '../services/liveBroadcastService';
 import { isUserVerified } from '../utils/userUtils';
 import { RichText } from '../components/RichText';
@@ -252,6 +252,11 @@ export const Watch: React.FC = () => {
     if (isPlaylistPlayback || cachedInitialVid?.isLive) return undefined;
     return videoId ? (playbackProgressService.getProgress(videoId, cachedInitialVid?.duration) || undefined) : undefined;
   });
+  const [seekTrigger, setSeekTrigger] = useState(0);
+  const handleTimestampSeek = (seconds: number) => {
+    setSeekToTime(seconds);
+    setSeekTrigger(prev => prev + 1);
+  };
 
   // Paid Video Unlock & Paywall states
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -516,69 +521,73 @@ export const Watch: React.FC = () => {
         setLoading(true);
       }
 
-      let offlineVideoUrl: string | null = null;
-      let offlineThumbUrl: string | undefined = undefined;
-      let offlineVideoFallback: Video | null = null;
+      const offlinePromise = downloadService.getDownloadedVideo(videoId).then(offlineRecord => {
+        if (!isMounted || !offlineRecord) return null;
 
-      try {
-        const offlineRecord = await downloadService.getDownloadedVideo(videoId);
-        if (!isMounted) return;
-
-        if (offlineRecord) {
-          if (offlineRecord.isShort) {
-            navigate('shorts', videoId);
-            return;
-          }
-
-          if (offlineRecord.videoBlob) {
-            offlineVideoUrl = URL.createObjectURL(offlineRecord.videoBlob);
-            offlineBlobUrlsRef.current.push(offlineVideoUrl);
-          }
-          if (offlineRecord.thumbnailBlob) {
-            offlineThumbUrl = URL.createObjectURL(offlineRecord.thumbnailBlob);
-            offlineBlobUrlsRef.current.push(offlineThumbUrl);
-          } else {
-            offlineThumbUrl = offlineRecord.thumbnailUrl;
-          }
-
-          offlineVideoFallback = {
-            ...(cached || {}),
-            videoId: offlineRecord.videoId,
-            title: offlineRecord.title,
-            description: offlineRecord.description || cached?.description || '',
-            videoUrl: offlineVideoUrl || offlineRecord.videoUrl || cached?.videoUrl || '',
-            thumbnailUrl: offlineThumbUrl || cached?.thumbnailUrl || '',
-            duration: Number.isFinite(offlineRecord.duration) ? offlineRecord.duration : (cached?.duration || 0),
-            creatorId: offlineRecord.creatorId,
-            creatorUsername: offlineRecord.creatorUsername,
-            creatorDisplayName: offlineRecord.creatorDisplayName,
-            creatorPhotoURL: offlineRecord.creatorPhotoURL,
-            category: offlineRecord.category || cached?.category || 'General',
-            tags: cached?.tags || [],
-            visibility: cached?.visibility || 'public',
-            viewsCount: cached?.viewsCount || 0,
-            likesCount: cached?.likesCount || 0,
-            commentsCount: cached?.commentsCount || 0,
-            sharesCount: cached?.sharesCount || 0,
-            isShort: false,
-            status: 'published',
-            createdAt: cached?.createdAt || offlineRecord.downloadedAt,
-            updatedAt: cached?.updatedAt || offlineRecord.downloadedAt
-          };
-
-          setVideo(offlineVideoFallback);
-          setLoading(false);
-          setIsDownloaded(true);
-          setIsUnlocked(true);
-          setCheckingUnlock(false);
+        if (offlineRecord.isShort) {
+          navigate('shorts', videoId);
+          return { redirectedToShort: true as const };
         }
-      } catch (offlineErr) {
+
+        let blobVideoUrl: string | null = null;
+        let thumbUrl: string | undefined = offlineRecord.thumbnailUrl;
+
+        if (offlineRecord.videoBlob) {
+          blobVideoUrl = URL.createObjectURL(offlineRecord.videoBlob);
+          offlineBlobUrlsRef.current.push(blobVideoUrl);
+        }
+        if (offlineRecord.thumbnailBlob) {
+          thumbUrl = URL.createObjectURL(offlineRecord.thumbnailBlob);
+          offlineBlobUrlsRef.current.push(thumbUrl);
+        }
+
+        const fallback: Video = {
+          ...(cached || {}),
+          videoId: offlineRecord.videoId,
+          title: offlineRecord.title,
+          description: offlineRecord.description || cached?.description || '',
+          videoUrl: blobVideoUrl || offlineRecord.videoUrl || cached?.videoUrl || '',
+          thumbnailUrl: thumbUrl || cached?.thumbnailUrl || '',
+          duration: Number.isFinite(offlineRecord.duration) ? offlineRecord.duration : (cached?.duration || 0),
+          creatorId: offlineRecord.creatorId,
+          creatorUsername: offlineRecord.creatorUsername,
+          creatorDisplayName: offlineRecord.creatorDisplayName,
+          creatorPhotoURL: offlineRecord.creatorPhotoURL,
+          category: offlineRecord.category || cached?.category || 'General',
+          tags: cached?.tags || [],
+          visibility: cached?.visibility || 'public',
+          viewsCount: cached?.viewsCount || 0,
+          likesCount: cached?.likesCount || 0,
+          commentsCount: cached?.commentsCount || 0,
+          sharesCount: cached?.sharesCount || 0,
+          isShort: false,
+          status: 'published',
+          createdAt: cached?.createdAt || offlineRecord.downloadedAt,
+          updatedAt: cached?.updatedAt || offlineRecord.downloadedAt
+        };
+
+        setVideo(fallback);
+        setLoading(false);
+        setIsDownloaded(true);
+        setIsUnlocked(true);
+        setCheckingUnlock(false);
+
+        return { redirectedToShort: false as const, blobVideoUrl, thumbUrl, fallback };
+      }).catch(offlineErr => {
         console.warn('Offline video lookup failed:', offlineErr);
-      }
+        return null;
+      });
+
+      const remotePromise = videoService.getVideo(videoId);
 
       try {
-        const vid = await videoService.getVideo(videoId);
+        const [offlineResult, vid] = await Promise.all([offlinePromise, remotePromise]);
         if (!isMounted) return;
+        if (offlineResult?.redirectedToShort) return;
+
+        const offlineVideoUrl = offlineResult?.blobVideoUrl || null;
+        const offlineThumbUrl = offlineResult?.thumbUrl;
+        const offlineVideoFallback = offlineResult?.fallback || null;
 
         if (!vid) {
           if (!cached && !offlineVideoFallback) setVideo(null);
@@ -748,7 +757,10 @@ export const Watch: React.FC = () => {
               if (!isMounted) return;
               playbackProgressService.syncFromHistoryItems(history);
               const allowedProgress = playbackProgressService.getProgress(videoId, video.duration);
-              setSeekToTime(allowedProgress > 5 ? allowedProgress : undefined);
+              const explicitTimeParam = Number(route.searchParams?.t || 0);
+              if (!Number.isFinite(explicitTimeParam) || explicitTimeParam <= 0) {
+                setSeekToTime(allowedProgress > 5 ? allowedProgress : undefined);
+              }
               historyService.addToHistory(currentUser.uid, video, allowedProgress).catch(console.error);
             })
             .catch(() => {
@@ -1533,6 +1545,7 @@ export const Watch: React.FC = () => {
       isTheaterMode={isTheaterMode}
       onToggleTheaterMode={() => setIsTheaterMode(prev => !prev)}
       seekToTime={seekToTime}
+      seekTrigger={seekTrigger}
       onEnded={() => {
         if (activePlaylist && nextPlaylistVideo) {
           handlePlayNextInPlaylist();
@@ -1686,7 +1699,7 @@ export const Watch: React.FC = () => {
               </span>
             )}
             <h1 className="text-lg md:text-xl font-extrabold text-slate-900 dark:text-[#F8FAFC] leading-snug flex-1 min-w-0 break-words">
-              <RichText text={video.title} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
+              <RichText text={video.title} onTimestampClick={handleTimestampSeek} />
             </h1>
           </div>
 
@@ -1968,10 +1981,10 @@ export const Watch: React.FC = () => {
           <div className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed pt-1">
             {video.description ? (
               video.description.length <= 150 ? (
-                <RichText text={video.description} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
+                <RichText text={video.description} onTimestampClick={handleTimestampSeek} />
               ) : isDescriptionExpanded ? (
                 <div>
-                  <RichText text={video.description} onTimestampClick={(seconds) => setSeekToTime(seconds)} />
+                  <RichText text={video.description} onTimestampClick={handleTimestampSeek} />
                   <button
                     type="button"
                     onClick={() => setIsDescriptionExpanded(false)}
@@ -1982,7 +1995,7 @@ export const Watch: React.FC = () => {
                 </div>
               ) : (
                 <div>
-                  <RichText text={video.description.slice(0, 150) + '...'} onTimestampClick={(seconds) => setSeekToTime(seconds)} className="inline" />
+                  <RichText text={video.description.slice(0, 150) + '...'} onTimestampClick={handleTimestampSeek} className="inline" />
                   <button
                     type="button"
                     onClick={() => setIsDescriptionExpanded(true)}
@@ -2593,6 +2606,10 @@ export const Watch: React.FC = () => {
                   return (
                     <div
                       key={pVid.videoId}
+                      onPointerDown={() => {
+                        videoService.cacheVideo(pVid);
+                        prewarmVideoPlayback(pVid.videoUrl, { fileSizeBytes: pVid.fileSizeBytes, duration: pVid.duration });
+                      }}
                       onClick={() => navigate('watch', pVid.videoId, { list: activePlaylist.playlistId })}
                       className={`flex items-center gap-2.5 p-2 rounded-2xl transition-all cursor-pointer ${
                         isCurrent
@@ -2725,6 +2742,10 @@ export const Watch: React.FC = () => {
                     href={relWatchUrl}
                     draggable={true}
                     title={v.title}
+                    onPointerDown={() => {
+                      videoService.cacheVideo(v);
+                      prewarmVideoPlayback(v.videoUrl, { fileSizeBytes: v.fileSizeBytes, duration: v.duration });
+                    }}
                     onClick={(e) => {
                       if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
                       e.preventDefault();
@@ -2785,6 +2806,10 @@ export const Watch: React.FC = () => {
                         href={relWatchUrl}
                         draggable={true}
                         title={v.title}
+                        onPointerDown={() => {
+                          videoService.cacheVideo(v);
+                          prewarmVideoPlayback(v.videoUrl, { fileSizeBytes: v.fileSizeBytes, duration: v.duration });
+                        }}
                         onClick={(e) => {
                           if (e.button === 1 || e.ctrlKey || e.metaKey || e.shiftKey) return;
                           e.preventDefault();

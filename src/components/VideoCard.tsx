@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Video } from '../types';
-import { formatViews, formatTimeAgo, formatDuration, getInitials, extractVideoThumbnail } from '../utils/videoUtils';
+import { formatViews, formatTimeAgo, formatDuration, getInitials, extractVideoThumbnail, prewarmVideoPlayback } from '../utils/videoUtils';
 import { useRouter } from '../hooks/useRouter';
 import { useApp } from '../context/AppContext';
 import { ActiveDownloadItem, downloadService } from '../services/downloadService';
@@ -231,6 +231,15 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
     navigate('creator', video.creatorUsername || video.creatorId);
   };
 
+  const handleCardPointerDown = () => {
+    videoService.cacheVideo(video);
+    prewarmVideoPlayback(video.videoUrl, {
+      isShort: video.isShort,
+      fileSizeBytes: video.fileSizeBytes,
+      duration: video.duration,
+    });
+  };
+
   return (
     <div
       style={{ animationDelay: `${(index % 3) * 35}ms` }}
@@ -239,6 +248,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
       {/* Thumbnail area with duration badge (wrapped in anchor tag with draggable image disabled so dragging transfers the video watch link, opening the actual video page with title & creator!) */}
       <a
         href={watchUrl}
+        onPointerDown={handleCardPointerDown}
         onClick={handleCardClick}
         draggable={true}
         title={video.title}
@@ -351,6 +361,7 @@ const VideoCardComponent: React.FC<VideoCardProps> = ({ video, index = 0, priori
         <div className="flex-1 min-w-0 pr-1">
           <a
             href={watchUrl}
+            onPointerDown={handleCardPointerDown}
             onClick={handleCardClick}
             draggable={true}
             title={video.title}

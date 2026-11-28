@@ -55,6 +55,7 @@ interface CustomVideoPlayerProps {
   isTheaterMode?: boolean;
   onToggleTheaterMode?: () => void;
   seekToTime?: number;
+  seekTrigger?: number;
   onNextVideo?: () => void;
   onPreviousVideo?: () => void;
   hasNextVideo?: boolean;
@@ -76,6 +77,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   isTheaterMode = false, 
   onToggleTheaterMode,
   seekToTime,
+  seekTrigger,
   onNextVideo,
   onPreviousVideo,
   hasNextVideo = false,
@@ -158,7 +160,11 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const [selectedQuality, setSelectedQuality] = useState('Auto');
   const [forceRawPlayback, setForceRawPlayback] = useState(false);
   const [retrySeed, setRetrySeed] = useState(0);
+  const [autoMutedByPolicy, setAutoMutedByPolicy] = useState(false);
   const bufferingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasRetriedLoadRef = useRef(false);
+  const hasPlayedPastStartRef = useRef(false);
+  const lastSeekTriggerRef = useRef<number | undefined>(seekTrigger);
 
   const clearBufferingTimer = React.useCallback(() => {
     if (bufferingTimerRef.current) {
@@ -174,7 +180,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       if (vid && !isUserPausedRef.current && (vid.readyState < 3 || vid.seeking)) {
         setIsBuffering(true);
       }
-    }, 380);
+    }, 350);
   }, [clearBufferingTimer]);
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -270,7 +276,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     isUserPausedRef.current = false;
     hasStartedInitialAutoplayRef.current = false;
     pendingPartSeekRef.current = null;
+    hasRetriedLoadRef.current = false;
+    hasPlayedPastStartRef.current = false;
     clearBufferingTimer();
+    setAutoMutedByPolicy(false);
     setForceRawPlayback(false);
     setMediaError(null);
     setActivePartIndex(0);
@@ -438,9 +447,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     }
   }, [parsedMedia.type, videoParts, partOffsets, partDurations, activePartIndex, isAmbientMode]);
 
-  // Apply initial seek if seekToTime is provided (>5s)
+  // Apply initial resume seek ONCE before playback progresses (never hijack active playback on background history hydration)
   useEffect(() => {
-    if (!seekToTime || seekToTime <= 5 || hasAppliedSeekRef.current) return;
+    if (!seekToTime || seekToTime <= 5 || hasAppliedSeekRef.current || hasPlayedPastStartRef.current) return;
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current?.seekTo) {
       try {
         seekToGlobalTime(seekToTime, false);
@@ -515,12 +524,112 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     }
   }, [isPlaying, isAmbientMode]);
 
-  // Handle external seekToTime request (e.g. description timestamp click)
+  // Handle explicit timestamp clicks from video title/description without causing extra seeks on initial load
   useEffect(() => {
+    if (seekTrigger === undefined || seekTrigger === lastSeekTriggerRef.current) return;
+    lastSeekTriggerRef.current = seekTrigger;
     if (seekToTime !== undefined && seekToTime >= 0) {
+      hasAppliedSeekRef.current = true;
       seekToGlobalTime(seekToTime, true);
     }
-  }, [seekToTime]);
+  }, [seekTrigger, seekToTime, seekToGlobalTime]);
+
+  // Direct HTML5 startup stall-recovery watchdog (prevents infinite spinning circle on slow/hanging streams)
+  const attemptDirectPlay = React.useCallback(() => {
+    const vid = videoRef.current;
+    if (!vid || !isMountedRef.current || isUserPausedRef.current) return;
+    hasStartedInitialAutoplayRef.current = true;
+    const playPromise = vid.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          if (!isMountedRef.current || isUserPausedRef.current) {
+            vid.pause();
+            return;
+          }
+          clearBufferingTimer();
+          setIsBuffering(false);
+          setIsMediaReady(true);
+          setIsPlaying(true);
+        })
+        .catch(() => {
+          if (!isMountedRef.current || isUserPausedRef.current || !videoRef.current) return;
+          videoRef.current.muted = true;
+          setIsMuted(true);
+          setAutoMutedByPolicy(true);
+          videoRef.current.play()
+            .then(() => {
+              if (!isMountedRef.current || isUserPausedRef.current) {
+                videoRef.current?.pause();
+                return;
+              }
+              clearBufferingTimer();
+              setIsBuffering(false);
+              setIsMediaReady(true);
+              setIsPlaying(true);
+            })
+            .catch(() => {});
+        });
+    }
+  }, [clearBufferingTimer]);
+
+  useEffect(() => {
+    if (parsedMedia.type !== 'direct' || isMediaReady || mediaError) return;
+
+    const fastFallbackTimer = setTimeout(() => {
+      const vid = videoRef.current;
+      if (!isMountedRef.current || !vid || vid.readyState >= 2 || isUserPausedRef.current) return;
+
+      if (!forceRawPlayback && activePartSrc !== rawActivePartSrc) {
+        markCloudinaryTransformFailed(activePartSrc);
+        pendingPartSeekRef.current = {
+          partIndex: activePartIndex,
+          localTime: vid.currentTime || 0,
+          shouldPlay: !isUserPausedRef.current,
+        };
+        setForceRawPlayback(true);
+        return;
+      }
+
+      if (!hasRetriedLoadRef.current) {
+        hasRetriedLoadRef.current = true;
+        try {
+          vid.load();
+          attemptDirectPlay();
+        } catch {}
+      }
+    }, 4500);
+
+    const giveUpTimer = setTimeout(() => {
+      const vid = videoRef.current;
+      if (!isMountedRef.current || !vid || vid.readyState >= 2 || isUserPausedRef.current) return;
+      clearBufferingTimer();
+      setIsBuffering(false);
+      setIsMediaReady(true);
+      setMediaError(
+        isHindi
+          ? 'नेटवर्क धीमा है या वीडियो लोड नहीं हो सका। कृपया पुनः प्रयास करें।'
+          : 'Video is taking too long to respond. Tap Retry to reload.'
+      );
+    }, 15000);
+
+    return () => {
+      clearTimeout(fastFallbackTimer);
+      clearTimeout(giveUpTimer);
+    };
+  }, [
+    parsedMedia.type,
+    isMediaReady,
+    mediaError,
+    forceRawPlayback,
+    activePartSrc,
+    rawActivePartSrc,
+    activePartIndex,
+    retrySeed,
+    attemptDirectPlay,
+    clearBufferingTimer,
+    isHindi,
+  ]);
 
   // Custom Timeline & Controls State
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -987,6 +1096,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   const handleDirectTimeUpdate = () => {
     if (videoRef.current) {
       const localCur = videoRef.current.currentTime;
+      if (localCur > 2) {
+        hasPlayedPastStartRef.current = true;
+      }
       if (videoRef.current.readyState >= 2) {
         clearBufferingTimer();
         setIsBuffering(false);
@@ -1064,6 +1176,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
       setVolume(1);
     }
     setIsMuted(nextMuted);
+    if (!nextMuted) {
+      setAutoMutedByPolicy(false);
+    }
 
     if (parsedMedia.type === 'youtube' && ytPlayerRef.current) {
       if (nextMuted) {
@@ -1483,18 +1598,39 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         )}
       </AnimatePresence>
 
+      {/* YOUTUBE-STYLE TAP TO UNMUTE PILL (shown only when browser policy forced muted autoplay) */}
+      <AnimatePresence>
+        {autoMutedByPolicy && isMuted && isPlaying && !mediaError && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, y: -8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.95 }}
+            transition={{ duration: 0.18 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleMute();
+            }}
+            className="absolute top-14 right-3 sm:top-16 sm:right-4 z-45 px-3 py-1.5 rounded-full bg-black/85 hover:bg-black text-white text-xs font-extrabold border border-white/25 backdrop-blur-md shadow-2xl flex items-center gap-1.5 cursor-pointer active:scale-95 transition-transform"
+          >
+            <VolumeX className="w-3.5 h-3.5 text-blue-400" />
+            <span>{isHindi ? 'आवाज़ चालू करें' : 'Tap to unmute'}</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* YOUTUBE-STYLE CENTER CIRCULAR BUFFER SPINNER */}
       <AnimatePresence>
-        {(isBuffering || !isMediaReady) && !mediaError && (
+        {isBuffering && !mediaError && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.85 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.16 }}
             className="absolute inset-0 z-35 flex items-center justify-center pointer-events-none"
           >
             {/* Authentic YouTube circular buffering ring */}
-            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full border-[3.5px] border-white/20 border-t-[#2563eb] animate-spin drop-shadow-xl" />
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-[3.5px] border-white/25 border-t-[#2563eb] animate-spin drop-shadow-xl" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -1507,7 +1643,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              hasRetriedLoadRef.current = false;
               setMediaError(null);
+              setIsMediaReady(false);
               setIsBuffering(true);
               setForceRawPlayback(true);
               setRetrySeed((s) => s + 1);
@@ -1556,9 +1694,15 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               key={`${video.videoId}-${activePartIndex}-${retrySeed}`}
               ref={videoRef}
               src={activePartSrc}
+              autoPlay={!isUserPausedRef.current}
               playsInline
               preload="auto"
               onWaiting={() => scheduleBufferingSpinner()}
+              onStalled={() => {
+                if (videoRef.current && videoRef.current.readyState < 3 && !isUserPausedRef.current) {
+                  scheduleBufferingSpinner();
+                }
+              }}
               onSeeking={() => scheduleBufferingSpinner()}
               onSeeked={() => {
                 clearBufferingTimer();
@@ -1569,6 +1713,9 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                 setIsMediaReady(true);
                 setIsBuffering(false);
                 setMediaError(null);
+                if (!hasStartedInitialAutoplayRef.current && !isUserPausedRef.current && !pendingPartSeekRef.current) {
+                  attemptDirectPlay();
+                }
               }}
               onCanPlayThrough={() => {
                 clearBufferingTimer();
@@ -1680,14 +1827,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                       videoRef.current.currentTime = pending.localTime;
                     }
                     if (pending.shouldPlay && !isUserPausedRef.current && isMountedRef.current) {
-                      videoRef.current.play().then(() => {
-                        if (!isMountedRef.current || isUserPausedRef.current) {
-                          videoRef.current?.pause();
-                          return;
-                        }
-                        if (isAmbientMode) ambientVideoRef.current?.play().catch(() => {});
-                        setIsPlaying(true);
-                      }).catch(() => {});
+                      attemptDirectPlay();
                     }
                     return;
                   }
@@ -1698,26 +1838,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
                     setShowResumeBadge(true);
                   }
                   if (!hasStartedInitialAutoplayRef.current && !isUserPausedRef.current && isMountedRef.current) {
-                    hasStartedInitialAutoplayRef.current = true;
-                    videoRef.current.play().then(() => {
-                      if (!isMountedRef.current || isUserPausedRef.current) {
-                        videoRef.current?.pause();
-                        return;
-                      }
-                      setIsPlaying(true);
-                    }).catch(() => {
-                      if (!isMountedRef.current || isUserPausedRef.current || !videoRef.current) return;
-                      // If browser policy requires mute first for autoplay
-                      videoRef.current.muted = true;
-                      setIsMuted(true);
-                      videoRef.current.play().then(() => {
-                        if (!isMountedRef.current || isUserPausedRef.current) {
-                          videoRef.current?.pause();
-                          return;
-                        }
-                        setIsPlaying(true);
-                      }).catch(() => {});
-                    });
+                    attemptDirectPlay();
                   }
                 }
               }}

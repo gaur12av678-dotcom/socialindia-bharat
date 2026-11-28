@@ -164,6 +164,50 @@ const ShortVideoMedia: React.FC<{
         duration: short.duration,
       });
 
+  // Startup stall watchdog for direct Shorts streams (prevents infinite spinner hangs)
+  useEffect(() => {
+    if (parsedMedia.type !== 'direct' || !isPlaying || mediaError || !activeDirectSrc) return;
+
+    const stallTimer = window.setTimeout(() => {
+      const vid = videoRef.current;
+      if (!vid || !isMountedRef.current || !isPlayingRef.current) return;
+      if (vid.readyState >= 2) return;
+
+      if (!forceRaw && activeDirectSrc !== parsedMedia.embedUrl) {
+        markCloudinaryTransformFailed(activeDirectSrc);
+        setForceRaw(true);
+      } else {
+        try {
+          vid.load();
+          vid.play().catch(() => {
+            if (!isMountedRef.current || !isPlayingRef.current) return;
+            vid.muted = true;
+            vid.play().catch(() => {});
+          });
+        } catch {
+          // Ignore reload error
+        }
+      }
+    }, 4500);
+
+    const fatalTimer = window.setTimeout(() => {
+      const vid = videoRef.current;
+      if (!vid || !isMountedRef.current || !isPlayingRef.current) return;
+      if (vid.readyState < 2) {
+        clearBufferingTimer();
+        setIsBuffering(false);
+        setIsFrameReady(true);
+        setMediaError(true);
+        onMediaReady();
+      }
+    }, 14000);
+
+    return () => {
+      window.clearTimeout(stallTimer);
+      window.clearTimeout(fatalTimer);
+    };
+  }, [parsedMedia.type, parsedMedia.embedUrl, activeDirectSrc, forceRaw, isPlaying, mediaError, retryKey, short.videoId]);
+
   // A custom soundtrack is only used when the short explicitly references a non-original sound
   // or an external audio URL that is distinct from the video file itself.
   const resolvedSoundAudioUrl = useMemo(() => {
@@ -590,6 +634,7 @@ const ShortVideoMedia: React.FC<{
           key={`${short.videoId}-${retryKey}`}
           ref={videoRef}
           src={activeDirectSrc}
+          autoPlay={isPlaying}
           loop
           playsInline
           // @ts-ignore
@@ -597,6 +642,7 @@ const ShortVideoMedia: React.FC<{
           preload="auto"
           muted={resolvedSoundAudioUrl ? true : isMuted}
           onWaiting={scheduleBuffering}
+          onStalled={scheduleBuffering}
           onSeeking={scheduleBuffering}
           onSeeked={() => {
             clearBufferingTimer();

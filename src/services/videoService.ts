@@ -1083,6 +1083,23 @@ export const videoService = {
         }
       }
     } catch (_) {}
+
+    for (const entry of memoryVideoCache.values()) {
+      const found = entry.data.find((v) => v && v.videoId === videoId);
+      if (found && canViewVideo(found)) {
+        memoryVideoDetailCache.set(videoId, { data: found, timestamp: entry.timestamp });
+        return found;
+      }
+    }
+
+    const persistedMatch =
+      getPersistedVideos().find((v) => v.videoId === videoId) ||
+      getPersistedShorts().find((v) => v.videoId === videoId);
+    if (persistedMatch && canViewVideo(persistedMatch)) {
+      memoryVideoDetailCache.set(videoId, { data: persistedMatch, timestamp: Date.now() });
+      return persistedMatch;
+    }
+
     return null;
   },
 

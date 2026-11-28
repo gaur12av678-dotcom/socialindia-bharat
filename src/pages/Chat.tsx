@@ -39,11 +39,14 @@ import {
   AlertCircle,
   Link2,
   ExternalLink,
-  Globe
+  Globe,
+  Play
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { EmojiText } from '../components/EmojiGraphic';
 const EmojiPicker = lazy(() => import('../components/chat/EmojiPicker').then(m => ({ default: m.EmojiPicker })));
+import { ChatMediaLightbox, ChatMediaItem } from '../components/chat/ChatMediaLightbox';
+import { downloadChatMedia, shareChatMedia } from '../utils/mediaDownloadShare';
 import { UserAvatar } from '../components/UserAvatar';
 import { formatWhatsAppPresence, isOfficialSocialIndiaAccount, isUserCurrentlyOnline } from '../utils/userUtils';
 import { tokenizeTextWithUrls, extractUrlsFromText, normalizeLinkUrl, formatLinkHost } from '../utils/linkUtils';
@@ -161,7 +164,7 @@ export const ChatPage: React.FC = () => {
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [activeMediaMessageId, setActiveMediaMessageId] = useState<string | null>(null);
 
   // Voice input state
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
@@ -1280,10 +1283,46 @@ export const ChatPage: React.FC = () => {
     }
   };
 
+  const handleDownloadMessageMedia = async (message: ChatMessage) => {
+    if (!message.mediaUrl || (message.mediaType !== 'image' && message.mediaType !== 'video')) return;
+    setMessageActionId(null);
+    try {
+      const mode = await downloadChatMedia({
+        url: message.mediaUrl,
+        mediaType: message.mediaType,
+        id: message.id,
+      });
+      if (mode === 'direct' || mode === 'bridge') {
+        addToast(isHindi ? 'डाउनलोड शुरू हो गया है!' : 'Download started!', 'success');
+      } else {
+        addToast(
+          message.mediaType === 'video'
+            ? (isHindi ? 'वीडियो आपके डिवाइस में सेव हो गया!' : 'Video saved to your device!')
+            : (isHindi ? 'फ़ोटो आपके डिवाइस में सेव हो गई!' : 'Photo saved to your device!'),
+          'success'
+        );
+      }
+    } catch (err) {
+      console.error('Failed to download message media:', err);
+      addToast(isHindi ? 'डाउनलोड करने में समस्या आई।' : 'Failed to download media.', 'error');
+    }
+  };
+
   const handleShareMessage = async (message: ChatMessage) => {
     const shareText = message.text || (isHindi ? 'SocialIndia पर साझा किया गया संदेश' : 'A message shared on SocialIndia');
     try {
-      if (navigator.share) {
+      if (message.mediaUrl && (message.mediaType === 'image' || message.mediaType === 'video')) {
+        const result = await shareChatMedia({
+          url: message.mediaUrl,
+          mediaType: message.mediaType,
+          text: message.text,
+          id: message.id,
+          title: isHindi ? 'SocialIndia मीडिया' : 'SocialIndia Media',
+        });
+        if (result === 'copied') {
+          addToast(isHindi ? 'मीडिया लिंक कॉपी किया गया।' : 'Media link copied.', 'success');
+        }
+      } else if (navigator.share) {
         await navigator.share({
           title: isHindi ? 'SocialIndia संदेश' : 'SocialIndia message',
           text: shareText,
@@ -1303,6 +1342,30 @@ export const ChatPage: React.FC = () => {
       setMessageActionId(null);
     }
   };
+
+  const chatMediaItems = useMemo<ChatMediaItem[]>(() => {
+    return messages
+      .filter(
+        (m): m is ChatMessage & { mediaUrl: string; mediaType: 'image' | 'video' } =>
+          Boolean(m.mediaUrl) &&
+          (m.mediaType === 'image' || m.mediaType === 'video') &&
+          m.deliveryStatus !== 'uploading'
+      )
+      .map((m) => {
+        const isSenderMe = m.senderId === activeUid;
+        const senderName = isSenderMe
+          ? (currentUserProfile?.displayName || (isHindi ? 'आप' : 'You'))
+          : (m.senderDisplayName || selectedUser?.displayName || (isHindi ? 'यूज़र' : 'User'));
+        return {
+          id: m.id,
+          mediaUrl: m.mediaUrl,
+          mediaType: m.mediaType,
+          senderName,
+          createdAt: m.createdAt,
+          text: m.text,
+        };
+      });
+  }, [messages, activeUid, currentUserProfile?.displayName, selectedUser?.displayName, isHindi]);
 
   // Helper format for timestamp
   const formatMsgTime = (isoString: string) => {
@@ -1902,17 +1965,38 @@ export const ChatPage: React.FC = () => {
                                   src={m.mediaUrl}
                                   alt="Shared photo"
                                   loading="lazy"
-                                  onClick={() => setFullscreenImage(m.mediaUrl!)}
+                                  referrerPolicy="no-referrer"
+                                  onClick={() => m.deliveryStatus !== 'uploading' && setActiveMediaMessageId(m.id)}
                                   className="max-h-72 w-full object-cover rounded-xl cursor-pointer transition-transform group-hover:scale-102"
                                 />
-                                <button
-                                  type="button"
-                                  onClick={() => setFullscreenImage(m.mediaUrl!)}
-                                  className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-xs cursor-pointer"
-                                  title="View Fullscreen"
-                                >
-                                  <Maximize2 className="w-3.5 h-3.5" />
-                                </button>
+                                {m.deliveryStatus !== 'uploading' && (
+                                  <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void handleDownloadMessageMedia(m);
+                                      }}
+                                      className="p-1.5 bg-black/65 hover:bg-black/85 text-white rounded-lg backdrop-blur-xs cursor-pointer"
+                                      title={isHindi ? 'डाउनलोड करें' : 'Download'}
+                                      aria-label={isHindi ? 'डाउनलोड करें' : 'Download'}
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveMediaMessageId(m.id);
+                                      }}
+                                      className="p-1.5 bg-black/65 hover:bg-black/85 text-white rounded-lg backdrop-blur-xs cursor-pointer"
+                                      title={isHindi ? 'फ़ुलस्क्रीन देखें' : 'View Fullscreen'}
+                                      aria-label={isHindi ? 'फ़ुलस्क्रीन देखें' : 'View Fullscreen'}
+                                    >
+                                      <Maximize2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
                                 {m.deliveryStatus === 'uploading' && (
                                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white">
                                     <Loader2 className="h-6 w-6 animate-spin" />
@@ -1927,16 +2011,42 @@ export const ChatPage: React.FC = () => {
                               </div>
                             )}
 
-                            {/* Media content: Video */}
+                            {/* Media content: Video (WhatsApp-style tap-to-play custom player) */}
                             {m.mediaUrl && m.mediaType === 'video' && (
-                              <div className="relative mb-2 overflow-hidden rounded-xl bg-black">
+                              <div
+                                className="relative mb-2 group overflow-hidden rounded-xl bg-black cursor-pointer"
+                                onClick={() => m.deliveryStatus !== 'uploading' && setActiveMediaMessageId(m.id)}
+                              >
                                 <video
-                                  src={m.mediaUrl}
-                                  controls
+                                  src={m.mediaUrl.startsWith('http') && !m.mediaUrl.includes('#') ? `${m.mediaUrl}#t=0.1` : m.mediaUrl}
+                                  muted
                                   playsInline
                                   preload="metadata"
-                                  className="max-h-72 w-full rounded-xl bg-black"
+                                  className="max-h-72 w-full rounded-xl bg-black object-cover pointer-events-none"
                                 />
+                                {m.deliveryStatus !== 'uploading' && (
+                                  <>
+                                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                      <div className="w-13 h-13 rounded-full bg-black/60 border border-white/25 backdrop-blur-xs flex items-center justify-center shadow-lg transition-transform group-hover:scale-105">
+                                        <Play className="w-6 h-6 fill-white text-white ml-0.5" />
+                                      </div>
+                                    </div>
+                                    <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void handleDownloadMessageMedia(m);
+                                        }}
+                                        className="p-1.5 bg-black/65 hover:bg-black/85 text-white rounded-lg backdrop-blur-xs cursor-pointer"
+                                        title={isHindi ? 'डाउनलोड करें' : 'Download'}
+                                        aria-label={isHindi ? 'डाउनलोड करें' : 'Download'}
+                                      >
+                                        <Download className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
                                 {m.deliveryStatus === 'uploading' && (
                                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55 text-white">
                                     <Loader2 className="h-6 w-6 animate-spin" />
@@ -2056,6 +2166,15 @@ export const ChatPage: React.FC = () => {
                                   className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" /> {isHindi ? 'हटाएं' : 'Delete'}
+                                </button>
+                              )}
+                              {m.mediaUrl && (m.mediaType === 'image' || m.mediaType === 'video') && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDownloadMessageMedia(m)}
+                                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-white/10"
+                                >
+                                  <Download className="h-3.5 w-3.5" /> {isHindi ? 'डाउनलोड' : 'Download'}
                                 </button>
                               )}
                               <button
@@ -2917,42 +3036,19 @@ export const ChatPage: React.FC = () => {
         </div>
       )}
 
-      {/* Fullscreen Image Lightbox Modal */}
-      {fullscreenImage && (
-        <div
-          className="fixed inset-0 z-100 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setFullscreenImage(null)}
-        >
-          <div
-            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
-              <a
-                href={fullscreenImage}
-                target="_blank"
-                rel="noopener noreferrer"
-                download="shared-photo.jpg"
-                className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-xs transition-colors"
-                title={isHindi ? 'छवि डाउनलोड करें' : 'Download image'}
-              >
-                <Download className="w-4 h-4" />
-              </a>
-              <button
-                onClick={() => setFullscreenImage(null)}
-                className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-xs transition-colors cursor-pointer"
-                title={isHindi ? 'बंद करें' : 'Close'}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <img
-              src={fullscreenImage}
-              alt="Shared photo full view"
-              className="max-h-[85vh] max-w-full rounded-2xl object-contain shadow-2xl"
-            />
-          </div>
-        </div>
+      {/* WhatsApp-style Fullscreen Image Viewer & Custom Video Player */}
+      {activeMediaMessageId && chatMediaItems.length > 0 && (
+        <ChatMediaLightbox
+          items={chatMediaItems}
+          initialMessageId={activeMediaMessageId}
+          isHindi={isHindi}
+          onClose={() => setActiveMediaMessageId(null)}
+          onReplyMessage={(msgId) => {
+            const target = messages.find((item) => item.id === msgId);
+            if (target) handleReplyToMessage(target);
+          }}
+          onToast={addToast}
+        />
       )}
 
     </div>

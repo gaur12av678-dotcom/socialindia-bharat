@@ -11,7 +11,7 @@ import { Flame, Zap, ArrowRight, Play, RotateCw, ArrowDown, ChevronLeft, Chevron
 import { useTranslation } from '../i18n';
 import { ShortsLogo } from '../components/ShortsLogo';
 import { Subscriptions } from './Subscriptions';
-import { getVideoUrlDuration, parseVideoUrl } from '../utils/videoUtils';
+import { getVideoUrlDuration, parseVideoUrl, prewarmVideoPlayback } from '../utils/videoUtils';
 import { ActiveDownloadItem, downloadService } from '../services/downloadService';
 import { savedVideoService } from '../services/savedVideoService';
 import { openShareModal } from '../components/ShareModal';
@@ -199,6 +199,14 @@ const HomeClipCard: React.FC<HomeClipCardProps> = React.memo(({
         href={clipUrl}
         draggable={true}
         title={short.title}
+        onPointerDown={() => {
+          videoService.cacheVideo(short);
+          prewarmVideoPlayback(short.videoUrl, {
+            isShort: true,
+            fileSizeBytes: short.fileSizeBytes,
+            duration: short.duration,
+          });
+        }}
         onClick={handleClipClick}
         className="block relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-[#dbe2ee] dark:bg-slate-800 shadow-md cursor-pointer transition-transform active:scale-[0.98]"
       >

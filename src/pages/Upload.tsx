@@ -105,9 +105,40 @@ export const UploadPage: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStageText, setUploadStageText] = useState('');
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [isFirstTimeUploader, setIsFirstTimeUploader] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if user is uploading their very first video
+  useEffect(() => {
+    let active = true;
+    if (!currentUser?.uid) {
+      setIsFirstTimeUploader(false);
+      return;
+    }
+
+    if ((currentUserProfile?.videosCount ?? 0) > 0) {
+      setIsFirstTimeUploader(false);
+      return;
+    }
+
+    videoService
+      .getCreatorVideos(currentUser.uid, currentUserProfile?.username, true)
+      .then((videos) => {
+        if (!active) return;
+        const count = Array.isArray(videos) ? videos.length : 0;
+        setIsFirstTimeUploader(count === 0 && (currentUserProfile?.videosCount ?? 0) === 0);
+      })
+      .catch(() => {
+        if (!active) return;
+        setIsFirstTimeUploader((currentUserProfile?.videosCount ?? 0) === 0);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.uid, currentUserProfile?.username, currentUserProfile?.videosCount]);
 
   // Auto-detect mode from query params
   useEffect(() => {
@@ -469,85 +500,87 @@ export const UploadPage: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       
-      {/* 1. TOP PREMIUM HERO BANNER (Hidden on mobile per user request) */}
-      <div className="hidden md:flex relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-50/90 via-white to-amber-50/30 dark:from-[#131722] dark:via-[#161b26] dark:to-[#1a1720] border border-blue-100/90 dark:border-slate-800 shadow-sm p-6 sm:p-8 flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        
-        {/* Left Side: Icon & Titles */}
-        <div className="flex items-center gap-4 sm:gap-5 z-10 max-w-xl">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-blue-100/80 dark:bg-blue-950/70 text-[#065fd4] dark:text-[#3b82f6] flex items-center justify-center shrink-0 border border-blue-200/60 dark:border-blue-900/60 shadow-inner">
-            <CloudUpload className="w-8 h-8 sm:w-10 sm:h-10 text-[#065fd4] dark:text-[#3b82f6] stroke-[2.2]" />
+      {/* 1. TOP PREMIUM HERO BANNER (Only for first-time video uploaders; hidden on mobile) */}
+      {isFirstTimeUploader && (
+        <div className="hidden md:flex relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-50/90 via-white to-amber-50/30 dark:from-[#131722] dark:via-[#161b26] dark:to-[#1a1720] border border-blue-100/90 dark:border-slate-800 shadow-sm p-6 sm:p-8 flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          
+          {/* Left Side: Icon & Titles */}
+          <div className="flex items-center gap-4 sm:gap-5 z-10 max-w-xl">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-blue-100/80 dark:bg-blue-950/70 text-[#065fd4] dark:text-[#3b82f6] flex items-center justify-center shrink-0 border border-blue-200/60 dark:border-blue-900/60 shadow-inner">
+              <CloudUpload className="w-8 h-8 sm:w-10 sm:h-10 text-[#065fd4] dark:text-[#3b82f6] stroke-[2.2]" />
+            </div>
+
+            <div className="space-y-1">
+              <h1 className="text-2xl sm:text-3xl font-black text-[#0f172a] dark:text-white tracking-tight">
+                {isHindi ? 'वीडियो अपलोड करें' : 'Upload Video'}
+              </h1>
+              <p className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 leading-snug">
+                {isHindi ? 'अपने विचार, रचनात्मकता और वीडियो पूरी दुनिया के साथ साझा करें।' : 'Share your thoughts, ideas and creativity with the world.'}
+              </p>
+              <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                {isHindi ? 'भारत के तेजी से बढ़ते डिजिटल समुदाय का हिस्सा बनें।' : "Be part of India's growing digital community."}
+              </p>
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-black text-[#0f172a] dark:text-white tracking-tight">
-              {isHindi ? 'वीडियो अपलोड करें' : 'Upload Video'}
-            </h1>
-            <p className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300 leading-snug">
-              {isHindi ? 'अपने विचार, रचनात्मकता और वीडियो पूरी दुनिया के साथ साझा करें।' : 'Share your thoughts, ideas and creativity with the world.'}
-            </p>
-            <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
-              {isHindi ? 'भारत के तेजी से बढ़ते डिजिटल समुदाय का हिस्सा बनें।' : "Be part of India's growing digital community."}
-            </p>
+          {/* Right Side: Elegant Indian Tricolor Wave & Landmarks Silhouette (India Gate, Qutub Minar, Taj Mahal) */}
+          <div className="w-full md:w-auto flex-1 h-24 sm:h-28 relative flex items-end justify-end pointer-events-none opacity-85 dark:opacity-60 overflow-hidden">
+            <svg viewBox="0 0 500 120" className="w-full max-w-md h-full" preserveAspectRatio="xMaxYMid meet" aria-hidden="true">
+              <defs>
+                {/* Saffron Wave */}
+                <linearGradient id="saffronGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#FF9933" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#FF7700" stopOpacity="0.4" />
+                </linearGradient>
+                {/* Green Wave */}
+                <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#138808" stopOpacity="0.7" />
+                  <stop offset="100%" stopColor="#0B5505" stopOpacity="0.3" />
+                </linearGradient>
+              </defs>
+
+              {/* Flying Birds in Sky */}
+              <path d="M420,25 Q425,20 430,25 Q435,20 440,25" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
+              <path d="M445,18 Q448,14 452,18 Q456,14 460,18" fill="none" stroke="#64748b" strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
+              <path d="M465,30 Q468,27 472,30 Q476,27 480,30" fill="none" stroke="#64748b" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+
+              {/* Indian Landmarks Silhouettes in warm architectural tones */}
+              {/* India Gate */}
+              <g fill="#94a3b8" opacity="0.35">
+                <rect x="290" y="55" width="46" height="55" rx="3" />
+                <rect x="294" y="48" width="38" height="7" rx="2" />
+                <rect x="297" y="44" width="32" height="4" />
+                <path d="M305,110 L305,75 Q313,67 321,75 L321,110 Z" fill="#ffffff" opacity="0.9" />
+              </g>
+
+              {/* Qutub Minar */}
+              <g fill="#94a3b8" opacity="0.45">
+                <polygon points="360,110 366,110 363,22" />
+                <rect x="361" y="40" width="4" height="2" />
+                <rect x="360.5" y="60" width="5" height="2" />
+                <rect x="360" y="80" width="6" height="2" />
+                <circle cx="363" cy="20" r="1.5" />
+              </g>
+
+              {/* Taj Mahal Dome & Minarets */}
+              <g fill="#94a3b8" opacity="0.3">
+                <path d="M410,110 L410,75 C410,60 417,55 425,50 C433,55 440,60 440,75 L440,110 Z" />
+                <circle cx="425" cy="46" r="3" />
+                {/* Taj Minarets */}
+                <rect x="396" y="50" width="3" height="60" />
+                <circle cx="397.5" cy="48" r="2" />
+                <rect x="451" y="50" width="3" height="60" />
+                <circle cx="452.5" cy="48" r="2" />
+              </g>
+
+              {/* Tricolor Flowing Waves */}
+              <path d="M100,105 C200,60 300,10 490,20 C420,50 320,80 200,115 Z" fill="url(#saffronGrad)" />
+              <path d="M130,115 C230,75 330,30 495,35 C430,70 330,95 210,120 Z" fill="#ffffff" opacity="0.6" />
+              <path d="M160,120 C250,85 350,45 500,50 C440,85 340,105 220,125 Z" fill="url(#greenGrad)" />
+            </svg>
           </div>
         </div>
-
-        {/* Right Side: Elegant Indian Tricolor Wave & Landmarks Silhouette (India Gate, Qutub Minar, Taj Mahal) */}
-        <div className="w-full md:w-auto flex-1 h-24 sm:h-28 relative flex items-end justify-end pointer-events-none opacity-85 dark:opacity-60 overflow-hidden">
-          <svg viewBox="0 0 500 120" className="w-full max-w-md h-full" preserveAspectRatio="xMaxYMid meet" aria-hidden="true">
-            <defs>
-              {/* Saffron Wave */}
-              <linearGradient id="saffronGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FF9933" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="#FF7700" stopOpacity="0.4" />
-              </linearGradient>
-              {/* Green Wave */}
-              <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#138808" stopOpacity="0.7" />
-                <stop offset="100%" stopColor="#0B5505" stopOpacity="0.3" />
-              </linearGradient>
-            </defs>
-
-            {/* Flying Birds in Sky */}
-            <path d="M420,25 Q425,20 430,25 Q435,20 440,25" fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
-            <path d="M445,18 Q448,14 452,18 Q456,14 460,18" fill="none" stroke="#64748b" strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
-            <path d="M465,30 Q468,27 472,30 Q476,27 480,30" fill="none" stroke="#64748b" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
-
-            {/* Indian Landmarks Silhouettes in warm architectural tones */}
-            {/* India Gate */}
-            <g fill="#94a3b8" opacity="0.35">
-              <rect x="290" y="55" width="46" height="55" rx="3" />
-              <rect x="294" y="48" width="38" height="7" rx="2" />
-              <rect x="297" y="44" width="32" height="4" />
-              <path d="M305,110 L305,75 Q313,67 321,75 L321,110 Z" fill="#ffffff" opacity="0.9" />
-            </g>
-
-            {/* Qutub Minar */}
-            <g fill="#94a3b8" opacity="0.45">
-              <polygon points="360,110 366,110 363,22" />
-              <rect x="361" y="40" width="4" height="2" />
-              <rect x="360.5" y="60" width="5" height="2" />
-              <rect x="360" y="80" width="6" height="2" />
-              <circle cx="363" cy="20" r="1.5" />
-            </g>
-
-            {/* Taj Mahal Dome & Minarets */}
-            <g fill="#94a3b8" opacity="0.3">
-              <path d="M410,110 L410,75 C410,60 417,55 425,50 C433,55 440,60 440,75 L440,110 Z" />
-              <circle cx="425" cy="46" r="3" />
-              {/* Taj Minarets */}
-              <rect x="396" y="50" width="3" height="60" />
-              <circle cx="397.5" cy="48" r="2" />
-              <rect x="451" y="50" width="3" height="60" />
-              <circle cx="452.5" cy="48" r="2" />
-            </g>
-
-            {/* Tricolor Flowing Waves */}
-            <path d="M100,105 C200,60 300,10 490,20 C420,50 320,80 200,115 Z" fill="url(#saffronGrad)" />
-            <path d="M130,115 C230,75 330,30 495,35 C430,70 330,95 210,120 Z" fill="#ffffff" opacity="0.6" />
-            <path d="M160,120 C250,85 350,45 500,50 C440,85 340,105 220,125 Z" fill="url(#greenGrad)" />
-          </svg>
-        </div>
-      </div>
+      )}
 
       {/* 2. UPLOAD PROGRESS STEPPER (Hidden on mobile per user request) */}
       <div className="hidden md:block bg-white dark:bg-[#16171a] rounded-2xl p-4 sm:p-5 border border-blue-100/90 dark:border-slate-800 shadow-xs">
@@ -1006,71 +1039,11 @@ export const UploadPage: React.FC = () => {
             </div>
           )}
 
-          {/* STEP 3: VIDEO ELEMENTS (Music, Monetization, Comments) */}
+          {/* STEP 3: VIDEO ELEMENTS (Monetization, Comments) */}
           {currentStep === 3 && (
             <div className="space-y-4 max-w-2xl mx-auto animate-in fade-in">
               
-              {/* 1. Background Music / Audio Track */}
-              <div className="p-5 bg-slate-50/80 dark:bg-slate-900/60 rounded-2xl border border-slate-200/90 dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-                      <Music className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                        {isHindi ? 'बैकग्राउंड संगीत और साउंड' : 'Background Music & Sound'}
-                      </h4>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                        {isHindi ? 'ऑडियो या कॉपीराइट-मुक्त बैकग्राउंड ट्रैक जोड़ें' : 'Attach audio or royalty-free background track'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {selectedSoundTrack && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSoundTrack(null)}
-                      className="text-rose-500 hover:text-rose-600 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>{isHindi ? 'हटाएं' : 'Remove'}</span>
-                    </button>
-                  )}
-                </div>
-
-                <div 
-                  onClick={() => setSoundModalOpen(true)}
-                  className="flex items-center justify-between p-3 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 hover:border-purple-500 rounded-xl cursor-pointer transition-all shadow-2xs"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {selectedSoundTrack ? (
-                      <img src={selectedSoundTrack.coverUrl} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0 border border-slate-200 shadow-xs" />
-                    ) : (
-                      <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 flex items-center justify-center shrink-0">
-                        <Music className="w-4 h-4" />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                        {selectedSoundTrack ? selectedSoundTrack.title : (isHindi ? 'कोई बैकग्राउंड ट्रैक नहीं चुना गया' : 'No background track selected')}
-                      </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                        {selectedSoundTrack ? selectedSoundTrack.artist : (isHindi ? 'मूल वीडियो ऑडियो बजेगा। लाइब्रेरी से चुनने के लिए क्लिक करें।' : 'Original video audio will play. Click to choose from library.')}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button 
-                    type="button" 
-                    className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold shrink-0 shadow-xs cursor-pointer"
-                  >
-                    {selectedSoundTrack ? (isHindi ? 'बदलें' : 'Change') : (isHindi ? 'संगीत चुनें' : 'Choose Music')}
-                  </button>
-                </div>
-              </div>
-
-              {/* 2. Monetized Paywall (Only for Monetized Channels) */}
+              {/* 1. Monetized Paywall (Only for Monetized Channels) */}
               {isUserMonetized && (
                 <div className="p-5 bg-gradient-to-r from-emerald-50/70 to-teal-50/40 dark:from-emerald-950/20 dark:to-teal-950/10 rounded-2xl border border-emerald-300/80 dark:border-emerald-800/60 space-y-4">
                   <div className="flex items-center justify-between gap-4">
