@@ -80,6 +80,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         void refreshProfile();
         if (onSuccess) onSuccess();
       } else {
+        await accountService.preserveCurrentSession();
         await authService.register(
           email.trim().toLowerCase(), 
           cleanUsername, 

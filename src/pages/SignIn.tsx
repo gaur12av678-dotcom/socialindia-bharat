@@ -338,6 +338,7 @@ export const SignInPage: React.FC<SignInPageProps> = ({ initialMode = 'login' })
         const cleanUsername = username.trim().toLowerCase();
         const cleanDisplayName = displayName.trim() || cleanUsername;
 
+        await accountService.preserveCurrentSession();
         const { userProfile } = await authService.register(cleanEmail, cleanUsername, cleanDisplayName, password);
         // CRITICAL: Do NOT save account or refreshProfile - user is unverified and signed out!
         setCreatedUsername(userProfile.username);

@@ -19,6 +19,7 @@ import {
   KeyRound,
   AlertCircle,
   User as UserIcon,
+  UserPlus,
   Sparkles
 } from 'lucide-react';
 
@@ -528,6 +529,27 @@ export const SwitchAccountModal: React.FC<SwitchAccountModalProps> = ({ isOpen, 
                     </p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       {isHindi ? 'किसी अन्य चैनल या ईमेल से लॉगिन करें' : 'Sign in to another channel or email'}
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    navigate('create-account');
+                  }}
+                  className="w-full p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/60 flex items-center gap-3 text-left transition-colors cursor-pointer group text-slate-800 dark:text-slate-200"
+                >
+                  <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 group-hover:bg-blue-50 dark:group-hover:bg-blue-950/60 group-hover:text-[#2563eb] dark:group-hover:text-blue-400 transition-colors">
+                    <UserPlus className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-extrabold group-hover:text-[#2563eb] dark:group-hover:text-blue-400 transition-colors">
+                      {isHindi ? 'खाता बनाएं' : 'Create account'}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {isHindi ? 'नया सोशलइंडिया खाता और चैनल बनाएं' : 'Create a new SocialIndia account & channel'}
                     </p>
                   </div>
                 </button>
