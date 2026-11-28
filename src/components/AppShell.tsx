@@ -363,9 +363,25 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
     }
   };
 
+  const pendingProtectedActionRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!pendingProtectedActionRef.current) return;
+    if (activeUid) {
+      const pending = pendingProtectedActionRef.current;
+      pendingProtectedActionRef.current = null;
+      pending();
+    } else if (!authLoading) {
+      pendingProtectedActionRef.current = null;
+      navigate('login');
+    }
+  }, [activeUid, authLoading, navigate]);
+
   const triggerProtectedAction = (action: () => void) => {
     if (activeUid) {
       action();
+    } else if (authLoading) {
+      pendingProtectedActionRef.current = action;
     } else {
       navigate('login');
     }
@@ -1526,7 +1542,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               <div className="px-3 pt-2 pb-1 text-[11px] font-extrabold uppercase tracking-wider text-[#606060] dark:text-[#999999]">{isHindi ? 'आपका नेटवर्क' : 'YOUR NETWORK'}</div>
               {/* Following */}
               <button
-                onClick={() => triggerProtectedAction(() => navigate('subscriptions'))}
+                onClick={() => navigate('subscriptions')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'subscriptions'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1555,7 +1571,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
               {/* Messages / Direct Chat */}
               <button
-                onClick={() => triggerProtectedAction(() => navigate('chat'))}
+                onClick={() => navigate('chat')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'chat' || route.path === 'messages'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1587,7 +1603,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
               {/* History */}
               <button
-                onClick={() => triggerProtectedAction(() => navigate('history'))}
+                onClick={() => navigate('history')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'history'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1602,7 +1618,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
               {/* Liked Videos */}
               <button
-                onClick={() => triggerProtectedAction(() => navigate('liked'))}
+                onClick={() => navigate('liked')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'liked' || route.path === 'liked-videos'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1617,7 +1633,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
               {/* Playlists */}
               <button
-                onClick={() => triggerProtectedAction(() => navigate('playlists'))}
+                onClick={() => navigate('playlists')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'playlists' || route.path === 'playlist'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1632,7 +1648,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
               {/* Saved / Watch Later */}
               <button
-                onClick={() => triggerProtectedAction(() => navigate('saved'))}
+                onClick={() => navigate('saved')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'saved'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 
@@ -1868,13 +1884,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
 
           {/* You Tab */}
           <button
-            onClick={() => {
-              if (activeUid) {
-                navigate('profile-menu');
-              } else {
-                navigate('login');
-              }
-            }}
+            onClick={() => navigate('profile-menu')}
             aria-current={route.path === 'profile-menu' || route.path === 'creator' || route.path === 'channel' ? 'page' : undefined}
             className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 pt-2 pb-1 text-[11px] font-semibold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 active:scale-[0.97] ${
               isShortsPage

@@ -7,30 +7,34 @@ import { useTranslation } from '../i18n';
 import { formatDuration, formatTimeAgo, formatViews } from '../utils/videoUtils';
 
 export const LikedVideos: React.FC = () => {
-  const { currentUser, addToast } = useApp();
+  const { currentUser, currentUserProfile, addToast, loading: appLoading } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
 
   const [likedVideos, setLikedVideos] = useState<LikedVideoItem[]>(() =>
-    currentUser ? likeService.getCachedLikedVideos(currentUser.uid) : []
+    activeUid ? likeService.getCachedLikedVideos(activeUid) : []
   );
   const [loading, setLoading] = useState(() =>
-    currentUser ? likeService.getCachedLikedVideos(currentUser.uid).length === 0 : false
+    activeUid ? likeService.getCachedLikedVideos(activeUid).length === 0 : true
   );
 
   const fetchLikedVideos = async () => {
-    if (!currentUser) {
-      setLikedVideos([]);
-      setLoading(false);
+    if (!activeUid) {
+      if (!appLoading) {
+        setLikedVideos([]);
+        setLoading(false);
+      }
       return;
     }
-    const cached = likeService.getCachedLikedVideos(currentUser.uid);
+    const cached = likeService.getCachedLikedVideos(activeUid);
     if (cached.length > 0) {
       setLikedVideos(cached);
       setLoading(false);
     } else {
       setLoading(true);
     }
+    if (!currentUser?.uid) return;
     try {
       const items = await likeService.getLikedVideos(currentUser.uid);
       setLikedVideos(items);
@@ -44,13 +48,13 @@ export const LikedVideos: React.FC = () => {
   useEffect(() => {
     fetchLikedVideos();
     const handleLikesChanged = () => {
-      if (currentUser) {
-        setLikedVideos(likeService.getCachedLikedVideos(currentUser.uid));
+      if (activeUid) {
+        setLikedVideos(likeService.getCachedLikedVideos(activeUid));
       }
     };
     window.addEventListener('socialindia:likes_changed', handleLikesChanged);
     return () => window.removeEventListener('socialindia:likes_changed', handleLikesChanged);
-  }, [currentUser?.uid]);
+  }, [activeUid, currentUser?.uid, appLoading]);
 
   const handleUnlike = async (e: React.MouseEvent, videoId: string) => {
     e.stopPropagation();
@@ -74,7 +78,27 @@ export const LikedVideos: React.FC = () => {
     }
   };
 
-  if (!currentUser) {
+  if (appLoading && !activeUid) {
+    return (
+      <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto animate-pulse">
+        <div className="h-24 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
+        <div className="space-y-3.5">
+          {Array.from({ length: 5 }).map((_, idx) => (
+            <div key={idx} className="flex gap-4 p-3.5 bg-white dark:bg-[#16171a] border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <div className="w-40 sm:w-48 aspect-video bg-slate-200 dark:bg-slate-800 rounded-xl shrink-0" />
+              <div className="flex-1 space-y-2 py-1">
+                <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-lg w-3/4" />
+                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-lg w-1/3" />
+                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-lg w-1/4" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeUid) {
     return (
       <div className="flex flex-col items-center justify-center py-20 px-4 text-center max-w-md mx-auto">
         <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 text-blue-600 dark:text-blue-400 rounded-3xl flex items-center justify-center mb-4 shadow-sm">

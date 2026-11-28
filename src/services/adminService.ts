@@ -1,4 +1,4 @@
-import { collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, query, orderBy, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { User, Video, Report } from '../types';
 import { userService } from './userService';
@@ -71,6 +71,37 @@ export const adminService = {
       handleFirestoreError(err, OperationType.LIST, 'users');
       return [];
     }
+  },
+
+  // Real-time subscription to all users for live Online/Offline presence on Admin Dashboard
+  subscribeAllUsers(
+    callback: (users: User[]) => void,
+    onError?: (err: unknown) => void
+  ): () => void {
+    return onSnapshot(
+      collection(db, 'users'),
+      (snap) => {
+        const usersList = snap.docs.map(d => {
+          const data = d.data() as User;
+          return {
+            ...data,
+            uid: data.uid || d.id,
+          };
+        });
+        usersList.sort((a, b) => {
+          const createdDiff = parseDateMs(b.createdAt) - parseDateMs(a.createdAt);
+          if (createdDiff !== 0) return createdDiff;
+          const updatedDiff = parseDateMs(b.updatedAt) - parseDateMs(a.updatedAt);
+          if (updatedDiff !== 0) return updatedDiff;
+          return (a.username || '').localeCompare(b.username || '');
+        });
+        callback(usersList);
+      },
+      (err) => {
+        console.warn('Real-time users subscription error:', err);
+        if (onError) onError(err);
+      }
+    );
   },
 
   // Fetch all videos for administrative control

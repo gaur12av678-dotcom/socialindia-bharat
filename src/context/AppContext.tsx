@@ -120,14 +120,23 @@ const cacheThemePreference = (uid: string | null, value: 'light' | 'dark' | 'sys
   localStorage.setItem('socialindia_theme', value);
 };
 
+const getStoredActiveUid = (): string | null => {
+  try {
+    const uid = localStorage.getItem('socialindia_active_uid');
+    return uid && uid.trim() ? uid.trim() : null;
+  } catch {
+    return null;
+  }
+};
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(() => auth.currentUser || null);
   const [currentUserProfile, setCurrentUserProfile] = useState<User | null>(() =>
-    readCachedProfile(auth.currentUser?.uid || null)
+    readCachedProfile(auth.currentUser?.uid || getStoredActiveUid())
   );
   const [loading, setLoading] = useState(true);
   const [theme, setThemeState] = useState<'light' | 'dark' | 'system'>(() =>
-    readThemePreference(auth.currentUser?.uid || null)
+    readThemePreference(auth.currentUser?.uid || getStoredActiveUid())
   );
   const [language, setLanguageState] = useState<LanguageCode>(() => {
     try {

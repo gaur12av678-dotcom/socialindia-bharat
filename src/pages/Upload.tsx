@@ -47,7 +47,7 @@ import { postService } from '../services/postService';
 import { CommunityPost } from '../types';
 
 export const UploadPage: React.FC = () => {
-  const { currentUser, currentUserProfile, addToast, refreshProfile } = useApp();
+  const { currentUser, currentUserProfile, addToast, refreshProfile, loading: appLoading } = useApp();
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
@@ -432,6 +432,15 @@ export const UploadPage: React.FC = () => {
       setUploadStageText('');
     }
   };
+
+  if (appLoading && !currentUser) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6 animate-pulse">
+        <div className="h-32 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
+        <div className="h-80 bg-slate-200 dark:bg-slate-800 rounded-3xl" />
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return (

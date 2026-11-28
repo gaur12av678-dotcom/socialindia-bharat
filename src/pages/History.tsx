@@ -8,7 +8,7 @@ import { History, Trash2, X } from 'lucide-react';
 import { useTranslation } from '../i18n';
 
 export const WatchHistory: React.FC = () => {
-  const { currentUser, addToast } = useApp();
+  const { currentUser, addToast, loading: appLoading } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi, formatTime } = useTranslation();
 
@@ -17,7 +17,12 @@ export const WatchHistory: React.FC = () => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const fetchHistory = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      if (!appLoading) {
+        setLoading(false);
+      }
+      return;
+    }
     setLoading(true);
     try {
       const items = await historyService.getHistory(currentUser.uid);
@@ -32,7 +37,7 @@ export const WatchHistory: React.FC = () => {
 
   useEffect(() => {
     fetchHistory();
-  }, [currentUser]);
+  }, [currentUser?.uid, appLoading]);
 
   const handleRemoveItem = async (e: React.MouseEvent, videoId: string) => {
     e.stopPropagation();
@@ -70,9 +75,36 @@ export const WatchHistory: React.FC = () => {
     return isHindi ? 'पहले' : 'Earlier';
   };
 
+  if (appLoading && !currentUser) {
+    return (
+      <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto animate-pulse">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800" />
+            <div className="space-y-1.5">
+              <div className="h-4 w-36 rounded-lg bg-slate-200 dark:bg-slate-800" />
+              <div className="h-3 w-52 rounded-lg bg-slate-200 dark:bg-slate-800" />
+            </div>
+          </div>
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 5 }).map((_, idx) => (
+            <div key={idx} className="flex gap-4 p-3 bg-white dark:bg-[#0f0f0f] border border-slate-100 dark:border-[#272727] rounded-2xl">
+              <div className="w-32 sm:w-44 aspect-video bg-slate-200 dark:bg-slate-800 rounded-xl shrink-0" />
+              <div className="flex-1 space-y-2 py-1">
+                <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-lg w-3/4" />
+                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-lg w-1/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
         <History className="w-12 h-12 text-slate-400 mb-4" />
         <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
           {isHindi ? 'वॉच हिस्ट्री देखने के लिए साइन इन करें' : 'Sign in to view watch history'}
@@ -80,6 +112,12 @@ export const WatchHistory: React.FC = () => {
         <p className="text-xs text-slate-500 mt-1">
           {isHindi ? 'SocialIndia पर देखे गए वीडियो का रिकॉर्ड रखें।' : "Track what you've watched on SocialIndia."}
         </p>
+        <button
+          onClick={() => navigate('login')}
+          className="mt-5 px-6 py-2.5 bg-[#065fd4] hover:bg-[#054fb1] text-white font-bold text-xs rounded-full shadow-md cursor-pointer"
+        >
+          {t('sign_in', 'Sign In')}
+        </button>
       </div>
     );
   }

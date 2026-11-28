@@ -9,7 +9,7 @@ import { soundService } from '../services/soundService';
 import { userService } from '../services/userService';
 import { paidVideoService } from '../services/paidVideoService';
 import { payoutService } from '../services/payoutService';
-import { isUserVerified } from '../utils/userUtils';
+import { isUserVerified, isUserCurrentlyOnline, formatWhatsAppPresence } from '../utils/userUtils';
 import { 
   Users, 
   Wallet, 
@@ -323,6 +323,11 @@ export const AdminPanel: React.FC = () => {
   const [newsletterCampaigns, setNewsletterCampaigns] = useState<NewsletterCampaign[]>([]);
   const [newsletterResultMsg, setNewsletterResultMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Dashboard Online / Offline Users Presence State
+  const [presenceFilter, setPresenceFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [presenceSearch, setPresenceSearch] = useState('');
+  const [presenceTick, setPresenceTick] = useState(0);
+
   // Security Check: Only admins allowed
   useEffect(() => {
     if (currentUser && currentUserProfile && currentUserProfile.role !== 'admin') {
@@ -334,6 +339,23 @@ export const AdminPanel: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (currentUserProfile?.role !== 'admin') return;
+    const unsubscribe = adminService.subscribeAllUsers((liveUsers) => {
+      setUsers(liveUsers);
+      if (persistentAdminSnapshot) {
+        persistentAdminSnapshot.users = liveUsers;
+      }
+    });
+    const timer = window.setInterval(() => {
+      setPresenceTick((prev) => prev + 1);
+    }, 30_000);
+    return () => {
+      unsubscribe();
+      window.clearInterval(timer);
+    };
+  }, [currentUserProfile?.role]);
 
   useEffect(() => {
     adminMainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1290,6 +1312,52 @@ export const AdminPanel: React.FC = () => {
 
   const newestCreators = React.useMemo(() => sortedUsers.slice(0, 10), [sortedUsers]);
 
+  const { onlinePresenceUsers, offlinePresenceUsers } = React.useMemo(() => {
+    const online: User[] = [];
+    const offline: User[] = [];
+    users.forEach((u) => {
+      if (isUserCurrentlyOnline(u.isOnline, u.lastSeen)) {
+        online.push(u);
+      } else {
+        offline.push(u);
+      }
+    });
+
+    online.sort((a, b) => {
+      const seenDiff = parseDateMs(b.lastSeen) - parseDateMs(a.lastSeen);
+      if (seenDiff !== 0) return seenDiff;
+      return (a.displayName || a.username || '').localeCompare(b.displayName || b.username || '');
+    });
+
+    offline.sort((a, b) => {
+      const aSeen = parseDateMs(a.lastSeen);
+      const bSeen = parseDateMs(b.lastSeen);
+      if (aSeen !== bSeen) return bSeen - aSeen;
+      const updatedDiff = parseDateMs(b.updatedAt) - parseDateMs(a.updatedAt);
+      if (updatedDiff !== 0) return updatedDiff;
+      return (a.displayName || a.username || '').localeCompare(b.displayName || b.username || '');
+    });
+
+    return { onlinePresenceUsers: online, offlinePresenceUsers: offline };
+  }, [users, presenceTick]);
+
+  const filteredPresenceUsers = React.useMemo(() => {
+    const q = presenceSearch.trim().toLowerCase();
+    const matchesQuery = (u: User) =>
+      !q || `${u.displayName || ''} ${u.username || ''} ${u.email || ''}`.toLowerCase().includes(q);
+
+    const onlineList = presenceFilter === 'offline' ? [] : onlinePresenceUsers.filter(matchesQuery);
+    const offlineList = presenceFilter === 'online' ? [] : offlinePresenceUsers.filter(matchesQuery);
+    return {
+      onlineList,
+      offlineList,
+      combined: [
+        ...onlineList.map((user) => ({ user, isOnline: true as const })),
+        ...offlineList.map((user) => ({ user, isOnline: false as const })),
+      ],
+    };
+  }, [onlinePresenceUsers, offlinePresenceUsers, presenceFilter, presenceSearch]);
+
   const sortedStandardVideos = React.useMemo(() => {
     return [...videos]
       .filter(v => !v.isShort)
@@ -2028,6 +2096,192 @@ export const AdminPanel: React.FC = () => {
                   <StatCard icon={VideoIcon} label="Total Videos" value={videos.length} color="indigo" />
                   <StatCard icon={DollarSign} label="Pending Payouts" value={withdrawalRequests.filter(r => r.status === 'pending').length} color="emerald" />
                   <StatCard icon={AlertTriangle} label="Pending Reports" value={reports.filter(r => r.status === 'pending').length} color="amber" />
+                </div>
+
+                {/* Live Online & Offline Users (Online at Top, Offline + Last Seen Below) */}
+                <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-[#222225] rounded-3xl p-6 shadow-xs overflow-hidden">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-[#1f1f24] mb-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                        <span>Online &amp; Offline Users</span>
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/70 dark:border-emerald-900/50">
+                          {onlinePresenceUsers.length} Online
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 dark:bg-[#1c1c22] text-slate-600 dark:text-slate-400 border border-slate-200/70 dark:border-slate-800">
+                          {offlinePresenceUsers.length} Offline
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={presenceSearch}
+                          onChange={(e) => setPresenceSearch(e.target.value)}
+                          placeholder="Search user..."
+                          className="pl-8 pr-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-[#18181c] border border-slate-200 dark:border-[#2a2a30] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 w-44 sm:w-52"
+                        />
+                      </div>
+
+                      <div className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-[#18181c] border border-slate-200/70 dark:border-[#26262c]">
+                        {(['all', 'online', 'offline'] as const).map((tab) => (
+                          <button
+                            key={tab}
+                            type="button"
+                            onClick={() => setPresenceFilter(tab)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              presenceFilter === tab
+                                ? 'bg-white dark:bg-[#25252d] text-blue-600 dark:text-blue-400 shadow-xs'
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            }`}
+                          >
+                            {tab === 'all' ? 'All' : tab === 'online' ? 'Online' : 'Offline'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="max-h-[420px] overflow-y-auto pr-1 space-y-1">
+                    {filteredPresenceUsers.onlineList.length > 0 && (
+                      <div className="px-2 pt-1 pb-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span>Online Now ({filteredPresenceUsers.onlineList.length})</span>
+                      </div>
+                    )}
+
+                    {filteredPresenceUsers.onlineList.map((u) => {
+                      const presence = formatWhatsAppPresence(u.isOnline, u.lastSeen);
+                      const lastSeenMs = parseDateMs(u.lastSeen);
+                      const exactLastSeen = lastSeenMs ? new Date(lastSeenMs).toLocaleString() : 'Active now';
+                      return (
+                        <div
+                          key={u.uid}
+                          onClick={() => navigate('creator', u.username)}
+                          className="py-2.5 px-3 flex items-center justify-between gap-3 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/15 hover:bg-emerald-50 dark:hover:bg-emerald-950/25 border border-emerald-200/50 dark:border-emerald-900/30 transition-colors cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="relative shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs overflow-hidden ring-2 ring-emerald-500/70">
+                                {u.photoURL ? (
+                                  <img src={u.photoURL} alt={u.displayName || u.username} className="w-full h-full object-cover" />
+                                ) : (
+                                  getInitials(u.displayName || u.username || 'U')
+                                )}
+                              </div>
+                              <span
+                                title="Online"
+                                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#121215]"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {u.displayName || u.username || 'Unnamed User'}
+                                </p>
+                                {isUserVerified(u) && (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                @{u.username}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0" title={exactLastSeen}>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              {presence.label}
+                            </span>
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white" />
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {filteredPresenceUsers.offlineList.length > 0 && (
+                      <div className={`px-2 pb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5 ${
+                        filteredPresenceUsers.onlineList.length > 0 ? 'pt-4 mt-2 border-t border-slate-100 dark:border-[#1f1f24]' : 'pt-1'
+                      }`}>
+                        <span className="w-2 h-2 rounded-full bg-slate-400 dark:bg-slate-600" />
+                        <span>Offline Users ({filteredPresenceUsers.offlineList.length})</span>
+                      </div>
+                    )}
+
+                    {filteredPresenceUsers.offlineList.map((u) => {
+                      const presence = formatWhatsAppPresence(u.isOnline, u.lastSeen);
+                      const lastSeenMs = parseDateMs(u.lastSeen);
+                      const exactLastSeen = lastSeenMs ? new Date(lastSeenMs).toLocaleString() : 'Last seen unavailable';
+                      const relLastSeen = lastSeenMs ? formatTimeAgo(u.lastSeen) : '';
+                      return (
+                        <div
+                          key={u.uid}
+                          onClick={() => navigate('creator', u.username)}
+                          className="py-2.5 px-3 flex items-center justify-between gap-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-[#18181c] border border-transparent hover:border-slate-200/70 dark:hover:border-[#26262c] transition-colors cursor-pointer group"
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="relative shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center font-black text-xs overflow-hidden">
+                                {u.photoURL ? (
+                                  <img src={u.photoURL} alt={u.displayName || u.username} className="w-full h-full object-cover opacity-90" />
+                                ) : (
+                                  getInitials(u.displayName || u.username || 'U')
+                                )}
+                              </div>
+                              <span
+                                title="Offline"
+                                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-slate-400 dark:bg-slate-600 ring-2 ring-white dark:ring-[#121215]"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {u.displayName || u.username || 'Unnamed User'}
+                                </p>
+                                {isUserVerified(u) && (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                @{u.username}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 text-right" title={exactLastSeen}>
+                            <div className="flex flex-col items-end">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-[#1e1e24] text-slate-600 dark:text-slate-300">
+                                <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                                {lastSeenMs ? presence.label : 'Offline · No recent activity'}
+                              </span>
+                              {relLastSeen && (
+                                <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 pr-1">
+                                  {relLastSeen}
+                                </span>
+                              )}
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-white" />
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {filteredPresenceUsers.combined.length === 0 && (
+                      <div className="py-10 text-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                        {presenceFilter === 'online'
+                          ? 'No users are currently online.'
+                          : presenceFilter === 'offline'
+                            ? 'No offline users match your filter.'
+                            : 'No users found.'}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -82,9 +82,10 @@ const ChatMessageText: React.FC<{ text: string; isMine: boolean }> = ({ text, is
 };
 
 export const ChatPage: React.FC = () => {
-  const { currentUser, currentUserProfile, addToast } = useApp();
+  const { currentUser, currentUserProfile, addToast, loading: appLoading } = useApp();
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
 
   // Selected chat partner ID
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -92,9 +93,10 @@ export const ChatPage: React.FC = () => {
 
   // Chat lists & messages with instant localStorage cache hydration
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
-    return currentUser ? chatService.getCachedSessions(currentUser.uid) : [];
+    return activeUid ? chatService.getCachedSessions(activeUid) : [];
   });
-  const [chatStateUid, setChatStateUid] = useState<string | null>(() => currentUser?.uid || null);
+  const [chatStateUid, setChatStateUid] = useState<string | null>(() => activeUid || null);
+  const prevChatUidRef = useRef<string | null>(activeUid || null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -145,10 +147,10 @@ export const ChatPage: React.FC = () => {
   const [chatFilter, setChatFilter] = useState<'all' | 'unread' | 'groups' | 'direct'>('all');
   const [messageText, setMessageText] = useState('');
   const [loadingSessions, setLoadingSessions] = useState(() => {
-    return currentUser ? chatService.getCachedSessions(currentUser.uid).length === 0 : true;
+    return activeUid ? chatService.getCachedSessions(activeUid).length === 0 : true;
   });
   const [isSending, setIsSending] = useState(false);
-  const isCurrentSession = Boolean(currentUser && chatStateUid === currentUser.uid);
+  const isCurrentSession = Boolean(activeUid && chatStateUid === activeUid);
 
   // Media attachment, Link & Emoji states
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -363,26 +365,39 @@ export const ChatPage: React.FC = () => {
 
   // Load and listen to chat sessions in real time.
   useEffect(() => {
-    if (!currentUser) {
-      setChatStateUid(null);
-      setSessions([]);
-      setLoadingSessions(false);
-      setSelectedUserId(null);
-      setSelectedUser(null);
-      setMessages([]);
+    if (!activeUid) {
+      if (!appLoading) {
+        prevChatUidRef.current = null;
+        setChatStateUid(null);
+        setSessions([]);
+        setLoadingSessions(false);
+        setSelectedUserId(null);
+        setSelectedUser(null);
+        setMessages([]);
+      }
       return;
     }
 
-    const cached = chatService.getCachedSessions(currentUser.uid);
-    setChatStateUid(currentUser.uid);
+    const isAccountSwitch = Boolean(prevChatUidRef.current && prevChatUidRef.current !== activeUid);
+    prevChatUidRef.current = activeUid;
+
+    const cached = chatService.getCachedSessions(activeUid);
+    setChatStateUid(activeUid);
     setSessions(cached);
     setLoadingSessions(cached.length === 0);
-    setSelectedUserId(null);
-    setSelectedUser(null);
-    setMessages([]);
-    setReplyTo(null);
-    setEditingMessageId(null);
-    setMessageActionId(null);
+
+    if (isAccountSwitch) {
+      setSelectedUserId(null);
+      setSelectedUser(null);
+      setMessages([]);
+      setReplyTo(null);
+      setEditingMessageId(null);
+      setMessageActionId(null);
+    }
+
+    if (!currentUser?.uid) {
+      return;
+    }
 
     const unsubscribe = chatService.listenToConversations(
       currentUser.uid,
@@ -403,7 +418,7 @@ export const ChatPage: React.FC = () => {
       unsubscribe();
       unsubscribeUnread();
     };
-  }, [currentUser?.uid]);
+  }, [activeUid, currentUser?.uid, appLoading]);
 
   // Keep selectedUser synced with live session updates (group avatar/name/description/admins/members)
   useEffect(() => {
@@ -459,13 +474,13 @@ export const ChatPage: React.FC = () => {
 
   // Real-time listener for current selected chat with instant cache preload
   useEffect(() => {
-    if (!currentUser || !isCurrentSession || !selectedUserId) {
+    if (!activeUid || !isCurrentSession || !selectedUserId) {
       setMessages([]);
       setLoadingMessages(false);
       return;
     }
 
-    const uid = currentUser.uid;
+    const uid = activeUid;
     const deduplicateMessages = (list: ChatMessage[]): ChatMessage[] => {
       const seenIds = new Set<string>();
       const seenTempIds = new Set<string>();
@@ -510,6 +525,10 @@ export const ChatPage: React.FC = () => {
     setMessages(cachedMsgs);
     setLoadingMessages(cachedMsgs.length === 0);
 
+    if (!currentUser?.uid) {
+      return;
+    }
+
     if (selectedUser?.isPocket) {
       const unsubscribe = chatService.listenToPocketMessages(uid, incomingMsgs => {
         mergeIncomingWithPending(incomingMsgs, true);
@@ -540,7 +559,7 @@ export const ChatPage: React.FC = () => {
     );
 
     return () => unsubscribe();
-  }, [currentUser?.uid, isCurrentSession, selectedUser?.isGroup, selectedUser?.isPocket, selectedUserId]);
+  }, [activeUid, currentUser?.uid, isCurrentSession, selectedUser?.isGroup, selectedUser?.isPocket, selectedUserId]);
 
   // Also clear newly arriving unread messages automatically while that direct chat is already open
   useEffect(() => {
@@ -1294,12 +1313,12 @@ export const ChatPage: React.FC = () => {
     s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const pocketPreviewMessages = currentUser
-    ? (selectedUser?.isPocket ? messages : chatService.getCachedMessages(currentUser.uid, `pocket_${currentUser.uid}`))
+  const pocketPreviewMessages = activeUid
+    ? (selectedUser?.isPocket ? messages : chatService.getCachedMessages(activeUid, `pocket_${activeUid}`))
     : [];
   const lastPocketMsg = pocketPreviewMessages[pocketPreviewMessages.length - 1];
-  const pocketSession: ChatSession = currentUser ? {
-    userId: `pocket_${currentUser.uid}`,
+  const pocketSession: ChatSession = activeUid ? {
+    userId: `pocket_${activeUid}`,
     displayName: isHindi ? 'मेरा Pocket' : 'My Pocket',
     username: isHindi ? 'आपकी निजी जगह' : 'Personal storage',
     isPocket: true,
@@ -1336,7 +1355,31 @@ export const ChatPage: React.FC = () => {
     ];
   })();
 
-  if (!currentUser) {
+  if (appLoading && !activeUid) {
+    return (
+      <div className="h-[100dvh] flex bg-white dark:bg-[#0f0f0f] overflow-hidden animate-pulse">
+        <div className="w-full md:w-80 lg:w-96 border-r border-slate-200 dark:border-slate-800 p-4 space-y-4">
+          <div className="h-9 bg-slate-200 dark:bg-slate-800 rounded-xl w-full" />
+          <div className="space-y-3 pt-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-2">
+                <div className="w-11 h-11 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 bg-slate-200 dark:bg-slate-800 rounded-full w-2/3" />
+                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-full w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="hidden md:flex flex-1 items-center justify-center p-8">
+          <div className="w-64 h-40 rounded-3xl bg-slate-100 dark:bg-slate-900" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeUid) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-6 text-center">
         <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-full text-blue-600 mb-4">
@@ -1718,7 +1761,7 @@ export const ChatPage: React.FC = () => {
                 </div>
               ) : (
                 messages.map((m, idx) => {
-                  const isMine = m.senderId === currentUser.uid;
+                  const isMine = m.senderId === activeUid;
                   const dayLabel = formatMsgDay(m.createdAt, messages[idx - 1]?.createdAt);
                   const uploadProgressValue = Math.min(100, Math.max(0, m.uploadProgress || 0));
                   return (
@@ -1775,7 +1818,7 @@ export const ChatPage: React.FC = () => {
                             {m.replyTo && (
                               <div className="mb-2 rounded-lg border-l-2 border-blue-500 bg-black/5 dark:bg-white/10 px-2 py-1.5">
                                 <p className="text-[9px] font-black text-blue-700 dark:text-blue-300">
-                                  {m.replyTo.senderId === currentUser.uid
+                                  {m.replyTo.senderId === activeUid
                                     ? (isHindi ? 'आप' : 'You')
                                     : selectedUser.displayName}
                                 </p>
@@ -2027,7 +2070,7 @@ export const ChatPage: React.FC = () => {
                     <p className="text-[10px] font-black text-blue-700 dark:text-blue-300">
                       {editingMessageId
                         ? (isHindi ? 'संदेश बदल रहे हैं' : 'Editing message')
-                        : `${isHindi ? 'जवाब' : 'Replying to'} ${replyTo?.senderId === currentUser.uid ? (isHindi ? 'आप' : 'yourself') : selectedUser.displayName}`}
+                        : `${isHindi ? 'जवाब' : 'Replying to'} ${replyTo?.senderId === activeUid ? (isHindi ? 'आप' : 'yourself') : selectedUser.displayName}`}
                     </p>
                     <p className="truncate text-[11px] text-slate-600 dark:text-slate-300 emoji-font">
                       <EmojiText
@@ -2672,7 +2715,7 @@ export const ChatPage: React.FC = () => {
                     </div>
                   ) : (
                     groupMembersDetails.map(member => {
-                      const isSelf = member.uid === currentUser.uid;
+                      const isSelf = member.uid === activeUid;
                       const isCreator = selectedUser.createdBy === member.uid;
                       const isMemberAdmin = isCreator || Boolean(selectedUser.adminIds?.includes(member.uid));
                       const isBusy = memberActionUid === member.uid;

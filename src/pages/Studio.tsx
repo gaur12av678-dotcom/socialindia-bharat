@@ -118,7 +118,7 @@ export const AshokaChakraLogo: React.FC<{ className?: string; size?: 'sm' | 'md'
 export const LionAnalyticsLogo = AshokaChakraLogo;
 
 export const CreatorStudio: React.FC = () => {
-  const { currentUser, currentUserProfile, notifications, addToast } = useApp();
+  const { currentUser, currentUserProfile, notifications, addToast, loading: appLoading } = useApp();
   const { route, navigate } = useRouter();
   const { t, isHindi } = useTranslation();
 
@@ -1102,6 +1102,20 @@ export const CreatorStudio: React.FC = () => {
       }
     }
   }, [route.searchParams?.upload, route.searchParams?.soundId, route.param]);
+
+  if (appLoading && !currentUser) {
+    return (
+      <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto animate-pulse">
+        <div className="h-20 bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-28 bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-2xl" />
+          ))}
+        </div>
+        <div className="h-72 bg-white dark:bg-[#16171a] border border-slate-200/90 dark:border-slate-800 rounded-3xl" />
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return (

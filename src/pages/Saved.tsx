@@ -7,30 +7,34 @@ import { Bookmark, X } from 'lucide-react';
 import { useTranslation } from '../i18n';
 
 export const SavedVideos: React.FC = () => {
-  const { currentUser, addToast } = useApp();
+  const { currentUser, currentUserProfile, addToast, loading: appLoading } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi, formatTime } = useTranslation();
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
 
   const [savedVideos, setSavedVideos] = useState<SavedVideo[]>(() =>
-    currentUser ? savedVideoService.getCachedSavedVideos(currentUser.uid) : []
+    activeUid ? savedVideoService.getCachedSavedVideos(activeUid) : []
   );
   const [loading, setLoading] = useState(() =>
-    currentUser ? savedVideoService.getCachedSavedVideos(currentUser.uid).length === 0 : false
+    activeUid ? savedVideoService.getCachedSavedVideos(activeUid).length === 0 : true
   );
 
   const fetchSaved = async () => {
-    if (!currentUser) {
-      setSavedVideos([]);
-      setLoading(false);
+    if (!activeUid) {
+      if (!appLoading) {
+        setSavedVideos([]);
+        setLoading(false);
+      }
       return;
     }
-    const cached = savedVideoService.getCachedSavedVideos(currentUser.uid);
+    const cached = savedVideoService.getCachedSavedVideos(activeUid);
     if (cached.length > 0) {
       setSavedVideos(cached);
       setLoading(false);
     } else {
       setLoading(true);
     }
+    if (!currentUser?.uid) return;
     try {
       const items = await savedVideoService.getSavedVideos(currentUser.uid);
       setSavedVideos(items);
@@ -44,13 +48,13 @@ export const SavedVideos: React.FC = () => {
   useEffect(() => {
     fetchSaved();
     const handleSavedChanged = () => {
-      if (currentUser) {
-        setSavedVideos(savedVideoService.getCachedSavedVideos(currentUser.uid));
+      if (activeUid) {
+        setSavedVideos(savedVideoService.getCachedSavedVideos(activeUid));
       }
     };
     window.addEventListener('socialindia:saved_changed', handleSavedChanged);
     return () => window.removeEventListener('socialindia:saved_changed', handleSavedChanged);
-  }, [currentUser?.uid]);
+  }, [activeUid, currentUser?.uid, appLoading]);
 
   const handleUnsave = async (e: React.MouseEvent, videoId: string) => {
     e.stopPropagation();
@@ -64,7 +68,32 @@ export const SavedVideos: React.FC = () => {
     }
   };
 
-  if (!currentUser) {
+  if (appLoading && !activeUid) {
+    return (
+      <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto animate-pulse">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800" />
+          <div className="space-y-1.5">
+            <div className="h-4 w-36 rounded-lg bg-slate-200 dark:bg-slate-800" />
+            <div className="h-3 w-52 rounded-lg bg-slate-200 dark:bg-slate-800" />
+          </div>
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={idx} className="flex gap-4 p-4 border border-slate-100 dark:border-slate-800 rounded-2xl">
+              <div className="w-40 aspect-video bg-slate-200 dark:bg-slate-800 rounded-xl" />
+              <div className="flex-1 space-y-2 py-1">
+                <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded-lg w-2/3" />
+                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-lg w-1/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!activeUid) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Bookmark className="w-12 h-12 text-slate-400 mb-4" />

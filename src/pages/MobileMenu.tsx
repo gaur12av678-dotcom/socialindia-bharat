@@ -35,32 +35,41 @@ export const MobileMenu: React.FC = () => {
   const { currentUser, currentUserProfile, addToast, openSwitchAccount, logout, loading: appLoading } = useApp();
   const { navigate } = useRouter();
   const { t, isHindi } = useTranslation();
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
 
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>(() => {
-    if (currentUser?.uid) {
-      return persistentMobileHistoryByUid.get(currentUser.uid) || [];
+    if (activeUid) {
+      return persistentMobileHistoryByUid.get(activeUid) || [];
     }
     return [];
   });
   const [historyLoading, setHistoryLoading] = useState<boolean>(() => {
-    if (!currentUser?.uid) return false;
-    return !(persistentMobileHistoryByUid.get(currentUser.uid)?.length);
+    if (!activeUid) return false;
+    return !(persistentMobileHistoryByUid.get(activeUid)?.length);
   });
 
   useEffect(() => {
-    if (!currentUser) {
-      setHistoryItems([]);
-      setHistoryLoading(false);
+    if (!activeUid) {
+      if (!appLoading) {
+        setHistoryItems([]);
+        setHistoryLoading(false);
+      }
       return;
     }
     let isMounted = true;
-    const cached = persistentMobileHistoryByUid.get(currentUser.uid);
+    const cached = persistentMobileHistoryByUid.get(activeUid);
     if (cached && cached.length > 0) {
       setHistoryItems(cached);
       setHistoryLoading(false);
     } else {
       setHistoryItems([]);
       setHistoryLoading(true);
+    }
+
+    if (!currentUser?.uid) {
+      return () => {
+        isMounted = false;
+      };
     }
 
     historyService.getHistory(currentUser.uid)
@@ -81,7 +90,7 @@ export const MobileMenu: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentUser]);
+  }, [activeUid, currentUser?.uid, appLoading]);
 
   const handleLogout = async () => {
     try {
@@ -96,7 +105,7 @@ export const MobileMenu: React.FC = () => {
   // --------------------------------------------------------------------------
   // AUTH HYDRATING SKELETON (Never flash Sign-In while Auth loads)
   // --------------------------------------------------------------------------
-  if ((appLoading && !currentUser) || (currentUser && !currentUserProfile)) {
+  if ((appLoading && !activeUid) || (activeUid && !currentUserProfile)) {
     return (
       <div className="bg-slate-50 dark:bg-[#0f0f0f] min-h-screen pb-32 animate-pulse">
         <div className="bg-white dark:bg-[#0f0f0f] px-4 py-3.5 border-b border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between">
@@ -147,7 +156,7 @@ export const MobileMenu: React.FC = () => {
   // --------------------------------------------------------------------------
   // LOGGED OUT VIEW
   // --------------------------------------------------------------------------
-  if (!currentUser || !currentUserProfile) {
+  if (!activeUid || !currentUserProfile) {
     return (
       <div className="min-h-screen bg-white dark:bg-[#0f0f0f] flex flex-col justify-between p-4 sm:p-6 pb-28 text-center font-sans select-none">
         <div className="flex-1 flex flex-col items-center justify-center py-10 max-w-sm mx-auto space-y-4">
@@ -305,7 +314,7 @@ export const MobileMenu: React.FC = () => {
           {/* Quick Profile Pills (View Channel & Switch Account) */}
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
-              onClick={() => navigate('creator', currentUserProfile.username || currentUser.uid)}
+              onClick={() => navigate('creator', currentUserProfile.username || activeUid)}
               className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-black text-xs rounded-2xl flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all"
             >
               <UserIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />

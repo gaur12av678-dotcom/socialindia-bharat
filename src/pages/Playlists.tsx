@@ -45,15 +45,16 @@ export const PlaylistsPage: React.FC = () => {
   const { currentUser, currentUserProfile, addToast, loading: appLoading } = useApp();
   const { navigate, route } = useRouter();
   const { t, isHindi } = useTranslation();
+  const activeUid = currentUser?.uid || currentUserProfile?.uid || '';
 
   const initialPlaylists = useMemo(() => {
-    if (!currentUser?.uid) return [];
-    return persistentPlaylistsByUid.get(currentUser.uid) || playlistService.getCachedUserPlaylists(currentUser.uid);
-  }, [currentUser?.uid]);
+    if (!activeUid) return [];
+    return persistentPlaylistsByUid.get(activeUid) || playlistService.getCachedUserPlaylists(activeUid);
+  }, [activeUid]);
 
   const [playlists, setPlaylists] = useState<Playlist[]>(() => initialPlaylists);
   const [loading, setLoading] = useState<boolean>(() => {
-    if (appLoading && !currentUser) return true;
+    if (appLoading && !activeUid) return true;
     return initialPlaylists.length === 0;
   });
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(() => {
@@ -98,19 +99,23 @@ export const PlaylistsPage: React.FC = () => {
 
   // Load playlists for user (instant cache first, silent background sync)
   const loadPlaylists = async () => {
-    if (!currentUser) {
+    if (!activeUid) {
       if (!appLoading) {
         setLoading(false);
       }
       return;
     }
 
-    const cached = persistentPlaylistsByUid.get(currentUser.uid) || playlistService.getCachedUserPlaylists(currentUser.uid);
+    const cached = persistentPlaylistsByUid.get(activeUid) || playlistService.getCachedUserPlaylists(activeUid);
     if (cached.length > 0) {
       setPlaylists(cached);
       setLoading(false);
     } else {
       setLoading(true);
+    }
+
+    if (!currentUser?.uid) {
+      return;
     }
 
     try {
@@ -147,7 +152,7 @@ export const PlaylistsPage: React.FC = () => {
 
   useEffect(() => {
     loadPlaylists();
-  }, [currentUser, appLoading]);
+  }, [activeUid, currentUser?.uid, appLoading]);
 
   // Load videos for selected playlist (instant from cache if available)
   const selectPlaylist = async (playlist: Playlist) => {
@@ -359,7 +364,7 @@ export const PlaylistsPage: React.FC = () => {
   };
 
   // Show Playlist Grid Skeleton while Firebase Auth hydrates (never flash Sign-In)
-  if (appLoading && !currentUser) {
+  if (appLoading && !activeUid) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-[#0f0f0f] p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 animate-pulse">
         <div className="flex items-center justify-between">
@@ -379,7 +384,7 @@ export const PlaylistsPage: React.FC = () => {
     );
   }
 
-  if (!currentUser) {
+  if (!activeUid) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] p-6 text-center">
         <div className="w-20 h-20 rounded-3xl bg-blue-50 dark:bg-blue-950/40 text-[#2563eb] dark:text-[#38bdf8] flex items-center justify-center mb-5 shadow-sm border border-blue-100 dark:border-blue-900/50">
