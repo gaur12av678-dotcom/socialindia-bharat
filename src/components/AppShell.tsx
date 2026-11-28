@@ -1722,77 +1722,52 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               </div>
             )}
 
-            {/* 5. Platform and support links */}
-            <div className="pt-3 border-t border-slate-200/60 dark:border-slate-800/60 px-2 space-y-3 select-none">
-              <div className="grid grid-cols-2 gap-x-3 gap-y-3 text-[10px]">
-                {[
-                  {
-                    title: isHindi ? 'प्लेटफ़ॉर्म' : 'PLATFORM',
-                    links: [
-                      [t('nav_home', 'Home'), 'home'],
-                      [t('nav_trending', 'Trending'), 'trending'],
-                      [t('nav_shorts', 'Clips'), 'shorts'],
-                      [t('nav_community', 'Community'), 'community'],
-                      [t('nav_downloads', 'Downloads'), 'downloads'],
-                      [t('nav_go_pro', 'Go Pro'), 'gopro'],
-                    ],
-                  },
-                  {
-                    title: isHindi ? 'सहायता' : 'SUPPORT',
-                    links: [
-                      [isHindi ? 'संपर्क करें' : 'Contact', 'contact'],
-                      [isHindi ? 'सामान्य प्रश्न' : 'FAQ', 'faq'],
-                      [isHindi ? 'शिकायत निवारण' : 'Grievance Redressal', 'grievance'],
-                      [t('nav_help', 'Help'), 'help'],
-                    ],
-                  },
-                  {
-                    title: isHindi ? 'कंपनी' : 'COMPANY',
-                    links: [
-                      [t('nav_about', 'About'), 'about'],
-                      [isHindi ? 'विज्ञापन' : 'Advertising', 'advertising'],
-                      [isHindi ? 'विज्ञापन जानकारी' : 'Ad Info', 'adinfo'],
-                      [isHindi ? 'डेवलपर्स' : 'Developers', 'developers'],
-                    ],
-                  },
-                  {
-                    title: isHindi ? 'कानूनी एवं समुदाय' : 'LEGAL & COMMUNITY',
-                    links: [
-                      [isHindi ? 'गोपनीयता नीति' : 'Privacy Policy', 'privacy'],
-                      [isHindi ? 'उपयोग की शर्तें' : 'Terms of Use', 'terms'],
-                      [isHindi ? 'रिफ़ंड नीति' : 'Refund Policy', 'refund'],
-                      [isHindi ? 'कम्युनिटी दिशानिर्देश' : 'Community Guidelines', 'guidelines'],
-                    ],
-                  },
-                ].map(section => (
-                  <div key={section.title} className="space-y-1.5">
-                    <p className="font-black tracking-wider text-slate-500 dark:text-slate-400">{section.title}</p>
-                    {section.links.map(([label, path]) => {
-                      const href = path === 'home' ? '/' : `/${path}`;
-                      return (
-                        <a
-                          key={path}
-                          href={href}
-                          onClick={(e) => {
-                            if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
-                              e.preventDefault();
-                              navigate(path);
-                            }
-                          }}
-                          className={`block text-left font-semibold hover:text-blue-600 hover:underline cursor-pointer ${route.path === path ? 'text-blue-600' : 'text-slate-500 dark:text-slate-400'}`}
-                        >
-                          {label}
-                        </a>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-              <a href="mailto:socialindia.ib@gmail.com" className="block text-[10px] font-semibold text-slate-500 hover:text-blue-600 dark:text-slate-400">
-                socialindia.ib@gmail.com
-              </a>
-              <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                © {new Date().getFullYear()} SocialIndia. {isHindi ? 'सर्वाधिकार सुरक्षित · भारत द्वारा निर्मित।' : 'All rights reserved. · Built by Bharat.'}
+            {/* 5. Platform and support links (YouTube-style clean inline footer) */}
+            <div className="pt-3.5 pb-2 border-t border-slate-200/70 dark:border-slate-800/70 px-3 space-y-3 select-none">
+              {[
+                [
+                  [t('nav_about', 'About'), 'about'],
+                  [isHindi ? 'संपर्क' : 'Contact', 'contact'],
+                ],
+                [
+                  [isHindi ? 'शर्तें' : 'Terms', 'terms'],
+                  [isHindi ? 'गोपनीयता' : 'Privacy', 'privacy'],
+                  [isHindi ? 'रिफ़ंड नीति' : 'Refund Policy', 'refund'],
+                  [isHindi ? 'दिशानिर्देश' : 'Guidelines', 'guidelines'],
+                  [isHindi ? 'शिकायत निवारण' : 'Grievance', 'grievance'],
+                  [t('nav_help', 'Help'), 'help'],
+                  [isHindi ? 'सामान्य प्रश्न' : 'FAQ', 'faq'],
+                ],
+              ].map((group, idx) => (
+                <div
+                  key={idx}
+                  className="flex flex-wrap gap-x-2.5 gap-y-1 text-[12px] leading-snug font-medium text-[#606060] dark:text-[#aaaaaa]"
+                >
+                  {group.map(([label, path]) => {
+                    const href = path === 'home' ? '/' : `/${path}`;
+                    const isActive = route.path === path;
+                    return (
+                      <a
+                        key={path}
+                        href={href}
+                        onClick={(e) => {
+                          if (!e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                            e.preventDefault();
+                            navigate(path);
+                          }
+                        }}
+                        className={`transition-colors cursor-pointer hover:text-[#0f0f0f] dark:hover:text-white ${
+                          isActive ? 'text-[#0f0f0f] dark:text-white font-semibold' : ''
+                        }`}
+                      >
+                        {label}
+                      </a>
+                    );
+                  })}
+                </div>
+              ))}
+              <p className="pt-0.5 text-[11px] font-normal text-[#909090] dark:text-[#717171]">
+                © {new Date().getFullYear()} SocialIndia · {isHindi ? 'भारत द्वारा निर्मित' : 'Built by Bharat'}
               </p>
             </div>
           </div>
