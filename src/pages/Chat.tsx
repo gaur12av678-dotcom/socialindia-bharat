@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { useApp } from '../context/AppContext';
 import { useRouter } from '../hooks/useRouter';
 import { chatService } from '../services/chatService';
@@ -42,8 +42,8 @@ import {
   Globe
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
-import { EmojiPicker } from '../components/chat/EmojiPicker';
 import { EmojiText } from '../components/EmojiGraphic';
+const EmojiPicker = lazy(() => import('../components/chat/EmojiPicker').then(m => ({ default: m.EmojiPicker })));
 import { UserAvatar } from '../components/UserAvatar';
 import { formatWhatsAppPresence, isOfficialSocialIndiaAccount, isUserCurrentlyOnline } from '../utils/userUtils';
 import { tokenizeTextWithUrls, extractUrlsFromText, normalizeLinkUrl, formatLinkHost } from '../utils/linkUtils';
@@ -175,6 +175,12 @@ export const ChatPage: React.FC = () => {
   const messageLongPressTimerRef = useRef<number | null>(null);
   const pendingSendTempIdsRef = useRef<Set<string>>(new Set());
   const lastAppliedRouteParamRef = useRef<string | undefined>(undefined);
+  const sessionsRef = useRef<ChatSession[]>(sessions);
+  sessionsRef.current = sessions;
+  const shouldInstantScrollRef = useRef<boolean>(true);
+  const prevSelectedChatForScrollRef = useRef<string | null>(null);
+  const prevMsgCountForScrollRef = useRef<number>(0);
+  const [visibleMessageLimit, setVisibleMessageLimit] = useState<number>(80);
   const isPocket = Boolean(selectedUser?.isPocket);
   const isGroup = Boolean(selectedUser?.isGroup);
 
@@ -254,31 +260,41 @@ export const ChatPage: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [showCreateGroup, groupSearch, currentUser?.uid]);
 
-  // Real-time WhatsApp-style presence subscriptions for selected user & DM contact list
-  useEffect(() => {
-    if (!currentUser) return;
-    const dmUserIds = new Set<string>();
+  // Stabilized list of DM partner UIDs so updating lastMessage doesn't tear down & re-subscribe listeners
+  const dmPresenceIdsKey = useMemo(() => {
+    if (!currentUser) return '';
+    const dmUserIds: string[] = [];
+    const seen = new Set<string>();
     if (
       selectedUserId &&
       !selectedUser?.isGroup &&
       !selectedUser?.isPocket &&
       !isOfficialSocialIndiaAccount(selectedUser || { uid: selectedUserId })
     ) {
-      dmUserIds.add(selectedUserId);
+      seen.add(selectedUserId);
+      dmUserIds.push(selectedUserId);
     }
-    sessions.forEach(s => {
+    for (const s of sessions) {
+      if (dmUserIds.length >= 16) break;
       if (
         !s.isGroup &&
         !s.isPocket &&
         s.userId &&
-        !isOfficialSocialIndiaAccount(s) &&
-        dmUserIds.size < 30
+        !seen.has(s.userId) &&
+        !isOfficialSocialIndiaAccount(s)
       ) {
-        dmUserIds.add(s.userId);
+        seen.add(s.userId);
+        dmUserIds.push(s.userId);
       }
-    });
+    }
+    return dmUserIds.join(',');
+  }, [currentUser?.uid, selectedUserId, selectedUser?.isGroup, selectedUser?.isPocket, sessions]);
 
-    const unsubs = Array.from(dmUserIds).map(uid =>
+  // Real-time WhatsApp-style presence subscriptions for selected user & visible DM contacts
+  useEffect(() => {
+    if (!currentUser || !dmPresenceIdsKey) return;
+    const ids = dmPresenceIdsKey.split(',').filter(Boolean);
+    const unsubs = ids.map(uid =>
       userService.subscribeToUserPresence(uid, presence => {
         setPresenceMap(prev => ({ ...prev, [uid]: presence }));
       })
@@ -292,7 +308,7 @@ export const ChatPage: React.FC = () => {
       unsubs.forEach(unsub => unsub());
       window.clearInterval(refreshTicker);
     };
-  }, [currentUser?.uid, selectedUserId, selectedUser?.isGroup, selectedUser?.isPocket, sessions]);
+  }, [currentUser?.uid, dmPresenceIdsKey]);
 
   // Voice recording toggle handler
   const toggleVoiceRecording = () => {
@@ -520,6 +536,11 @@ export const ChatPage: React.FC = () => {
       setLoadingMessages(false);
     };
 
+    // Reset message window & scroll instantly when switching chats
+    setVisibleMessageLimit(80);
+    shouldInstantScrollRef.current = true;
+    prevMsgCountForScrollRef.current = 0;
+
     // 1. Immediately hydrate cached conversation messages (0ms instant display!)
     const cachedMsgs = chatService.getCachedMessages(uid, selectedUserId);
     setMessages(cachedMsgs);
@@ -543,18 +564,30 @@ export const ChatPage: React.FC = () => {
       return () => unsubscribe();
     }
 
-    chatService.ensureConversation(uid, selectedUserId)
-      .catch(err => console.error('Failed to ensure conversation:', err));
+    // Only ensureConversation if this partner isn't already in our loaded sessions
+    const hasExistingSession = sessionsRef.current.some(
+      s => s.userId === selectedUserId && !s.isGroup && !s.isPocket
+    );
+    if (!hasExistingSession) {
+      chatService.ensureConversation(uid, selectedUserId)
+        .catch(err => console.error('Failed to ensure conversation:', err));
+    }
 
-    // Mark any existing unread incoming messages from this partner as read immediately
-    void chatService.markAsRead(uid, selectedUserId);
+    if ((unreadBySender[selectedUserId] || 0) > 0) {
+      void chatService.markAsRead(uid, selectedUserId);
+    }
 
     const unsubscribe = chatService.listenToMessages(
       uid,
       selectedUserId,
       incomingMsgs => {
         mergeIncomingWithPending(incomingMsgs, false);
-        void chatService.markAsRead(uid, selectedUserId);
+        const hasUnreadFromPartner = incomingMsgs.some(
+          m => m.senderId === selectedUserId && !m.read
+        );
+        if (hasUnreadFromPartner) {
+          void chatService.markAsRead(uid, selectedUserId);
+        }
       }
     );
 
@@ -571,10 +604,25 @@ export const ChatPage: React.FC = () => {
     }
   }, [currentUser?.uid, isCurrentSession, selectedUser?.isGroup, selectedUser?.isPocket, selectedUserId, unreadBySender]);
 
-  // Auto scroll to bottom when messages list updates
+  // Auto scroll to bottom (instant on chat switch/initial load, smooth only for new messages)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, mediaPreviewUrl]);
+    const switchedChat = prevSelectedChatForScrollRef.current !== selectedUserId;
+    prevSelectedChatForScrollRef.current = selectedUserId;
+
+    if (messages.length === 0 && !mediaPreviewUrl) return;
+
+    const behavior: ScrollBehavior =
+      switchedChat || shouldInstantScrollRef.current || prevMsgCountForScrollRef.current === 0
+        ? 'auto'
+        : 'smooth';
+
+    prevMsgCountForScrollRef.current = messages.length;
+    if (messages.length > 0) {
+      shouldInstantScrollRef.current = false;
+    }
+
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  }, [messages.length, mediaPreviewUrl, selectedUserId]);
 
   // Handle Media File Selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1313,9 +1361,11 @@ export const ChatPage: React.FC = () => {
     s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const pocketPreviewMessages = activeUid
-    ? (selectedUser?.isPocket ? messages : chatService.getCachedMessages(activeUid, `pocket_${activeUid}`))
-    : [];
+  const pocketPreviewMessages = useMemo(() => {
+    if (!activeUid) return [];
+    if (selectedUser?.isPocket) return messages;
+    return chatService.getCachedMessages(activeUid, `pocket_${activeUid}`);
+  }, [activeUid, selectedUser?.isPocket, messages]);
   const lastPocketMsg = pocketPreviewMessages[pocketPreviewMessages.length - 1];
   const pocketSession: ChatSession = activeUid ? {
     userId: `pocket_${activeUid}`,
@@ -1517,15 +1567,18 @@ export const ChatPage: React.FC = () => {
                   onClick={() => {
                     if (route.param) lastAppliedRouteParamRef.current = route.param;
                     if (selectedUserId !== s.userId) {
-                      setMessages([]);
-                      setLoadingMessages(true);
+                      const cached = activeUid ? chatService.getCachedMessages(activeUid, s.userId) : [];
+                      setMessages(cached);
+                      setLoadingMessages(cached.length === 0);
+                      setVisibleMessageLimit(80);
+                      shouldInstantScrollRef.current = true;
                       setReplyTo(null);
                       setEditingMessageId(null);
                       setMessageActionId(null);
                     }
                     setSelectedUserId(s.userId);
                     setSelectedUser(s);
-                    if (currentUser?.uid && !s.isPocket && !s.isGroup) {
+                    if (currentUser?.uid && !s.isPocket && !s.isGroup && (unreadBySender[s.userId] || 0) > 0) {
                       void chatService.markAsRead(currentUser.uid, s.userId);
                     }
                   }}
@@ -1759,10 +1812,25 @@ export const ChatPage: React.FC = () => {
                   </p>
                   <p className="text-[11px] leading-relaxed">{t('chat_empty_desc', 'Introduce yourself, share photos, videos, or discuss awesome ideas together.')}</p>
                 </div>
-              ) : (
-                messages.map((m, idx) => {
+              ) : (() => {
+                const hiddenCount = Math.max(0, messages.length - visibleMessageLimit);
+                const displayedMessages = hiddenCount > 0 ? messages.slice(-visibleMessageLimit) : messages;
+                return (
+                  <>
+                    {hiddenCount > 0 && (
+                      <div className="flex justify-center pb-2">
+                        <button
+                          type="button"
+                          onClick={() => setVisibleMessageLimit(prev => prev + 80)}
+                          className="px-3.5 py-1.5 rounded-full bg-white/90 dark:bg-[#202c33] text-[11px] font-bold text-blue-600 dark:text-blue-400 shadow-xs border border-slate-200/80 dark:border-[#2a3942] hover:bg-white dark:hover:bg-[#2a3942] transition-colors cursor-pointer"
+                        >
+                          {isHindi ? `पुराने ${Math.min(80, hiddenCount)} संदेश लोड करें` : `Load earlier messages (${hiddenCount})`}
+                        </button>
+                      </div>
+                    )}
+                    {displayedMessages.map((m, idx) => {
                   const isMine = m.senderId === activeUid;
-                  const dayLabel = formatMsgDay(m.createdAt, messages[idx - 1]?.createdAt);
+                  const dayLabel = formatMsgDay(m.createdAt, displayedMessages[idx - 1]?.createdAt);
                   const uploadProgressValue = Math.min(100, Math.max(0, m.uploadProgress || 0));
                   return (
                     <React.Fragment key={m.id}>
@@ -1866,6 +1934,7 @@ export const ChatPage: React.FC = () => {
                                   src={m.mediaUrl}
                                   controls
                                   playsInline
+                                  preload="metadata"
                                   className="max-h-72 w-full rounded-xl bg-black"
                                 />
                                 {m.deliveryStatus === 'uploading' && (
@@ -2002,8 +2071,10 @@ export const ChatPage: React.FC = () => {
                       </div>
                     </React.Fragment>
                   );
-                })
-              )}
+                })}
+                  </>
+                );
+              })()}
               <div ref={messagesEndRef} />
             </div>
 
@@ -2012,11 +2083,13 @@ export const ChatPage: React.FC = () => {
               
               {/* Emoji Picker Popover */}
               {showEmojiPicker && (
-                <EmojiPicker
-                  onSelectEmoji={handleInsertEmoji}
-                  onClose={() => setShowEmojiPicker(false)}
-                  toggleButtonRef={emojiButtonRef}
-                />
+                <Suspense fallback={null}>
+                  <EmojiPicker
+                    onSelectEmoji={handleInsertEmoji}
+                    onClose={() => setShowEmojiPicker(false)}
+                    toggleButtonRef={emojiButtonRef}
+                  />
+                </Suspense>
               )}
 
               {/* Media Attachment Preview Bar */}

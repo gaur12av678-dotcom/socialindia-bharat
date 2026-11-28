@@ -1572,6 +1572,8 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
               {/* Messages / Direct Chat */}
               <button
                 onClick={() => navigate('chat')}
+                onMouseEnter={() => { void import('../pages/Chat'); }}
+                onFocus={() => { void import('../pages/Chat'); }}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 cursor-pointer group ${
                   route.path === 'chat' || route.path === 'messages'
                     ? 'bg-blue-50/90 dark:bg-blue-950/40 text-[#2563eb] dark:text-blue-400 font-bold border-l-[3px] border-[#2563eb] rounded-l-xs shadow-xs' 

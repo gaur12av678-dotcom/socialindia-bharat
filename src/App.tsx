@@ -174,6 +174,29 @@ const RouteFallback: React.FC<{ path?: string }> = ({ path }) => {
       </div>
     );
   }
+  if (path === 'chat' || path === 'messages') {
+    return (
+      <div className="h-[100dvh] flex bg-white dark:bg-[#0f0f0f] overflow-hidden animate-pulse">
+        <div className="w-full md:w-80 border-r border-slate-200 dark:border-[#222] p-4 space-y-4">
+          <div className="h-9 bg-slate-200 dark:bg-slate-800 rounded-xl w-full" />
+          <div className="space-y-3 pt-2">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center gap-3 p-2">
+                <div className="w-11 h-11 rounded-full bg-slate-200 dark:bg-slate-800 shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3.5 bg-slate-200 dark:bg-slate-800 rounded-full w-2/3" />
+                  <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded-full w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="hidden md:flex flex-1 items-center justify-center p-8 bg-[#efeae2]/40 dark:bg-[#0b141a]">
+          <div className="w-56 h-24 rounded-2xl bg-slate-200/70 dark:bg-slate-800/60" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 animate-pulse">
       <div className="h-6 w-48 rounded-full bg-slate-200 dark:bg-slate-800" />

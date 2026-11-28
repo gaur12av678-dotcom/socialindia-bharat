@@ -4,6 +4,7 @@ import {
   query, 
   where, 
   orderBy, 
+  limit,
   onSnapshot, 
   getDocs, 
   deleteDoc,
@@ -36,16 +37,34 @@ const isPermissionDeniedError = (err: unknown): boolean => {
 
 const partnerProfileCache = new Map<string, { profile: User | null; expiresAt: number }>();
 const partnerProfileRequests = new Map<string, Promise<User | null>>();
+const PARTNER_CACHE_TTL_MS = 300_000; // 5 minutes
+
+const getCachedChatPartnerProfile = (uid: string): User | null => {
+  const cached = partnerProfileCache.get(uid);
+  if (cached && cached.profile) return cached.profile;
+  const localProfile = userService.getCachedUserProfile(uid);
+  if (localProfile) {
+    partnerProfileCache.set(uid, { profile: localProfile, expiresAt: Date.now() + PARTNER_CACHE_TTL_MS });
+    return localProfile;
+  }
+  return null;
+};
 
 const getChatPartnerProfile = (uid: string): Promise<User | null> => {
   const cached = partnerProfileCache.get(uid);
   if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.profile);
 
+  const localProfile = userService.getCachedUserProfile(uid);
+  if (localProfile) {
+    partnerProfileCache.set(uid, { profile: localProfile, expiresAt: Date.now() + PARTNER_CACHE_TTL_MS });
+    return Promise.resolve(localProfile);
+  }
+
   const pending = partnerProfileRequests.get(uid);
   if (pending) return pending;
 
-  const request = userService.getUserProfile(uid, true).then(profile => {
-    partnerProfileCache.set(uid, { profile, expiresAt: Date.now() + 60_000 });
+  const request = userService.getUserProfile(uid, false).then(profile => {
+    partnerProfileCache.set(uid, { profile, expiresAt: Date.now() + PARTNER_CACHE_TTL_MS });
     return profile;
   }).finally(() => {
     partnerProfileRequests.delete(uid);
@@ -186,15 +205,57 @@ export const chatService = {
     currentUserId: string,
     callback: (sessions: ChatSession[]) => void
   ) {
-    let directSessions: ChatSession[] = this.getCachedSessions(currentUserId).filter(s => !s.isGroup && !s.isPocket);
+    let unsubscribed = false;
+    const cachedDirect = this.getCachedSessions(currentUserId).filter(s => !s.isGroup && !s.isPocket);
+    const cachedByUid = new Map<string, ChatSession>(cachedDirect.map(s => [s.userId, s]));
+    let directSessions: ChatSession[] = cachedDirect;
+    let legacyDirectSessions: ChatSession[] = [];
     let convGroupSessions: ChatSession[] = [];
     let dedicatedGroupSessions: ChatSession[] = [];
+    let legacyDiscoveryStarted = false;
+
+    const toChatSessionFromProfile = (
+      partnerId: string,
+      profile: User | ChatSession,
+      lastMessage?: string,
+      lastMessageTime?: string
+    ): ChatSession => ({
+      userId: partnerId,
+      displayName: profile.displayName || profile.username || 'User',
+      username: profile.username || 'user',
+      photoURL: profile.photoURL,
+      isVerified: 'isVerified' in profile ? profile.isVerified : isUserVerified(profile),
+      isOnline: profile.isOnline,
+      lastSeen: profile.lastSeen,
+      lastMessage: lastMessage || undefined,
+      lastMessageTime,
+      unreadCount: 0
+    });
+
     const publishSessions = () => {
+      if (unsubscribed) return;
+      const directMap = new Map<string, ChatSession>();
+      legacyDirectSessions.forEach(s => {
+        if (s?.userId) directMap.set(s.userId, s);
+      });
+      directSessions.forEach(s => {
+        if (s?.userId) {
+          const prev = directMap.get(s.userId);
+          directMap.set(s.userId, {
+            ...prev,
+            ...s,
+            lastMessage: s.lastMessage || prev?.lastMessage,
+            lastMessageTime: s.lastMessageTime || prev?.lastMessageTime,
+            unreadCount: prev?.unreadCount || 0
+          });
+        }
+      });
+
       const groupMap = new Map<string, ChatSession>();
       [...dedicatedGroupSessions, ...convGroupSessions].forEach(g => {
         if (g?.userId) groupMap.set(g.userId, g);
       });
-      const merged = [...directSessions, ...groupMap.values()].sort((a, b) => {
+      const merged = [...directMap.values(), ...groupMap.values()].sort((a, b) => {
         if (a.lastMessageTime && b.lastMessageTime) {
           return new Date(b.lastMessageTime).getTime() -
             new Date(a.lastMessageTime).getTime();
@@ -207,6 +268,22 @@ export const chatService = {
       callback(merged);
     };
 
+    const runLegacyDiscoveryOnce = () => {
+      if (legacyDiscoveryStarted || unsubscribed) return;
+      legacyDiscoveryStarted = true;
+      // Run legacy message-based discovery in background without blocking initial UI render
+      window.setTimeout(() => {
+        if (unsubscribed) return;
+        this.getChatSessions(currentUserId)
+          .then(legacy => {
+            if (unsubscribed || legacy.length === 0) return;
+            legacyDirectSessions = legacy;
+            publishSessions();
+          })
+          .catch(() => {});
+      }, 250);
+    };
+
     const conversationsQuery = query(
       collection(db, 'conversations'),
       where('participants', 'array-contains', currentUserId)
@@ -214,83 +291,102 @@ export const chatService = {
 
     const unsubscribeConversations = onSnapshot(
       conversationsQuery,
-      async snapshot => {
+      snapshot => {
         try {
           const nextConvGroups: ChatSession[] = [];
-          const conversationSessions = await Promise.all(
-            snapshot.docs.map(async conversationDoc => {
-              const data = conversationDoc.data();
-              const lastMessageTime = data.lastMessageAt?.toDate
-                ? data.lastMessageAt.toDate().toISOString()
-                : undefined;
+          const nextDirectSessions: ChatSession[] = [];
+          const missingPartners: Array<{
+            partnerId: string;
+            lastMessage?: string;
+            lastMessageTime?: string;
+          }> = [];
 
-              if (data.isGroup === true || conversationDoc.id.startsWith('grp_')) {
-                const participants = Array.isArray(data.participants) ? data.participants : [];
-                const createdBy = typeof data.createdBy === 'string' ? data.createdBy : '';
-                const adminIds = Array.isArray(data.adminIds) && data.adminIds.length > 0
-                  ? data.adminIds
-                  : (createdBy ? [createdBy] : (participants[0] ? [participants[0]] : []));
-                nextConvGroups.push({
-                  userId: conversationDoc.id,
-                  displayName: data.name || 'Group',
-                  username: 'group',
-                  photoURL: data.photoURL || undefined,
-                  description: data.description || '',
-                  createdBy,
-                  adminIds,
-                  isGroup: true,
-                  participantIds: participants,
-                  lastMessage: data.lastMessage || undefined,
-                  lastMessageTime,
-                  unreadCount: 0
-                });
-                return null;
-              }
+          for (const conversationDoc of snapshot.docs) {
+            const data = conversationDoc.data();
+            const lastMessageTime = data.lastMessageAt?.toDate
+              ? data.lastMessageAt.toDate().toISOString()
+              : undefined;
 
-              const partnerId = (data.participants || []).find(
-                (uid: string) => uid !== currentUserId
-              );
-
-              if (!partnerId) return null;
-
-              const profile = await getChatPartnerProfile(partnerId);
-              if (!profile) return null;
-
-              return {
-                userId: partnerId,
-                displayName: profile.displayName,
-                username: profile.username,
-                photoURL: profile.photoURL,
-                isVerified: isUserVerified(profile),
-                isOnline: profile.isOnline,
-                lastSeen: profile.lastSeen,
+            if (data.isGroup === true || conversationDoc.id.startsWith('grp_')) {
+              const participants = Array.isArray(data.participants) ? data.participants : [];
+              const createdBy = typeof data.createdBy === 'string' ? data.createdBy : '';
+              const adminIds = Array.isArray(data.adminIds) && data.adminIds.length > 0
+                ? data.adminIds
+                : (createdBy ? [createdBy] : (participants[0] ? [participants[0]] : []));
+              nextConvGroups.push({
+                userId: conversationDoc.id,
+                displayName: data.name || 'Group',
+                username: 'group',
+                photoURL: data.photoURL || undefined,
+                description: data.description || '',
+                createdBy,
+                adminIds,
+                isGroup: true,
+                participantIds: participants,
                 lastMessage: data.lastMessage || undefined,
                 lastMessageTime,
                 unreadCount: 0
-              } as ChatSession;
-            })
-          );
+              });
+              continue;
+            }
 
-          convGroupSessions = nextConvGroups;
-          const legacySessions = await this.getChatSessions(currentUserId);
-          const merged = new Map<string, ChatSession>();
+            const partnerId = (data.participants || []).find(
+              (uid: string) => uid !== currentUserId
+            );
+            if (!partnerId) continue;
 
-          legacySessions.forEach(session => merged.set(session.userId, session));
-          conversationSessions.forEach(session => {
-            if (session) {
-              const previous = merged.get(session.userId);
-              merged.set(session.userId, {
-                ...previous,
-                ...session,
-                lastMessage: session.lastMessage || previous?.lastMessage,
-                lastMessageTime: session.lastMessageTime || previous?.lastMessageTime,
-                unreadCount: previous?.unreadCount || 0
+            const cachedProfile = getCachedChatPartnerProfile(partnerId) || cachedByUid.get(partnerId);
+            if (cachedProfile) {
+              const session = toChatSessionFromProfile(
+                partnerId,
+                cachedProfile,
+                data.lastMessage || undefined,
+                lastMessageTime
+              );
+              cachedByUid.set(partnerId, session);
+              nextDirectSessions.push(session);
+            } else {
+              missingPartners.push({
+                partnerId,
+                lastMessage: data.lastMessage || undefined,
+                lastMessageTime
               });
             }
-          });
+          }
 
-          directSessions = [...merged.values()];
+          convGroupSessions = nextConvGroups;
+          directSessions = nextDirectSessions;
+          // Publish immediately with cached/known profiles so UI never stalls
           publishSessions();
+
+          // Fetch only uncached partner profiles in parallel
+          if (missingPartners.length > 0) {
+            Promise.all(
+              missingPartners.map(async item => {
+                const profile = await getChatPartnerProfile(item.partnerId).catch(() => null);
+                if (!profile) return null;
+                const session = toChatSessionFromProfile(
+                  item.partnerId,
+                  profile,
+                  item.lastMessage,
+                  item.lastMessageTime
+                );
+                cachedByUid.set(item.partnerId, session);
+                return session;
+              })
+            ).then(resolved => {
+              if (unsubscribed) return;
+              const valid = resolved.filter((s): s is ChatSession => s !== null);
+              if (valid.length > 0) {
+                const map = new Map(directSessions.map(s => [s.userId, s]));
+                valid.forEach(s => map.set(s.userId, s));
+                directSessions = [...map.values()];
+                publishSessions();
+              }
+            }).catch(() => {});
+          }
+
+          runLegacyDiscoveryOnce();
         } catch (error) {
           console.error('Conversation listener processing failed:', error);
           directSessions = this.getCachedSessions(currentUserId).filter(session => !session.isGroup && !session.isPocket);
@@ -310,7 +406,7 @@ export const chatService = {
     );
     const unsubscribeGroups = onSnapshot(
       groupsQuery,
-      async snapshot => {
+      snapshot => {
         try {
           dedicatedGroupSessions = snapshot.docs.map(groupDoc => {
             const data = groupDoc.data();
@@ -349,6 +445,7 @@ export const chatService = {
     );
 
     return () => {
+      unsubscribed = true;
       unsubscribeConversations();
       unsubscribeGroups();
     };
@@ -736,12 +833,13 @@ export const chatService = {
       if (unsubscribed) return;
       const messagesQuery = query(
         collection(db, colName, groupId, 'messages'),
-        orderBy('createdAt', 'asc')
+        orderBy('createdAt', 'desc'),
+        limit(150)
       );
       activeUnsubscribe = onSnapshot(
         messagesQuery,
         snapshot => {
-          const mapped = mapSnapshot(snapshot);
+          const mapped = mapSnapshot(snapshot).reverse();
           this.setCachedMessages(cacheOwnerId, groupId, mapped);
           callback(mapped);
         },
@@ -889,7 +987,8 @@ export const chatService = {
 
     const messagesQuery = query(
       collection(db, 'users', userId, 'pocketMessages'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'desc'),
+      limit(150)
     );
     const subUnsub = onSnapshot(
       messagesQuery,
@@ -897,7 +996,7 @@ export const chatService = {
         subcollectionMessages = snapshot.docs.map(messageDoc => {
           const data = messageDoc.data();
           return normalizeStoredPocketMsg({ id: messageDoc.id, ...data });
-        });
+        }).reverse();
         publishMerged(true);
       },
       error => {
@@ -1212,10 +1311,14 @@ export const chatService = {
   // Listen only to messages exchanged between the selected two users.
   listenToMessages(userA: string, userB: string, callback: (messages: ChatMessage[]) => void) {
     const messagesCol = collection(db, 'chats');
-    const messagesByPair = new Map<string, ChatMessage[]>();
-    const serverSyncedPairs = new Set<string>();
+    const cachedMsgs = this.getCachedMessages(userA, userB).filter(m => !m.id.startsWith('temp_'));
+    const messagesByPair = new Map<string, ChatMessage[]>([
+      [`${userA}_${userB}`, cachedMsgs.filter(m => m.senderId === userA && m.receiverId === userB)],
+      [`${userB}_${userA}`, cachedMsgs.filter(m => m.senderId === userB && m.receiverId === userA)],
+    ]);
+    const syncedPairs = new Set<string>();
 
-    const publishMessages = () => {
+    const publishMessages = (persistCache: boolean) => {
       const merged = [...messagesByPair.values()]
         .flat()
         .sort((a, b) => {
@@ -1228,13 +1331,14 @@ export const chatService = {
         new Map(merged.map(message => [message.id, message])).values()
       );
 
-      this.setCachedMessages(userA, userB, unique);
+      if (persistCache) {
+        this.setCachedMessages(userA, userB, unique);
+      }
       callback(unique);
     };
 
     const createListener = (senderId: string, receiverId: string) => {
       const pairKey = `${senderId}_${receiverId}`;
-      // Use a single-field query to avoid requiring a composite Firestore index.
       const q = query(
         messagesCol,
         where('senderId', '==', senderId),
@@ -1243,42 +1347,44 @@ export const chatService = {
 
       return onSnapshot(
         q,
-        { includeMetadataChanges: true },
         snapshot => {
-          if (snapshot.metadata.fromCache) return;
+          const mapped = snapshot.docs.map(d => {
+            const data = d.data();
+            const createdAt = data.createdAt?.toDate
+              ? data.createdAt.toDate().toISOString()
+              : data.createdAt || new Date().toISOString();
 
-          const matchingDocs = snapshot.docs.filter(
-            d => d.data().receiverId === receiverId
-          );
+            return {
+              id: d.id,
+              senderId: data.senderId,
+              receiverId: data.receiverId,
+              text: data.text || '',
+              mediaUrl: data.mediaUrl || undefined,
+              mediaType: data.mediaType || undefined,
+              replyTo: data.replyTo || undefined,
+              ...(data.clientTempId ? { clientTempId: String(data.clientTempId) } : {}),
+              createdAt,
+              editedAt: data.editedAt?.toDate
+                ? data.editedAt.toDate().toISOString()
+                : data.editedAt || undefined,
+              read: Boolean(data.read)
+            } as ChatMessage;
+          });
 
-          messagesByPair.set(
-            pairKey,
-            matchingDocs.map(d => {
-              const data = d.data();
-              const createdAt = data.createdAt?.toDate
-                ? data.createdAt.toDate().toISOString()
-                : data.createdAt || new Date().toISOString();
+          // Avoid wiping localStorage-cached messages with an empty fromCache snapshot before server responds
+          if (snapshot.metadata.fromCache && mapped.length === 0 && (messagesByPair.get(pairKey)?.length || 0) > 0) {
+            return;
+          }
 
-              return {
-                id: d.id,
-                senderId: data.senderId,
-                receiverId: data.receiverId,
-                text: data.text || '',
-                mediaUrl: data.mediaUrl || undefined,
-                mediaType: data.mediaType || undefined,
-                replyTo: data.replyTo || undefined,
-                ...(data.clientTempId ? { clientTempId: String(data.clientTempId) } : {}),
-                createdAt,
-                editedAt: data.editedAt?.toDate
-                  ? data.editedAt.toDate().toISOString()
-                  : data.editedAt || undefined,
-                read: Boolean(data.read)
-              } as ChatMessage;
-            })
-          );
+          messagesByPair.set(pairKey, mapped);
+          if (!snapshot.metadata.fromCache) {
+            syncedPairs.add(pairKey);
+          }
 
-          serverSyncedPairs.add(pairKey);
-          if (serverSyncedPairs.size === 2) publishMessages();
+          // Publish immediately as soon as we have messages or both pairs have emitted
+          if (mapped.length > 0 || syncedPairs.size === 2 || (!snapshot.metadata.fromCache && cachedMsgs.length === 0)) {
+            publishMessages(syncedPairs.size === 2);
+          }
         },
         error => {
           console.error(`Chat listener failed for ${pairKey}:`, error);
@@ -1474,32 +1580,63 @@ export const chatService = {
       return () => {};
     }
 
-    const q = query(
+    let unsubscribed = false;
+    let activeUnsub: (() => void) | null = null;
+
+    const handleSnapshot = (snapshot: any) => {
+      const countsBySender: Record<string, number> = {};
+      let totalUnread = 0;
+
+      for (const docSnap of snapshot.docs) {
+        const data = docSnap.data();
+        const senderId = typeof data.senderId === 'string' ? data.senderId : '';
+        if (data.read !== true && senderId && senderId !== currentUserId) {
+          countsBySender[senderId] = (countsBySender[senderId] || 0) + 1;
+          totalUnread += 1;
+        }
+      }
+
+      callback(countsBySender, totalUnread);
+    };
+
+    const attachFallbackListener = () => {
+      if (unsubscribed) return;
+      const fallbackQ = query(
+        collection(db, 'chats'),
+        where('receiverId', '==', currentUserId)
+      );
+      activeUnsub = onSnapshot(
+        fallbackQ,
+        handleSnapshot,
+        err => {
+          console.warn('Unread chat count listener failed:', err);
+        }
+      );
+    };
+
+    const unreadOnlyQ = query(
       collection(db, 'chats'),
-      where('receiverId', '==', currentUserId)
+      where('receiverId', '==', currentUserId),
+      where('read', '==', false)
     );
 
-    return onSnapshot(
-      q,
-      snapshot => {
-        const countsBySender: Record<string, number> = {};
-        let totalUnread = 0;
-
-        for (const docSnap of snapshot.docs) {
-          const data = docSnap.data();
-          const senderId = typeof data.senderId === 'string' ? data.senderId : '';
-          if (data.read !== true && senderId && senderId !== currentUserId) {
-            countsBySender[senderId] = (countsBySender[senderId] || 0) + 1;
-            totalUnread += 1;
-          }
-        }
-
-        callback(countsBySender, totalUnread);
-      },
+    activeUnsub = onSnapshot(
+      unreadOnlyQ,
+      handleSnapshot,
       err => {
+        if ((err as any)?.code === 'failed-precondition') {
+          if (activeUnsub) activeUnsub();
+          attachFallbackListener();
+          return;
+        }
         console.warn('Unread chat count listener failed:', err);
       }
     );
+
+    return () => {
+      unsubscribed = true;
+      if (activeUnsub) activeUnsub();
+    };
   },
 
   // Listen to total unread incoming direct messages for the current user
@@ -1526,14 +1663,12 @@ export const chatService = {
       const messagesCol = collection(db, 'chats');
       const q = query(
         messagesCol,
+        where('senderId', '==', senderId),
         where('receiverId', '==', receiverId)
       );
       const snapshot = await getDocs(q);
 
-      const unreadDocs = snapshot.docs.filter(docSnap => {
-        const data = docSnap.data();
-        return data.senderId === senderId && data.read !== true;
-      });
+      const unreadDocs = snapshot.docs.filter(docSnap => docSnap.data().read !== true);
 
       if (unreadDocs.length === 0) return;
 
