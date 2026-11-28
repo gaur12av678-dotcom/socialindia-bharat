@@ -138,6 +138,7 @@ export const ChatPage: React.FC = () => {
 
   const [presenceMap, setPresenceMap] = useState<Record<string, { isOnline?: boolean; lastSeen?: string }>>({});
   const [, setPresenceTick] = useState(0);
+  const [unreadBySender, setUnreadBySender] = useState<Record<string, number>>({});
   
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
@@ -391,7 +392,17 @@ export const ChatPage: React.FC = () => {
       }
     );
 
-    return () => unsubscribe();
+    const unsubscribeUnread = chatService.listenToUnreadBySender(
+      currentUser.uid,
+      counts => {
+        setUnreadBySender(counts);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+      unsubscribeUnread();
+    };
   }, [currentUser?.uid]);
 
   // Keep selectedUser synced with live session updates (group avatar/name/description/admins/members)
@@ -516,17 +527,30 @@ export const ChatPage: React.FC = () => {
     chatService.ensureConversation(uid, selectedUserId)
       .catch(err => console.error('Failed to ensure conversation:', err));
 
+    // Mark any existing unread incoming messages from this partner as read immediately
+    void chatService.markAsRead(uid, selectedUserId);
+
     const unsubscribe = chatService.listenToMessages(
       uid,
       selectedUserId,
       incomingMsgs => {
         mergeIncomingWithPending(incomingMsgs, false);
-        chatService.markAsRead(uid, selectedUserId);
+        void chatService.markAsRead(uid, selectedUserId);
       }
     );
 
     return () => unsubscribe();
   }, [currentUser?.uid, isCurrentSession, selectedUser?.isGroup, selectedUser?.isPocket, selectedUserId]);
+
+  // Also clear newly arriving unread messages automatically while that direct chat is already open
+  useEffect(() => {
+    if (!currentUser || !isCurrentSession || !selectedUserId) return;
+    if (selectedUser?.isPocket || selectedUser?.isGroup) return;
+    if (selectedUserId.startsWith('pocket_') || selectedUserId.startsWith('grp_')) return;
+    if ((unreadBySender[selectedUserId] || 0) > 0) {
+      void chatService.markAsRead(currentUser.uid, selectedUserId);
+    }
+  }, [currentUser?.uid, isCurrentSession, selectedUser?.isGroup, selectedUser?.isPocket, selectedUserId, unreadBySender]);
 
   // Auto scroll to bottom when messages list updates
   useEffect(() => {
@@ -1260,7 +1284,12 @@ export const ChatPage: React.FC = () => {
 
   // Filter sessions based on search query input and WhatsApp-style category filter
   const activeSessionsList = isCurrentSession ? sessions : [];
-  const unreadChatsCount = activeSessionsList.filter(s => (s.unreadCount || 0) > 0).length;
+  const getSessionUnreadCount = (session: ChatSession): number => {
+    if (session.isPocket || session.isGroup) return 0;
+    if (selectedUserId === session.userId) return 0;
+    return unreadBySender[session.userId] ?? 0;
+  };
+  const unreadChatsCount = activeSessionsList.filter(s => getSessionUnreadCount(s) > 0).length;
   const filteredSessions = activeSessionsList.filter(s =>
     s.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.username.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1293,7 +1322,7 @@ export const ChatPage: React.FC = () => {
   const visibleSessions = (() => {
     const baseSessions =
       chatFilter === 'unread'
-        ? filteredSessions.filter(s => (s.unreadCount || 0) > 0)
+        ? filteredSessions.filter(s => getSessionUnreadCount(s) > 0)
         : chatFilter === 'groups'
           ? filteredSessions.filter(s => Boolean(s.isGroup))
           : chatFilter === 'direct'
@@ -1438,6 +1467,7 @@ export const ChatPage: React.FC = () => {
           ) : (
             visibleSessions.map((s) => {
               const isSelected = selectedUserId === s.userId;
+              const rowUnreadCount = getSessionUnreadCount(s);
               return (
                 <button
                   key={s.userId}
@@ -1452,6 +1482,9 @@ export const ChatPage: React.FC = () => {
                     }
                     setSelectedUserId(s.userId);
                     setSelectedUser(s);
+                    if (currentUser?.uid && !s.isPocket && !s.isGroup) {
+                      void chatService.markAsRead(currentUser.uid, s.userId);
+                    }
                   }}
                   className={`w-full p-3.5 flex items-center gap-3 transition-colors text-left cursor-pointer ${
                     isSelected 
@@ -1500,9 +1533,9 @@ export const ChatPage: React.FC = () => {
                         })()}
                       </>
                     )}
-                    {s.unreadCount > 0 && (
+                    {rowUnreadCount > 0 && (
                       <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-blue-600 border border-white dark:border-[#0f0f0f] rounded-full flex items-center justify-center text-[8px] text-white font-black">
-                        {s.unreadCount}
+                        {rowUnreadCount}
                       </span>
                     )}
                   </div>

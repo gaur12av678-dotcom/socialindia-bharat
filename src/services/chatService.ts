@@ -1464,25 +1464,93 @@ export const chatService = {
     this.setCachedMessages(userA, userB, []);
   },
 
+  // Listen to unread incoming direct message counts grouped by senderId and total
+  listenToUnreadBySender(
+    currentUserId: string,
+    callback: (countsBySender: Record<string, number>, totalUnread: number) => void
+  ): () => void {
+    if (!currentUserId) {
+      callback({}, 0);
+      return () => {};
+    }
+
+    const q = query(
+      collection(db, 'chats'),
+      where('receiverId', '==', currentUserId)
+    );
+
+    return onSnapshot(
+      q,
+      snapshot => {
+        const countsBySender: Record<string, number> = {};
+        let totalUnread = 0;
+
+        for (const docSnap of snapshot.docs) {
+          const data = docSnap.data();
+          const senderId = typeof data.senderId === 'string' ? data.senderId : '';
+          if (data.read !== true && senderId && senderId !== currentUserId) {
+            countsBySender[senderId] = (countsBySender[senderId] || 0) + 1;
+            totalUnread += 1;
+          }
+        }
+
+        callback(countsBySender, totalUnread);
+      },
+      err => {
+        console.warn('Unread chat count listener failed:', err);
+      }
+    );
+  },
+
+  // Listen to total unread incoming direct messages for the current user
+  listenToUnreadCount(currentUserId: string, callback: (count: number) => void): () => void {
+    return this.listenToUnreadBySender(currentUserId, (_bySender, totalUnread) => {
+      callback(totalUnread);
+    });
+  },
+
   // Mark all messages from a partner user as read
   async markAsRead(receiverId: string, senderId: string): Promise<void> {
+    if (!receiverId || !senderId || receiverId === senderId) return;
+
+    // Immediately clear cached unread badge for this partner
+    const cachedSessions = this.getCachedSessions(receiverId);
+    if (cachedSessions.some(s => s.userId === senderId && (s.unreadCount || 0) > 0)) {
+      this.setCachedSessions(
+        receiverId,
+        cachedSessions.map(s => (s.userId === senderId ? { ...s, unreadCount: 0 } : s))
+      );
+    }
+
     try {
       const messagesCol = collection(db, 'chats');
       const q = query(
-        messagesCol, 
-        where('senderId', '==', senderId), 
-        where('receiverId', '==', receiverId),
-        where('read', '==', false)
+        messagesCol,
+        where('receiverId', '==', receiverId)
       );
       const snapshot = await getDocs(q);
-      
-      if (snapshot.empty) return;
 
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((docSnap) => {
-        batch.update(docSnap.ref, { read: true });
+      const unreadDocs = snapshot.docs.filter(docSnap => {
+        const data = docSnap.data();
+        return data.senderId === senderId && data.read !== true;
       });
-      await batch.commit();
+
+      if (unreadDocs.length === 0) return;
+
+      for (let i = 0; i < unreadDocs.length; i += 450) {
+        const chunk = unreadDocs.slice(i, i + 450);
+        const batch = writeBatch(db);
+        chunk.forEach(docSnap => {
+          batch.update(docSnap.ref, { read: true });
+        });
+        try {
+          await batch.commit();
+        } catch {
+          await Promise.allSettled(
+            chunk.map(docSnap => updateDoc(docSnap.ref, { read: true }))
+          );
+        }
+      }
     } catch (err) {
       console.warn('Firestore markAsRead failed:', err);
     }

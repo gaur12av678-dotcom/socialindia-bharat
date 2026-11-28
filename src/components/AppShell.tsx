@@ -68,6 +68,7 @@ import { UserAvatar } from './UserAvatar';
 import { searchHistoryService, SearchHistoryEntry, POPULAR_SEARCH_SUGGESTIONS } from '../services/searchHistoryService';
 import { CreateActionSheet } from './shorts/CreateActionSheet';
 import { MobileShortsStudio } from './shorts/MobileShortsStudio';
+import { chatService } from '../services/chatService';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -157,6 +158,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authSuccessCallback, setAuthSuccessCallback] = useState<(() => void) | undefined>(undefined);
   const [followedCreators, setFollowedCreators] = useState<any[]>([]);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [createActionSheetOpen, setCreateActionSheetOpen] = useState(false);
   const [mobileShortsStudioOpen, setMobileShortsStudioOpen] = useState(false);
 
@@ -273,6 +275,17 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
       setFollowedCreators([]);
     }
   }, [activeUid]);
+
+  // Listen to real-time unread chat messages count for sidebar badge
+  useEffect(() => {
+    const authUid = currentUser?.uid;
+    if (!authUid) {
+      setUnreadChatCount(0);
+      return;
+    }
+    const unsubscribe = chatService.listenToUnreadCount(authUid, setUnreadChatCount);
+    return () => unsubscribe();
+  }, [currentUser?.uid]);
 
   // Online / Offline connectivity listener
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -1536,6 +1549,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
                   <MessageCircle className={`w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110 ${route.path === 'chat' || route.path === 'messages' ? 'text-[#2563eb] dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`} />
                   <span className="truncate">{t('nav_chat', 'Messages & Chat')}</span>
                 </div>
+                {unreadChatCount > 0 && (
+                  <span
+                    aria-label={isHindi ? `${unreadChatCount} अपठित संदेश` : `${unreadChatCount} unread messages`}
+                    className="ml-2 min-w-[20px] h-5 px-1.5 rounded-full bg-[#2563eb] text-white text-[11px] font-black inline-flex items-center justify-center shrink-0 shadow-xs"
+                  >
+                    {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                  </span>
+                )}
               </button>
             </div>
 
